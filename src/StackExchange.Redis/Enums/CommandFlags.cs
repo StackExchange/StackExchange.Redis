@@ -100,7 +100,68 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Read it as "a weaker claim on the server's script cache", not as "no cache".</b> The name
+        /// promises more than it can deliver, and the server has moved since it was chosen: a script is
+        /// cached when it is run, not only when it is loaded - <i>"every script you execute with EVAL is
+        /// stored in a dedicated cache that the server keeps"</i> - so nothing a client sends can keep a
+        /// script out of that cache. To remove one, the command is <c>SCRIPT FLUSH</c>.
+        /// </para>
+        /// <para>
+        /// <b>What it does control</b> is the protocol: the script body is sent with every call, no
+        /// <c>SCRIPT LOAD</c> is issued, and no client-side hash is kept - so there is no <c>NOSCRIPT</c>
+        /// round trip to recover from, at the cost of the body on the wire each time.
+        /// </para>
+        /// <para>
+        /// <b>And since Redis 7.4 that is a real choice rather than merely a cheaper one.</b> The server
+        /// evicts scripts <i>loaded with EVAL or EVAL_RO</i> when the cache grows too large,
+        /// least-recently-used first, and that does not extend to <c>SCRIPT LOAD</c>. So this is the
+        /// considerate way to send a script you cannot reuse - a one-off, or one generated per call, which
+        /// the Redis documentation calls an anti-pattern precisely because such scripts accumulate. Sent
+        /// this way they age out under pressure; loaded the usual way they do not.
+        /// </para>
+        /// <para>
+        /// The corollary: do <b>not</b> reach for this on a hot script. There it only adds the body to
+        /// every call and puts the script in the pool that gets evicted first.
+        /// </para>
+        /// <para>
+        /// <b>The two populations do not overlap, which is what keeps this simple.</b> A script sent this
+        /// way is never recorded as loaded and is never afterwards addressed by hash, so its eviction is
+        /// invisible to us; a script we do track got there by <c>SCRIPT LOAD</c>, which the eviction rule
+        /// does not name. That is why the client needs no notion of "believed loaded, but only for a
+        /// while" - the evictable scripts are exactly the ones nothing is believed about.
+        /// </para>
+        /// </remarks>
         NoScriptCache = 512,
+
+        /// <summary>
+        /// Indicates that this command must not be served from, or stored in, the client-side cache.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Client-side caching is opt-out rather than opt-in: a command that declares a retry category no
+        /// more severe than <see cref="CommandRetryReadOnly"/> and names at least one key is cacheable by
+        /// default. This suppresses that.
+        /// </para>
+        /// <para>
+        /// Two reasons to reach for it. A value that changes so often that invalidation traffic costs more
+        /// than the cache saves - probabilistic and time-series types are the documented examples, and the
+        /// Redis guidance is to keep such data off a caching connection entirely. And a custom module
+        /// command whose reads the server does not register for invalidation: it would otherwise be cached
+        /// and never invalidated, and the library cannot know that on your behalf.
+        /// </para>
+        /// <para>
+        /// A third, with a caveat: a read-only script (<c>EVAL_RO</c>/<c>EVALSHA_RO</c>) that reads a key it
+        /// did not declare in <c>KEYS[]</c>. Invalidation tracks the declared keys, so an undeclared read is
+        /// never invalidated and the result stays stale. The caveat is that such a script is <b>already</b>
+        /// broken: the declared keys are what the client routes on, so in cluster it may not even have
+        /// reached the node holding the key it computed, hash tags or no. Caching inherits that error rather
+        /// than introducing it, and cannot fix it - declaring every key touched is the fix, and was the fix
+        /// before any of this existed.
+        /// </para>
+        /// </remarks>
+        NoClientCache = 1 << 19,
 
         // 1024: used for "no flush"; never user-specified, so not visible on the public API
 

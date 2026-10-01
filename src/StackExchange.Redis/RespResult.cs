@@ -41,11 +41,78 @@ public sealed class RespResult : IDisposable
     // result and every lease taken from it have been disposed.
     private RefCountedBuffer? _buffer;
 
+    // where this reply sits inside _buffer. Zero/whole-buffer when we rented it for ourselves; a genuine
+    // window when we are SHARING somebody else's buffer - a cache entry, say - rather than copying out of
+    // it. See Share below.
+    private readonly int _offset;
+    private readonly int _length;
+
     private RespResult(RespPrefix prefix, bool isNull, RefCountedBuffer buffer)
+        : this(prefix, isNull, buffer, 0, buffer.GetSpan().Length)
+    {
+    }
+
+    private RespResult(RespPrefix prefix, bool isNull, RefCountedBuffer buffer, int offset, int length)
     {
         Prefix = prefix;
         IsNull = isNull;
         _buffer = buffer;
+        _offset = offset;
+        _length = length;
+    }
+
+    /// <summary>
+    /// Wrap an existing buffer <b>without copying</b>, taking a reference to it.
+    /// </summary>
+    /// <param name="buffer">The buffer holding the raw frame.</param>
+    /// <param name="offset">Where the frame starts within it.</param>
+    /// <param name="length">How long the frame is.</param>
+    /// <returns>The reply, or <c>null</c> if the buffer had already gone - treat that as a miss.</returns>
+    /// <remarks>
+    /// <para>
+    /// The zero-copy counterpart of <see cref="Capture(ReadOnlySpan{byte}, MemoryPool{byte}?)"/>, and safe
+    /// for a buffer that is still owned elsewhere for a reason no mutable type can offer: everything this
+    /// type exposes is a <c>RespReader</c>, so nothing can write through it. Sharing a <i>cache entry</i>
+    /// also pins nothing extra - the cache holds that buffer for the entry's lifetime regardless. See
+    /// design notes 6.16.
+    /// </para>
+    /// <para>
+    /// The reference is taken here and given back by <see cref="Dispose"/>, so the reply outlives whatever
+    /// the pipeline does with its own reference the moment parsing returns.
+    /// </para>
+    /// </remarks>
+    internal static RespResult? Share(RefCountedBuffer buffer, int offset, int length)
+    {
+        var probe = new RespReader(buffer.GetSpan().Slice(offset, length));
+        probe.MovePastBof();
+
+        // increment-if-nonzero: losing this race means the buffer is already going back to its pool, which
+        // the caller must treat as a miss rather than resurrecting it
+        if (!buffer.TryAddRef()) return null;
+
+        return new RespResult(probe.Prefix, probe.IsNull, buffer, offset, length);
+    }
+
+    /// <summary>
+    /// Capture a complete, already-framed reply from a span.
+    /// </summary>
+    /// <param name="frame">The raw reply, header bytes included.</param>
+    /// <param name="pool">The pool to rent the copy from.</param>
+    /// <remarks>
+    /// The entry point for the interpolated surface, whose replies arrive as a finished frame rather than
+    /// through a connection's reader. It <b>copies</b>, exactly as the connection path does - and for the
+    /// interpolated path that copy is not yet avoidable: sharing needs the reader to know which buffer the
+    /// bytes live in, and a <see cref="ReadOnlySpan{T}"/> does not carry that. See design notes 6.16.
+    /// </remarks>
+    internal static RespResult Capture(ReadOnlySpan<byte> frame, MemoryPool<byte>? pool = null)
+    {
+        var probe = new RespReader(frame);
+        probe.MovePastBof();
+
+        var buffer = RefCountedBuffer.Rent(frame.Length, pool);
+        var result = new RespResult(probe.Prefix, probe.IsNull, buffer);
+        frame.CopyTo(result.RawSpan);
+        return result;
     }
 
     internal static RespResult Capture(RespPrefix prefix, bool isNull, ref RespReader reader, int length, MemoryPool<byte>? pool)
@@ -78,7 +145,7 @@ public sealed class RespResult : IDisposable
     /// </summary>
     public bool IsNull { get; }
 
-    private Span<byte> RawSpan => (_buffer ?? ThrowDisposed()).GetSpan();
+    private Span<byte> RawSpan => (_buffer ?? ThrowDisposed()).GetSpan().Slice(_offset, _length);
 
     [DoesNotReturn]
     private static RefCountedBuffer ThrowDisposed() => throw new ObjectDisposedException(nameof(RespResult));
@@ -90,7 +157,7 @@ public sealed class RespResult : IDisposable
     public RespReader Read()
     {
         var buffer = _buffer ?? ThrowDisposed();
-        var reader = new RespReader(buffer.GetSpan(), buffer);
+        var reader = new RespReader(buffer.GetSpan().Slice(_offset, _length), buffer);
         reader.MoveNext();
         return reader;
     }
@@ -102,7 +169,7 @@ public sealed class RespResult : IDisposable
     public RespReader ReadScalar()
     {
         var buffer = _buffer ?? ThrowDisposed();
-        var reader = new RespReader(buffer.GetSpan(), buffer);
+        var reader = new RespReader(buffer.GetSpan().Slice(_offset, _length), buffer);
         reader.MoveNextScalar();
         return reader;
     }

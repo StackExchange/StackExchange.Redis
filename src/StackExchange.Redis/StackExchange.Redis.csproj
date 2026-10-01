@@ -3,6 +3,22 @@
     <Nullable>enable</Nullable>
     <!-- extend the default lib targets for the main lib; mostly because of "vectors" -->
     <TargetFrameworks>net461;netstandard2.0;net472;net8.0;net10.0</TargetFrameworks>
+
+    <!--
+      DISCOVERY ONLY - .NET 11 runtime-native async. Opt IN with /p:IncludePreviewTargets=true; never on
+      by default, and forced off while packing, because a package that carries a TFM built against a
+      preview runtime cannot ship as a non-preview release. The opt-in is what keeps the merge date from
+      mattering: the target simply is not there unless somebody asks for it.
+
+      Two knobs are needed, and NEITHER works alone - verified on clean builds, because an incremental
+      one will happily report success from a stale obj/. The <Features> flag below, and the assembly
+      attribute in RuntimeAsync.cs.
+      The Packing test is part of the SAME condition, deliberately: trying to force it by assigning
+      IncludePreviewTargets=false in a PropertyGroup does NOT work, because /p:IncludePreviewTargets=true
+      is a global property and a project-level assignment cannot override one. That was tried, looked
+      right, and put net11.0 in the .nupkg - so the gate is expressed where it cannot be outvoted.
+    -->
+    <TargetFrameworks Condition="'$(IncludePreviewTargets)' == 'true' and '$(Packing)' != 'true'">$(TargetFrameworks);net11.0</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
     <AssemblyName>StackExchange.Redis</AssemblyName>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
@@ -10,12 +26,27 @@
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
     <SignAssembly>true</SignAssembly>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
+
+    <!-- see the IncludePreviewTargets note above; this is half the opt-in, RuntimeAsync.cs is the other -->
+    <Features Condition="'$(TargetFramework)' == 'net11.0' and '$(DisableRuntimeAsync)' != 'true'">runtime-async=on</Features>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461' and '$(TargetFramework)' != 'net472' and '$(TargetFramework)' != 'netstandard2.0'">$(DefineConstants);UNIX_SOCKET</DefineConstants>
     <PackageReadmeFile>README.md</PackageReadmeFile>
 
     <!-- for debugging low-level parsing problems; absolutely do not us in production -->
     <!--<DefineConstants Condition="'$(Configuration)' == 'Debug'">$(DefineConstants);PARSE_DETAIL</DefineConstants>-->
-  </PropertyGroup>
+  
+    <!-- SER352 reports how much of TransitionalDatabase is still generated throwing stubs. It is meant to
+         be seen on every Release build, but the repo builds with TreatWarningsAsErrors, which would make it
+         fatal and block the very work it is tracking. So: loud, not fatal, for as long as the transition
+         runs. Delete this line to make shipping an incomplete TransitionalDatabase impossible; the warning
+         disappears by itself when the count reaches zero. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);SER352</WarningsNotAsErrors>
+</PropertyGroup>
+
+  <!-- /p:DisableRuntimeAsync=true builds the net11.0 target WITHOUT runtime async: the control column -->
+  <ItemGroup Condition="'$(DisableRuntimeAsync)' == 'true'">
+    <Compile Remove="RuntimeAsync.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- needed everywhere -->
@@ -44,6 +75,20 @@
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
     <Compile Update="RedisValue.*.cs" DependentUpon="RedisValue.cs" />
     <Compile Update="ServerEndPoint.*.cs" DependentUpon="ServerEndPoint.cs" />
+    <Compile Update="Groups\Arrays.*.cs" DependentUpon="Arrays.cs" />
+    <Compile Update="Groups\Bitmaps.*.cs" DependentUpon="Bitmaps.cs" />
+    <Compile Update="Groups\Geospatial.*.cs" DependentUpon="Geospatial.cs" />
+    <Compile Update="Groups\Hashes.*.cs" DependentUpon="Hashes.cs" />
+    <Compile Update="Groups\HyperLogLog.*.cs" DependentUpon="HyperLogLog.cs" />
+    <Compile Update="Groups\Keys.*.cs" DependentUpon="Keys.cs" />
+    <Compile Update="Groups\Lists.*.cs" DependentUpon="Lists.cs" />
+    <Compile Update="Groups\Scripts.*.cs" DependentUpon="Scripts.cs" />
+    <Compile Update="Groups\Sets.*.cs" DependentUpon="Sets.cs" />
+    <Compile Update="Groups\SortedSets.*.cs" DependentUpon="SortedSets.cs" />
+    <Compile Update="Groups\Streams.*.cs" DependentUpon="Streams.cs" />
+    <Compile Update="Groups\Strings.*.cs" DependentUpon="Strings.cs" />
+    <Compile Update="Groups\VectorSets.*.cs" DependentUpon="VectorSets.cs" />
+    <Compile Update="Transitional\TransitionalDatabase.*.cs" DependentUpon="TransitionalDatabase.cs" />
   </ItemGroup>
 
   <ItemGroup>

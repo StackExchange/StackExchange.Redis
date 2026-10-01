@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis.Server
 {
@@ -265,7 +266,102 @@ namespace StackExchange.Redis.Server
             {
                 client.Touch(database, key);
             }
+
+            lock (_pendingInvalidations)
+            {
+                _pendingInvalidations.Add((database, key));
+            }
         }
+
+        private readonly List<(int Database, RedisKey Key)> _pendingInvalidations = new();
+        private bool _pendingInvalidationFlush;
+
+        /// <summary>Note that everything is gone - FLUSHDB, FLUSHALL - which no prefix can filter.</summary>
+        protected void InvalidateEverything()
+        {
+            lock (_pendingInvalidations)
+            {
+                _pendingInvalidationFlush = true;
+            }
+        }
+
+        /// <summary>
+        /// Deliver the invalidations accumulated during a write cycle, after its replies.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The timing is measured, not guessed.</b> Against a real server (8.9.241) the pushes trail
+        /// their replies and are accumulated across the whole cycle, not per command: two pipelined SETs
+        /// produce one push carrying both keys, after both <c>+OK</c>s. So this is called once the inner
+        /// request loop has drained, which is precisely that cycle - and NOT per command, which would be
+        /// the obvious implementation and would be wrong in a way only a pipelined test would catch.
+        /// </para>
+        /// <para>
+        /// One deliberate divergence: a real server emits a flush's null invalidation <i>before</i> its own
+        /// <c>+OK</c>, where this emits it after. The ordering only matters to the client doing the
+        /// flushing, which knows anyway; everyone else receives it unsolicited, where order is meaningless.
+        /// </para>
+        /// <para>
+        /// A second, narrower one: the pending set is server-wide but drained by whichever read loop gets
+        /// there first, so under genuinely concurrent clients a writer's own push can be emitted by another
+        /// client's cycle, ahead of the writer's reply. What matters - that a push never trails its key's
+        /// next read - still holds, and single-writer tests see the measured ordering exactly.
+        /// </para>
+        /// </remarks>
+        internal void FlushPendingInvalidations()
+        {
+            (int Database, RedisKey Key)[] keys;
+            bool flushed;
+            lock (_pendingInvalidations)
+            {
+                if (_pendingInvalidations.Count == 0 && !_pendingInvalidationFlush) return;
+                keys = _pendingInvalidations.ToArray();
+                flushed = _pendingInvalidationFlush;
+                _pendingInvalidations.Clear();
+                _pendingInvalidationFlush = false;
+            }
+
+            foreach (var client in _clientLookup.Values)
+            {
+                if (!client.TrackingEnabled) continue;
+
+                if (flushed)
+                {
+                    SendInvalidation(client, null);
+                    continue;
+                }
+
+                List<RedisKey> mine = null;
+                foreach (var (database, key) in keys)
+                {
+                    if (client.ShouldAnnounce(database, key)) (mine ??= new()).Add(key);
+                }
+
+                if (mine is not null) SendInvalidation(client, mine);
+            }
+        }
+
+        private void SendInvalidation(RedisClient client, List<RedisKey> keys)
+        {
+            var msg = TypedRedisValue.Rent(2, out var span, RespPrefix.Push);
+            span[0] = TypedRedisValue.BulkString("invalidate");
+            if (keys is null)
+            {
+                span[1] = TypedRedisValue.NullArray(RespPrefix.Array);
+            }
+            else
+            {
+                var payload = TypedRedisValue.Rent(keys.Count, out var items, RespPrefix.Array);
+                // binary-safe: the server announces the bytes it received, not a string round-trip
+                for (int i = 0; i < keys.Count; i++) items[i] = TypedRedisValue.BulkString((byte[])keys[i]);
+                span[1] = payload;
+            }
+
+            OnOutOfBand(client, msg);
+        }
+
+        /// <summary>Deliver a message to a client outside the request/response flow.</summary>
+        protected virtual void OnOutOfBand(RedisClient client, TypedRedisValue message) => client.AddOutbound(message);
 
         private readonly TaskCompletionSource<ShutdownReason> _shutdown = TaskSource.Create<ShutdownReason>(null, TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _isShutdown;
@@ -341,6 +437,10 @@ namespace StackExchange.Redis.Server
                         wasReading = true;
                     }
                     wasReading = false;
+
+                    // the cycle is over: every reply for this read has been queued, so anything the cycle
+                    // invalidated goes out now, behind them. See FlushPendingInvalidations.
+                    FlushPendingInvalidations();
 
                     pipe.Input.AdvanceTo(buffer.Start, buffer.End);
                     if (readResult.IsCompleted) break; // EOF

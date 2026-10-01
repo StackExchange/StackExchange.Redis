@@ -28,10 +28,29 @@ namespace StackExchange.Redis.Availability;
 [AutoDatabase(Replays = true)]
 internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 {
+    /// <inheritdoc/>
+    public RespDatabaseContext Context => new(GetContextCore());
     // Note: the *command* surface is async-only, exactly like RetryDatabase - retrying is inherently
     // delay-ish; only the terminal Execute is offered synchronously.
     private readonly IDatabaseAsync _source;
     private readonly RetryController _controller;
+
+    /// <summary>Refuse to build a context, saying why.</summary>
+    /// <remarks>
+    /// <b>Still refused, where <see cref="RetryDatabase"/>'s is not.</b> A retrying database replays one
+    /// operation, so decorating its executor gives the context surface exactly the same behaviour. A
+    /// retrying transaction replays <i>the whole recorded unit</i> - conditions, queued operations and
+    /// <c>EXEC</c> together - and a retry executor knows nothing of that: it would re-send individual
+    /// frames inside a transaction, which is not a retry of anything the caller asked for. Retry arrives
+    /// here when the context surface has transactions, and not before.
+    /// </remarks>
+    internal static RespContext GetContextCore()
+        => throw new NotImplementedException(
+            "The context surface does not support retrying transactions; a transaction is replayed as a "
+            + "unit, which a per-frame retry executor cannot express.");
+
+    /// <inheritdoc cref="GetContextCore"/>
+    RespContext IRespTarget.Context => GetContextCore();
 
     // not readonly, and null until something is recorded: ExecuteAsync takes it and clears it, so the
     // replay loop below runs over a list nothing else can still be adding to. A caller doing something

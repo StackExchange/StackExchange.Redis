@@ -11,7 +11,7 @@ namespace StackExchange.Redis;
 /// server reports every value as a signed 64-bit integer. Every legal encoding therefore fits
 /// losslessly in <see cref="long"/>.
 /// </remarks>
-public readonly struct BitFieldEncoding : IEquatable<BitFieldEncoding>
+public readonly partial struct BitFieldEncoding : IEquatable<BitFieldEncoding>
 {
     // negative: signed; positive: unsigned; zero: default (not a legal encoding)
     private readonly sbyte _value;

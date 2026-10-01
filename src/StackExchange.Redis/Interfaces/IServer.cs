@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Provides configuration controls of a redis server.
     /// </summary>
-    public partial interface IServer : IRedis
+    public partial interface IServer : IRedis, IRespServerTarget
     {
         /// <summary>
         /// Gets the cluster configuration associated with this server, if known.
@@ -274,6 +274,7 @@ namespace StackExchange.Redis
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
 
 #pragma warning disable RS0026, RS0027 // multiple overloads
+
         /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
         /// executing modules, but may also be used to provide access to new features that lack

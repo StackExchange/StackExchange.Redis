@@ -17,10 +17,10 @@ internal partial class RedisDatabase
     public Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         => ExecuteAsync(GetStreamNegativeAcknowledgeMessage(key, groupName, mode, messageIds, flags), ResultProcessor.Int64);
 
-    private Message GetStreamNegativeAcknowledgeMessage(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags)
+    internal Message GetStreamNegativeAcknowledgeMessage(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags)
         => new StreamNackMessageSingle(Database, flags, key, groupName, mode, messageId);
 
-    private Message GetStreamNegativeAcknowledgeMessage(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags)
+    internal Message GetStreamNegativeAcknowledgeMessage(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags)
         => messageIds is { Length: 1 }
             ? new StreamNackMessageSingle(Database, flags, key, groupName, mode, messageIds[0])
             : new StreamNackMessageMulti(Database, flags, key, groupName, mode, messageIds);

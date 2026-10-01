@@ -93,6 +93,7 @@ namespace StackExchange.Redis
                                                          | CommandFlags.FireAndForget
                                                          | CommandFlags.NoRedirect
                                                          | CommandFlags.NoScriptCache
+                                                         | CommandFlags.NoClientCache
                                                          | MaskRetryCategory // caller may override the retry category...
                                                          | CommandServerSpecific // ...and the server-specific flag
                                                          | NoFlushFlag // we'll allow this one even though not advertised
@@ -149,20 +150,32 @@ namespace StackExchange.Redis
             Status = CommandStatus.WaitingToBeSent;
         }
 
-        internal void SetPrimaryOnly()
+        internal void SetPrimaryOnly() => Flags = DemandPrimary(Flags, command);
+
+        /// <summary>
+        /// Route a command to the primary, whatever the caller asked for - unless they demanded a replica,
+        /// which is a request that cannot be honoured rather than a preference to override.
+        /// </summary>
+        /// <remarks>
+        /// One copy of the rule, because two surfaces need it: the interpolated writer discovers the same
+        /// thing about <c>PFCOUNT</c> and <c>SORT</c> that <see cref="SetPrimaryOnly"/> discovers here,
+        /// and the primary/replica bits are a 2-bit region rather than a flag, so "or in DemandMaster"
+        /// silently turns <see cref="CommandFlags.PreferReplica"/> into
+        /// <see cref="CommandFlags.DemandReplica"/>.
+        /// </remarks>
+        internal static CommandFlags DemandPrimary(CommandFlags flags, RedisCommand command)
         {
-            switch (GetPrimaryReplicaFlags(Flags))
+            switch (GetPrimaryReplicaFlags(flags))
             {
                 case CommandFlags.DemandReplica:
                     throw ExceptionFactory.PrimaryOnly(false, command, null, null);
                 case CommandFlags.DemandMaster:
                     // already fine as-is
-                    break;
+                    return flags;
                 case CommandFlags.PreferMaster:
                 case CommandFlags.PreferReplica:
                 default: // we will run this on the primary, then
-                    Flags = SetPrimaryReplicaFlags(Flags, CommandFlags.DemandMaster);
-                    break;
+                    return SetPrimaryReplicaFlags(flags, CommandFlags.DemandMaster);
             }
         }
 

@@ -12,20 +12,12 @@ internal abstract partial class ResultProcessor
     {
         protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
-            if (reader.IsNull) // for example, key doesn't exist
-            {
-                SetResult(message, null);
-                return true;
-            }
+            // the shape lives on the type it produces, so the interpolated surface's handler reads the
+            // identical reply the identical way; see ValueCondition.TryReadDigest
+            if (!ValueCondition.TryReadDigest(in reader, out var digest)) return false;
 
-            if (reader.ScalarLengthIs(2 * ValueCondition.DigestBytes))
-            {
-                var span = reader.TryGetSpan(out var tmp) ? tmp : reader.Buffer(stackalloc byte[2 * ValueCondition.DigestBytes]);
-                var digest = ValueCondition.ParseDigest(span);
-                SetResult(message, digest);
-                return true;
-            }
-            return false;
+            SetResult(message, digest);
+            return true;
         }
     }
 }

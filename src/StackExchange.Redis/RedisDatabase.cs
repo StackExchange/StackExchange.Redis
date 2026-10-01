@@ -14,6 +14,11 @@ namespace StackExchange.Redis
 {
     internal partial class RedisDatabase : RedisBase, IDatabase, IInternalDatabaseAsync
     {
+        /// <inheritdoc/>
+        public RespDatabaseContext Context => new(GetContext());
+
+        /// <inheritdoc/>
+        RespContext IRespTarget.Context => GetContext();
         internal RedisDatabase(ConnectionMultiplexer multiplexer, int db, object? asyncState)
             : base(multiplexer, asyncState)
         {
@@ -24,6 +29,40 @@ namespace StackExchange.Redis
 
         public int Database { get; }
 
+        private RespContext? _context;
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <para>
+        /// Built once and cached: the executor is a per-database object, and handing out a fresh one per
+        /// property access would allocate on a path meant to allocate nothing. The context is a class, so
+        /// callers share the one instance rather than copying forty bytes each time.
+        /// </para>
+        /// <para>
+        /// <c>??=</c> rather than a "have I built it" flag, which is what the reference type buys here: a
+        /// race builds a second equivalent context and discards one, where the flag had to be written after
+        /// the value and read before it.
+        /// </para>
+        /// </remarks>
+        protected override RespContext GetContext()
+            => _context ??= new RespContext(
+                multiplexer.CommandMap,
+                database: Database,
+                serverType: multiplexer.ServerSelectionStrategy.ServerType)
+                .WithExecutor(new RespMessageExecutor(this, Database))
+                .WithCache(multiplexer.ClientCache)
+                .WithScriptCache(multiplexer.ScriptCache)
+                .WithServices(new ServerFeatureProbe(this));
+
+        /// <summary>
+        /// Lets the context surface ask what the receiving server can do, which is the one thing a context
+        /// cannot know for itself; see <see cref="IRespServerFeatures"/>.
+        /// </summary>
+        /// <remarks>
+        /// A thin adapter over <see cref="RedisBase.GetFeatures"/> rather than a second copy of the rule -
+        /// so the two surfaces necessarily agree about what a given server supports, and a
+        /// <c>KeyPrefixedDatabase</c> or anything else that overrides that method is honoured for free.
+        /// </remarks>
         DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
         {
             name = multiplexer.ClientName;
@@ -272,7 +311,7 @@ namespace StackExchange.Redis
 
             // GEORADIUS[BYMEMBER] defaults to a write category because of the STORE/STOREDIST variants, which
             // we can't see through Execute; this typed API never emits them, so it is always a pure query.
-            flags = flags.WithCategory(CommandFlags.CommandRetryReadOnly);
+            flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
 
             return Message.Create(Database, flags, command, key, redisValues.ToArray());
         }
@@ -450,7 +489,7 @@ namespace StackExchange.Redis
 
             // H[P]EXPIRE[AT] ... NX/XX/GT/LT is a conditional write, exactly as for the key-level EXPIRE;
             // a bare one keeps the last-wins default
-            flags = flags.WithCategory(when.AsRetryCategory());
+            flags = flags.WithRetryCategory(when.AsRetryCategory());
 
             var values = when switch
             {
@@ -539,7 +578,7 @@ namespace StackExchange.Redis
         /// mutates the TTL, making it a write.
         /// </summary>
         private static CommandFlags WithGetExCategory(CommandFlags flags, int expiryTokenCount)
-            => expiryTokenCount == 0 ? flags : flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
+            => expiryTokenCount == 0 ? flags : flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
 
         private Message HashFieldGetAndSetExpiryMessage(in RedisKey key, RedisValue[] hashFields, Expiration expiry, CommandFlags flags)
         {
@@ -1379,7 +1418,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        private sealed class KeyMigrateCommandMessage : Message.CommandKeyBase // MIGRATE is atypical
+        internal sealed class KeyMigrateCommandMessage : Message.CommandKeyBase // MIGRATE is atypical
         {
             private readonly MigrateOptions migrateOptions;
             private readonly int timeoutMilliseconds;
@@ -2039,30 +2078,14 @@ namespace StackExchange.Redis
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values, multiplexer?.RawConfig?.RequestBufferPool);
-            try
-            {
-                return ExecuteSync(msg, ResultProcessor.RespResult)!;
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return ExecuteSync(msg, ResultProcessor.RespResult)!;
-            }
+            return ExecuteSync(msg, ResultProcessor.RespResult)!;
         }
 
         public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
         {
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
-            try
-            {
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-            }
+            return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -2086,15 +2109,7 @@ namespace StackExchange.Redis
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values, multiplexer?.RawConfig?.RequestBufferPool);
 
-            try
-            {
-                return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
-            }
+            return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
         }
 
         public async Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -2102,15 +2117,7 @@ namespace StackExchange.Redis
             var command = ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL;
             var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
 
-            try
-            {
-                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
-            }
+            return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -2148,7 +2155,7 @@ namespace StackExchange.Redis
                 return readOnlyCommand;
             }
 
-            flags = flags.WithCategory(CommandFlags.CommandRetryReadOnly);
+            flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
             return readOnlyCommand == RedisCommand.EVALSHA_RO ? RedisCommand.EVALSHA : RedisCommand.EVAL;
         }
 
@@ -2159,15 +2166,7 @@ namespace StackExchange.Redis
                 ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
                 ref flags);
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values, multiplexer?.RawConfig?.RequestBufferPool);
-            try
-            {
-                return ExecuteSync(msg, ResultProcessor.RespResult)!;
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return ExecuteSync(msg, ResultProcessor.RespResult)!;
-            }
+            return ExecuteSync(msg, ResultProcessor.RespResult)!;
         }
 
         public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -2177,15 +2176,7 @@ namespace StackExchange.Redis
                 ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
                 ref flags);
             var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
-            try
-            {
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
-            }
+            return ExecuteSync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle);
         }
 
         public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -2202,15 +2193,7 @@ namespace StackExchange.Redis
                 ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
                 ref flags);
             var msg = new ScriptEvalMessage(Database, flags, command, script, keys, values, multiplexer?.RawConfig?.RequestBufferPool);
-            try
-            {
-                return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
-            }
+            return await ExecuteAsync(msg, ResultProcessor.RespResult, defaultValue: RespResult.NullReply).ForAwait();
         }
 
         public async Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -2220,15 +2203,7 @@ namespace StackExchange.Redis
                 ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA_RO : RedisCommand.EVAL_RO,
                 ref flags);
             var msg = new ScriptEvaluateMessage(Database, flags, command, script, keys, values);
-            try
-            {
-                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
-            }
-            catch (RedisServerException) when (msg.IsScriptUnavailable)
-            {
-                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
-            }
+            return await ExecuteAsync(msg, ResultProcessor.ScriptResult, defaultValue: RedisResult.NullSingle).ForAwait();
         }
 
         public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
@@ -3120,7 +3095,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        private Message GetStreamConfigureMessage(RedisKey key, StreamConfiguration configuration, CommandFlags flags)
+        internal Message GetStreamConfigureMessage(RedisKey key, StreamConfiguration configuration, CommandFlags flags)
         {
             if (key.IsNull) throw new ArgumentNullException(nameof(key));
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
@@ -4256,7 +4231,7 @@ namespace StackExchange.Redis
         {
             // without REPLACE, COPY fails if the destination exists, so a replay is a no-op (the per-command
             // default); with REPLACE it becomes an unconditional overwrite of the destination.
-            if (replace) flags = flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
+            if (replace) flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
 
             return destinationDatabase switch
             {
@@ -4312,7 +4287,7 @@ namespace StackExchange.Redis
             server = null;
 
             // EXPIRE ... NX/XX/GT/LT is a conditional write; a bare EXPIRE keeps the last-wins default
-            flags = flags.WithCategory(when.AsRetryCategory());
+            flags = flags.WithRetryCategory(when.AsRetryCategory());
 
             if ((milliseconds % 1000) != 0)
             {
@@ -4473,7 +4448,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags, int? maxCount = null, int? maxSize = null) =>
+        internal Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, CommandFlags flags, int? maxCount = null, int? maxSize = null) =>
             new MultiStreamReadGroupCommandMessage(
                 Database,
                 flags,
@@ -4499,7 +4474,7 @@ namespace StackExchange.Redis
             private readonly TimeSpan? claimMinIdleTime;
 
             public MultiStreamReadGroupCommandMessage(int db, CommandFlags flags, StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, TimeSpan? claimMinIdleTime, int? maxCount = null, int? maxSize = null)
-                : base(db, flags.WithCategory(GetStreamReadGroupCategory(streamPositions, claimMinIdleTime)), RedisCommand.XREADGROUP)
+                : base(db, flags.WithRetryCategory(GetStreamReadGroupCategory(streamPositions, claimMinIdleTime)), RedisCommand.XREADGROUP)
             {
                 if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
                 if (streamPositions.Length == 0) throw new ArgumentOutOfRangeException(nameof(streamPositions), "streamOffsetPairs must contain at least one item.");
@@ -4587,7 +4562,10 @@ namespace StackExchange.Redis
                 if (claimMinIdleTime.HasValue)
                 {
                     writer.WriteRaw("$5\r\nCLAIM\r\n"u8);
-                    writer.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
+
+                    // whole milliseconds: TotalMilliseconds is a double, and a fractional TimeSpan used to
+                    // put "CLAIM 1500.5" on the wire, which the server rejects as not an integer
+                    writer.WriteBulkString((long)claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
                 writer.WriteRaw("$7\r\nSTREAMS\r\n"u8);
@@ -4604,7 +4582,7 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private Message GetMultiStreamReadMessage(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags, int? maxCount = null, int? maxSize = null) =>
+        internal Message GetMultiStreamReadMessage(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags, int? maxCount = null, int? maxSize = null) =>
             new MultiStreamReadCommandMessage(Database, flags, streamPositions, countPerStream, maxCount, maxSize);
 
         internal sealed class MultiStreamReadCommandMessage : Message // XREAD with multiple stream. Example: XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
@@ -4698,7 +4676,12 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private static RedisValue GetRange(double value, Exclude exclude, bool isStart)
+        /// <summary>
+        /// A score bound, with the <c>(</c> prefix that means exclusive. Shared with the interpolated
+        /// surface rather than restated: the prefix is the whole of the convention, and a second copy of
+        /// it would be a silent off-by-one-bound waiting to happen.
+        /// </summary>
+        internal static RedisValue GetRange(double value, Exclude exclude, bool isStart)
         {
             if (isStart)
             {
@@ -4711,7 +4694,7 @@ namespace StackExchange.Redis
             return ("(" + Format.ToString(value)).AsRedisValue(); // '(' prefix means exclusive
         }
 
-        private Message GetRestoreMessage(RedisKey key, byte[] value, TimeSpan? expiry, CommandFlags flags)
+        internal Message GetRestoreMessage(RedisKey key, byte[] value, TimeSpan? expiry, CommandFlags flags)
         {
             long pttl = (expiry == null || expiry.Value == TimeSpan.MaxValue) ? 0 : (expiry.Value.Ticks / TimeSpan.TicksPerMillisecond);
             return Message.Create(Database, flags, RedisCommand.RESTORE, key, pttl, value);
@@ -4767,7 +4750,7 @@ namespace StackExchange.Redis
 
             // SORT is categorized read-only by default (the common case), but the STORE variant writes the
             // destination key; without this, a replay of a SORT ... STORE would be treated as a harmless read.
-            if (!destination.IsNull) flags = flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
+            if (!destination.IsNull) flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
 
             // If SORT_RO is not available, we cannot issue the command to a read-only replica
             if (command == RedisCommand.SORT)
@@ -4981,12 +4964,12 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.XACK, key, values);
         }
 
-        private Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags)
+        internal Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags)
         {
             return Message.Create(Database, flags, RedisCommand.XACKDEL, key, groupName, StreamConstants.GetMode(mode), StreamConstants.Ids, 1, messageId);
         }
 
-        private Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags)
+        internal Message GetStreamAcknowledgeAndDeleteMessage(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags)
         {
             if (messageIds == null) throw new ArgumentNullException(nameof(messageIds));
             if (messageIds.Length == 0) throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
@@ -5012,7 +4995,7 @@ namespace StackExchange.Redis
         /// have always passed questionable combinations (<c>LIMIT</c> without a threshold, say) through to the
         /// server, and that behaviour is preserved; only the options-based overloads validate up-front.
         /// </remarks>
-        private static StreamAddOptions LegacyStreamAddOptions(RedisValue? messageId, in StreamIdempotentId idempotentId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode)
+        internal static StreamAddOptions LegacyStreamAddOptions(RedisValue? messageId, in StreamIdempotentId idempotentId, long? maxLength, bool useApproximateMaxLength, long? limit, StreamTrimMode mode)
             => new()
             {
                 MessageId = messageId,
@@ -5105,7 +5088,7 @@ namespace StackExchange.Redis
         /// </remarks>
         private static CommandFlags GetStreamAddCategory(CommandFlags flags, in StreamAddOptions options)
             => (options.IdempotentId.ArgCount != 0 || !IsServerAssignedId(options.EntryId))
-                ? flags.WithCategory(CommandFlags.CommandRetryWriteChecked)
+                ? flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked)
                 : flags;
 
         /// <summary>
@@ -5207,7 +5190,7 @@ namespace StackExchange.Redis
         /// than caller data (raising it to "accumulating" would stop these being retried at all by default).
         /// </summary>
         private static CommandFlags WithJustIdCategory(CommandFlags flags, bool justId)
-            => justId ? flags.WithCategory(CommandFlags.CommandRetryWriteChecked) : flags;
+            => justId ? flags.WithRetryCategory(CommandFlags.CommandRetryWriteChecked) : flags;
 
         private Message GetStreamCreateConsumerGroupMessage(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
         {
@@ -5232,7 +5215,7 @@ namespace StackExchange.Redis
         /// Gets a message for <see href="https://redis.io/commands/xpending/"/>.
         /// </summary>
         /// <remarks><seealso href="https://redis.io/topics/streams-intro"/></remarks>
-        private Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, long? minIdleTimeInMs, CommandFlags flags)
+        internal Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, long? minIdleTimeInMs, CommandFlags flags)
         {
             // > XPENDING mystream mygroup [IDLE min-idle-time] - + 10 [consumer name]
             // 1) 1) 1526569498055 - 0
@@ -5360,7 +5343,7 @@ namespace StackExchange.Redis
             private readonly TimeSpan? claimMinIdleTime;
 
             public SingleStreamReadGroupCommandMessage(int db, CommandFlags flags, RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, TimeSpan? claimMinIdleTime)
-                : base(db, flags.WithCategory(GetStreamReadGroupCategory(afterId, claimMinIdleTime)), RedisCommand.XREADGROUP, key)
+                : base(db, flags.WithRetryCategory(GetStreamReadGroupCategory(afterId, claimMinIdleTime)), RedisCommand.XREADGROUP, key)
             {
                 if (count.HasValue && count <= 0)
                 {
@@ -5401,7 +5384,9 @@ namespace StackExchange.Redis
                 if (claimMinIdleTime.HasValue)
                 {
                     writer.WriteRaw("$5\r\nCLAIM\r\n"u8);
-                    writer.WriteBulkString(claimMinIdleTime.Value.TotalMilliseconds);
+
+                    // whole milliseconds; see the multi-stream writer for why
+                    writer.WriteBulkString((long)claimMinIdleTime.Value.TotalMilliseconds);
                 }
 
                 writer.WriteRaw("$7\r\nSTREAMS\r\n"u8);
@@ -5412,7 +5397,7 @@ namespace StackExchange.Redis
             public override int ArgCount => argCount;
         }
 
-        private Message GetSingleStreamReadMessage(RedisKey key, RedisValue afterId, int? count, CommandFlags flags) =>
+        internal Message GetSingleStreamReadMessage(RedisKey key, RedisValue afterId, int? count, CommandFlags flags) =>
             new SingleStreamReadCommandMessage(Database, flags, key, afterId, count);
 
         private sealed class SingleStreamReadCommandMessage : Message.CommandKeyBase // XREAD with a single stream. Example: XREAD COUNT 2 STREAMS mystream 0-0
@@ -5601,14 +5586,14 @@ namespace StackExchange.Redis
             if (allGet)
             {
                 // nothing to replay, whichever of the two commands we end up issuing
-                flags = flags.WithCategory(CommandFlags.CommandRetryReadOnly);
+                flags = flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
                 return readOnlyAvailable ? RedisCommand.BITFIELD_RO : RedisCommand.BITFIELD;
             }
 
             if (!anyIncrement)
             {
                 // SET is positional, so a replay lands on the same value; only INCRBY compounds
-                flags = flags.WithCategory(CommandFlags.CommandRetryWriteLastWins);
+                flags = flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins);
             }
 
             return RedisCommand.BITFIELD;
@@ -5698,7 +5683,7 @@ namespace StackExchange.Redis
 
             // NX/XX make this a *conditional* write, whichever spelling we end up emitting below
             // (SETNX, or SET with NX/XX); a bare SET keeps the per-command "last wins" default.
-            flags = flags.WithCategory(when.AsRetryCategory());
+            flags = flags.WithRetryCategory(when.AsRetryCategory());
 
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.DEL, key);
 
@@ -5760,7 +5745,7 @@ namespace StackExchange.Redis
             // as GetStringSetMessage: NX/XX make the write conditional. Note that the GET operand makes the
             // *reply* non-idempotent on a replay (you get back what you just wrote), but that is equally
             // true of GETSET, which we categorize on its keyspace effect alone; stay consistent.
-            flags = flags.WithCategory(when.AsRetryCategory());
+            flags = flags.WithRetryCategory(when.AsRetryCategory());
 
             if (value.IsNull) return Message.Create(Database, flags, RedisCommand.GETDEL, key);
 
@@ -5846,7 +5831,11 @@ namespace StackExchange.Redis
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValue(key, min, max, exclude, Order.Ascending, skip, take, flags);
 
-        private static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
+        /// <summary>
+        /// Put a lexical range into the low-then-high order the server always wants, whichever direction it
+        /// is asked to walk, swapping the exclusivity with it. Shared with the interpolated surface.
+        /// </summary>
+        internal static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
             bool reverseLimits = (order == Order.Ascending) == (stop != default && start.CompareTo(stop) > 0);
             if (reverseLimits)
@@ -5995,7 +5984,7 @@ namespace StackExchange.Redis
                 // could be retried across endpoints is IServer.ScriptLoad, and WithRetry wraps IDatabaseAsync
                 // only. The internal load-then-EVALSHA pairing in ScriptEvalMessage.GetMessages is written to
                 // one connection as a unit and so is never independently re-routed.
-                : base(-1, flags.WithCategory(CommandFlags.CommandRetryConnection), RedisCommand.SCRIPT)
+                : base(-1, flags.WithRetryCategory(CommandFlags.CommandRetryConnection), RedisCommand.SCRIPT)
             {
                 Script = script ?? throw new ArgumentNullException(nameof(script));
             }
@@ -6301,7 +6290,17 @@ namespace StackExchange.Redis
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
                 => _args.GetHashSlot(serverSelectionStrategy);
 
-            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            /// <remarks>
+            /// Inside a transaction the expansion is dropped and this writes EVAL with the body, which is
+            /// not a degradation but the <i>right</i> answer: a composed SCRIPT LOAD would put its reply
+            /// into the EXEC array and shift every result position after it.
+            /// </remarks>
+            public bool CanWriteWithoutExpansion => true;
+
+            // Not an iterator: the per-connection resolution below has to happen on every write attempt,
+            // including the usual one where nothing is composed and we decline. An iterator would defer it
+            // to the first MoveNext, which never comes when the answer is null.
+            public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
             {
                 // resolved per connection, and re-resolved if we end up talking to a different server
                 useReadOnly = IsReadOnlyScript(command) && CanUseReadOnlyScripts(connection);
@@ -6314,23 +6313,43 @@ namespace StackExchange.Redis
                     // a script was provided (rather than a hash); check it is known and supported
                     asciiHash = bridge.ServerEndPoint.GetScriptHash(_script, command);
 
-                    if (asciiHash == null)
-                    {
-                        var msg = new ScriptLoadMessage(Flags, _script);
-                        msg.SetInternalCall();
-                        msg.SetSource(ResultProcessor.ScriptLoad, null);
-                        yield return msg;
-                    }
+                    if (asciiHash == null) return LoadThenEvaluate();
                 }
+
+                // believed loaded already, or no SCRIPT support to lean on: there is nothing to pair with,
+                // so take the ordinary single-message path rather than an enumerator carrying only us
+                return null;
+            }
+
+            private IEnumerable<Message> LoadThenEvaluate()
+            {
+                var msg = new ScriptLoadMessage(Flags, _script);
+                msg.SetInternalCall();
+                msg.SetSource(ResultProcessor.ScriptLoad, null);
+                yield return msg;
                 yield return this;
             }
 
             protected override void WriteImpl(in MessageWriter writer)
             {
+                // three cases, not two: a hash we resolved, a hash the CALLER supplied, and a body. The
+                // middle one used to fall into the last, which is only unreachable while the expansion
+                // always runs - and inside a transaction it never does. See ScriptEvaluateMessage, which
+                // keeps the caller's hash in its own field and checks it first, for the same reason.
                 if (asciiHash != null)
                 {
                     writer.WriteHeader(useReadOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA, ArgCount);
                     writer.WriteBulkString(asciiHash);
+                }
+                else if (command is RedisCommand.EVALSHA or RedisCommand.EVALSHA_RO)
+                {
+                    // _script IS the hash: ScriptEvaluateResp decided that from IsSHA1 when it chose the
+                    // command. Writing EVAL here would send the hash TEXT as a script body, which the
+                    // server then tries to compile - a misleading error, and not the command that was asked
+                    // for. There is no body to fall back to, so EVALSHA and an honest NOSCRIPT is the
+                    // answer, exactly as the other script path gives.
+                    writer.WriteHeader(useReadOnly ? RedisCommand.EVALSHA_RO : RedisCommand.EVALSHA, ArgCount);
+                    writer.WriteBulkString(_script);
                 }
                 else
                 {
@@ -6387,7 +6406,11 @@ namespace StackExchange.Redis
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(keys);
 
-            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            /// <inheritdoc cref="ScriptEvalMessage.CanWriteWithoutExpansion"/>
+            public bool CanWriteWithoutExpansion => true;
+
+            // See the note on the sibling above: deciding is eager, expanding is not.
+            public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
             {
                 // resolved per connection, and re-resolved if we end up talking to a different server
                 useReadOnly = IsReadOnlyScript(command) && CanUseReadOnlyScripts(connection);
@@ -6400,14 +6423,18 @@ namespace StackExchange.Redis
                     // a script was provided (rather than a hash); check it is known and supported
                     asciiHash = bridge.ServerEndPoint.GetScriptHash(script, command);
 
-                    if (asciiHash == null)
-                    {
-                        var msg = new ScriptLoadMessage(Flags, script);
-                        msg.SetInternalCall();
-                        msg.SetSource(ResultProcessor.ScriptLoad, null);
-                        yield return msg;
-                    }
+                    if (asciiHash == null) return LoadThenEvaluate(script);
                 }
+
+                return null; // nothing to pair with; see the sibling above
+            }
+
+            private IEnumerable<Message> LoadThenEvaluate(string script)
+            {
+                var msg = new ScriptLoadMessage(Flags, script);
+                msg.SetInternalCall();
+                msg.SetSource(ResultProcessor.ScriptLoad, null);
+                yield return msg;
                 yield return this;
             }
 
@@ -6569,6 +6596,13 @@ namespace StackExchange.Redis
 
         private sealed class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage
         {
+            /// <remarks>
+            /// The TTL result box is created <i>inside</i> the expansion, so writing without it leaves the
+            /// expiry half unreadable. Refused up front by <c>GetStringGetWithExpiryMessage</c>, which can
+            /// name the two commands to issue instead; this is the backstop.
+            /// </remarks>
+            public bool CanWriteWithoutExpansion => false;
+
             private readonly RedisCommand ttlCommand;
             private IResultBox<TimeSpan?>? box;
 

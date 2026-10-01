@@ -210,6 +210,18 @@ namespace StackExchange.Redis
 
             public QueuedMessage(Message message) : base(message.Db, message.Flags | CommandFlags.NoRedirect, message.Command)
             {
+                // this wrapper is not an IMultiMessage, so whatever it wraps will be written WITHOUT its
+                // expansion - the one place that knows the expansion is about to be dropped, and until now
+                // the one place that did not check. Default-refuse: a type that has not said its WriteImpl
+                // stands alone is not silently written without the half that made it a multi-message.
+                if (message is IMultiMessage { CanWriteWithoutExpansion: false } multi)
+                {
+                    throw new NotSupportedException(
+                        $"{multi.GetType().Name} is not supported inside a transaction or batch: it expands into "
+                        + "several messages, and a transaction writes only the outer one - every extra message "
+                        + "would add a slot to the positional EXEC result array.");
+                }
+
                 message.SetNoRedirect();
                 Wrapped = message;
             }
@@ -257,6 +269,9 @@ namespace StackExchange.Redis
 
         private sealed class TransactionMessage : Message, IMultiMessage
         {
+            /// <remarks>A nested MULTI is refused before it reaches here, by <c>CreateTransaction</c>.</remarks>
+            public bool CanWriteWithoutExpansion => false;
+
             private readonly ConditionResult[] conditions;
 
             public QueuedMessage[] InnerOperations { get; }

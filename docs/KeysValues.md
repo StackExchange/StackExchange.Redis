@@ -20,20 +20,20 @@ StackExchange.Redis represents keys by the `RedisKey` type. The good news, thoug
 
 ```csharp
 string key = ...
-db.StringIncrement(key);
+await db.Strings.IncrementAsync(key);
 ```
 
 or
 
 ```csharp
 byte[] key = ...
-db.StringIncrement(key);
+await db.Strings.IncrementAsync(key);
 ```
 
 Likewise, there are operations that *return* keys as `RedisKey` - and again, it simply works:
 
 ```csharp
-string someKey = db.KeyRandom();
+string someKey = await db.Keys.RandomAsync();
 ```
 
 Values
@@ -42,15 +42,15 @@ Values
 StackExchange.Redis represents values by the `RedisValue` type. As with `RedisKey`, there are implicit conversions in place which mean that most of the time you never see this type, for example:
 
 ```csharp
-db.StringSet("mykey", "myvalue");
+await db.Strings.SetAsync("mykey", "myvalue");
 ```
 
 However, in addition to text and binary contents, values can also need to represent typed primitive data - most commonly (in .NET terms) `Int32`, `Int64`, `Double` or `Boolean`. Because of this, `RedisValue` provides a lot more conversion support than `RedisKey`:
 
 ```csharp
-db.StringSet("mykey", 123); // this is still a RedisKey and RedisValue
+await db.Strings.SetAsync("mykey", 123); // this is still a RedisKey and RedisValue
 ...
-int i = (int)db.StringGet("mykey");
+int i = (int)await db.Strings.GetAsync("mykey");
 ```
 
 Note that while the conversions from primitives to `RedisValue` are implicit, many of the conversions from `RedisValue` to primitives are explicit: this is because it is very possible that these conversions will fail if the data does not have an appropriate value.
@@ -58,23 +58,23 @@ Note that while the conversions from primitives to `RedisValue` are implicit, ma
 Note additionally that *when treated numerically*, redis treats a non-existent key as zero; for consistency with this, nil responses are treated as zero:
 
 ```csharp
-db.KeyDelete("abc");
-int i = (int)db.StringGet("abc"); // this is ZERO
+await db.Keys.DeleteAsync("abc");
+int i = (int)await db.Strings.GetAsync("abc"); // this is ZERO
 ```
 
 If you need to detect the nil condition, then you can check for that:
 
 ```csharp
-db.KeyDelete("abc");
-var value = db.StringGet("abc");
+await db.Keys.DeleteAsync("abc");
+var value = await db.Strings.GetAsync("abc");
 bool isNil = value.IsNull; // this is true
 ```
 
 or perhaps more simply, just use the provided `Nullable<T>` support:
 
 ```csharp
-db.KeyDelete("abc");
-var value = (int?)db.StringGet("abc"); // behaves as you would expect
+await db.Keys.DeleteAsync("abc");
+var value = (int?)await db.Strings.GetAsync("abc"); // behaves as you would expect
 ```
 
 Hashes

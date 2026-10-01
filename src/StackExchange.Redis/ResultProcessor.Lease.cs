@@ -163,7 +163,11 @@ internal abstract partial class ResultProcessor
         {
             if (reader.IsScalar)
             {
-                SetResult(message, reader.ReadLease()!);
+                // the retired spelling on purpose: this processor's contract is Lease<byte>, which the
+                // caller owns and may write to, so it must be a copy. See design notes 6.16.
+#pragma warning disable CS0618 // Type or member is obsolete
+                SetResult(message, RespReaderExtensions.ReadLease(in reader)!);
+#pragma warning restore CS0618
                 return true;
             }
             return false;
@@ -178,7 +182,11 @@ internal abstract partial class ResultProcessor
                 && reader.TryMoveNext() && reader.IsScalar)
             {
                 // treat an array of 1 like a single reply
-                SetResult(message, reader.ReadLease()!);
+                // the retired spelling on purpose: this processor's contract is Lease<byte>, which the
+                // caller owns and may write to, so it must be a copy. See design notes 6.16.
+#pragma warning disable CS0618 // Type or member is obsolete
+                SetResult(message, RespReaderExtensions.ReadLease(in reader)!);
+#pragma warning restore CS0618
                 return true;
             }
             return false;

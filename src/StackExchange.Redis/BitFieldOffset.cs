@@ -9,7 +9,7 @@ namespace StackExchange.Redis;
 /// the same width, which the server multiplies out for us (the <c>#</c> form).
 /// </summary>
 /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
-public readonly struct BitFieldOffset : IEquatable<BitFieldOffset>
+public readonly partial struct BitFieldOffset : IEquatable<BitFieldOffset>
 {
     private readonly long _value;
     private readonly bool _isElement;

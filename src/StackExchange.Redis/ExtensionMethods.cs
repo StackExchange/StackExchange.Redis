@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net.Security;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -228,6 +229,54 @@ namespace StackExchange.Redis
                 return new LeaseMemoryStream(segment, bytes);
             }
             return new MemoryStream(segment.Array!, segment.Offset, segment.Count, false, true);
+        }
+
+        /// <summary>
+        /// Exposes a read-only lease as a <see cref="Stream"/>.
+        /// </summary>
+        /// <param name="bytes">The lease to read.</param>
+        /// <param name="ownsLease">Whether the stream should dispose the lease when it is disposed.</param>
+        /// <remarks>
+        /// Reaches the backing array via <see cref="MemoryMarshal.TryGetArray{T}"/> rather than an
+        /// <c>ArraySegment</c> accessor: <see cref="ReadOnlyLease{T}"/> deliberately has none, because
+        /// handing out the array is a way to reach outside the lease - and for a <i>shared</i> buffer, into
+        /// somebody else's data. The library may do internally what it will not let callers do.
+        /// </remarks>
+#pragma warning disable RS0026 // overloads with optional args; they differ by receiver type, so not ambiguous
+        public static Stream? AsStream(this ReadOnlyLease<byte>? bytes, bool ownsLease = true)
+#pragma warning restore RS0026
+        {
+            if (bytes is null) return null; // GIGO
+
+            if (!MemoryMarshal.TryGetArray(bytes.Memory, out var segment))
+            {
+                // not array-backed; the copy is the only way to satisfy a Stream over it
+                var copy = bytes.ToArray();
+                segment = new ArraySegment<byte>(copy, 0, copy.Length);
+                ownsLease = false;
+            }
+
+            return ownsLease
+                ? new LeaseMemoryStream(segment, bytes)
+                : new MemoryStream(segment.Array!, segment.Offset, segment.Count, false, true);
+        }
+
+        /// <summary>
+        /// Decodes a read-only lease as a <see cref="string"/>.
+        /// </summary>
+        /// <param name="bytes">The lease to decode.</param>
+        /// <param name="encoding">The encoding to use; UTF-8 when not specified.</param>
+#pragma warning disable RS0026 // as above
+        public static string? DecodeString(this ReadOnlyLease<byte>? bytes, Encoding? encoding = null)
+#pragma warning restore RS0026
+        {
+            if (bytes is null) return null;
+            if (bytes.Length == 0) return "";
+
+            encoding ??= Encoding.UTF8;
+            return MemoryMarshal.TryGetArray(bytes.Memory, out var segment)
+                ? encoding.GetString(segment.Array!, segment.Offset, segment.Count)
+                : encoding.GetString(bytes.ToArray());
         }
 
         /// <summary>

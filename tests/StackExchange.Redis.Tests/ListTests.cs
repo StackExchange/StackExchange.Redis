@@ -13,7 +13,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -35,7 +35,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var result = db.ListLeftPush(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
@@ -47,7 +47,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var result = db.ListLeftPush(key, ["testvalue"], When.Exists, CommandFlags.None);
@@ -59,7 +59,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -79,7 +79,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v4_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -100,7 +100,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var result = await db.ListLeftPushAsync(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
@@ -112,7 +112,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var result = await db.ListLeftPushAsync(key, ["testvalue"], When.Exists, CommandFlags.None);
@@ -124,7 +124,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -144,7 +144,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v4_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -165,7 +165,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var result = db.ListRightPush(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
@@ -177,7 +177,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var result = db.ListRightPush(key, ["testvalue"], When.Exists, CommandFlags.None);
@@ -189,7 +189,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -209,7 +209,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v4_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -230,7 +230,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var result = await db.ListRightPushAsync(key, Array.Empty<RedisValue>(), When.Always, CommandFlags.None);
@@ -242,7 +242,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
         var result = await db.ListRightPushAsync(key, ["testvalue"], When.Exists, CommandFlags.None);
@@ -254,7 +254,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -274,7 +274,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v4_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -295,7 +295,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey src = Me();
         RedisKey dest = Me() + "dest";
         db.KeyDelete(src, CommandFlags.FireAndForget);
@@ -314,11 +314,69 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     }
 
     [Fact]
+    public async Task ListRightPopLeftPush()
+    {
+        await using var conn = Create();
+
+        var db = GetDatabase(conn);
+        RedisKey src = Me();
+        RedisKey dest = Me() + "dest";
+        db.KeyDelete(src, CommandFlags.FireAndForget);
+        db.KeyDelete(dest, CommandFlags.FireAndForget);
+
+        db.ListRightPush(src, ["a", "b", "c"], flags: CommandFlags.FireAndForget);
+
+        // RPOPLPUSH is deprecated in favour of LMOVE src dst RIGHT LEFT, and the transitional surface
+        // sends that instead - so this pins that the OLD method's semantics survive the substitution,
+        // tail of the source to the HEAD of the destination. The only other coverage is the KeyPrefixed
+        // suites, which assert forwarding and never reach a server.
+        Assert.Equal("c", await db.ListRightPopLeftPushAsync(src, dest));
+        Assert.Equal("b", db.ListRightPopLeftPush(src, dest));
+
+        Assert.Equal(new RedisValue[] { "a" }, db.ListRange(src));
+        Assert.Equal(new RedisValue[] { "b", "c" }, db.ListRange(dest));
+    }
+
+    [Fact]
+    public async Task ListRightPopLeftPushEmptySource()
+    {
+        await using var conn = Create();
+
+        var db = GetDatabase(conn);
+        RedisKey src = Me();
+        RedisKey dest = Me() + "dest";
+        db.KeyDelete(src, CommandFlags.FireAndForget);
+        db.KeyDelete(dest, CommandFlags.FireAndForget);
+
+        // nothing to move: null, and the destination is not created on the way past
+        Assert.True(db.ListRightPopLeftPush(src, dest).IsNull);
+        Assert.False(db.KeyExists(dest));
+    }
+
+    [Fact]
+    public async Task ListRightPopLeftPushSameKeyRotates()
+    {
+        await using var conn = Create();
+
+        var db = GetDatabase(conn);
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        db.ListRightPush(key, ["a", "b", "c"], flags: CommandFlags.FireAndForget);
+
+        // the case that is not a move at all: one key, and the list rotates. Worth its own test because
+        // it is the one where source and destination alias, so an implementation that pops and then
+        // pushes as two steps would still pass the two-key tests above.
+        Assert.Equal("c", db.ListRightPopLeftPush(key, key));
+        Assert.Equal(new RedisValue[] { "c", "a", "b" }, db.ListRange(key));
+    }
+
+    [Fact]
     public async Task ListMoveKeyDoesNotExist()
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey src = Me();
         RedisKey dest = Me() + "dest";
         db.KeyDelete(src, CommandFlags.FireAndForget);
@@ -332,7 +390,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v8_10_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey src = Me();
         RedisKey dest = Me() + "dest";
         db.KeyDelete([src, dest], CommandFlags.FireAndForget);
@@ -362,7 +420,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v8_10_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey src = Me();
         RedisKey dest = Me() + "dest";
 
@@ -384,7 +442,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v8_10_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey src = Me();
         RedisKey dest = Me() + "dest";
         db.KeyDelete([src, dest], CommandFlags.FireAndForget);
@@ -409,7 +467,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string val = "foo";
         db.KeyDelete(key);
@@ -425,7 +483,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string val = "foo";
         db.KeyDelete(key);
@@ -440,7 +498,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -470,7 +528,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -496,7 +554,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -526,7 +584,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -556,7 +614,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -580,7 +638,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -607,7 +665,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -633,7 +691,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string val = "foo";
         await db.KeyDeleteAsync(key);
@@ -649,7 +707,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string val = "foo";
         await db.KeyDeleteAsync(key);
@@ -664,7 +722,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -694,7 +752,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -720,7 +778,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -750,7 +808,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -780,7 +838,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -804,7 +862,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -831,7 +889,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -857,7 +915,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -884,7 +942,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v6_0_6);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string foo = "foo",
                      bar = "bar",
@@ -911,7 +969,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         await db.KeyDeleteAsync(key);
 
@@ -940,7 +998,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         await db.KeyDeleteAsync(key);
 
@@ -969,7 +1027,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key);
 
@@ -998,7 +1056,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key);
 
@@ -1011,7 +1069,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key);
 
@@ -1024,7 +1082,7 @@ public class ListTests(ITestOutputHelper output, SharedConnectionFixture fixture
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => db.ListRightPop(Array.Empty<RedisKey>(), 5));
         Assert.Contains("keys must have a size of at least 1", exception.Message);
 

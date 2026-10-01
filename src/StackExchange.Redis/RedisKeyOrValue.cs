@@ -1,11 +1,12 @@
-using System;
+﻿using System;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Represents a key or value that can be stored in redis.
 /// </summary>
-public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable<RedisKey>, IEquatable<RedisValue>
+public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable<RedisKey>, IEquatable<RedisValue>, IRespArgument
 {
     // _keyPrefix is non-null (possibly empty) when this represents a key - it is the key's own prefix
     // bytes, if any; the key's remaining payload (its "KeyValue") sits directly in _value, using
@@ -19,6 +20,26 @@ public readonly struct RedisKeyOrValue : IEquatable<RedisKeyOrValue>, IEquatable
     /// IsNull.
     /// </summary>
     public bool IsNull => _value.IsNull;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <b>This is what makes an ad-hoc command an ordinary command.</b> Knowing which arguments are keys
+    /// is the one thing the wire cannot tell you afterwards, and it is decided here, once, by the same
+    /// <see cref="IsKey"/> test everything else uses - so a span of these writes through the normal
+    /// interpolated path (<c>$"{command}{args}"</c>) with routing, prefixing and invalidation intact, and
+    /// no bespoke execute path has to exist to carry them.
+    /// </remarks>
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
+    {
+        if (IsKey)
+        {
+            handler.AppendFormatted(Key);
+        }
+        else
+        {
+            handler.AppendFormatted(Value);
+        }
+    }
 
     /// <summary>
     /// IsKey.

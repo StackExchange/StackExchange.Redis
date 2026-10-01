@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Server;
 
 public partial class RedisServer
 {
-    protected virtual void OnOutOfBand(RedisClient client, TypedRedisValue message)
+    protected override void OnOutOfBand(RedisClient client, TypedRedisValue message)
         => client.AddOutbound(message);
 
     [RedisCommand(-2)]

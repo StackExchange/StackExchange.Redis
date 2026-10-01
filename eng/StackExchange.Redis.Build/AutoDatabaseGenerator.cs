@@ -1,3 +1,4 @@
+﻿using System;
 using System.Collections.Immutable;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
@@ -9,7 +10,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ParamInfo = (string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default);
 using MethodInfo = (string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters, StackExchange.Redis.Build.BasicArray<string> TypeArgs);
 using InterfaceInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces KnownType, StackExchange.Redis.Build.BasicArray<(string Name, string ReturnType, StackExchange.Redis.Build.BasicArray<(string Name, string Type, Microsoft.CodeAnalysis.RefKind RefKind, bool IsParams, bool IsOptional, bool HasDefault, string? Default)> Parameters, StackExchange.Redis.Build.BasicArray<string> TypeArgs)> Methods);
-using ClassInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces Interfaces, bool IsMutator, bool Replays);
+using ClassInfo = (string Name, string Namespace, StackExchange.Redis.Build.AutoDatabaseGenerator.KnownInterfaces Interfaces, bool IsMutator, bool Replays, StackExchange.Redis.Build.BasicArray<string> Declared, bool WarnIfIncomplete);
 
 namespace StackExchange.Redis.Build;
 
@@ -30,7 +31,14 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
             .Where(pair => pair.Name is { Length: > 0 })
             .Collect();
 
-        ctx.RegisterSourceOutput(interfaces.Combine(classes), static (ctx, content) => Generate(ctx, content.Left, content.Right));
+        // Release is "no DEBUG symbol", which is what the SDK's own configuration does; a generator has no
+        // other reliable view of $(Configuration) without the project opting the property in.
+        var isRelease = ctx.ParseOptionsProvider.Select(
+            static (options, _) => !options.PreprocessorSymbolNames.Contains("DEBUG"));
+
+        ctx.RegisterSourceOutput(
+            interfaces.Combine(classes).Combine(isRelease),
+            static (ctx, content) => Generate(ctx, content.Left.Left, content.Left.Right, content.Right));
     }
 
     /// <summary>
@@ -221,18 +229,77 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
 
         // [AutoDatabase(Replays = true)] - the owning database can invoke a captured operation more than
         // once, so captured Memory<T> arguments have to be copies rather than the caller's own buffer
-        bool replays = false;
+        bool replays = false, warnIfIncomplete = false;
         foreach (var attrib in cls.GetAttributes())
         {
             if (attrib.AttributeClass?.Name is not ("AutoDatabaseAttribute" or "AutoDatabase")) continue;
             foreach (var named in attrib.NamedArguments)
             {
                 if (named.Key == "Replays" && named.Value.Value is bool b) replays = b;
+                if (named.Key == "WarnIfIncomplete" && named.Value.Value is bool w) warnIfIncomplete = w;
             }
         }
 
+        // What the class already implements by hand, so generation can stand back. The generator emits
+        // EXPLICIT interface implementations, which means a hand-written member does NOT collide - both
+        // compile, and interface dispatch silently prefers the generated one. So this is a correctness
+        // check, not a convenience: without it, a partial that implements StringGet for real would still
+        // see IDatabase.StringGet route to the funnel.
+        //
+        // Other partials are ordinary source and therefore visible here; this generator's own output is
+        // not part of the compilation it sees, so there is nothing to exclude.
+        var declared = new List<string>();
+        foreach (var member in cls.GetMembers())
+        {
+            cancel.ThrowIfCancellationRequested();
+            if (member is not IMethodSymbol { MethodKind: MethodKind.Ordinary or MethodKind.ExplicitInterfaceImplementation } method) continue;
+            declared.Add(SignatureKey(method));
+        }
+
         var ns = cls.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
-        return (cls.Name, ns, known, isMutator, replays);
+        return (cls.Name, ns, known, isMutator, replays, BasicArray<string>.From(declared), warnIfIncomplete);
+    }
+
+    /// <summary>
+    /// Name plus parameter types, formatted exactly as the interface side formats them so the two can be
+    /// compared as strings.
+    /// </summary>
+    /// <remarks>
+    /// An explicit implementation's <c>Name</c> is the fully-qualified <c>Namespace.IFace.Member</c>, so
+    /// the implemented member's own name is used instead - a hand-written explicit implementation and a
+    /// hand-written public one mean the same thing here: "do not generate this".
+    /// </remarks>
+    private static string SignatureKey(IMethodSymbol method)
+    {
+        var name = method.ExplicitInterfaceImplementations.Length > 0
+            ? method.ExplicitInterfaceImplementations[0].Name
+            : method.Name;
+
+        var sb = new StringBuilder(name).Append('(');
+        bool first = true;
+        foreach (var p in method.Parameters)
+        {
+            if (!first) sb.Append(',');
+            first = false;
+            sb.Append(p.Type.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
+        }
+
+        return sb.Append(')').ToString();
+    }
+
+    /// <summary>The same key, from the interface-side shape.</summary>
+    private static string SignatureKey(MethodInfo method)
+    {
+        var sb = new StringBuilder(method.Name).Append('(');
+        bool first = true;
+        foreach (var p in method.Parameters.Span)
+        {
+            if (!first) sb.Append(',');
+            first = false;
+            sb.Append(p.Type);
+        }
+
+        return sb.Append(')').ToString();
     }
 
     [Flags]
@@ -302,7 +369,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
         _ => value.ToString() ?? "null",
     };
 
-    private static void Generate(SourceProductionContext ctx, ImmutableArray<InterfaceInfo> interfaces, ImmutableArray<ClassInfo> classes)
+    private static void Generate(SourceProductionContext ctx, ImmutableArray<InterfaceInfo> interfaces, ImmutableArray<ClassInfo> classes, bool isRelease)
     {
         if (interfaces.IsDefaultOrEmpty | classes.IsDefaultOrEmpty) return; // nothing to do
 
@@ -330,6 +397,13 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 writer.NewLine().Append("namespace ").Append(cls.Namespace).NewLine().Append("{").Indent();
             }
 
+            // what this class implements by hand, and therefore must NOT have generated for it
+            var declared = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var signature in cls.Declared) declared.Add(signature);
+
+            // how many members this class did NOT implement, for the SER352 tripwire below
+            int generated = 0;
+
             // unique parameter-type signatures encountered while emitting this class's methods;
             // keyed on the '|'-joined parameter types so distinct methods with the same shape share
             // one state struct. tupleDefs[i] holds a representative parameter list for _tuple{i}.
@@ -354,6 +428,15 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
             AppendInterfaceMethods(KnownInterfaces.IRedisAsync);
             AppendTupleTypes();
 
+            // The tripwire: a type opted into WarnIfIncomplete is mid-transition, and every member still
+            // generated for it is one the class has not taken over. Release only, so the inner loop is
+            // quiet and the noise arrives exactly when someone is preparing something that ships.
+            if (isRelease && cls.WarnIfIncomplete && generated > 0)
+            {
+                var fqn = string.IsNullOrWhiteSpace(cls.Namespace) ? cls.Name : cls.Namespace + "." + cls.Name;
+                ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.AutoDatabaseIncomplete, Location.None, generated, fqn));
+            }
+
             writer.Outdent().NewLine().Append("}");
 
             if (!string.IsNullOrWhiteSpace(cls.Namespace))
@@ -377,6 +460,8 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
                 foreach (var method in iType.Methods)
                 {
                     if (SkipMethod(method)) continue; // wonky by nature - left for the caller to implement manually
+                    if (declared.Contains(SignatureKey(method))) continue; // the class implements this itself
+                    generated++;
 
                     writer.NewLine().Append(method.ReturnType).Append(" global::")
                         .Append(iType.Namespace).Append('.').Append(iType.Name).Append('.').Append(method.Name).Append("(");

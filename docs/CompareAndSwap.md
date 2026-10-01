@@ -31,7 +31,7 @@ var key = "user:session:12345";
 var currentToken = "old-token-abc";
 var newToken = "new-token-xyz";
 
-var wasSet = await db.StringSetAsync(
+var wasSet = await db.Strings.SetAsync(
     key,
     newToken,
     when: ValueCondition.Equal(currentToken)
@@ -55,7 +55,7 @@ Delete a key only if it contains a specific value:
 var lockToken = "my-unique-lock-token";
 
 // Only delete if the lock still has our token
-var wasDeleted = await db.StringDeleteAsync(
+var wasDeleted = await db.Strings.DeleteAsync(
     "resource:lock",
     when: ValueCondition.Equal(lockToken)
 );
@@ -85,7 +85,7 @@ var expectedDigest = ValueCondition.CalculateDigest(largeDocument);
 
 // Update only if the document hasn't changed
 var newDocument = GetUpdatedDocumentBytes();
-var wasSet = await db.StringSetAsync(
+var wasSet = await db.Strings.SetAsync(
     key,
     newDocument,
     when: expectedDigest
@@ -98,14 +98,14 @@ You can retrieve the digest of a value stored in Redis without fetching the enti
 
 ```csharp
 // Get the digest of the current value
-var digest = await db.StringDigestAsync(key);
+var digest = await db.Strings.DigestAsync(key);
 
 if (digest.HasValue)
 {
     Console.WriteLine($"Current digest: {digest.Value}");
 
     // Later, use this digest for conditional operations
-    var wasDeleted = await db.StringDeleteAsync(key, when: digest.Value);
+    var wasDeleted = await db.Strings.DeleteAsync(key, when: digest.Value);
 }
 else
 {
@@ -121,14 +121,14 @@ Use the `!` operator to negate any condition:
 var expectedValue = "old-value";
 
 // Set only if the value is NOT equal to expectedValue
-var wasSet = await db.StringSetAsync(
+var wasSet = await db.Strings.SetAsync(
     key,
     "new-value",
     when: !ValueCondition.Equal(expectedValue)
 );
 
 // Equivalent to:
-var wasSet2 = await db.StringSetAsync(
+var wasSet2 = await db.Strings.SetAsync(
     key,
     "new-value",
     when: ValueCondition.NotEqual(expectedValue)
@@ -146,7 +146,7 @@ var valueCondition = ValueCondition.Equal("some-value");
 var digestCondition = valueCondition.AsDigest();
 
 // Now uses IFDEQ instead of IFEQ
-var wasSet = await db.StringSetAsync(key, "new-value", when: digestCondition);
+var wasSet = await db.Strings.SetAsync(key, "new-value", when: digestCondition);
 ```
 
 ## Parsing Digests
@@ -158,7 +158,7 @@ If you receive a XXH3 digest as a hex string (e.g., from external systems), you 
 var digestCondition = ValueCondition.ParseDigest("e34615aade2e6333");
 
 // Use in conditional operations
-var wasSet = await db.StringSetAsync(key, newValue, when: digestCondition);
+var wasSet = await db.Strings.SetAsync(key, newValue, when: digestCondition);
 ```
 
 ## Lock Operations
@@ -209,7 +209,7 @@ async Task<bool> UpdateUserProfileAsync(string userId, Func<UserProfile, UserPro
     var key = $"user:profile:{userId}";
 
     // Read current value
-    var currentJson = await db.StringGetAsync(key);
+    var currentJson = await db.Strings.GetAsync(key);
     if (currentJson.IsNull)
     {
         return false; // User doesn't exist
@@ -220,7 +220,7 @@ async Task<bool> UpdateUserProfileAsync(string userId, Func<UserProfile, UserPro
     var updatedJson = JsonSerializer.Serialize(updatedProfile);
 
     // Attempt to update only if value hasn't changed
-    var wasSet = await db.StringSetAsync(
+    var wasSet = await db.Strings.SetAsync(
         key,
         updatedJson,
         when: ValueCondition.Equal(currentJson)
@@ -258,7 +258,7 @@ async Task<bool> RotateSessionTokenAsync(string sessionId, string expectedToken)
     var newToken = GenerateSecureToken();
 
     // Only rotate if the current token matches
-    var wasRotated = await db.StringSetAsync(
+    var wasRotated = await db.Strings.SetAsync(
         key,
         newToken,
         expiry: TimeSpan.FromHours(24),
@@ -279,7 +279,7 @@ async Task<bool> UpdateLargeDocumentAsync(string docId, byte[] newContent)
     var key = $"document:{docId}";
 
     // Get just the digest, not the full document
-    var currentDigest = await db.StringDigestAsync(key);
+    var currentDigest = await db.Strings.DigestAsync(key);
 
     if (!currentDigest.HasValue)
     {
@@ -287,7 +287,7 @@ async Task<bool> UpdateLargeDocumentAsync(string docId, byte[] newContent)
     }
 
     // Update only if digest matches (document unchanged)
-    var wasSet = await db.StringSetAsync(
+    var wasSet = await db.Strings.SetAsync(
         key,
         newContent,
         when: currentDigest.Value

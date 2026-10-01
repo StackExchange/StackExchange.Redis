@@ -17,11 +17,18 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
         Assert.Null(ex.InnerException);
     }
 
+    /// <summary>The reported library version is a real version, whatever line we are on.</summary>
+    /// <remarks>
+    /// The major was pinned to <c>[2-3]</c>, which made moving to the v4 line fail here - a version
+    /// assertion that has to be edited every major is asserting the wrong thing. What matters is that
+    /// <c>GetLibVersion</c> returns something version-shaped at all, since it ends up in the message of
+    /// every connection exception.
+    /// </remarks>
     [Fact]
     public void CanGetVersion()
     {
         var libVer = Utils.GetLibVersion();
-        Assert.Matches(@"[2-3]\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
+        Assert.Matches(@"^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
     }
 
 #if DEBUG

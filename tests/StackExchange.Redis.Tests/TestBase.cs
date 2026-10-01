@@ -271,6 +271,19 @@ public abstract class TestBase : IDisposable
         throw new InvalidOperationException("Requires a primary endpoint (found none)");
     }
 
+    /// <summary>
+    /// How a test reaches a database. Virtual so a fixture subclass can run the SAME tests against a
+    /// different <see cref="IDatabase"/> implementation - see <c>TransitionalStringTests</c>, which points
+    /// it at the new RESP context surface.
+    /// </summary>
+    /// <remarks>
+    /// Worth the indirection only because the alternative is a parallel test suite restating the same
+    /// expectations: an implementation swap that the existing assertions cannot tell apart is the strongest
+    /// evidence a rewrite can produce, and it stays true as the suite grows.
+    /// </remarks>
+    protected virtual IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => conn.GetDatabase(db, asyncState);
+
     internal virtual bool HighIntegrity => false;
 
     internal virtual Tunnel? Tunnel => _inProcServerFixture?.Tunnel;

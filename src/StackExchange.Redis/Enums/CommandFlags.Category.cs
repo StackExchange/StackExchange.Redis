@@ -1,8 +1,23 @@
-﻿namespace StackExchange.Redis;
+﻿using System.Diagnostics;
 
-internal static class CommandFlagsExtensions
+namespace StackExchange.Redis;
+
+/// <summary>
+/// Helpers for composing <see cref="CommandFlags"/>.
+/// </summary>
+public static class CommandFlagsExtensions
 {
-    public static CommandFlags WithCategory(this CommandFlags flags, CommandFlags category)
+    /// <summary>
+    /// Apply a retry category, unless the caller already chose one.
+    /// </summary>
+    /// <param name="flags">The caller's flags.</param>
+    /// <param name="category">The category this command would use by default.</param>
+    /// <remarks>
+    /// Public because a command surface outside this library needs it: flags are <b>cumulative</b>, so a
+    /// caller passing <see cref="CommandFlags.FireAndForget"/> must not thereby lose the command's retry
+    /// category. Put the category here rather than in a parameter default, or the two cannot coexist.
+    /// </remarks>
+    public static CommandFlags WithRetryCategory(this CommandFlags flags, CommandFlags category)
     {
         // CommandServerSpecific is an orthogonal flag rather than part of the severity ladder, so it
         // is always additive - the caller choosing a retry category doesn't make a cursor-bearing
@@ -17,7 +32,7 @@ internal static class CommandFlagsExtensions
     /// The retry category implied by an existence condition applied to an otherwise unconditional write;
     /// <see cref="CommandFlags.None"/> means "no opinion", leaving the per-command default in place.
     /// </summary>
-    public static CommandFlags AsRetryCategory(this When when) => when switch
+    internal static CommandFlags AsRetryCategory(this When when) => when switch
     {
         // NX/XX make the write conditional: a replay either no-ops or fails, and either way the
         // end-state matches the first attempt.
@@ -30,20 +45,45 @@ internal static class CommandFlagsExtensions
     /// something on the node that issued it (and, for the per-key variants, against that node's encoding of the
     /// object), so it is node-affine; a fresh iteration from the origin cursor can start anywhere.
     /// </summary>
-    public static CommandFlags WithScanCursorCategory(this CommandFlags flags, in RedisValue cursor)
-        => flags.WithCategory(cursor == RedisBase.CursorUtils.Origin
+    internal static CommandFlags WithScanCursorCategory(this CommandFlags flags, in RedisValue cursor)
+        => flags.WithRetryCategory(cursor == RedisBase.CursorUtils.Origin
             ? CommandFlags.CommandRetryReadOnly
             : CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific);
 
     /// <inheritdoc cref="AsRetryCategory(When)"/>
-    public static CommandFlags AsRetryCategory(this ExpireWhen when) => when switch
+    internal static CommandFlags AsRetryCategory(this ExpireWhen when) => when switch
     {
         // NX/XX/GT/LT; GT/LT are monotone, so re-applying converges on the same deadline
         ExpireWhen.Always => CommandFlags.None,
         _ => CommandFlags.CommandRetryWriteChecked,
     };
 
-    public static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
+    /// <summary>
+    /// Mark a command as one whose reply must never be cached, whatever its retry category says.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Client-side caching is opt-<i>out</i>: a command that declares a read-only retry category and names
+    /// a key is cacheable by default, which is right for the overwhelming majority and wrong for a handful.
+    /// This is how those few say so, at the one place that knows - the command definition - rather than in
+    /// a table the cache has to consult and keep in step.
+    /// </para>
+    /// <para>
+    /// Two reasons a command lands here. <b>Non-determinism</b>: <c>SRANDMEMBER</c>, <c>HRANDFIELD</c> and
+    /// <c>ZRANDMEMBER</c> are asked precisely because the answer should differ each time, so a cache would
+    /// defeat the command rather than accelerate it - and nothing would ever invalidate it, because nothing
+    /// changed. <b>Time-variance</b>: a reply that counts down, such as <c>HPTTL</c>, is already wrong by
+    /// the time it is stored, and no invalidation is coming because the server announces expiry to nobody
+    /// (design notes 6.13).
+    /// </para>
+    /// <para>
+    /// It uses the same bit as the caller-facing <see cref="CommandFlags.NoClientCache"/> deliberately: the
+    /// effect is identical, and a caller cannot unset what the command surface has already or-ed in.
+    /// </para>
+    /// </remarks>
+    internal static CommandFlags NeverCached(this CommandFlags flags) => flags | CommandFlags.NoClientCache;
+
+    internal static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
     {
         if ((flags & Message.MaskRetryCategory) is 0)
         {
@@ -52,12 +92,44 @@ internal static class CommandFlagsExtensions
             // Note also that some commands may have *conditionally* included their category based on
             // rules specific to the parameters, for example SCAN 0 is not server specific,
             // but SCAN 12341234 *is*.
-            flags |= DefaultCategory(command);
+            var category = GetDefaultCategory(command);
+
+            // A command the table does not know about is a GAP, not a dangerous command - and the symptom
+            // is silent and one-directional: it stops being retried and stops being cached, so a read
+            // added without a category simply gets slower and nothing fails. Nobody reports that.
+            //
+            // The assert is a courtesy for local debugging only: it needs the command to be EXECUTED, in
+            // a Debug build, by a test that happens to exist - and CI runs Release, where it compiles out
+            // entirely. The guard that actually runs is the exhaustive sweep,
+            // CommandCategoryTests.EveryCommandDeclaresARetryCategory, which found four missing commands
+            // the first time it was written.
+            Debug.Assert(category.HasValue, $"No retry category for {command}; add it to {nameof(GetDefaultCategory)}.");
+
+            flags |= category ?? CommandFlags.CommandRetryNever;
         }
 
         return flags;
+    }
 
-        static CommandFlags DefaultCategory(RedisCommand command)
+    /// <summary>
+    /// The retry category this library assumes for a command, or <see langword="null"/> if the table has
+    /// no opinion - which means the table is incomplete, not that the command is unsafe.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Separated from <see cref="WithDefaultCategory"/> so that "no entry" is expressible at all: folded
+    /// together, a missing command and one deliberately categorised
+    /// <see cref="CommandFlags.CommandRetryNever"/> are the same value, and nothing can tell a decision
+    /// from an omission.
+    /// </para>
+    /// <para>
+    /// <b>Not <c>TryGet</c>.</b> That prefix means <c>bool TryGetX(out T)</c> here as it does in the BCL,
+    /// and this returns a nullable instead - the <c>?</c> already says "may have no answer", and borrowing
+    /// a prefix that promises a different shape would cost more than it explains.
+    /// </para>
+    /// </remarks>
+    internal static CommandFlags? GetDefaultCategory(RedisCommand command)
+    {
         {
             // This is *not* using switch expressions very deliberately, because there are a *lot* of
             // options in each; let's keep things vertical rather than horizontal.
@@ -139,6 +211,8 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.SDIFF:
                 case RedisCommand.SINTER:
                 case RedisCommand.SINTERCARD:
+                case RedisCommand.SDIFFCARD:
+                case RedisCommand.SUNIONCARD:
                 case RedisCommand.SUNION:
                 case RedisCommand.ZCARD:
                 case RedisCommand.ZSCORE:
@@ -281,6 +355,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.RPOP:
                 case RedisCommand.RPOPLPUSH:
                 case RedisCommand.LMOVE:
+                case RedisCommand.LMOVEM:
                 case RedisCommand.LMPOP:
                 case RedisCommand.SPOP:
                 case RedisCommand.ZPOPMIN:
@@ -405,8 +480,17 @@ internal static class CommandFlagsExtensions
                 // if we don't recognize it: default to the most pessimistic
                 case RedisCommand.NONE:
                 case RedisCommand.UNKNOWN:
-                default:
+                // HIMPORT sets fields from a field set PREPARED ON THE CONNECTION, so unlike HSET its
+                // safety is not decided by the keyspace alone: a replay after a reconnect only works if
+                // the preamble is re-sent with it. Spelled out at its current effective value rather than
+                // guessed upward - see the queue; this one wants a decision, not an inference.
+                case RedisCommand.HIMPORT:
                     return CommandFlags.CommandRetryNever;
+
+                default:
+                    // No opinion. UNKNOWN and NONE have cases of their own above, so reaching here means
+                    // the table is missing an entry; the caller decides what to do about that.
+                    return null;
             }
         }
     }

@@ -66,81 +66,12 @@ internal abstract partial class ResultProcessor
     {
         protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
         {
+            // the shape lives on the type it produces, so the interpolated surface's handler reads the
+            // identical reply the identical way; see VectorSetInfo.Resp.cs
             if (!reader.IsAggregate) return false;
 
-            if (reader.IsNull)
-            {
-                SetResult(message, null);
-                return true;
-            }
-
-            var quantType = VectorSetQuantization.Unknown;
-            string? quantTypeRaw = null;
-            int vectorDim = 0, maxLevel = 0;
-            long resultSize = 0, vsetUid = 0, hnswMaxNodeUid = 0;
-
-            // Iterate through key-value pairs
-            while (reader.TryMoveNext())
-            {
-                // Read key
-                if (!reader.IsScalar) break;
-
-                VectorSetInfoField field;
-                unsafe
-                {
-                    if (!reader.TryParseScalar(&VectorSetInfoFieldMetadata.TryParse, out field))
-                    {
-                        field = VectorSetInfoField.Unknown;
-                    }
-                }
-
-                // Move to value
-                if (!reader.TryMoveNext()) break;
-
-                // Skip non-scalar values (future-proofing)
-                if (!reader.IsScalar)
-                {
-                    reader.SkipChildren();
-                    continue;
-                }
-
-                unsafe
-                {
-                    switch (field)
-                    {
-                        case VectorSetInfoField.Size when reader.TryReadInt64(out var i64):
-                            resultSize = i64;
-                            break;
-                        case VectorSetInfoField.VsetUid when reader.TryReadInt64(out var i64):
-                            vsetUid = i64;
-                            break;
-                        case VectorSetInfoField.MaxLevel when reader.TryReadInt64(out var i64):
-                            maxLevel = checked((int)i64);
-                            break;
-                        case VectorSetInfoField.VectorDim when reader.TryReadInt64(out var i64):
-                            vectorDim = checked((int)i64);
-                            break;
-                        case VectorSetInfoField.QuantType
-                            when reader.TryParseScalar(
-                                     &VectorSetQuantizationMetadata.TryParse,
-                                     out VectorSetQuantization quantTypeValue)
-                                 && quantTypeValue is not VectorSetQuantization.Unknown:
-                            quantType = quantTypeValue;
-                            break;
-                        case VectorSetInfoField.QuantType:
-                            quantTypeRaw = reader.ReadString();
-                            quantType = VectorSetQuantization.Unknown;
-                            break;
-                        case VectorSetInfoField.HnswMaxNodeUid when reader.TryReadInt64(out var i64):
-                            hnswMaxNodeUid = i64;
-                            break;
-                    }
-                }
-            }
-
-            SetResult(
-                message,
-                new VectorSetInfo(quantType, quantTypeRaw, vectorDim, resultSize, maxLevel, vsetUid, hnswMaxNodeUid));
+            // fully qualified: the ResultProcessor.VectorSetInfo FIELD shadows the type name in here
+            SetResult(message, global::StackExchange.Redis.VectorSetInfo.TryRead(ref reader, out var info) ? info : null);
             return true;
         }
     }

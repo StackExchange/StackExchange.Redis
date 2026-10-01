@@ -1,11 +1,12 @@
-using System;
+﻿using System;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Configures the expiration behaviour of a command.
 /// </summary>
-public readonly struct Expiration
+public readonly struct Expiration : IRespArgument
 {
     /*
      Redis expiration supports different modes:
@@ -275,36 +276,81 @@ public readonly struct Expiration
         static int ThrowEnxNotSupported() => throw new NotSupportedException("ENX is not supported for this command.");
     }
 
+    /// <summary>
+    /// The already-framed RESP token naming the mode - <c>EX</c>, <c>PXAT</c>, <c>KEEPTTL</c>, ... - or
+    /// empty when this expiration contributes no arguments at all.
+    /// </summary>
+    /// <remarks>
+    /// Shared by both writers - the <c>MessageWriter</c> path and the interpolated one - rather than
+    /// restated in each: this switch is the whole of the mode selection, and it is the part that would
+    /// silently diverge if either kept its own copy. Both live on this type, so it is <c>private</c>;
+    /// what keeps them honest is a test that renders the same command through both and compares bytes.
+    /// <see cref="HasExpirationValue"/> says whether a numeric operand follows it.
+    /// </remarks>
+    private ReadOnlySpan<byte> OperandResp
+    {
+        get
+        {
+            if (IsNone) return default;
+            if (IsKeepTtl) return "$7\r\nKEEPTTL\r\n"u8;
+            if (IsPersist) return "$7\r\nPERSIST\r\n"u8;
+            return (_flags & (ExpirationState.IsAbsolute | ExpirationState.IsMillis)) switch
+            {
+                ExpirationState.IsAbsolute | ExpirationState.IsMillis => "$4\r\nPXAT\r\n"u8,
+                ExpirationState.IsAbsolute => "$4\r\nEXAT\r\n"u8,
+                ExpirationState.IsMillis => "$2\r\nPX\r\n"u8,
+                _ => "$2\r\nEX\r\n"u8,
+            };
+        }
+    }
+
+    /// <summary>Whether <see cref="OperandResp"/> is followed by a numeric <see cref="Value"/>.</summary>
+    /// <remarks>False for KEEPTTL and PERSIST, which are complete in themselves.</remarks>
+    private bool HasExpirationValue => (_flags & ExpirationState.HasExpiration) != 0;
+
+    /// <summary>The already-framed RESP token for ENX, or empty when it does not apply.</summary>
+    private ReadOnlySpan<byte> ExpireIfNotExistsResp
+        => HasExpirationValue && IsExpireIfNotExists ? "$3\r\nENX\r\n"u8 : default;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Explicit, so it does not clutter the type for callers who will never write a RESP frame by hand;
+    /// reached only through a command hole - <c>$"{...}{expiry}"</c> - which is the one place it means
+    /// anything. The generic <c>AppendFormatted&lt;T&gt;</c> funnel is what binds it there, in preference
+    /// to a dedicated overload: if the extension mechanism is good enough for other libraries' types it is
+    /// good enough for ours, and this is the proof.
+    /// </remarks>
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
+    {
+        var operand = OperandResp;
+        if (operand.IsEmpty) return; // Expiration.Default contributes no arguments
+
+        // SER011 gates hand-written pre-framed fragments, because nothing validates the claim that the
+        // bytes are correctly framed. These are compile-time constants owned by this type and shared with
+        // the MessageWriter path (OperandResp), so the claim is as checked as it can be - and they are
+        // ALREADY framed, so AppendBulk, which frames what it is given, is not the right primitive.
+#pragma warning disable SER011
+        handler.AppendFormatted(new RespFragment(operand));
+        if (HasExpirationValue)
+        {
+            handler.AppendFormatted((RedisValue)Value);
+            var enx = ExpireIfNotExistsResp;
+            if (!enx.IsEmpty) handler.AppendFormatted(new RespFragment(enx));
+        }
+#pragma warning restore SER011
+    }
+
     internal void WriteTo(in MessageWriter writer)
     {
-        if (IsNone)
-        {
-            return;
-        }
+        var operand = OperandResp;
+        if (operand.IsEmpty) return;
 
-        if (IsKeepTtl)
+        writer.WriteRaw(operand);
+        if (HasExpirationValue)
         {
-            writer.WriteRaw("$7\r\nKEEPTTL\r\n"u8);
-            return;
-        }
-
-        if (IsPersist)
-        {
-            writer.WriteRaw("$7\r\nPERSIST\r\n"u8);
-            return;
-        }
-
-        writer.WriteRaw((_flags & (ExpirationState.IsAbsolute | ExpirationState.IsMillis)) switch
-        {
-            ExpirationState.IsAbsolute | ExpirationState.IsMillis => "$4\r\nPXAT\r\n"u8,
-            ExpirationState.IsAbsolute => "$4\r\nEXAT\r\n"u8,
-            ExpirationState.IsMillis => "$2\r\nPX\r\n"u8,
-            _ => "$2\r\nEX\r\n"u8,
-        });
-        writer.WriteBulkString(Value);
-        if (IsExpireIfNotExists)
-        {
-            writer.WriteRaw("$3\r\nENX\r\n"u8);
+            writer.WriteBulkString(Value);
+            var enx = ExpireIfNotExistsResp;
+            if (!enx.IsEmpty) writer.WriteRaw(enx);
         }
     }
 }

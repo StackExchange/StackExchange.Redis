@@ -128,7 +128,7 @@ internal partial class RedisDatabase
             case ValueCondition.ConditionKind.DigestEquals:
             case ValueCondition.ConditionKind.DigestNotEquals:
                 // SET ... IFEQ/IFNE/IFDEQ/IFDNE is a compare-and-set, not a blind overwrite
-                return Message.Create(Database, flags.WithCategory(when.RetryCategory), RedisCommand.SET, key, value, expiry, when);
+                return Message.Create(Database, flags.WithRetryCategory(when.RetryCategory), RedisCommand.SET, key, value, expiry, when);
             default:
                 when.ThrowInvalidOperation(operation);
                 goto case ValueCondition.ConditionKind.Always; // not reached

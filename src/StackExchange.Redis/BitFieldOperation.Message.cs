@@ -88,43 +88,24 @@ internal partial class RedisDatabase
         /// </summary>
         protected static void WriteOperation(in MessageWriter writer, in BitFieldOperation operation, ref BitFieldOverflow overflow, Span<byte> scratch)
         {
+            // the tokens live on BitFieldOperation, shared with the interpolated writer; see
+            // BitFieldOperation.Resp.cs
             if (operation.Kind != BitFieldOperation.OperationKind.Get && operation.Overflow != overflow)
             {
                 overflow = operation.Overflow;
-                writer.WriteRaw("$8\r\nOVERFLOW\r\n"u8);
-                switch (overflow)
-                {
-                    case BitFieldOverflow.Saturate:
-                        writer.WriteRaw("$3\r\nSAT\r\n"u8);
-                        break;
-                    case BitFieldOverflow.Fail:
-                        writer.WriteRaw("$4\r\nFAIL\r\n"u8);
-                        break;
-                    default:
-                        // shape-neutral (the count comes from the transition, not the mode), so
-                        // the server's own default is the safe answer here
-                        writer.WriteRaw("$4\r\nWRAP\r\n"u8);
-                        break;
-                }
+                writer.WriteRaw(BitFieldOperation.OverflowResp(overflow));
             }
 
-            switch (operation.Kind)
+            var kind = operation.KindResp;
+            if (kind.IsEmpty)
             {
-                case BitFieldOperation.OperationKind.Get:
-                    writer.WriteRaw("$3\r\nGET\r\n"u8);
-                    break;
-                case BitFieldOperation.OperationKind.Set:
-                    writer.WriteRaw("$3\r\nSET\r\n"u8);
-                    break;
-                case BitFieldOperation.OperationKind.IncrementBy:
-                    writer.WriteRaw("$6\r\nINCRBY\r\n"u8);
-                    break;
-                default:
-                    // unreachable: the callers check the operations before writing the header.
-                    // Guessing here would be worse than failing - a wrong sub-command corrupts
-                    // data, and one of the wrong arity corrupts the connection
-                    throw new InvalidOperationException($"A default {nameof(BitFieldOperation)} is not a valid operation.");
+                // unreachable: the callers check the operations before writing the header.
+                // Guessing here would be worse than failing - a wrong sub-command corrupts
+                // data, and one of the wrong arity corrupts the connection
+                throw new InvalidOperationException($"A default {nameof(BitFieldOperation)} is not a valid operation.");
             }
+
+            writer.WriteRaw(kind);
 
             operation.Encoding.Write(in writer, scratch);
             operation.Offset.Write(in writer, scratch);

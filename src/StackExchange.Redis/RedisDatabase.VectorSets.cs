@@ -200,19 +200,32 @@ internal partial class RedisDatabase
         Exclude exclude,
         CommandFlags flags)
     {
-        static RedisValue GetTerminator(RedisValue value, Exclude exclude, bool isStart)
-        {
-            if (value.IsNull) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
-            var mask = isStart ? Exclude.Start : Exclude.Stop;
-            var isExclusive = (exclude & mask) != 0;
-            return ((isExclusive ? "(" : "[") + value).AsRedisValue();
-        }
-
-        var from = GetTerminator(start, exclude, true);
-        var to = GetTerminator(end, exclude, false);
+        var from = VectorSetBound(start, exclude, isStart: true);
+        var to = VectorSetBound(end, exclude, isStart: false);
         return count < 0
             ? Message.Create(Database, flags, RedisCommand.VRANGE, key, from, to)
             : Message.Create(Database, flags, RedisCommand.VRANGE, key, from, to, count);
+    }
+
+    /// <summary>
+    /// One bound of a <c>VRANGE</c>: <c>-</c>/<c>+</c> for an open end, otherwise the value behind a
+    /// <c>[</c> or <c>(</c> depending on whether it is inclusive.
+    /// </summary>
+    /// <remarks>
+    /// Shared with the interpolated surface, as <c>GetLexRange</c> is for the sorted sets: the bracket is
+    /// the whole of the meaning, and an exclusive bound written inclusively is an off-by-one nobody sees
+    /// until it matters.
+    /// </remarks>
+    /// <param name="value">The bound value, or null for an open end.</param>
+    /// <param name="exclude">Which bounds the caller asked to exclude.</param>
+    /// <param name="isStart">Whether this is the lower bound.</param>
+    internal static RedisValue VectorSetBound(in RedisValue value, Exclude exclude, bool isStart)
+    {
+        if (value.IsNull) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
+
+        var mask = isStart ? Exclude.Start : Exclude.Stop;
+        var isExclusive = (exclude & mask) != 0;
+        return ((isExclusive ? "(" : "[") + value).AsRedisValue();
     }
 
     public Lease<RedisValue> VectorSetRange(

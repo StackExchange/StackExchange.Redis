@@ -1,0 +1,719 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using RESPite;
+using RESPite.Messages;
+using StackExchange.Redis.Protocol;
+
+namespace StackExchange.Redis;
+
+/// <summary>
+/// The vectorsets commands.
+/// </summary>
+/// <remarks>
+/// Here rather than in a single surface-wide class, so that a group is one place. The extension methods
+/// bind by namespace, and the namespace is <c>StackExchange.Redis</c>, so this costs a caller nothing.
+/// </remarks>
+public static partial class VectorSets
+{
+    /// <summary>VADD: add a member and its vector, building the index as it goes.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to write.</param>
+    /// <param name="request">What to add, and how the index should treat it.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// The request object rather than a dozen parameters, as the old surface has it: most of them are
+    /// index-construction knobs that are set once for a deployment and never touched again.
+    /// </remarks>
+    public static ValueTask<bool> AddAsync(this in RespVectorSets sets, RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    {
+        if (request is null) throw new ArgumentNullException(nameof(request));
+
+        var context = sets.Context;
+        var cmd = context.Compose(RedisCommand.VADD, request.ArgCount);
+        try
+        {
+            request.WriteTo(ref cmd, in key);
+        }
+        catch
+        {
+            cmd.Dispose();
+            throw;
+        }
+
+        var frame = cmd.Complete();
+        return context.SendAsync(ref frame, flags, RespHandlers.Boolean, cancellationToken);
+    }
+
+    /// <summary>VSIM: the members nearest to a vector or to another member.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to search.</param>
+    /// <param name="query">What to search for, and what to report about each match.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// The reply's shape follows the query: scores and attributes are separate trailing elements per
+    /// match, except in RESP3 with both asked for, where they arrive as a sub-array instead. The
+    /// handler reads that structurally rather than being told the protocol, so it does not need one.
+    /// </remarks>
+    public static ValueTask<ReadOnlyLease<VectorSetSimilaritySearchResult>?> SimilaritySearchAsync(
+        this in RespVectorSets sets,
+        RedisKey key,
+        VectorSetSimilaritySearchRequest query,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => SimilaritySearchCore(in sets, key, query, flags, SimilarityHandler.Lease(query));
+
+    /// <summary>VCARD: how many members the set holds.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<long> LengthAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync<long>(
+            $"{RedisCommand.VCARD}{key}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>VDIM: how many components each vector has.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<int> DimensionAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync(
+            $"{RedisCommand.VDIM}{key}", flags, Int32Handler.Instance, cancellationToken: cancellationToken);
+
+    /// <summary>VISMEMBER: whether the set holds this member.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="member">The member to look for.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<bool> ContainsAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync<bool>(
+            $"{RedisCommand.VISMEMBER}{key}{member}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>VREM: drop a member.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to write.</param>
+    /// <param name="member">The member to remove.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<bool> RemoveAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync<bool>(
+            $"{RedisCommand.VREM}{key}{member}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>VRANDMEMBER: one member at random, or nil if the set is empty.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<RedisValue> RandomMemberAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync<RedisValue>(
+            $"{RedisCommand.VRANDMEMBER}{key}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>VRANDMEMBER with a count; negative allows repeats.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="count">How many to take; negative to allow the same member more than once.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
+            $"{RedisCommand.VRANDMEMBER}{key}{count}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>VGETATTR: the JSON attributes attached to a member, or nil if it has none.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="member">The member to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<string?> GetAttributesJsonAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync<string?>(
+            $"{RedisCommand.VGETATTR}{key}{member}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>VSETATTR: attach JSON attributes to a member.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to write.</param>
+    /// <param name="member">The member to annotate.</param>
+    /// <param name="attributesJson">The attributes, as JSON.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<bool> SetAttributesJsonAsync(
+        this in RespVectorSets sets,
+        RedisKey key,
+        RedisValue member,
+#if NET8_0_OR_GREATER
+        [StringSyntax(StringSyntaxAttribute.Json)]
+#endif
+        string attributesJson,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync<bool>(
+            $"{RedisCommand.VSETATTR}{key}{member}{attributesJson.AsRedisValue()}",
+            flags,
+            cancellationToken: cancellationToken);
+
+    /// <summary>VEMB: the stored vector for a member, as the server approximates it.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="member">The member to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// Approximate because quantization is lossy: what comes back is what the index holds, not what
+    /// was written, unless the set was built with <see cref="VectorSetQuantization.None"/>.
+    /// </remarks>
+    public static ValueTask<ReadOnlyLease<float>?> GetApproximateVectorAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync(
+            $"{RedisCommand.VEMB}{key}{member}", flags, Float32Handler.Lease, cancellationToken: cancellationToken);
+
+    /// <summary>VLINKS: the neighbours of a member, flattened across the index's layers.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="member">The member to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<ReadOnlyLease<RedisValue>?> GetLinksAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync(
+            $"{RedisCommand.VLINKS}{key}{member}", flags, LinkHandler.MembersLease, cancellationToken: cancellationToken);
+
+    /// <summary>VLINKS WITHSCORES: the same neighbours, with their distances.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="member">The member to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<ReadOnlyLease<VectorSetLink>?> GetLinksWithScoresAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    {
+        var cmd = GetLinksWithScoresCommand(sets.Context, key, member);
+        return sets.Context.SendAsync(ref cmd, flags, LinkHandler.ScoredLease, cancellationToken);
+    }
+
+    /// <summary>VINFO: what the index says about itself.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    public static ValueTask<VectorSetInfo?> InfoAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync(
+            $"{RedisCommand.VINFO}{key}", flags, InfoHandler.Instance, cancellationToken: cancellationToken);
+
+    /// <summary>VRANGE: members in lexicographic order, between two bounds.</summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="start">The lower bound, or default for "from the beginning".</param>
+    /// <param name="end">The upper bound, or default for "to the end".</param>
+    /// <param name="count">How many to return, or -1 for all of them.</param>
+    /// <param name="exclude">Which bounds to treat as exclusive.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// Deliberately not called a scan: the server has no <c>VSCAN</c>, and if one arrives it should be
+    /// free to take the name.
+    /// </remarks>
+    public static ValueTask<ReadOnlyLease<RespValue>> RangeAsync(
+        this in RespVectorSets sets,
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = -1,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        // the bound spelling is shared with the MessageWriter path; see RedisDatabase.VectorSetBound
+        var from = RedisDatabase.VectorSetBound(start, exclude, isStart: true);
+        var to = RedisDatabase.VectorSetBound(end, exclude, isStart: false);
+
+        return count < 0
+            ? sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
+                $"{RedisCommand.VRANGE}{key}{from}{to}", flags, cancellationToken: cancellationToken)
+            : sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
+                $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// <c>VRANGE</c>, paged: the members in a range, a page at a time, for as long as they are read.
+    /// </summary>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="start">The lower bound, or default for "from the beginning".</param>
+    /// <param name="end">The upper bound, or default for "to the end".</param>
+    /// <param name="pageSize">How many to ask the server for per round trip.</param>
+    /// <param name="exclude">Which bounds to treat as exclusive; it applies to the FIRST page only.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">
+    /// Cancels the walk <b>between pages</b>. Combined with the enumerator's own token when they differ -
+    /// see <c>RespKeysetEnumerable.GetAsyncEnumerator</c>.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// <b>Keyset pagination, not a cursor scan</b>, and the shipped code is emphatic about the difference:
+    /// <i>"intentionally not using scan naming in case a VSCAN command is added later"</i>. There is no
+    /// server-side cursor - the next page starts from the last member returned, with the start excluded -
+    /// so this is not resumable the way a scan is, and does not pretend to be an
+    /// <see cref="IScanningCursor"/>.
+    /// </para>
+    /// <para>
+    /// <b>The utility half</b>, built on <see cref="RangeAsync"/>'s command rather than beside it. Two
+    /// round trips are avoided that the naive loop would make: a page shorter than
+    /// <paramref name="pageSize"/> means the server had no more, and reaching <paramref name="end"/> means
+    /// there is nothing left to ask for.
+    /// </para>
+    /// </remarks>
+    public static IAsyncEnumerable<RedisValue> RangeEnumerateAsync(
+        this in RespVectorSets sets,
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long pageSize = 100,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => RangeEnumerateCore(sets, key, start, end, pageSize, exclude, flags, cancellationToken);
+
+    /// <summary>The concrete walk, which is <b>both</b> sequences at once.</summary>
+    /// <remarks><inheritdoc cref="Sets.ScanCore" path="/remarks"/></remarks>
+    internal static RespKeysetEnumerable<RedisValue> RangeEnumerateCore(
+        this in RespVectorSets sets,
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long pageSize = 100,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize), "pageSize must be greater than 0.");
+
+        // the context is copied into the closure once per enumeration, which is the cost of the convenient
+        // shape; RangeAsync is there for callers who will not pay it
+        var context = sets.Context;
+        var endExcluded = (exclude & Exclude.Stop) != 0;
+
+        return new RespKeysetEnumerable<RedisValue>(
+            (from, excludeStart, token) =>
+            {
+                // checked here and NOT handed to the send, as the scans do: RespExecutor refuses a
+                // cancellable token outright, and one page is bounded work
+                token.ThrowIfCancellationRequested();
+                var cmd = RangePageCommand(context, key, from, end, pageSize, excludeStart, endExcluded);
+                return context.SendAsync(ref cmd, flags, RespHandlers.ValueLease, default);
+            },
+            (from, excludeStart) =>
+            {
+                // the synchronous face uses the synchronous send, rather than blocking on the async one
+                var cmd = RangePageCommand(context, key, from, end, pageSize, excludeStart, endExcluded);
+                return context.Send(ref cmd, flags, RespHandlers.ValueLease, default);
+            },
+            static (in RedisValue item) => item, // the member IS the marker
+            start,
+            end,
+            (exclude & Exclude.Start) != 0,
+            pageSize,
+            cancellationToken);
+    }
+
+    /// <summary>Render one page of a <c>VRANGE</c> walk.</summary>
+    /// <remarks>
+    /// The bound spelling is <see cref="RedisDatabase.VectorSetBound"/>'s, as <see cref="RangeAsync"/>
+    /// uses - so a page of the walk and a one-shot range agree on what a bracket means.
+    /// </remarks>
+    private static RespRequestFrame RangePageCommand(
+        RespContext context,
+        RedisKey key,
+        RedisValue start,
+        RedisValue end,
+        long pageSize,
+        bool excludeStart,
+        bool excludeEnd)
+    {
+        var from = RedisDatabase.VectorSetBound(start, excludeStart ? Exclude.Start : Exclude.None, isStart: true);
+        var to = RedisDatabase.VectorSetBound(end, excludeEnd ? Exclude.Stop : Exclude.None, isStart: false);
+        return context.Render($"{RedisCommand.VRANGE}{key}{from}{to}{pageSize}");
+    }
+
+    /// <summary>Render <c>VLINKS ... WITHSCORES</c>.</summary>
+    /// <remarks>
+    /// The trailer is what makes the reply carry distances, so the read-only lease and the writable
+    /// lease behind <c>IDatabase</c> must not be able to disagree about it.
+    /// </remarks>
+    private static RespRequestFrame GetLinksWithScoresCommand(RespContext context, RedisKey key, RedisValue member)
+        => context.Render($"{RedisCommand.VLINKS}{key}{member}{RespLiterals.WithScores}");
+
+    // ---- the writable-lease shapes IDatabase still needs -------------------------------------------
+    // Internal, as everywhere else: Lease<T> is the OLD spelling, the caller may write to it, and so
+    // it cannot share storage with the reply the way a read-only lease does.
+
+    /// <inheritdoc cref="GetApproximateVectorAsync"/>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="member">The member to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    internal static ValueTask<Lease<float>?> GetApproximateVectorWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync(
+            $"{RedisCommand.VEMB}{key}{member}", flags, Float32Handler.Writable, cancellationToken: cancellationToken);
+
+    /// <inheritdoc cref="GetLinksAsync"/>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="member">The member to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    internal static ValueTask<Lease<RedisValue>?> GetLinksWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync(
+            $"{RedisCommand.VLINKS}{key}{member}", flags, LinkHandler.MembersWritable, cancellationToken: cancellationToken);
+
+    /// <inheritdoc cref="GetLinksWithScoresAsync"/>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="member">The member to read.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    internal static ValueTask<Lease<VectorSetLink>?> GetLinksWithScoresWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    {
+        var cmd = GetLinksWithScoresCommand(sets.Context, key, member);
+        return sets.Context.SendAsync(ref cmd, flags, LinkHandler.ScoredWritable, cancellationToken);
+    }
+
+    /// <inheritdoc cref="SimilaritySearchAsync"/>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to search.</param>
+    /// <param name="query">What to search for.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    internal static ValueTask<Lease<VectorSetSimilaritySearchResult>?> SimilaritySearchWritableLease(
+        this in RespVectorSets sets,
+        RedisKey key,
+        VectorSetSimilaritySearchRequest query,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => SimilaritySearchCore(in sets, key, query, flags, SimilarityHandler.Writable(query));
+
+    /// <inheritdoc cref="VectorSets.RangeAsync(in RespVectorSets, RedisKey, RedisValue, RedisValue, long, Exclude, CommandFlags, CancellationToken)"/>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="start">The lower bound.</param>
+    /// <param name="end">The upper bound.</param>
+    /// <param name="count">How many to return, or -1 for all of them.</param>
+    /// <param name="exclude">Which bounds to treat as exclusive.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    internal static ValueTask<Lease<RedisValue>?> RangeWritableLease(
+        this in RespVectorSets sets,
+        RedisKey key,
+        RedisValue start = default,
+        RedisValue end = default,
+        long count = -1,
+        Exclude exclude = Exclude.None,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        var from = RedisDatabase.VectorSetBound(start, exclude, isStart: true);
+        var to = RedisDatabase.VectorSetBound(end, exclude, isStart: false);
+
+        return count < 0
+            ? sets.Context.SendAsync(
+                $"{RedisCommand.VRANGE}{key}{from}{to}", flags, ValueLeaseHandler.Writable, cancellationToken: cancellationToken)
+            : sets.Context.SendAsync(
+                $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags, ValueLeaseHandler.Writable, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc cref="VectorSets.RandomMembersAsync(in RespVectorSets, RedisKey, long, CommandFlags, CancellationToken)"/>
+    /// <param name="sets">The vector-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="count">How many to take.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+        => sets.Context.SendAsync<RedisValue[]>(
+            $"{RedisCommand.VRANDMEMBER}{key}{count}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>The one renderer for VSIM; the handler is what differs between the two shapes.</summary>
+    private static ValueTask<TResult> SimilaritySearchCore<TResult>(
+        in RespVectorSets sets,
+        in RedisKey key,
+        VectorSetSimilaritySearchRequest query,
+        CommandFlags flags,
+        IRespHandler<TResult> handler)
+    {
+        if (query is null) throw new ArgumentNullException(nameof(query));
+
+        var context = sets.Context;
+        var cmd = context.Compose(RedisCommand.VSIM, query.ArgCount);
+        try
+        {
+            query.WriteTo(ref cmd, in key);
+        }
+        catch
+        {
+            cmd.Dispose();
+            throw;
+        }
+
+        var frame = cmd.Complete();
+        return context.SendAsync(ref frame, flags, handler, default);
+    }
+
+    /// <summary>
+    /// The VSIM reader, which cannot be an <c>Inbuilt</c> handler: what comes back per match depends
+    /// on what the request asked for.
+    /// </summary>
+    /// <remarks>
+    /// Four combinations of scores and attributes, so four cached instances - the same arrangement as
+    /// the geo queries. The RESP3 nesting is <b>not</b> one of them: when both are asked for, RESP3
+    /// sends them as a sub-array and RESP2 as two more elements, and that is visible in the reply
+    /// itself, so it is read rather than configured.
+    /// </remarks>
+    private sealed class SimilarityHandler :
+        IRespHandler<ReadOnlyLease<VectorSetSimilaritySearchResult>?>,
+        IRespHandler<Lease<VectorSetSimilaritySearchResult>?>
+    {
+        private static readonly SimilarityHandler?[] Instances = new SimilarityHandler?[4];
+
+        private readonly bool _withScores, _withAttributes;
+
+        private SimilarityHandler(bool withScores, bool withAttributes)
+        {
+            _withScores = withScores;
+            _withAttributes = withAttributes;
+        }
+
+        internal static IRespHandler<ReadOnlyLease<VectorSetSimilaritySearchResult>?> Lease(VectorSetSimilaritySearchRequest query)
+            => Get(query);
+
+        internal static IRespHandler<Lease<VectorSetSimilaritySearchResult>?> Writable(VectorSetSimilaritySearchRequest query)
+            => Get(query);
+
+        private static SimilarityHandler Get(VectorSetSimilaritySearchRequest query)
+        {
+            var index = (query.WithScores ? 1 : 0) | (query.WithAttributes ? 2 : 0);
+            return Instances[index] ??= new SimilarityHandler(query.WithScores, query.WithAttributes);
+        }
+
+        ReadOnlyLease<VectorSetSimilaritySearchResult>? IRespHandler<ReadOnlyLease<VectorSetSimilaritySearchResult>?>.Parse(ref RespReader reader)
+            => Read(ref reader);
+
+        Lease<VectorSetSimilaritySearchResult>? IRespHandler<Lease<VectorSetSimilaritySearchResult>?>.Parse(ref RespReader reader)
+            => CopyOut(Read(ref reader));
+
+        private ReadOnlyLease<VectorSetSimilaritySearchResult>? Read(scoped ref RespReader reader)
+        {
+            if (!reader.IsAggregate || reader.IsNull) return null;
+
+            var total = reader.AggregateLength();
+            if (total == 0) return ReadOnlyLease<VectorSetSimilaritySearchResult>.Empty;
+
+            // how many top-level elements each match occupies, which is what turns a flat run into a
+            // count of matches
+            var iter = reader.AggregateChildren();
+            var perMatch = 1 + (_withScores ? 1 : 0) + (_withAttributes ? 1 : 0);
+            if (_withScores && _withAttributes)
+            {
+                // RESP3 nests the pair; look rather than ask, because the handler has no protocol
+                var peek = reader.AggregateChildren();
+                if (peek.MoveNext() && peek.MoveNext() && peek.Value.IsAggregate) perMatch = 2;
+            }
+
+            var lease = ReadOnlyLease<VectorSetSimilaritySearchResult>.Rent(total / perMatch, null, out var target);
+            try
+            {
+                for (var i = 0; i < target.Length && iter.MoveNext(); i++)
+                {
+                    var member = iter.Value.ReadRedisValue();
+                    double score = double.NaN;
+                    string? attributes = null;
+
+                    if (perMatch == 2 && _withScores && _withAttributes)
+                    {
+                        if (!iter.MoveNext() || !iter.Value.IsAggregate) break;
+                        if (!iter.Value.IsNull)
+                        {
+                            var sub = iter.Value.AggregateChildren();
+                            if (sub.MoveNext()) sub.Value.TryReadDouble(out score);
+                            if (sub.MoveNext()) attributes = sub.Value.ReadString();
+                        }
+                    }
+                    else
+                    {
+                        if (_withScores)
+                        {
+                            if (!iter.MoveNext()) break;
+                            iter.Value.TryReadDouble(out score);
+                        }
+
+                        if (_withAttributes)
+                        {
+                            if (!iter.MoveNext()) break;
+                            attributes = iter.Value.ReadString();
+                        }
+                    }
+
+                    target[i] = new VectorSetSimilaritySearchResult(member, score, attributes);
+                }
+
+                return lease;
+            }
+            catch
+            {
+                lease.Dispose();
+                throw;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A flat array of values as a writable lease, for <see cref="IDatabase"/>: the read-only shape is
+    /// an inbuilt handler, and this is that answer copied into storage the caller may write to.
+    /// </summary>
+    private sealed class ValueLeaseHandler : IRespHandler<Lease<RedisValue>?>
+    {
+        private static readonly ValueLeaseHandler Instance = new();
+
+        internal static IRespHandler<Lease<RedisValue>?> Writable => Instance;
+
+        public Lease<RedisValue>? Parse(ref RespReader reader)
+            => reader.IsNull ? null : CopyOut<RedisValue>(RespHandlers.ValueLease.Parse(ref reader));
+    }
+
+    /// <summary>VDIM replies with a count that is an <see cref="int"/> on the old surface.</summary>
+    private sealed class Int32Handler : IRespHandler<int>
+    {
+        internal static readonly Int32Handler Instance = new();
+
+        public int Parse(ref RespReader reader) => checked((int)reader.ReadInt64());
+    }
+
+    /// <summary>VEMB: a flat array of components, which the server sends as text.</summary>
+    private sealed class Float32Handler : IRespHandler<ReadOnlyLease<float>?>, IRespHandler<Lease<float>?>
+    {
+        private static readonly Float32Handler Instance = new();
+
+        internal static IRespHandler<ReadOnlyLease<float>?> Lease => Instance;
+
+        internal static IRespHandler<Lease<float>?> Writable => Instance;
+
+        ReadOnlyLease<float>? IRespHandler<ReadOnlyLease<float>?>.Parse(ref RespReader reader)
+            => reader.IsNull ? null : RespHandlers.ReadScalarLease(ref reader, RespHandlers.Elements.Single);
+
+        Lease<float>? IRespHandler<Lease<float>?>.Parse(ref RespReader reader)
+            => CopyOut(((IRespHandler<ReadOnlyLease<float>?>)Instance).Parse(ref reader));
+    }
+
+    /// <summary>
+    /// VLINKS, in both spellings: an array per index layer, flattened into one run.
+    /// </summary>
+    /// <remarks>
+    /// The layers are an implementation detail of the HNSW index rather than something a caller asked
+    /// about, so the old surface flattens them and this does too - the alternative is a lease of
+    /// leases, which nobody wants to dispose.
+    /// </remarks>
+    private sealed class LinkHandler :
+        IRespHandler<ReadOnlyLease<RedisValue>?>,
+        IRespHandler<Lease<RedisValue>?>,
+        IRespHandler<ReadOnlyLease<VectorSetLink>?>,
+        IRespHandler<Lease<VectorSetLink>?>
+    {
+        private static readonly LinkHandler Instance = new();
+
+        internal static IRespHandler<ReadOnlyLease<RedisValue>?> MembersLease => Instance;
+
+        internal static IRespHandler<Lease<RedisValue>?> MembersWritable => Instance;
+
+        internal static IRespHandler<ReadOnlyLease<VectorSetLink>?> ScoredLease => Instance;
+
+        internal static IRespHandler<Lease<VectorSetLink>?> ScoredWritable => Instance;
+
+        ReadOnlyLease<RedisValue>? IRespHandler<ReadOnlyLease<RedisValue>?>.Parse(ref RespReader reader)
+            => ReadFlattened(ref reader, 1, static (ref RespReader r) => r.ReadRedisValue());
+
+        Lease<RedisValue>? IRespHandler<Lease<RedisValue>?>.Parse(ref RespReader reader)
+            => CopyOut(ReadFlattened(ref reader, 1, static (ref RespReader r) => r.ReadRedisValue()));
+
+        ReadOnlyLease<VectorSetLink>? IRespHandler<ReadOnlyLease<VectorSetLink>?>.Parse(ref RespReader reader)
+            => ReadFlattened(ref reader, 2, static (ref RespReader r) => VectorSetLink.Read(ref r));
+
+        Lease<VectorSetLink>? IRespHandler<Lease<VectorSetLink>?>.Parse(ref RespReader reader)
+            => CopyOut(ReadFlattened(ref reader, 2, static (ref RespReader r) => VectorSetLink.Read(ref r)));
+    }
+
+    /// <summary>VINFO: an attribute map, read through the type that carries the field names.</summary>
+    private sealed class InfoHandler : IRespHandler<VectorSetInfo?>
+    {
+        internal static readonly InfoHandler Instance = new();
+
+        public VectorSetInfo? Parse(ref RespReader reader)
+            => VectorSetInfo.TryRead(ref reader, out var info) ? info : null;
+    }
+
+    /// <summary>
+    /// Read a reply of the form <c>[[a],[b,c]]</c> as one run of <paramref name="tokensPerElement"/>
+    /// tokens each.
+    /// </summary>
+    private static ReadOnlyLease<T>? ReadFlattened<T>(scoped ref RespReader reader, int tokensPerElement, RespReader.Projection<T> projection)
+    {
+        if (!reader.IsAggregate || reader.IsNull) return null;
+
+        // two passes, as the old processor does: the total is not known until every layer has been
+        // counted, and a lease wants its length up front
+        long total = 0;
+        var iter = reader.AggregateChildren();
+        while (iter.MoveNext())
+        {
+            if (iter.Value.IsAggregate && !iter.Value.IsNull)
+            {
+                total += iter.Value.AggregateLength() / tokensPerElement;
+            }
+        }
+
+        if (total == 0) return ReadOnlyLease<T>.Empty;
+
+        var lease = ReadOnlyLease<T>.Rent(checked((int)total), null, out var target);
+        try
+        {
+            var index = 0;
+            iter = reader.AggregateChildren();
+            while (iter.MoveNext())
+            {
+                if (!iter.Value.IsAggregate || iter.Value.IsNull) continue;
+
+                // the LAYER's reader, not one scoped to a single element: a scored link is two
+                // successive tokens, so the projection has to be able to reach its partner
+                var layer = iter.Value;
+                while (index < target.Length && layer.TryMoveNext())
+                {
+                    target[index++] = projection(ref layer);
+                }
+            }
+
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// The writable sibling of a read-only lease: <see cref="IDatabase"/> hands out
+    /// <see cref="Lease{T}"/>, which the caller may write to, so it cannot share storage.
+    /// </summary>
+    private static Lease<T>? CopyOut<T>(ReadOnlyLease<T>? source)
+    {
+        if (source is null) return null;
+        using (source)
+        {
+            if (source.IsEmpty) return Lease<T>.Empty;
+
+            var lease = Lease<T>.Create(source.Length, clear: false);
+            source.Span.CopyTo(lease.Span);
+            return lease;
+        }
+    }
+}

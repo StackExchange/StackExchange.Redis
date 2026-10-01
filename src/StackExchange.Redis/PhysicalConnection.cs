@@ -1373,6 +1373,7 @@ namespace StackExchange.Redis
             ProcessBufferComplete,
             PubSubUnsubscribe,
             MaintenanceNotification,
+            Invalidate, // client-side caching
             NA = -1,
         }
 

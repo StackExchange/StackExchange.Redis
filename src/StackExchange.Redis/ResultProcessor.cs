@@ -38,13 +38,41 @@ namespace StackExchange.Redis
         {
             if (errorReader.IsError && RedisErrorKindMetadata.Classify(errorReader) == RedisErrorKind.NoScript)
             {
-                // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
+                // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH").
+                // Still true for the scripts we track, though the reasoning is subtler than when it was written:
+                // since 7.4 the server DOES evict individually, but only scripts that arrived via EVAL/EVAL_RO -
+                // and those are exactly the ones we never record as loaded and never address by hash, because
+                // that path is NoScriptCache. So anything we track got there by SCRIPT LOAD, and its absence
+                // still implies a wholesale event rather than eviction. See CommandFlags.NoScriptCache.
                 connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
                 message.SetScriptUnavailable();
                 return true;
             }
 
             return false;
+        }
+
+        /// <summary>The <c>NOSCRIPT</c> decision, in one place: note it, and say whether to try again.</summary>
+        /// <remarks>
+        /// <para>
+        /// Three processors can be the target of an <c>EVALSHA</c> - the <c>RedisResult</c> one, the
+        /// <c>RespResult</c> one, and the frame path's - and this rule is subtle enough that a third copy
+        /// was where it would have gone wrong.
+        /// </para>
+        /// <para>
+        /// The stickiness is the mechanism: <see cref="Message.IsScriptUnavailable"/> is read <b>before</b>
+        /// noting, so a second <c>NOSCRIPT</c> for the same message finds the flag already set and reports
+        /// rather than retrying. That is only load-bearing when the caller supplied a <i>hash</i>: given a
+        /// body, the retry sends <c>EVAL</c> with it - because noting flushed the belief - and there is
+        /// never a second <c>NOSCRIPT</c> to guard against.
+        /// </para>
+        /// </remarks>
+        private protected static ReplyVerdict NoScriptVerdict(PhysicalConnection connection, Message message, in RespReader errorReader)
+        {
+            var alreadyTried = message.IsScriptUnavailable;
+            return NoteIfScriptUnavailable(connection, message, in errorReader) && !alreadyTried
+                ? ReplyVerdict.Reissue
+                : ReplyVerdict.Complete;
         }
 
         public static readonly ResultProcessor<bool>
@@ -227,7 +255,7 @@ namespace StackExchange.Redis
             HashEntryArray = new HashEntryArrayProcessor();
 
         // If the server reports max (i.e. FATAL), use int.MinValue as a similarly obviously bad value.
-        private static int ParseStreamDeliveryCount(long deliveryCount)
+        internal static int ParseStreamDeliveryCount(long deliveryCount)
             => deliveryCount == long.MaxValue ? int.MinValue : checked((int)deliveryCount);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Conditionally run on instance")]
@@ -261,9 +289,86 @@ namespace StackExchange.Redis
             var box = message?.ResultBox;
             box?.SetException(ex);
         }
+
+        /// <summary>
+        /// See the reply before anything consumes it, to decide something about the <i>connection</i> or
+        /// the <i>message</i> rather than to produce a result.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <c>SetResult</c> has always done two jobs - inspect, then parse - and the four processors that
+        /// needed the first had to override the whole of it to get it: take a copy of the reader, advance
+        /// the copy, look, then hand the <i>original</i> back to <c>base.SetResult</c>. Every one of them
+        /// hand-rolled that rewind, and getting it wrong means parsing from the wrong position, which
+        /// presents as somebody else's reply arriving for your command.
+        /// </para>
+        /// <para>
+        /// The reader is passed by <c>in</c> and at the <b>start</b> of the reply, so an implementation
+        /// copies it and advances the copy - the caller's position cannot be disturbed, which is the
+        /// property the rewind dance was manually preserving.
+        /// </para>
+        /// <para>
+        /// Inspection cannot yet <i>direct</i> what happens next; it can only record. The clearest cost of
+        /// that is <c>NOSCRIPT</c>: the inspection sets a flag on the message, the task faults, and six
+        /// <c>catch (RedisServerException) when (msg.IsScriptUnavailable)</c> sites re-issue - a verdict
+        /// delivered by unwinding, because there is no way to say "reissue". Giving this a return value is
+        /// the next step, and is why the seam is named rather than inlined.
+        /// </para>
+        /// </remarks>
+        protected virtual ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+            => ReplyVerdict.Complete;
+
+        /// <summary>What inspecting a reply concluded should happen to the message.</summary>
+        internal enum ReplyVerdict
+        {
+            /// <summary>Carry on: parse the reply and complete the message.</summary>
+            Complete = 0,
+
+            /// <summary>
+            /// Send this same message again, to the same endpoint, and do not complete it.
+            /// </summary>
+            /// <remarks>
+            /// Only <c>NOSCRIPT</c> so far. The resend is the one <c>MOVED</c> has always used from this
+            /// same read path - <c>PrepareToResend</c> then <c>TryWriteSync</c>, returning <c>false</c> from
+            /// <c>SetResult</c> to mean "re-issued, do not complete" - rather than a second mechanism.
+            /// </remarks>
+            Reissue = 1,
+        }
+
+        /// <summary>Write the message again, to the endpoint that just answered.</summary>
+        /// <remarks>
+        /// Deliberately not <c>ServerSelectionStrategy.TryResend</c>, which is about <i>redirects</i>: it
+        /// refuses a message with no hash slot - which a keyless script has - and sets asking/no-redirect
+        /// on the way through. This is the same endpoint and the same message, with nothing to re-route.
+        /// </remarks>
+        private static bool TryReissue(PhysicalConnection connection, Message message)
+        {
+            var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+            if (server is null) return false;
+
+            try
+            {
+                message.PrepareToResend(server, isMoved: false);
+#pragma warning disable CS0618 // sync write is what the MOVED path uses from here too
+                return server.TryWriteSync(message) == WriteResult.Success;
+#pragma warning restore CS0618
+            }
+            catch
+            {
+                return false; // fall through to ordinary error handling, which still has the reply in hand
+            }
+        }
+
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
         {
+            var verdict = Inspect(connection, message, in reader);
+            if (verdict == ReplyVerdict.Reissue && TryReissue(connection, message))
+            {
+                // re-issued: this reply is spent, and the message now belongs to its next attempt
+                return false;
+            }
+
             reader.MovePastBof();
             connection.OnDetailLog($"(core result for {message.Command}, '{reader.GetOverview()}')");
             var bridge = connection.BridgeCouldBeNull;
@@ -691,27 +796,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Handle array with at least 2 elements: [element, score, ...], or null/empty array
-                if (reader.IsAggregate)
-                {
-                    SortedSetEntry? result = null;
+                // the shape lives on the type it produces, so the interpolated surface's handler reads the
+                // identical reply the identical way; see SortedSetEntry.Resp.cs
+                if (!Redis.SortedSetEntry.TryRead(ref reader, out var result)) return false;
 
-                    // Note: null arrays report false for TryMoveNext, so no explicit null check needed
-                    if (reader.TryMoveNext() && reader.IsScalar)
-                    {
-                        var element = reader.ReadRedisValue();
-                        if (reader.TryMoveNext() && reader.IsScalar)
-                        {
-                            var score = reader.TryReadDouble(out var val) ? val : double.NaN;
-                            result = new SortedSetEntry(element, score);
-                        }
-                    }
-
-                    SetResult(message, result);
-                    return true;
-                }
-
-                return false;
+                SetResult(message, result);
+                return true;
             }
         }
 
@@ -725,47 +815,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Handle array of 2: [key, array of SortedSetEntry] or null aggregate
-                if (reader.IsAggregate)
-                {
-                    // Handle null (RESP3 pure null or RESP2 null array)
-                    if (reader.IsNull)
-                    {
-                        SetResult(message, Redis.SortedSetPopResult.Null);
-                        return true;
-                    }
+                // the shape lives on the type it produces, so the interpolated surface's handler reads the
+                // identical reply the identical way; see SortedSetPopResult.Resp.cs
+                if (!Redis.SortedSetPopResult.TryRead(ref reader, out var result)) return false;
 
-                    if (reader.TryMoveNext() && reader.IsScalar)
-                    {
-                        var key = reader.ReadRedisKey();
-
-                        // Read the second element (array of SortedSetEntry)
-                        if (reader.TryMoveNext() && reader.IsAggregate)
-                        {
-                            var entries = reader.ReadPastArray(
-                                static (ref r) =>
-                                {
-                                    // Each entry is an array of 2: [element, score]
-                                    if (r.IsAggregate && r.TryMoveNext() && r.IsScalar)
-                                    {
-                                        var element = r.ReadRedisValue();
-                                        if (r.TryMoveNext() && r.IsScalar)
-                                        {
-                                            var score = r.TryReadDouble(out var val) ? val : double.NaN;
-                                            return new SortedSetEntry(element, score);
-                                        }
-                                    }
-                                    return default;
-                                },
-                                scalar: false);
-
-                            SetResult(message, new SortedSetPopResult(key, entries!));
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
+                SetResult(message, result);
+                return true;
             }
         }
 
@@ -773,31 +828,12 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Handle array of 2: [key, array of values] or null aggregate
-                if (reader.IsAggregate)
-                {
-                    // Handle null (RESP3 pure null or RESP2 null array)
-                    if (reader.IsNull)
-                    {
-                        SetResult(message, Redis.ListPopResult.Null);
-                        return true;
-                    }
+                // the shape lives on the type it produces, so the interpolated surface's handler reads the
+                // identical reply the identical way; see ListPopResult.Resp.cs
+                if (!Redis.ListPopResult.TryRead(ref reader, out var result)) return false;
 
-                    if (reader.TryMoveNext() && reader.IsScalar)
-                    {
-                        var key = reader.ReadRedisKey();
-
-                        // Read the second element (array of RedisValue)
-                        if (reader.TryMoveNext() && reader.IsAggregate)
-                        {
-                            var values = reader.ReadPastRedisValues();
-                            SetResult(message, new ListPopResult(key, values!));
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
+                SetResult(message, result);
+                return true;
             }
         }
 
@@ -816,23 +852,20 @@ namespace StackExchange.Redis
             // on a per-processor basis if needed
             protected virtual bool AllowJaggedPairs(RedisProtocol protocol) => protocol >= RedisProtocol.Resp3;
 
-            private static bool IsAllJaggedPairsReader(in RespReader reader)
-            {
-                // Check whether each child element is an array of exactly length 2
-                // Use AggregateChildren to create isolated child iterators without mutating the reader
-                var iter = reader.AggregateChildren();
-                while (iter.MoveNext())
-                {
-                    // Check if this child is an array with exactly 2 elements
-                    if (!(iter.Value.IsAggregate && iter.Value.AggregateLengthIs(2)))
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }
-
+            /// <summary>Read the pairs, deciding the wire shape from the protocol's policy.</summary>
             public T[]? ParseArray(ref RespReader reader, RedisProtocol protocol, bool allowOversized, out int count, object? state)
+                => ParseArray(ref reader, AllowJaggedPairs(protocol), allowOversized, out count, state);
+
+            /// <summary>
+            /// Read the pairs, being told outright whether jagged is permitted.
+            /// </summary>
+            /// <remarks>
+            /// The protocol is never anything but a way of asking <see cref="AllowJaggedPairs"/> this
+            /// question, so a caller that already knows the answer - or that has no connection to ask
+            /// about, as the deferred reply shapes do not - says so directly rather than naming a
+            /// protocol version it is not really claiming.
+            /// </remarks>
+            public T[]? ParseArray(ref RespReader reader, bool allowJagged, bool allowOversized, out int count, object? state)
             {
                 if (reader.IsNull)
                 {
@@ -847,8 +880,10 @@ namespace StackExchange.Redis
                     return [];
                 }
 
-                // Check if we have jagged pairs (RESP3 style) or interleaved (RESP2 style)
-                bool isJagged = AllowJaggedPairs(protocol) && IsAllJaggedPairsReader(reader);
+                // Whether the bytes ARE jagged is RespReader.IsAllJaggedPairs - shared with the deferred
+                // pair window (RespPairAggregate<T>), so the two paths cannot drift about what arrived.
+                // Whether jagged is PERMITTED is the caller's policy, and arrives as allowJagged.
+                bool isJagged = allowJagged && reader.IsAllJaggedPairs();
 
                 if (isJagged)
                 {
@@ -913,11 +948,11 @@ namespace StackExchange.Redis
             private ILogger? Log { get; }
             public AutoConfigureProcessor(ILogger? log = null) => Log = log;
 
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
-                var copy = reader;
-                reader.MovePastBof();
-                if (reader.IsError && RedisErrorKindMetadata.Classify(reader) == RedisErrorKind.ReadOnly)
+                var probe = reader;
+                probe.MovePastBof();
+                if (probe.IsError && RedisErrorKindMetadata.Classify(probe) == RedisErrorKind.ReadOnly)
                 {
                     var bridge = connection.BridgeCouldBeNull;
                     if (bridge != null)
@@ -928,7 +963,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                return base.SetResult(connection, message, ref copy);
+                return ReplyVerdict.Complete;
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
@@ -1431,9 +1466,17 @@ namespace StackExchange.Redis
         /// </remarks>
         private sealed class HashImportProcessor : ResultProcessor<bool>
         {
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            /// <remarks>Not about the reply at all: the arrival of one is when the rendered arguments stop
+            /// being needed, whatever it says.</remarks>
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
                 if (message is IRenderedArgsOwner owner) owner.ReleaseRenderedArgs();
+                return ReplyVerdict.Complete;
+            }
+
+            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                Inspect(connection, message, in reader);
                 return DemandOK.SetResult(connection, message, ref reader);
             }
 
@@ -1968,17 +2011,8 @@ namespace StackExchange.Redis
             }
         }
 
-        private static GeoPosition? ParseGeoPosition(ref RespReader reader)
-        {
-            if (reader.IsAggregate && reader.AggregateLengthIs(2)
-                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var longitude)
-                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadDouble(out var latitude)
-                && !reader.TryMoveNext())
-            {
-                return new GeoPosition(longitude, latitude);
-            }
-            return null;
-        }
+        // as GeoRadiusResult: the shape lives on the type, and both readers go through it
+        private static GeoPosition? ParseGeoPosition(ref RespReader reader) => GeoPosition.TryRead(ref reader);
 
         private sealed class GeoRadiusResultArrayProcessor : ResultProcessor<GeoRadiusResult[]>
         {
@@ -2008,54 +2042,10 @@ namespace StackExchange.Redis
                 return false;
             }
 
+            // the shape lives on the type it produces, so the interpolated surface's handler reads the
+            // identical reply the identical way; see GeoRadiusResult.Resp.cs
             private static GeoRadiusResult Parse(ref RespReader reader, GeoRadiusOptions options)
-            {
-                if (options == GeoRadiusOptions.None)
-                {
-                    // Without any WITH option specified, the command just returns a linear array like ["New York","Milan","Paris"].
-                    return new GeoRadiusResult(reader.ReadRedisValue(), null, null, null);
-                }
-
-                // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
-                if (!reader.IsAggregate)
-                {
-                    return default;
-                }
-
-                reader.MoveNext(); // Move to first element in the sub-array
-
-                // the first item in the sub-array is always the name of the returned item.
-                var member = reader.ReadRedisValue();
-
-                /*  The other information is returned in the following order as successive elements of the sub-array.
-The distance from the center as a floating point number, in the same unit specified in the radius.
-The geohash integer.
-The coordinates as an array of two items x,y (longitude,latitude).
-                 */
-                double? distance = null;
-                GeoPosition? position = null;
-                long? hash = null;
-
-                if ((options & GeoRadiusOptions.WithDistance) != 0)
-                {
-                    reader.MoveNextScalar();
-                    distance = reader.ReadDouble();
-                }
-
-                if ((options & GeoRadiusOptions.WithGeoHash) != 0)
-                {
-                    reader.MoveNextScalar();
-                    hash = reader.TryReadInt64(out var h) ? h : null;
-                }
-
-                if ((options & GeoRadiusOptions.WithCoordinates) != 0)
-                {
-                    reader.MoveNextAggregate();
-                    position = ParseGeoPosition(ref reader);
-                }
-
-                return new GeoRadiusResult(member, distance, hash, position);
-            }
+                => GeoRadiusResult.Read(ref reader, options);
         }
 
         /// <summary>
@@ -2077,86 +2067,11 @@ The coordinates as an array of two items x,y (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (reader.IsAggregate)
-                {
-                    // Top-level array: ["matches", matches_array, "len", length_value]
-                    // Use nominal access instead of positional
-                    LCSMatchResult.LCSMatch[]? matchesArray = null;
-                    long longestMatchLength = 0;
+                // the shape lives on the type it produces, so the interpolated surface's handler reads
+                // the identical reply the identical way; see LCSMatchResult.Read.cs
+                if (!StackExchange.Redis.LCSMatchResult.TryRead(ref reader, out var result)) return false;
 
-                    var iter = reader.AggregateChildren();
-                    while (iter.MoveNext() && iter.Value.IsScalar)
-                    {
-                        LCSField field;
-                        unsafe
-                        {
-                            if (!iter.Value.TryParseScalar(&LCSFieldMetadata.TryParse, out field))
-                            {
-                                field = LCSField.Unknown;
-                            }
-                        }
-
-                        if (!iter.MoveNext()) break; // out of data
-
-                        switch (field)
-                        {
-                            case LCSField.Matches:
-                                // Read the matches array
-                                if (iter.Value.IsAggregate)
-                                {
-                                    bool failed = false;
-                                    matchesArray = iter.Value.ReadPastArray(ref failed, static (ref failed, ref reader) =>
-                                    {
-                                        // Don't even bother if we've already failed
-                                        if (!failed && reader.IsAggregate)
-                                        {
-                                            var matchChildren = reader.AggregateChildren();
-                                            if (matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var firstPos)
-                                                && matchChildren.MoveNext() && TryReadPosition(ref matchChildren.Value, out var secondPos)
-                                                && matchChildren.MoveNext() && matchChildren.Value.IsScalar && matchChildren.Value.TryReadInt64(out var length))
-                                            {
-                                                return new LCSMatchResult.LCSMatch(firstPos, secondPos, length);
-                                            }
-                                        }
-                                        failed = true;
-                                        return default;
-                                    });
-
-                                    // Check if anything went wrong
-                                    if (failed) matchesArray = null;
-                                }
-                                break;
-
-                            case LCSField.Len:
-                                // Read the length value
-                                if (iter.Value.IsScalar)
-                                {
-                                    longestMatchLength = iter.Value.TryReadInt64(out var totalLen) ? totalLen : 0;
-                                }
-                                break;
-                        }
-                    }
-
-                    if (matchesArray is not null)
-                    {
-                        SetResult(message, new LCSMatchResult(matchesArray, longestMatchLength));
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            private static bool TryReadPosition(ref RespReader reader, out LCSMatchResult.LCSPosition position)
-            {
-                // Expecting a 2-element array: [start, end]
-                position = default;
-                if (!reader.IsAggregate) return false;
-
-                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var start))) return false;
-
-                if (!(reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var end))) return false;
-
-                position = new LCSMatchResult.LCSPosition(start, end);
+                SetResult(message, result);
                 return true;
             }
         }
@@ -2357,13 +2272,11 @@ The coordinates as an array of two items x,y (longitude,latitude).
 
         private sealed class ScriptResultProcessor : ResultProcessor<RedisResult>
         {
-            public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
+            protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
             {
-                var copy = reader;
-                reader.MovePastBof();
-                NoteIfScriptUnavailable(connection, message, in reader);
-                // and apply usual processing for the rest
-                return base.SetResult(connection, message, ref copy);
+                var probe = reader;
+                probe.MovePastBof();
+                return probe.IsError ? NoScriptVerdict(connection, message, in probe) : ReplyVerdict.Complete;
             }
 
             // note that top-level error messages still get handled by SetResult, but nested errors
@@ -2379,7 +2292,97 @@ The coordinates as an array of two items x,y (longitude,latitude).
             }
         }
 
-        internal sealed class SingleStreamProcessor : StreamProcessorBase<StreamEntry[]>
+        /// <summary>
+        /// Read the entries of the single stream in an <c>XREAD</c>/<c>XREADGROUP</c> reply, past the
+        /// stream-name wrapper the server puts around them.
+        /// </summary>
+        /// <param name="reader">The reply, positioned on its root.</param>
+        /// <param name="isMap">Whether the root is a map, which is how RESP3 spells this.</param>
+        /// <param name="allowJaggedFields">Whether an entry's fields may arrive as nested pairs.</param>
+        /// <remarks>
+        /// <para><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></para>
+        /// <para>
+        /// <b><paramref name="isMap"/> is a parameter rather than a protocol.</b> The classic path knows
+        /// the connection and passes <c>protocol == Resp3</c>; a reply object has no connection, so it
+        /// passes <c>Prefix == RespPrefix.Map</c> - which is the fact that actually decides the shape, and
+        /// is what <see cref="MultiStreamProcessor"/> has always tested. Keeping it a parameter means the
+        /// shipped path's behaviour is untouched.
+        /// </para>
+        /// </remarks>
+        internal static StreamEntry[] ParseStreamWithNameSkip(ref RespReader reader, bool isMap, bool allowJaggedFields)
+        {
+            if (isMap)
+            {
+                // map: skip the key, read the value
+                reader.MoveNext();
+                reader.MoveNext();
+                return ParseRedisStreamEntries(ref reader, allowJaggedFields);
+            }
+
+            // array: the first element is [name, entries]
+            var iter = reader.AggregateChildren();
+            if (!iter.MoveNext()) return [];
+            var streamIter = iter.Value.AggregateChildren();
+            streamIter.DemandNext(); // skip the stream name
+            streamIter.DemandNext(); // the entries array
+            return ParseRedisStreamEntries(ref streamIter.Value, allowJaggedFields);
+        }
+
+        /// <summary>Read a multi-stream <c>XREAD</c>/<c>XREADGROUP</c> reply.</summary>
+        /// <param name="reader">The reader, positioned on the reply root.</param>
+        /// <param name="isMap">Whether the root is a map, which is how RESP3 spells this.</param>
+        /// <param name="allowJaggedFields">Whether an entry's fields may arrive as nested pairs.</param>
+        /// <remarks>
+        /// <para><inheritdoc cref="ParseStreamWithNameSkip" path="/remarks/para[2]"/></para>
+        /// <para>
+        /// The multi-stream twin of <see cref="ParseStreamWithNameSkip"/>, and it exists for the same
+        /// reason: <see cref="MultiStreamProcessor"/> had this walk inlined in its
+        /// <c>SetResultCore</c>, where a reply object cannot reach it. Both now call this, so the
+        /// deferred and materialising shapes stay two call sites of one parse.
+        /// </para>
+        /// </remarks>
+        internal static RedisStream[] ParseRedisStreams(ref RespReader reader, bool isMap, bool allowJaggedFields)
+        {
+            // nothing for any requested stream; the server answers nil rather than an empty aggregate
+            if (reader.IsNull || !reader.IsAggregate) return [];
+
+            if (isMap)
+            {
+                // a map: name, entries, name, entries - the names are children, not wrappers
+                var count = reader.AggregateLength() >> 1;
+                if (count == 0)
+                {
+                    reader.SkipChildren();
+                    return [];
+                }
+
+                var result = new RedisStream[count];
+                var mapIter = reader.AggregateChildren();
+                for (var i = 0; i < count; i++)
+                {
+                    mapIter.DemandNext();
+                    var key = mapIter.Value.ReadRedisKey();
+                    mapIter.DemandNext();
+                    result[i] = new RedisStream(key, ParseRedisStreamEntries(ref mapIter.Value, allowJaggedFields));
+                }
+                return result;
+            }
+
+            // an array of [name, entries] pairs
+            return reader.ReadPastArray(
+                ref allowJaggedFields,
+                static (ref allowJaggedFields, ref itemReader) =>
+                {
+                    var streamIter = itemReader.AggregateChildren();
+                    streamIter.DemandNext();
+                    var key = streamIter.Value.ReadRedisKey();
+                    streamIter.DemandNext();
+                    return new RedisStream(key, ParseRedisStreamEntries(ref streamIter.Value, allowJaggedFields));
+                },
+                scalar: false) ?? [];
+        }
+
+        internal sealed class SingleStreamProcessor : ResultProcessor<StreamEntry[]>
         {
             private readonly bool skipStreamName;
 
@@ -2449,23 +2452,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
                              6) "46"
                         */
 
-                    if (protocol == RedisProtocol.Resp3)
-                    {
-                        // RESP3: map - skip the key, read the value
-                        reader.MoveNext(); // skip key
-                        reader.MoveNext(); // move to value
-                        entries = ParseRedisStreamEntries(ref reader, protocol);
-                    }
-                    else
-                    {
-                        // RESP2: array - first element is array with [name, entries]
-                        var iter = reader.AggregateChildren();
-                        iter.DemandNext(); // first stream
-                        var streamIter = iter.Value.AggregateChildren();
-                        streamIter.DemandNext(); // skip stream name
-                        streamIter.DemandNext(); // entries array
-                        entries = ParseRedisStreamEntries(ref streamIter.Value, protocol);
-                    }
+                    entries = ParseStreamWithNameSkip(ref reader, protocol == RedisProtocol.Resp3, AllowJaggedStreamFields(protocol));
                 }
                 else
                 {
@@ -2480,7 +2467,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
         /// <summary>
         /// Handles <see href="https://redis.io/commands/xread"/>.
         /// </summary>
-        internal sealed class MultiStreamProcessor : StreamProcessorBase<RedisStream[]>
+        internal sealed class MultiStreamProcessor : ResultProcessor<RedisStream[]>
         {
             /*
                 The result is similar to the XRANGE result (see SingleStreamProcessor)
@@ -2516,197 +2503,125 @@ The coordinates as an array of two items x,y (longitude,latitude).
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (reader.IsNull)
-                {
-                    // Nothing returned for any of the requested streams. The server returns 'nil'.
-                    SetResult(message, []);
-                    return true;
-                }
-
-                if (!reader.IsAggregate)
-                {
-                    return false;
-                }
+                // nil - nothing returned for any of the requested streams - and a non-aggregate are both
+                // handled inside the shared parse; this path has nothing left of its own to decide
+                if (!reader.IsNull && !reader.IsAggregate) return false;
 
                 var protocol = connection.Protocol.GetValueOrDefault();
-                RedisStream[] streams;
-
-                if (reader.Prefix == RespPrefix.Map) // see SetResultCore for the shape delta between RESP2 and RESP3
-                {
-                    // root is a map of named inner-arrays
-                    // RedisStreamInterleavedProcessor handles maps via the interleaved processor base
-                    var processor = protocol == RedisProtocol.Resp2 ? RedisStreamInterleavedProcessor.Resp2 : RedisStreamInterleavedProcessor.Resp3;
-                    streams = processor.ParseArray(ref reader, protocol, false, out _, null)!; // null-checked below
-                }
-                else
-                {
-                    streams = reader.ReadPastArray(
-                        ref protocol,
-                        static (ref protocol, ref itemReader) =>
-                        {
-                            if (!itemReader.IsAggregate)
-                            {
-                                throw new InvalidOperationException("Expected aggregate for stream");
-                            }
-
-                            // [0] = Name of the Stream
-                            if (!itemReader.TryMoveNext())
-                            {
-                                throw new InvalidOperationException("Expected stream name");
-                            }
-                            var key = itemReader.ReadRedisKey();
-
-                            // [1] = Multibulk Array of Stream Entries
-                            if (!itemReader.TryMoveNext())
-                            {
-                                throw new InvalidOperationException("Expected stream entries");
-                            }
-                            var entries = StreamProcessorBase<RedisStream[]>.ParseRedisStreamEntries(ref itemReader, protocol);
-
-                            return new RedisStream(key: key, entries: entries);
-                        },
-                        scalar: false)!; // null-checked below
-
-                    if (streams == null)
-                    {
-                        return false;
-                    }
-                }
-
-                SetResult(message, streams);
+                SetResult(message, ParseRedisStreams(
+                    ref reader,
+                    isMap: reader.Prefix == RespPrefix.Map, // see SetResultCore for the shape delta between RESP2 and RESP3
+                    allowJaggedFields: AllowJaggedStreamFields(protocol)));
                 return true;
-            }
-        }
-
-        private sealed class RedisStreamInterleavedProcessor : ValuePairInterleavedProcessorBase<RedisStream>
-        {
-            protected override bool AllowJaggedPairs(RedisProtocol protocol) => false; // we only use this on a flattened map
-
-            public static readonly RedisStreamInterleavedProcessor Resp2 = new(RedisProtocol.Resp2);
-            public static readonly RedisStreamInterleavedProcessor Resp3 = new(RedisProtocol.Resp3);
-
-            private readonly RedisProtocol _protocol;
-            private RedisStreamInterleavedProcessor(RedisProtocol protocol)
-            {
-                _protocol = protocol;
-            }
-
-            protected override RedisStream Parse(ref RespReader first, ref RespReader second, object? state)
-            {
-                return new(key: first.ReadRedisKey(), entries: StreamProcessorBase<RedisStream[]>.ParseRedisStreamEntries(ref second, _protocol));
             }
         }
 
         /// <summary>
         /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *without* the <see cref="StreamConstants.JustId"/> option.
         /// </summary>
-        internal sealed class StreamAutoClaimProcessor : StreamProcessorBase<StreamAutoClaimResult>
+        /// <summary>Read a flat run of ids from an <c>XAUTOCLAIM</c> reply element.</summary>
+        /// <remarks>
+        /// Tolerates a non-aggregate or null, because the trailing "deleted ids" element is absent on 6.2
+        /// - which is why the callers check the aggregate length before asking for it at all.
+        /// </remarks>
+        private static RedisValue[] ReadIdList(ref RespReader reader)
+            => reader.IsAggregate && !reader.IsNull
+                ? reader.ReadPastArray(static (ref RespReader r) => r.ReadRedisValue(), scalar: true)!
+                : [];
+
+        /// <summary>Parse an <c>XAUTOCLAIM</c> reply; <see langword="false"/> if it is not that shape.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static bool TryParseStreamAutoClaim(ref RespReader reader, bool allowJaggedFields, out StreamAutoClaimResult value)
+        {
+            // See https://redis.io/commands/xautoclaim for command documentation.
+            // Note that the result should never be null, so intentionally treating it as a failure to parse here
+            value = default;
+            if (!reader.IsAggregate || reader.IsNull) return false;
+
+            var length = reader.AggregateLength();
+            if (length is not (2 or 3)) return false;
+
+            var iter = reader.AggregateChildren();
+
+            // [0] The next start ID.
+            iter.DemandNext();
+            var nextStartId = iter.Value.ReadRedisValue();
+
+            // [1] The array of StreamEntry's.
+            iter.DemandNext();
+            var entries = ParseRedisStreamEntries(ref iter.Value, allowJaggedFields);
+
+            // [2] The array of message IDs deleted from the stream that were in the PEL; absent on 6.2.
+            RedisValue[] deletedIds = [];
+            if (length == 3)
+            {
+                iter.DemandNext();
+                deletedIds = ReadIdList(ref iter.Value);
+            }
+
+            value = new StreamAutoClaimResult(nextStartId, entries, deletedIds);
+            return true;
+        }
+
+        /// <summary>Parse an <c>XAUTOCLAIM JUSTID</c> reply.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static bool TryParseStreamAutoClaimIdsOnly(ref RespReader reader, out StreamAutoClaimIdsOnlyResult value)
+        {
+            value = default;
+            if (!reader.IsAggregate || reader.IsNull) return false;
+
+            var length = reader.AggregateLength();
+            if (length is not (2 or 3)) return false;
+
+            var iter = reader.AggregateChildren();
+
+            iter.DemandNext();
+            var nextStartId = iter.Value.ReadRedisValue();
+
+            iter.DemandNext();
+            var claimedIds = ReadIdList(ref iter.Value);
+
+            RedisValue[] deletedIds = [];
+            if (length == 3)
+            {
+                iter.DemandNext();
+                deletedIds = ReadIdList(ref iter.Value);
+            }
+
+            value = new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds);
+            return true;
+        }
+
+        internal sealed class StreamAutoClaimProcessor : ResultProcessor<StreamAutoClaimResult>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // See https://redis.io/commands/xautoclaim for command documentation.
-                // Note that the result should never be null, so intentionally treating it as a failure to parse here
-                if (reader.IsAggregate && !reader.IsNull)
-                {
-                    int length = reader.AggregateLength();
-                    if (!(length == 2 || length == 3))
-                    {
-                        return false;
-                    }
-
-                    var iter = reader.AggregateChildren();
-                    var protocol = connection.Protocol.GetValueOrDefault();
-
-                    // [0] The next start ID.
-                    iter.DemandNext();
-                    var nextStartId = iter.Value.ReadRedisValue();
-
-                    // [1] The array of StreamEntry's.
-                    iter.DemandNext();
-                    var entries = ParseRedisStreamEntries(ref iter.Value, protocol);
-
-                    // [2] The array of message IDs deleted from the stream that were in the PEL.
-                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
-                    RedisValue[] deletedIds = [];
-                    if (length == 3)
-                    {
-                        iter.DemandNext();
-                        if (iter.Value.IsAggregate && !iter.Value.IsNull)
-                        {
-                            deletedIds = iter.Value.ReadPastArray(
-                                static (ref RespReader r) => r.ReadRedisValue(),
-                                scalar: true)!;
-                        }
-                    }
-
-                    SetResult(message, new StreamAutoClaimResult(nextStartId, entries, deletedIds));
-                    return true;
-                }
-
-                return false;
+                if (!TryParseStreamAutoClaim(ref reader, AllowJaggedStreamFields(connection.Protocol.GetValueOrDefault()), out var value)) return false;
+                SetResult(message, value);
+                return true;
             }
         }
 
-        /// <summary>
-        /// This processor is for <see cref="RedisCommand.XAUTOCLAIM"/> *with* the <see cref="StreamConstants.JustId"/> option.
-        /// </summary>
         internal sealed class StreamAutoClaimIdsOnlyProcessor : ResultProcessor<StreamAutoClaimIdsOnlyResult>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // See https://redis.io/commands/xautoclaim for command documentation.
-                // Note that the result should never be null, so intentionally treating it as a failure to parse here
-                if (reader.IsAggregate && !reader.IsNull)
-                {
-                    int length = reader.AggregateLength();
-                    if (!(length == 2 || length == 3))
-                    {
-                        return false;
-                    }
-
-                    var iter = reader.AggregateChildren();
-
-                    // [0] The next start ID.
-                    iter.DemandNext();
-                    var nextStartId = iter.Value.ReadRedisValue();
-
-                    // [1] The array of claimed message IDs.
-                    iter.DemandNext();
-                    RedisValue[] claimedIds = [];
-                    if (iter.Value.IsAggregate && !iter.Value.IsNull)
-                    {
-                        claimedIds = iter.Value.ReadPastArray(
-                            static (ref RespReader r) => r.ReadRedisValue(),
-                            scalar: true)!;
-                    }
-
-                    // [2] The array of message IDs deleted from the stream that were in the PEL.
-                    //     This is not available in 6.2 so we need to be defensive when reading this part of the response.
-                    RedisValue[] deletedIds = [];
-                    if (length == 3)
-                    {
-                        iter.DemandNext();
-                        if (iter.Value.IsAggregate && !iter.Value.IsNull)
-                        {
-                            deletedIds = iter.Value.ReadPastArray(
-                                static (ref RespReader r) => r.ReadRedisValue(),
-                                scalar: true)!;
-                        }
-                    }
-
-                    SetResult(message, new StreamAutoClaimIdsOnlyResult(nextStartId, claimedIds, deletedIds));
-                    return true;
-                }
-
-                return false;
+                if (!TryParseStreamAutoClaimIdsOnly(ref reader, out var value)) return false;
+                SetResult(message, value);
+                return true;
             }
         }
 
         internal sealed class StreamConsumerInfoProcessor : InterleavedStreamInfoProcessorBase<StreamConsumerInfo>
         {
-            protected override StreamConsumerInfo ParseItem(ref RespReader reader)
-            {
-                // Note: the base class passes a single consumer from the response into this method.
+            protected override StreamConsumerInfo ParseItem(ref RespReader reader) => ParseStreamConsumerInfo(ref reader);
+        }
+
+        /// <summary>Read one <c>XINFO CONSUMERS</c> item; handed a reader positioned on that item.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static StreamConsumerInfo ParseStreamConsumerInfo(ref RespReader reader)
+        {
+                // Note: the caller passes a single consumer from the response into this method.
 
                 // Response format:
                 // > XINFO CONSUMERS mystream mygroup
@@ -2759,14 +2674,18 @@ The coordinates as an array of two items x,y (longitude,latitude).
                 }
 
                 return new StreamConsumerInfo(name!, pendingMessageCount, idleTimeInMilliseconds);
-            }
         }
 
         internal sealed class StreamGroupInfoProcessor : InterleavedStreamInfoProcessorBase<StreamGroupInfo>
         {
-            protected override StreamGroupInfo ParseItem(ref RespReader reader)
-            {
-                // Note: the base class passes a single item from the response into this method.
+            protected override StreamGroupInfo ParseItem(ref RespReader reader) => ParseStreamGroupInfo(ref reader);
+        }
+
+        /// <summary>Read one <c>XINFO GROUPS</c> item; handed a reader positioned on that item.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static StreamGroupInfo ParseStreamGroupInfo(ref RespReader reader)
+        {
+                // Note: the caller passes a single item from the response into this method.
 
                 // Response format:
                 // > XINFO GROUPS mystream
@@ -2841,7 +2760,6 @@ The coordinates as an array of two items x,y (longitude,latitude).
                 }
 
                 return new StreamGroupInfo(name!, consumerCount, pendingMessageCount, lastDeliveredId, entriesRead, lag);
-            }
         }
 
         internal abstract class InterleavedStreamInfoProcessorBase<T> : ResultProcessor<T[]>
@@ -2866,7 +2784,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
             }
         }
 
-        internal sealed class StreamInfoProcessor : StreamProcessorBase<StreamInfo>
+        internal sealed class StreamInfoProcessor : ResultProcessor<StreamInfo>
         {
             // Parse the following format:
             // > XINFO mystream
@@ -2890,6 +2808,21 @@ The coordinates as an array of two items x,y (longitude,latitude).
             //        2) "banana"
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
+                if (!TryParseStreamInfo(ref reader, AllowJaggedStreamFields(connection.Protocol.GetValueOrDefault()), out var value))
+                {
+                    return false;
+                }
+
+                SetResult(message, value);
+                return true;
+            }
+        }
+
+        /// <summary>Read an <c>XINFO STREAM</c> reply; <see langword="false"/> if it is not that shape.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static bool TryParseStreamInfo(ref RespReader reader, bool allowJaggedFields, out StreamInfo value)
+        {
+                value = default;
                 if (!reader.IsAggregate)
                 {
                     return false;
@@ -2905,8 +2838,6 @@ The coordinates as an array of two items x,y (longitude,latitude).
                     maxDeletedEntryId = Redis.RedisValue.Null,
                     recordedFirstEntryId = Redis.RedisValue.Null;
                 StreamEntry firstEntry = StreamEntry.Null, lastEntry = StreamEntry.Null;
-
-                var protocol = connection.Protocol.GetValueOrDefault();
 
                 while (reader.TryMoveNext() && reader.IsScalar)
                 {
@@ -2940,10 +2871,10 @@ The coordinates as an array of two items x,y (longitude,latitude).
                             lastGeneratedId = reader.ReadRedisValue();
                             break;
                         case StreamInfoField.FirstEntry:
-                            firstEntry = ParseRedisStreamEntry(ref reader, protocol);
+                            firstEntry = ParseRedisStreamEntry(ref reader, allowJaggedFields);
                             break;
                         case StreamInfoField.LastEntry:
-                            lastEntry = ParseRedisStreamEntry(ref reader, protocol);
+                            lastEntry = ParseRedisStreamEntry(ref reader, allowJaggedFields);
                             break;
                         // 7.0
                         case StreamInfoField.MaxDeletedEntryId:
@@ -2977,7 +2908,7 @@ The coordinates as an array of two items x,y (longitude,latitude).
                     }
                 }
 
-                var streamInfo = new StreamInfo(
+                value = new StreamInfo(
                     length: checked((int)length),
                     radixTreeKeys: checked((int)radixTreeKeys),
                     radixTreeNodes: checked((int)radixTreeNodes),
@@ -2995,86 +2926,143 @@ The coordinates as an array of two items x,y (longitude,latitude).
                     iidsAdded: iidsAdded,
                     iidsDuplicates: iidsDuplicates);
 
-                SetResult(message, streamInfo);
                 return true;
+        }
+
+        /// <summary>
+        /// Parse an <c>XPENDING</c> summary reply; <see langword="false"/> if it is not that shape.
+        /// </summary>
+        /// <remarks>
+        /// Shared, not copied: the deferred <c>Streams.RespPendingReply</c> materialises through this, so
+        /// the two shapes are two call sites of one parse - the same arrangement
+        /// <see cref="ParseRedisStreamEntries(ref RespReader, bool)"/> already has.
+        /// </remarks>
+        internal static bool TryParseStreamPendingInfo(ref RespReader reader, out StreamPendingInfo value)
+        {
+                // Example:
+            // > XPENDING mystream mygroup
+            // 1) (integer)2
+            // 2) 1526569498055 - 0
+            // 3) 1526569506935 - 0
+            // 4) 1) 1) "Bob"
+            //       2) "2"
+            // 5) 1) 1) "Joe"
+            //       2) "8"
+            value = default;
+            if (!(reader.IsAggregate && reader.AggregateLengthIs(4)))
+            {
+                return false;
             }
+
+            var iter = reader.AggregateChildren();
+
+            // Element 0: pending message count
+            iter.DemandNext();
+            if (!iter.Value.TryReadInt64(out var pendingMessageCount))
+            {
+                return false;
+            }
+
+            // Element 1: lowest ID
+            iter.DemandNext();
+            var lowestId = iter.Value.ReadRedisValue();
+
+            // Element 2: highest ID
+            iter.DemandNext();
+            var highestId = iter.Value.ReadRedisValue();
+
+            // Element 3: consumers array (may be null)
+            iter.DemandNext();
+            StreamConsumer[]? consumers = null;
+
+            // If there are no consumers as of yet for the given group, the last
+            // item in the response array will be null.
+            if (iter.Value.IsAggregate && !iter.Value.IsNull)
+            {
+                consumers = iter.Value.ReadPastArray(
+                    static (ref RespReader consumerReader) =>
+                    {
+                        if (!(consumerReader.IsAggregate && consumerReader.AggregateLengthIs(2)))
+                        {
+                            throw new InvalidOperationException("Expected array of 2 elements for consumer");
+                        }
+
+                        var consumerIter = consumerReader.AggregateChildren();
+
+                        consumerIter.DemandNext();
+                        var name = consumerIter.Value.ReadRedisValue();
+
+                        consumerIter.DemandNext();
+                        if (!consumerIter.Value.TryReadInt64(out var count))
+                        {
+                            throw new InvalidOperationException("Expected integer for pending message count");
+                        }
+
+                        return new StreamConsumer(
+                            name: name,
+                            pendingMessageCount: checked((int)count));
+                    },
+                    scalar: false);
+            }
+
+            value = new StreamPendingInfo(
+                pendingMessageCount: checked((int)pendingMessageCount),
+                lowestId: lowestId,
+                highestId: highestId,
+                consumers: consumers ?? []);
+            return true;
+        }
+
+        /// <summary>Parse an <c>XPENDING</c> extended reply.</summary>
+        /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
+        internal static StreamPendingMessageInfo[] ParseStreamPendingMessages(ref RespReader reader)
+        {
+            if (!reader.IsAggregate) return [];
+
+            return reader.ReadPastArray(
+                static (ref RespReader itemReader) =>
+                {
+                    if (!(itemReader.IsAggregate && itemReader.AggregateLengthIs(4)))
+                    {
+                        throw new InvalidOperationException("Expected array of 4 elements for pending message");
+                    }
+
+                    if (!itemReader.TryMoveNext())
+                    {
+                        throw new InvalidOperationException("Expected message ID");
+                    }
+                    var messageId = itemReader.ReadRedisValue();
+
+                    if (!itemReader.TryMoveNext())
+                    {
+                        throw new InvalidOperationException("Expected consumer name");
+                    }
+                    var consumerName = itemReader.ReadRedisValue();
+
+                    if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var idleTimeInMs))
+                    {
+                        throw new InvalidOperationException("Expected integer for idle time");
+                    }
+
+                    if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var deliveryCount))
+                    {
+                        throw new InvalidOperationException("Expected integer for delivery count");
+                    }
+
+                    return new StreamPendingMessageInfo(
+                        messageId: messageId,
+                        consumerName: consumerName,
+                        idleTimeInMs: idleTimeInMs,
+                        deliveryCount: ParseStreamDeliveryCount(deliveryCount));
+                },
+                scalar: false) ?? [];
         }
 
         internal sealed class StreamPendingInfoProcessor : ResultProcessor<StreamPendingInfo>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                // Example:
-                // > XPENDING mystream mygroup
-                // 1) (integer)2
-                // 2) 1526569498055 - 0
-                // 3) 1526569506935 - 0
-                // 4) 1) 1) "Bob"
-                //       2) "2"
-                // 5) 1) 1) "Joe"
-                //       2) "8"
-                if (!(reader.IsAggregate && reader.AggregateLengthIs(4)))
-                {
-                    return false;
-                }
-
-                var iter = reader.AggregateChildren();
-
-                // Element 0: pending message count
-                iter.DemandNext();
-                if (!iter.Value.TryReadInt64(out var pendingMessageCount))
-                {
-                    return false;
-                }
-
-                // Element 1: lowest ID
-                iter.DemandNext();
-                var lowestId = iter.Value.ReadRedisValue();
-
-                // Element 2: highest ID
-                iter.DemandNext();
-                var highestId = iter.Value.ReadRedisValue();
-
-                // Element 3: consumers array (may be null)
-                iter.DemandNext();
-                StreamConsumer[]? consumers = null;
-
-                // If there are no consumers as of yet for the given group, the last
-                // item in the response array will be null.
-                if (iter.Value.IsAggregate && !iter.Value.IsNull)
-                {
-                    consumers = iter.Value.ReadPastArray(
-                        static (ref RespReader consumerReader) =>
-                        {
-                            if (!(consumerReader.IsAggregate && consumerReader.AggregateLengthIs(2)))
-                            {
-                                throw new InvalidOperationException("Expected array of 2 elements for consumer");
-                            }
-
-                            var consumerIter = consumerReader.AggregateChildren();
-
-                            consumerIter.DemandNext();
-                            var name = consumerIter.Value.ReadRedisValue();
-
-                            consumerIter.DemandNext();
-                            if (!consumerIter.Value.TryReadInt64(out var count))
-                            {
-                                throw new InvalidOperationException("Expected integer for pending message count");
-                            }
-
-                            return new StreamConsumer(
-                                name: name,
-                                pendingMessageCount: checked((int)count));
-                        },
-                        scalar: false);
-                }
-
-                var pendingInfo = new StreamPendingInfo(
-                    pendingMessageCount: checked((int)pendingMessageCount),
-                    lowestId: lowestId,
-                    highestId: highestId,
-                    consumers: consumers ?? []);
-
+                if (!TryParseStreamPendingInfo(ref reader, out var pendingInfo)) return false;
                 SetResult(message, pendingInfo);
                 return true;
             }
@@ -3084,50 +3072,8 @@ The coordinates as an array of two items x,y (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
-                if (!reader.IsAggregate)
-                {
-                    return false;
-                }
-
-                var messageInfoArray = reader.ReadPastArray(
-                    static (ref RespReader itemReader) =>
-                    {
-                        if (!(itemReader.IsAggregate && itemReader.AggregateLengthIs(4)))
-                        {
-                            throw new InvalidOperationException("Expected array of 4 elements for pending message");
-                        }
-
-                        if (!itemReader.TryMoveNext())
-                        {
-                            throw new InvalidOperationException("Expected message ID");
-                        }
-                        var messageId = itemReader.ReadRedisValue();
-
-                        if (!itemReader.TryMoveNext())
-                        {
-                            throw new InvalidOperationException("Expected consumer name");
-                        }
-                        var consumerName = itemReader.ReadRedisValue();
-
-                        if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var idleTimeInMs))
-                        {
-                            throw new InvalidOperationException("Expected integer for idle time");
-                        }
-
-                        if (!itemReader.TryMoveNext() || !itemReader.TryReadInt64(out var deliveryCount))
-                        {
-                            throw new InvalidOperationException("Expected integer for delivery count");
-                        }
-
-                        return new StreamPendingMessageInfo(
-                            messageId: messageId,
-                            consumerName: consumerName,
-                            idleTimeInMs: idleTimeInMs,
-                            deliveryCount: ParseStreamDeliveryCount(deliveryCount));
-                    },
-                    scalar: false);
-
-                SetResult(message, messageInfoArray!);
+                if (!reader.IsAggregate) return false;
+                SetResult(message, ParseStreamPendingMessages(ref reader));
                 return true;
             }
         }
@@ -3141,79 +3087,121 @@ The coordinates as an array of two items x,y (longitude,latitude).
 
             protected override NameValueEntry Parse(ref RespReader first, ref RespReader second, object? state)
                 => new NameValueEntry(first.ReadRedisValue(), second.ReadRedisValue());
+
+            /// <summary>Whether a stream's field pairs may arrive jagged on this protocol.</summary>
+            /// <remarks>
+            /// Exposed so the stream parses can convert protocol to policy <b>once</b>, rather than each
+            /// restating <c>protocol &gt;= Resp3</c> and drifting from the virtual that actually decides.
+            /// </remarks>
+            internal bool AllowsJaggedPairs(RedisProtocol protocol) => AllowJaggedPairs(protocol);
         }
 
         /// <summary>
-        /// Handles stream responses. For formats, see <see href="https://redis.io/topics/streams-intro"/>.
+        /// Reads an <c>XRANGE</c>-shaped reply into the array shape the old surface promises.
+        /// For formats, see <see href="https://redis.io/topics/streams-intro"/>.
         /// </summary>
-        /// <typeparam name="T">The type of the stream result.</typeparam>
-        internal abstract class StreamProcessorBase<T> : ResultProcessor<T>
+        /// <remarks>
+        /// <b>Off the generic class it used to sit on</b>, which never used its type argument - so calling
+        /// it read as <c>StreamProcessorBase&lt;StreamEntry[]&gt;.ParseRedisStreamEntries(...)</c>, naming a
+        /// type purely to reach a static. It lives here because the deferred-view work needs a second
+        /// caller: a reply object holding the payload projects to the old shape by constructing a reader
+        /// over the same buffer and calling exactly this, so the array shape never acquires a second parse.
+        /// </remarks>
+        internal static StreamEntry ParseRedisStreamEntry(ref RespReader reader, RedisProtocol protocol)
+            => ParseRedisStreamEntry(ref reader, AllowJaggedStreamFields(protocol));
+
+        /// <inheritdoc cref="ParseRedisStreamEntry(ref RespReader, RedisProtocol)"/>
+        /// <param name="reader">The reader, positioned on the entry.</param>
+        /// <param name="allowJaggedFields">Whether the entry's fields may arrive as nested pairs.</param>
+        internal static StreamEntry ParseRedisStreamEntry(ref RespReader reader, bool allowJaggedFields)
         {
-            protected static StreamEntry ParseRedisStreamEntry(ref RespReader reader, RedisProtocol protocol)
+            if (!reader.IsAggregate || reader.IsNull)
             {
-                if (!reader.IsAggregate || reader.IsNull)
-                {
-                    return StreamEntry.Null;
-                }
-                // Process the Multibulk array for each entry. The entry contains the following elements:
-                //  [0] = SimpleString (the ID of the stream entry)
-                //  [1] = Multibulk array of the name/value pairs of the stream entry's data
-                // optional (XREADGROUP with CLAIM):
-                //  [2] = idle time (in milliseconds)
-                //  [3] = delivery count
-                int length = reader.AggregateLength();
-                var iter = reader.AggregateChildren();
+                return StreamEntry.Null;
+            }
+            // Process the Multibulk array for each entry. The entry contains the following elements:
+            //  [0] = SimpleString (the ID of the stream entry)
+            //  [1] = Multibulk array of the name/value pairs of the stream entry's data
+            // optional (XREADGROUP with CLAIM):
+            //  [2] = idle time (in milliseconds)
+            //  [3] = delivery count
+            int length = reader.AggregateLength();
+            var iter = reader.AggregateChildren();
 
+            iter.DemandNext();
+            var id = iter.Value.ReadRedisValue();
+
+            iter.DemandNext();
+            var values = ParseStreamEntryValues(ref iter.Value, allowJaggedFields);
+
+            // check for optional fields (XREADGROUP with CLAIM)
+            if (length >= 4)
+            {
                 iter.DemandNext();
-                var id = iter.Value.ReadRedisValue();
-
-                iter.DemandNext();
-                var values = ParseStreamEntryValues(ref iter.Value, protocol);
-
-                // check for optional fields (XREADGROUP with CLAIM)
-                if (length >= 4)
+                if (iter.Value.TryReadInt64(out var idleTimeInMs))
                 {
                     iter.DemandNext();
-                    if (iter.Value.TryReadInt64(out var idleTimeInMs))
+                    if (iter.Value.TryReadInt64(out var deliveryCount))
                     {
-                        iter.DemandNext();
-                        if (iter.Value.TryReadInt64(out var deliveryCount))
-                        {
-                            return new StreamEntry(
-                                id: id,
-                                values: values,
-                                idleTime: TimeSpan.FromMilliseconds(idleTimeInMs),
-                                deliveryCount: ParseStreamDeliveryCount(deliveryCount));
-                        }
+                        return new StreamEntry(
+                            id: id,
+                            values: values,
+                            idleTime: TimeSpan.FromMilliseconds(idleTimeInMs),
+                            deliveryCount: ParseStreamDeliveryCount(deliveryCount));
                     }
                 }
-
-                return new StreamEntry(
-                    id: id,
-                    values: values);
-            }
-            protected internal static StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, RedisProtocol protocol)
-            {
-                if (!reader.IsAggregate || reader.IsNull)
-                {
-                    return [];
-                }
-
-                return reader.ReadPastArray(
-                    ref protocol,
-                    static (ref protocol, ref r) => ParseRedisStreamEntry(ref r, protocol),
-                    scalar: false) ?? [];
             }
 
-            protected static NameValueEntry[] ParseStreamEntryValues(ref RespReader reader, RedisProtocol protocol)
-            {
-                if (!reader.IsAggregate || reader.IsNull)
-                {
-                    return [];
-                }
-                return StreamNameValueEntryProcessor.Instance.ParseArray(ref reader, protocol, false, out _, null)!;
-            }
+            return new StreamEntry(
+                id: id,
+                values: values);
         }
+        internal static StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, RedisProtocol protocol)
+            => ParseRedisStreamEntries(ref reader, AllowJaggedStreamFields(protocol));
+
+        /// <inheritdoc cref="ParseRedisStreamEntries(ref RespReader, RedisProtocol)"/>
+        /// <param name="reader">The reader, positioned on the run of entries.</param>
+        /// <param name="allowJaggedFields">Whether an entry's fields may arrive as nested pairs.</param>
+        internal static StreamEntry[] ParseRedisStreamEntries(ref RespReader reader, bool allowJaggedFields)
+        {
+            if (!reader.IsAggregate || reader.IsNull)
+            {
+                return [];
+            }
+
+            return reader.ReadPastArray(
+                ref allowJaggedFields,
+                static (ref allowJaggedFields, ref r) => ParseRedisStreamEntry(ref r, allowJaggedFields),
+                scalar: false) ?? [];
+        }
+
+        /// <inheritdoc cref="ParseStreamEntryValues(ref RespReader, bool)"/>
+        internal static NameValueEntry[] ParseStreamEntryValues(ref RespReader reader, RedisProtocol protocol)
+            => ParseStreamEntryValues(ref reader, AllowJaggedStreamFields(protocol));
+
+        /// <summary>Read a stream entry's name/value fields.</summary>
+        /// <param name="reader">The reader, positioned on the field list.</param>
+        /// <param name="allowJaggedFields">Whether the fields may arrive as nested pairs.</param>
+        internal static NameValueEntry[] ParseStreamEntryValues(ref RespReader reader, bool allowJaggedFields)
+        {
+            if (!reader.IsAggregate || reader.IsNull)
+            {
+                return [];
+            }
+            return StreamNameValueEntryProcessor.Instance.ParseArray(ref reader, allowJaggedFields, false, out _, null)!;
+        }
+
+        /// <summary>
+        /// Turn a connection's protocol into the one policy these parses actually read it for.
+        /// </summary>
+        /// <remarks>
+        /// <b>The protocol is threaded through the stream parses for exactly this, and nothing else looks
+        /// at it.</b> Converting once, here, is what lets a caller that has no connection to ask - the
+        /// deferred reply shapes hold a buffer, not a connection - state the policy directly instead of
+        /// naming a protocol version it is not really claiming.
+        /// </remarks>
+        internal static bool AllowJaggedStreamFields(RedisProtocol protocol)
+            => StreamNameValueEntryProcessor.Instance.AllowsJaggedPairs(protocol);
 
         private sealed class StringPairInterleavedProcessor : ValuePairInterleavedProcessorBase<KeyValuePair<string, string>>
         {

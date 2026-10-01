@@ -10,6 +10,34 @@ internal abstract partial class ResultProcessor
 
     private sealed class RespResultProcessor : ResultProcessor<RespResult>
     {
+        /// <remarks>
+        /// <para>
+        /// An <c>EVALSHA</c> can come back <c>NOSCRIPT</c> at any time - the server may have been flushed,
+        /// restarted, or failed over - and this is where that is decided for this path. The base then
+        /// re-issues on a <c>Reissue</c> verdict, so the caller never sees it.
+        /// </para>
+        /// <para>
+        /// <b>The buffer must outlive a reissue.</b> Every other error is the end of the road for this
+        /// message, so its rendered arguments go back; a message that is about to be written again still
+        /// needs them. Keyed on the <i>verdict</i> rather than on "was this a NOSCRIPT", because a second
+        /// NOSCRIPT is not retried and does need to release.
+        /// </para>
+        /// </remarks>
+        protected override ReplyVerdict Inspect(PhysicalConnection connection, Message message, in RespReader reader)
+        {
+            var probe = reader;
+            probe.MovePastBof();
+            if (!probe.IsError) return ReplyVerdict.Complete; // the success path releases below
+
+            var verdict = NoScriptVerdict(connection, message, in probe);
+            if (verdict != ReplyVerdict.Reissue && message is IRenderedArgsOwner errorOwner)
+            {
+                errorOwner.ReleaseRenderedArgs();
+            }
+
+            return verdict;
+        }
+
         public override bool SetResult(PhysicalConnection connection, Message message, ref RespReader reader)
         {
             // capture the raw, undecoded frame - header bytes included - before anything advances the
@@ -23,18 +51,7 @@ internal abstract partial class ResultProcessor
 
             if (probe.IsError)
             {
-                // an EVALSHA can come back NOSCRIPT at any time - the server may have been flushed,
-                // restarted, or failed over - and the callers of this processor retry on that, but only
-                // if we tell them; see NoteIfScriptUnavailable
-                var isNoScript = NoteIfScriptUnavailable(connection, message, in probe);
-
-                // every other error is the end of the road for this message; a NOSCRIPT is not, because
-                // the caller re-issues this same instance, and it still needs its request buffer.
-                // Note this asks about *this* reply rather than reading message.IsScriptUnavailable: that
-                // flag is sticky, so a retry that fails with some other error would still look like a
-                // NOSCRIPT and the buffer would never come back.
-                if (!isNoScript && message is IRenderedArgsOwner errorOwner) errorOwner.ReleaseRenderedArgs();
-
+                // the base inspects (which may re-issue, returning false) and otherwise fails the message
                 return base.SetResult(connection, message, ref reader);
             }
 

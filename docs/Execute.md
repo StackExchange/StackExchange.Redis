@@ -1,6 +1,8 @@
 Ad-hoc commands
 ===
 
+If you are *shipping a library* of such commands rather than calling one, see [Extending the client](Extending), which starts here and goes on to a surface of your own.
+
 `IDatabase.ExecuteResp(Async)` and `IDatabase.Execute(Async)` let you send a command that doesn't (yet) have a dedicated API - typically for a module, or a brand-new server feature the client hasn't caught up with. `ExecuteResp` is the modern, low-allocation-friendly overload; `Execute` is the original, `object[]`/`ICollection<object>`-based overload, kept for compatibility.
 
 Basic use

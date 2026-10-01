@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
@@ -187,6 +188,70 @@ public class HashImportTests(ITestOutputHelper output, SharedConnectionFixture f
 
         Assert.Equal("alice", await db.HashGetAsync(k1, "name"));
         Assert.Equal("bob", await db.HashGetAsync(k2, "name"));
+    }
+
+    /// <summary>
+    /// The <c>PREPARE</c> is injected <b>once per connection</b>, not once per import.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every other test here passes either way, because <c>PREPARE</c> is idempotent - so the dedup that is
+    /// the entire point of the field-set is invisible unless something counts. The server counts it for us:
+    /// <c>INFO commandstats</c> reports <c>himport|prepare</c> and <c>himport|set</c> separately.
+    /// </para>
+    /// <para>
+    /// Worth having from the moment the injection moved off the bridge's hard-coded type test onto
+    /// <c>IMultiMessage</c>: a migration whose only failure mode is "does it too often" needs a test that
+    /// can see how often.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ThePrepareIsInjectedOncePerConnectionNotPerImport()
+    {
+        // allowAdmin for CONFIG RESETSTAT: the shared fixture connection has it, but the high-integrity
+        // subclass cannot share and would otherwise get a connection without it
+        await using var conn = Create(require: RedisFeatures.v8_10_0, allowAdmin: true);
+        var db = conn.GetDatabase();
+        var server = conn.GetServers().Single(s => !s.IsReplica);
+        var prefix = Me();
+        const int Imports = 5;
+
+        await server.ExecuteAsync("CONFIG", "RESETSTAT");
+
+        await using var fieldSet = HashImport.Create("name", "age");
+        for (var i = 0; i < Imports; i++)
+        {
+            // two values, matching the two fields above; not a slice of Values(), which needs System.Range
+            await db.HashImportAsync($"{prefix}:{i}", fieldSet, new RedisValue[] { $"user{i}", i });
+        }
+
+        var stats = (string?)await server.ExecuteAsync("INFO", "commandstats") ?? "";
+        var sets = CallCount(stats, "himport|set");
+        var prepares = CallCount(stats, "himport|prepare");
+
+        // not an equality: commandstats is server-wide and this class runs once per protocol, so a
+        // concurrent sibling inflates both numbers together. The property survives that, and it is the one
+        // that matters - injected per import, the two counts are EQUAL; injected per connection, there are
+        // a handful of prepares against however many imports ran.
+        Assert.True(sets >= Imports, $"expected at least {Imports} HIMPORT SET, saw {sets}");
+        Assert.True(
+            prepares < sets,
+            $"HIMPORT PREPARE was injected {prepares} time(s) for {sets} SET(s) - per import rather than per connection");
+    }
+
+    // cmdstat_<name>:calls=N,usec=...
+    private static int CallCount(string commandStats, string command)
+    {
+        foreach (var line in commandStats.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (!trimmed.StartsWith($"cmdstat_{command}:", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var calls = trimmed.Split(',')[0].Split('=');
+            return calls.Length == 2 ? int.Parse(calls[1]) : 0;
+        }
+
+        return 0;
     }
 
     [Fact]

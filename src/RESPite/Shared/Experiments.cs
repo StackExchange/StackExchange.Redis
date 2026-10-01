@@ -17,12 +17,41 @@
         //   SER006 = Server_8_8  (Redis 8.8 features)
         //   SER007 = GeoRedundantFailover (multi-group connections, health checks, retry)
         //   SER008 = Server_8_10 (Redis 8.10 features)
+        //   SER013 = InterpolatedWriter - the RespContext surface and the command groups, which
+        //            ARE the 4.0 API rather than a preview of one. It was gated while the shape was
+        //            being argued with; the documentation now teaches it, so the gate was the only
+        //            thing still calling it an experiment.
+        //            Renumbered from SER010, which this branch claimed while 3.x independently shipped
+        //            SER010 as MaintenanceNotifications. That one is released and keeps the number;
+        //            nothing ever shipped emitting SER010 for the writer, so nothing is stranded.
 
         // ReSharper disable InconsistentNaming
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
         public const string Transport = "SER009";
         public const string MaintenanceNotifications = "SER010";
+
+        /// <summary>
+        /// Constructing a <c>RespFragment</c> by hand. Deliberately NOT in the global NoWarn: the whole point
+        /// is that it should be seen. Generated code suppresses it at the emit site.
+        /// <para>
+        /// This one did NOT retire with SER013, and is not the same kind of marker: SER013 asked whether
+        /// the surface was ready, this asks whether you are sure - a speed bump on a sharp tool, which the
+        /// surface being supported does not blunt.
+        /// </para>
+        /// </summary>
+        public const string HandWrittenRespFragment = "SER011";
+
+        /// <summary>
+        /// Borrowed reply values: <c>RespValue</c> and the commands that hand back leases of them.
+        /// </summary>
+        /// <remarks>
+        /// Separate from the (now retired) SER013 deliberately: that asked whether commands should be
+        /// WRITTEN this way, this asks whether replies should be BORROWED rather than owned, and the two
+        /// can be answered differently. Turning this one off says how much of a codebase depends on the
+        /// borrowing.
+        /// </remarks>
+        public const string BorrowedValues = "SER012";
 
         // ReSharper restore InconsistentNaming
 

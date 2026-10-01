@@ -10,7 +10,7 @@ internal partial class RedisDatabase
         in RedisKey key,
         SortedSetWhen when,
         bool change,
-        bool increment) : Message.CommandKeyBase(db, flags.WithCategory(GetRetryCategory(when, increment)), RedisCommand.ZADD, key)
+        bool increment) : Message.CommandKeyBase(db, flags.WithRetryCategory(GetRetryCategory(when, increment)), RedisCommand.ZADD, key)
     {
         private const SortedSetWhen KnownWhen =
             SortedSetWhen.Exists | SortedSetWhen.GreaterThan | SortedSetWhen.LessThan | SortedSetWhen.NotExists;

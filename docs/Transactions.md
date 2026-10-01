@@ -70,7 +70,7 @@ mixed together with other callers. So our example becomes:
 var newId = CreateNewId();
 var tran = db.CreateTransaction();
 tran.AddCondition(Condition.HashNotExists(custKey, "UniqueID"));
-tran.HashSetAsync(custKey, "UniqueID", newId);
+tran.Hashes.SetAsync(custKey, "UniqueID", newId);
 bool committed = tran.Execute();
 // ^^^ if true: it was applied; if false: it was rolled back
 ```
@@ -90,7 +90,7 @@ atomic commands exist. These are accessed via the `When` parameter - so our prev
 
 ```csharp
 var newId = CreateNewId();
-bool wasSet = db.HashSet(custKey, "UniqueID", newId, When.NotExists);
+bool wasSet = await db.Hashes.SetAsync(custKey, "UniqueID", newId, When.NotExists);
 ```
 
 (here, the `When.NotExists` causes the `HSETNX` command to be used, rather than `HSET`)
@@ -128,7 +128,7 @@ after that call. Awaiting it there waits for something that can only happen furt
 
 ```csharp
 var tran = db.CreateTransaction();
-var value = await tran.StringGetAsync(key);   // never completes - nothing has been sent yet
+var value = await tran.Strings.GetAsync(key);   // never completes - nothing has been sent yet
 await tran.ExecuteAsync();                    // never reached
 ```
 
@@ -137,8 +137,8 @@ this reads as perfectly ordinary code. Instead, capture the tasks and await them
 
 ```csharp
 var tran = db.CreateTransaction();
-var pending = tran.StringGetAsync(key);
-_ = tran.StringSetAsync(other, "value");      // discard the ones you do not need
+var pending = tran.Strings.GetAsync(key);
+_ = tran.Strings.SetAsync(other, "value");      // discard the ones you do not need
 if (await tran.ExecuteAsync())
 {
     var value = await pending;
@@ -161,11 +161,11 @@ aborting under contention and needing a retry loop.
 // a transaction to set a key only if it is absent...
 var tran = db.CreateTransaction();
 tran.AddCondition(Condition.KeyNotExists(key));
-_ = tran.StringSetAsync(key, value);
+_ = tran.Strings.SetAsync(key, value);
 if (await tran.ExecuteAsync()) { /* ... */ }
 
 // ...is just this
-if (await db.StringSetAsync(key, value, when: When.NotExists)) { /* ... */ }
+if (await db.Strings.SetAsync(key, value, when: When.NotExists)) { /* ... */ }
 ```
 
 Since 3.1 the package ships a Roslyn analyzer that points these out in your own build, as warnings. It covers conditions that duplicate a `when:` argument,
