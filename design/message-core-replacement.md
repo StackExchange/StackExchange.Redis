@@ -2355,10 +2355,27 @@ Each step is independently shippable and leaves the tree green.
   The pieces to close it already exist and are the ones D2.5 built: `SubscriptionEndpoint` shares only on
   KNOWN RESP3, `IsSubscriptionConnected` stops answering yes for a shared socket once the negotiated
   protocol drops, and the establish-time `EnsureSubscriptions` then re-places the subscription on a
-  dedicated one. What has not been done is making that chain actually hold for a subscription composed
-  before a downgrade and written after it - the narrow window #3154 names - and 63 failures is the
-  measurement of how much of the suite depends on getting it right rather than nearly right. **That is
-  the next piece of work, and it is the gate on halving the socket count.**
+  dedicated one.
+
+  **First piece done: the write-time reroute**, `RespEndpointExecutor.RerouteSubscription`, a direct port
+  of the shipped core's `PhysicalBridge.WriteMessageInsideLock` + `TryRerouteToSubscriptionBridge` pair
+  from #3154. The question "does this subscription share the ordinary connection?" is asked at the WRITE,
+  where the negotiated protocol is a fact, rather than when the send was composed - and a subscriber-mode
+  command on the ordinary connection is handed to that endpoint's subscription connection instead. Inert
+  while the bridge still exists, which is how it was verified.
+
+  **And removing the decline on top of it was tried, and is NOT yet sufficient - for a reason worth
+  knowing.** With the decline gone, `Resp3DowngradeTests` fails on **timing, not correctness**: nothing
+  is poisoned, but rerouting at the write has to DIAL the subscription socket first, and the in-process
+  server's transcript shows `PUBLISH => :0` landing before the re-subscribe arrives. The shipped core does
+  not pay that cost because it dials its subscription bridge the moment a downgrade is detected -
+  `OnFullyEstablished`'s `else if (SupportsSubscriptions && Protocol > Resp2) Activate(Subscription)`.
+
+  So the two mechanisms do different jobs and both are wanted: choosing the right socket when the protocol
+  is already KNOWN is the fast path, and the reroute is the safety net for the window where compose-time
+  knowledge was wrong. **The next piece is dialling this core's subscription socket proactively when a
+  connection establishes below the expected protocol**, mirroring that `Activate`; with that, the decline
+  can go, and then the bridge.
 
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.

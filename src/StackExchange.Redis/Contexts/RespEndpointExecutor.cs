@@ -296,6 +296,42 @@ namespace StackExchange.Redis
         /// </remarks>
         internal bool IsSubscriptionEndpoint { get; init; }
 
+        /// <summary>
+        /// Hands a subscriber-mode command to the connection it belongs on, when this is not it; null when
+        /// there is nowhere to hand it.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>A write-time question, not a compose-time one, and that is the whole point.</b> Whether a
+        /// subscription shares the ordinary connection depends on the NEGOTIATED protocol, and a command
+        /// can be composed while RESP3 is expected and written after a reconnect has settled on RESP2 -
+        /// at which point writing it here puts this connection into subscriber mode, and it refuses every
+        /// ordinary command from then on. The shipped core asks the same question in the same place,
+        /// inside the write lock: see <c>PhysicalBridge.WriteMessageInsideLock</c> and
+        /// <c>ServerEndPoint.TryRerouteToSubscriptionBridge</c>, both added for issue #3154.
+        /// </para>
+        /// <para>
+        /// Only the interactive executor has one: a subscription connection is already where
+        /// subscriptions belong.
+        /// </para>
+        /// </remarks>
+        internal Func<RespPayloadOperation, bool>? RerouteSubscription { get; init; }
+
+        /// <summary>Whether this command puts a connection into, or takes it out of, subscriber mode.</summary>
+        /// <param name="command">The command.</param>
+        /// <remarks>
+        /// All six spellings: an <c>UNSUBSCRIBE</c> is as much a subscriber-mode command as a
+        /// <c>SUBSCRIBE</c>, and one written on the wrong connection unsubscribes something somewhere
+        /// else as well as mis-stating this connection's mode.
+        /// </remarks>
+        internal static bool IsSubscriptionCommand(RedisCommand command) => command switch
+        {
+            RedisCommand.SUBSCRIBE or RedisCommand.UNSUBSCRIBE => true,
+            RedisCommand.PSUBSCRIBE or RedisCommand.PUNSUBSCRIBE => true,
+            RedisCommand.SSUBSCRIBE or RedisCommand.SUNSUBSCRIBE => true,
+            _ => false,
+        };
+
         /// <summary>This endpoint's state, in the shape the client's diagnostics already speak.</summary>
         /// <remarks>
         /// <b>Reported through <see cref="PhysicalBridge.BridgeStatus"/> rather than a new shape of its
@@ -1620,6 +1656,17 @@ namespace StackExchange.Redis
         /// </remarks>
         private bool Send(RespConnection connection, RespPayloadOperation operation)
         {
+            // Asked HERE, at the write, because the answer can have changed since this was composed: see
+            // RerouteSubscription. A subscribe queued while RESP3 was expected and written after the
+            // handshake settled on RESP2 would otherwise put this connection into subscriber mode.
+            if (!IsSubscriptionEndpoint
+                && IsSubscriptionCommand(operation.Command)
+                && RerouteSubscription is { } reroute
+                && reroute(operation))
+            {
+                return true; // somebody else's responsibility now
+            }
+
             if (_select is null || operation.Database < 0) return connection.Send(operation);
 
             // A SERVER THAT HAS ONLY ONE DATABASE CANNOT BE ASKED FOR ANOTHER, and this said nothing: the

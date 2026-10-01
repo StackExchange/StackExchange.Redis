@@ -501,6 +501,42 @@ namespace StackExchange.Redis
         /// <summary>How many sockets exist purely for deliveries; zero unless something subscribed.</summary>
         internal int SubscriptionConnectionCount => _subscriptions.Count;
 
+        /// <summary>
+        /// Move a subscriber-mode command off the ordinary connection, when the protocol turned out to
+        /// need a connection of its own.
+        /// </summary>
+        /// <param name="endpoint">The endpoint whose ordinary connection is about to write it.</param>
+        /// <param name="operation">The command.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The negotiated protocol, read at the write.</b> If it settled on RESP3 then sharing is
+        /// right and there is nothing to move; if it settled below - or is still unknown, which a
+        /// connection about to write has resolved by definition - then subscriptions need their own
+        /// socket, and this creates it and hands the command over.
+        /// </para>
+        /// <para>
+        /// The direct port of <c>ServerEndPoint.TryRerouteToSubscriptionBridge</c>, issue #3154's fix, and
+        /// the thing that lets a subscription be composed against the ordinary connection at all: without
+        /// it the socket has to be chosen pessimistically when the send is built, which is a socket per
+        /// endpoint that RESP3 does not need.
+        /// </para>
+        /// </remarks>
+        private bool TryRerouteSubscription(EndPoint endpoint, RespPayloadOperation operation)
+        {
+            if (_protocols.TryGetValue(endpoint, out var negotiated) && negotiated >= RedisProtocol.Resp3)
+            {
+                return false; // shared is correct here; nothing to move
+            }
+
+            // deliberately not via the "would it share?" question: that consults the same expectation
+            // that got this command queued against the ordinary connection in the first place
+            var target = _subscriptions.TryGetValue(endpoint, out var existing)
+                ? existing
+                : _subscriptions.GetOrAdd(endpoint, CreateSubscription(endpoint));
+
+            return target.TryResend(operation);
+        }
+
         /// <summary>Which endpoint a channel's subscription belongs on, after any redirect.</summary>
         /// <param name="channel">The channel or pattern.</param>
         /// <param name="command">The subscribe command, which decides whether a replica is eligible.</param>
@@ -772,6 +808,7 @@ namespace StackExchange.Redis
             () => _multiplexer.TimeoutMilliseconds,
             () => ModelledServer(endpoint))
         {
+            RerouteSubscription = operation => TryRerouteSubscription(endpoint, operation),
             HeartbeatDriven = true,
         };
 

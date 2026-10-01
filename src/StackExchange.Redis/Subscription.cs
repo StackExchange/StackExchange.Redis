@@ -280,6 +280,17 @@ public partial class ConnectionMultiplexer
             // in-flight counts as placed, or two calls race each other onto different cores
             if (IsPlaced || _sendingVia is not null) return _onNewCore ? SendViaNewCore() : null;
 
+            // A subscription that would SHARE the ordinary connection still goes to the shipped path, and
+            // the write-time reroute does NOT replace this - the two do different jobs. Choosing the right
+            // socket when the protocol is already known is the fast path; the reroute is the safety net
+            // for a send composed before the protocol was known and written after it settled otherwise.
+            //
+            // Measured by removing this: `Resp3DowngradeTests` then fails on TIMING rather than
+            // correctness - nothing is poisoned, but rerouting at the write has to DIAL the subscription
+            // socket first, and the in-process server's transcript shows `PUBLISH => :0` landing before
+            // the re-subscribe arrives. The shipped core does not pay that because it dials its
+            // subscription bridge the moment a downgrade is detected. Doing the same here is what unblocks
+            // removing the decline; see design notes D2.5.
             var core = subscriber.multiplexer.NewCore;
             if (!core.WouldSubscribeOnItsOwnSocket(server.EndPoint)) return null;
 
