@@ -2250,8 +2250,38 @@ Each step is independently shippable and leaves the tree green.
 
   **How to sequence it.** (1) is the gate - nothing else removes a bridge on its own, because a bridge that
   exists for discovery is a bridge that connects. (2) is the biggest visible win and is independent of (1).
-  (3) and (4) can proceed in parallel with either. The measurement that says (1) is done is the one D2.3
-  used: turn the shipped handshake off under the flag and categorise what breaks.
+  (3) and (4) can proceed in parallel with either.
+
+  **The gate measurement has been run, and (1) is closed for the probe burst.** `AutoConfigureAsync`
+  early-returns; both flags set; full suite. Two runs: 4 failures and then **exactly 2** - the
+  `ReconnectRetryPolicy` pair and nothing else, 11,179 passing, which is the baseline with the burst still
+  running. The two extras in the first run (`BacklogTests.FailFast`, `ClusterTests.MovedProfiling`) are
+  both known rotators.
+
+  So none of it is load-bearing any more: `CONFIG GET` x3, `INFO replication`, `INFO server`, the keyed
+  `SET` role probe, `CLUSTER SLOTS`, `CLUSTER NODES` and the tie-breaker `GET`. This core's handshake
+  supplies version, mode, role and peers, slot ranges, `databases` and `replica-read-only`, and publishes
+  them; the suite does not miss the rest.
+
+  **Three caveats, because "the suite passes" is weaker evidence for a probe whose consumers the suite does
+  not exercise.** Sentinel is skipped in this environment, so `SENTINEL MASTERS` is untested and D2.7 owns
+  it. The tie-breaker `GET` only decides between MULTIPLE primaries, which the topology here never has.
+  And `run-id`'s only job is to notice a restart and flush the script cache, which no test restarts a
+  server to check. Those three should move deliberately rather than on the strength of a green run - which
+  is why the burst is still in tree rather than skipped under the flag.
+
+  **What the measurement moved the gate to.** It is no longer *beliefs*: it is the *connect wait*.
+  `ReconfigureAsync` waits per endpoint on `ServerEndPoint.OnConnectedAsync`, which is completed only by a
+  `PhysicalBridge` - `IsConnected` reads `interactive?.IsConnected`, and the pending monitors are completed
+  from `OnFullyEstablished`. So a bridge is still constructed and still dialled for every endpoint, and
+  that is now the whole of what holds it up.
+
+  Satisfying that wait from this core is three small pieces - `IsConnected` counting this core's
+  established connection, this core completing the pending monitors when it establishes one, and
+  `Activate` asking this core to dial - but they **cannot land before the bridge stops dialling**, because
+  until then both cores would dial every endpoint and the connection-count tests (the same 28 that D2.3's
+  `Discover` default costs) would count twice. So that trio and "stop constructing bridges" are one step,
+  and it is the next one.
 
 #### Where the engine flag stands
 
