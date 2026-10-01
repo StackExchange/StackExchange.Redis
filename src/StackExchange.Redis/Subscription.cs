@@ -572,8 +572,6 @@ public partial class ConnectionMultiplexer
                 // "is this the correct server?", but we can ask "is it suitable?", based on the slot
                 if (!subscriber.multiplexer.ServerSelectionStrategy.CanServeSlot(_currentServer, channel))
                 {
-                    // key-routed, so TrySendViaNewCore declines it; written as one call anyway so this
-                    // reads the same as every other send site
                     var fireAndForget = flags | CommandFlags.FireAndForget;
                     if (TrySendViaNewCore(subscriber, channel, SubscriptionAction.Unsubscribe, fireAndForget, current) is null)
                     {

@@ -2574,6 +2574,45 @@ Each step is independently shippable and leaves the tree green.
   every one of these artefacts disappears the moment it lands - and that (2) subscriptions is the better
   next large piece, being the biggest halving available and independent of all of this.
 
+#### Absorbed from main, and the two gaps it found
+
+`origin/main` had drifted by two commits and was merged in rather than left to accumulate. Both needed
+an **engine-flag counterpart**, which is the thing worth noticing: a fix applied to the shipped path is
+not a fix to this one, and neither gap is visible from `main`.
+
+- **#3254, the configuration channel under RESP3.** The shipped fix subscribes the BRIDGE's interactive
+  connection. Under the flag, `IDatabase.Execute("CLIENT", "ID")` names THIS core's connection, which was
+  not subscribed - `ClientKillTests` caught it as `Normal` where `PubSub` was expected. While both cores
+  exist the broadcast still lands on the bridge and the reconfigure still happens, so it is covered
+  today; at D2.8 nothing would be subscribed at all and the bug returns. This core now subscribes its own
+  RESP3 connection, prefix applied, bypassing the registry as the shipped one does. Two orderings are
+  load-bearing: after the handshake and on the NEGOTIATED protocol (a connection answered RESP2 must not
+  enter subscriber mode), and **after `OnPush` is wired** - under RESP3 a subscribe confirmation IS a
+  push, and one arriving before the dispatcher is dropped as unrecognised, which presents as the
+  connection timing out in its own backlog.
+- **#3250, TLS/SNI host names.** `RespTransportFactory.AuthenticateAsync` carried its own copy of the
+  rule that commit replaced - `SslHost`, or the endpoint's host if blank. An endpoint that already carries
+  a DNS name must use ITS name for SNI; only a non-DNS endpoint falls back to inferring one. Cluster
+  shards exposed over TLS/SNI are the case that breaks: every shard presented with the same inferred
+  host, so every shard but one fails validation. Now `config.ResolveTlsHostName(endpoint)`, shared. The
+  factory's own remarks warn against two copies of a security decision while this one quietly was one.
+
+**And the merge exposed a latent defect in D2.5's work, which is NOT the merge's fault and is open.**
+`ClusterTests.ClusterPubSub(sharded: false, withKeyRouting: false, withKeyPrefix: true)` under both flags
+publishes 10 messages and receives **20**, while the publishing node reports one subscriber each time.
+Pinned down so far: it passes at the pre-merge commit (verified in a worktree) and is unrelated to the
+config-channel counterpart (reproduces with that disabled), so the trigger is #3254's role repair, which
+sets `IsReplica` from the applied topology - and on this branch that setter publishes the role and asks
+for a reconfigure, so topology applies now cascade where they did not.
+
+The shape that fits: a non-sharded `PUBLISH` in a cluster is broadcast to every node, so **two of our
+connections subscribed on two different nodes** both receive it while the publishing node counts only
+its own. That means a subscription record moved endpoints while the old socket stayed subscribed - and
+the shipped path never had to handle it, because its `RemoveDisconnectedEndpoints` only clears a record
+whose socket is already gone, whereas `IsLiveOn` can answer false for a socket that is still alive.
+`RemoveIncorrectRouting` does exactly the needed unsubscribe-before-replace, but only for key-routed
+channels; this one is not key-routed. Not yet confirmed by instrumentation, which is the next step.
+
 #### Where the engine flag stands
 
 **Two stable failures, down from 33** - and **both flags together is the measurement**, which is worth

@@ -164,8 +164,14 @@ namespace StackExchange.Redis
         internal static async Task<SslStream> AuthenticateAsync(
             Stream stream, EndPoint endpoint, ConfigurationOptions config, Action<Exception>? onAuthSuspect)
         {
-            var host = config.SslHost;
-            if (host.IsNullOrWhiteSpace()) host = Format.ToStringHostOnly(endpoint);
+            // ConfigurationOptions.ResolveTlsHostName, not a second copy of the rule. This used to read
+            // `SslHost, or the endpoint's host if that is blank`, which is what the shipped connection
+            // used to do and what #3250 replaced: an endpoint that already carries a DNS name must use
+            // ITS name for SNI, and only a non-DNS endpoint falls back to inferring one from the
+            // configured set. Cluster shards exposed over TLS/SNI are the case that breaks otherwise -
+            // every shard presented with the same inferred host, so every shard but one fails
+            // validation. Two copies of a security decision is the drift this boundary exists to avoid.
+            var host = config.ResolveTlsHostName(endpoint);
 
             var validate = config.CertificateValidationCallback ?? PhysicalConnection.GetAmbientIssuerCertificateCallback();
             var select = config.CertificateSelectionCallback ?? PhysicalConnection.GetAmbientClientCertificateCallback();

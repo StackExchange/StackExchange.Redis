@@ -924,6 +924,27 @@ namespace StackExchange.Redis
             // RESP3, where a push can land on any connection
             connection.OnPush = frame => RespPushDispatch.Dispatch(frame, _multiplexer);
 
+            // ...and under RESP3 this connection carries the configuration-change broadcast, because there
+            // is no subscription connection to carry it. Backported alongside #3254, which fixed exactly
+            // this for the shipped core: the channel is how a client is told BY HAND that the topology
+            // moved, and left unsubscribed the broadcast reaches nobody. The shipped fix subscribes the
+            // bridge's interactive connection; while both cores exist that is enough to act on, but it is
+            // the bridge's socket - so this core's own connection needs the same, or the fix comes undone
+            // the moment bridges stop being constructed.
+            //
+            // AFTER the handshake and on the NEGOTIATED protocol, never as part of it: a connection that
+            // asked for RESP3 and was answered RESP2 must not be put into subscriber mode, which is the
+            // caution the shipped version states too.
+            //
+            // AFTER OnPush, which is not a detail: under RESP3 a subscribe confirmation IS a push, and a
+            // push arriving before the dispatcher is wired is dropped as unrecognised - so subscribing
+            // any earlier means waiting for a reply that has already been thrown away, which presents as
+            // the connection timing out in its own backlog.
+            if (!subscription && result.Protocol >= RedisProtocol.Resp3)
+            {
+                await SubscribeToConfigurationChannelAsync(context, cancellationToken).ConfigureAwait(false);
+            }
+
             // A connection deliveries arrive on is useless until the subscriptions are on it again, and
             // nothing else was going to notice: the shipped core re-subscribes when its own subscription
             // bridge establishes, so a socket THIS core brought back had no equivalent trigger and the
@@ -947,6 +968,44 @@ namespace StackExchange.Redis
             }
 
             return connection;
+        }
+
+        /// <summary>Subscribe this connection to the configuration-change broadcast.</summary>
+        /// <param name="context">A context over the connection to subscribe on.</param>
+        /// <param name="cancellationToken">Cancels the request.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The library's own subscription, not a caller's</b>, so it deliberately does not go through
+        /// the subscription registry - there are no handlers to register and nothing should be able to
+        /// unsubscribe it. The shipped core writes it straight to the bridge for the same reason; the
+        /// delivery is recognised by <c>RespPushDispatch</c>, which checks for the configuration channel
+        /// before handing anything to pub/sub handlers.
+        /// </para>
+        /// <para>
+        /// <b>With the channel prefix applied</b>, because that is how it is subscribed and published
+        /// everywhere else - the one thing #3254's third part had to fix was the library's own broadcasts
+        /// passing a raw value and so reaching a name nobody was subscribed to.
+        /// </para>
+        /// </remarks>
+        private async Task SubscribeToConfigurationChannelAsync(
+            RespDatabaseContext context, CancellationToken cancellationToken)
+        {
+            var channel = _multiplexer.ConfigurationChangedChannel;
+            if (channel is null || !context.Raw.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)) return;
+
+            var prefixed = new RespPubSub(
+                context.Raw.AppendChannelPrefix(_multiplexer.RawConfig.ChannelPrefix));
+
+            try
+            {
+                await prefixed.SubscribeAsync(RedisChannel.Literal(channel)).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // best efforts: a server that refuses SUBSCRIBE still serves commands, and failing the
+                // dial over a broadcast nobody may ever send would be a worse trade
+                _multiplexer.OnInternalError(ex);
+            }
         }
 
         /// <summary>Begin a profiling record, if anyone is profiling right now.</summary>
