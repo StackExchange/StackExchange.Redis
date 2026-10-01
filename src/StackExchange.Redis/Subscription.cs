@@ -365,12 +365,21 @@ public partial class ConnectionMultiplexer
                     return;
                 }
 
-                // WHERE IT ENDED UP, which is not always where it was aimed: a sharded or key-routed
-                // subscribe sent to the wrong node answers -MOVED, and following that both moves the
-                // subscription and teaches this core where the slot went. So the slot's owner afterwards
-                // is the answer, and the endpoint is re-resolved rather than assumed. A channel that is
-                // not key-routed has no slot and answers null, in which case it is where it was aimed.
-                if (subscriber is not null
+                // WHERE IT ENDED UP, which is not always where it was aimed: a SHARDED subscribe sent to
+                // the wrong node answers -MOVED, and following that both moves the subscription and
+                // teaches this core where the slot went. So the slot's owner afterwards is the answer,
+                // and the endpoint is re-resolved rather than assumed.
+                //
+                // SSUBSCRIBE and nothing else, which is the distinction that matters rather than
+                // "key-routed": a key-routed channel has a slot, so the slot's owner can always be
+                // computed - but a plain SUBSCRIBE is not routed by it and never answers -MOVED, so the
+                // subscription really is on whichever node it was sent to, however wrong that node looks.
+                // `ClusterShardedTests.SubscribeToWrongServerAsync(sharded: false)` is built to say so:
+                // it subscribes a key-routed channel VIA A DELIBERATELY WRONG server and requires it to
+                // still be there afterwards. Re-resolving on the slot reports the node it should have
+                // gone to and loses track of the one holding it.
+                if (command is RedisCommand.SSUBSCRIBE
+                    && subscriber is not null
                     && subscriber.multiplexer.NewCore.EndpointForChannel(placed, command, flags) is { } landed
                     && !Equals(landed, server.EndPoint)
                     && subscriber.multiplexer.GetServerEndPoint(landed, ServerProvenance.Configured, activate: false)

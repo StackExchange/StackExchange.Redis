@@ -1068,11 +1068,17 @@ namespace StackExchange.Redis
                 return;
             }
 
-            DialSubscriptionSocket(endpoint);
+            // deliberately NOT holding publishes: this dial exists for the library's own channel, and a
+            // caller's publish has no reason to wait for it - see `SubscriptionsSettling`
+            DialSubscriptionSocket(endpoint, holdPublishes: false);
         }
 
         /// <summary>Start this endpoint's subscription connection, without waiting for it.</summary>
         /// <param name="endpoint">The endpoint whose deliveries now need a socket of their own.</param>
+        /// <param name="holdPublishes">
+        /// Whether a publish should wait for this dial to place its subscriptions; see
+        /// <see cref="SubscriptionsSettling"/> for why only the downgrade re-place says yes.
+        /// </param>
         /// <remarks>
         /// <b>Fire-and-forget on the pool, never inline.</b> This runs while another connection is being
         /// established, and dialling one connection from inside another's establish path would wait
@@ -1080,12 +1086,15 @@ namespace StackExchange.Redis
         /// it sits. Failure is ordinary: the socket will be dialled by the next subscribe if it is still
         /// wanted.
         /// </remarks>
-        private void DialSubscriptionSocket(EndPoint endpoint)
+        private void DialSubscriptionSocket(EndPoint endpoint, bool holdPublishes = true)
         {
             // recorded BEFORE the dial starts, not inside it: the point of the record is that a publish
             // issued between here and the re-place can see that one is coming, and a record written from
             // the worker is written too late to be seen by the thing it exists to hold back.
-            _settling[endpoint] = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (holdPublishes)
+            {
+                _settling[endpoint] = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
 
             ThreadPool.QueueUserWorkItem(
                 static async state =>
@@ -1157,6 +1166,15 @@ namespace StackExchange.Redis
         /// <para>
         /// Normally empty, so normally free; it holds an entry only between a downgrade being observed
         /// and that endpoint's subscriptions being back on the wire.
+        /// </para>
+        /// <para>
+        /// <b>Only the downgrade re-place records one</b>, and that scoping is not tidiness. The dial for
+        /// the library's own configuration channel runs at ACTIVATION, once per node - so in a cluster
+        /// every publish waited on six of them, and any one that was slow to establish held the lot.
+        /// Measured as a five-second publish against the shipped path's eight hundred milliseconds, and
+        /// as `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` running out its own timeout.
+        /// A caller's publish has no reason to wait for the library's channel: nothing it does depends
+        /// on that subscription being in place.
         /// </para>
         /// </remarks>
         internal Task SubscriptionsSettling()

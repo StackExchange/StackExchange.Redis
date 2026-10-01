@@ -90,6 +90,23 @@ namespace StackExchange.Redis
             return false;
         }
 
+        /// <summary>Forget where one channel's subscription is placed, leaving the registration.</summary>
+        /// <param name="channel">The channel the server has said is no longer subscribed.</param>
+        /// <remarks>
+        /// The handlers stay: the caller still wants this channel, so the next
+        /// <see cref="EnsureSubscriptions"/> re-places it. Only the belief about WHERE it currently lives
+        /// is dropped. See <c>RespPushDispatch.ForgetPlacement</c>.
+        /// </remarks>
+        internal void ForgetSubscriptionPlacement(in RedisChannel channel)
+        {
+            if (!channel.IsNullOrEmpty
+                && subscriptions.TryGetValue(channel, out var sub)
+                && sub.GetAnyCurrentServer() is { } server)
+            {
+                sub.TryRemoveEndpoint(server);
+            }
+        }
+
         /// <summary>Forget every subscription recorded against an endpoint, because its socket is new.</summary>
         /// <param name="endpoint">The endpoint whose subscription connection has just been established.</param>
         /// <remarks>

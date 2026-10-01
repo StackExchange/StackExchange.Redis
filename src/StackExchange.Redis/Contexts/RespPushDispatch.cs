@@ -61,11 +61,24 @@ namespace StackExchange.Redis
                 case PhysicalConnection.PushKind.Subscribe:
                 case PhysicalConnection.PushKind.PSubscribe:
                 case PhysicalConnection.PushKind.SSubscribe:
+                    // these ANSWER a command we sent - in RESP3 a confirmation is a push - so ordinary
+                    // matching has to complete it. Consuming it here would strand the subscribe call.
+                    return RespOutOfBandResult.MatchToCommand;
+
                 case PhysicalConnection.PushKind.Unsubscribe:
                 case PhysicalConnection.PushKind.PUnsubscribe:
                 case PhysicalConnection.PushKind.SUnsubscribe:
-                    // these ANSWER a command we sent - in RESP3 a confirmation is a push - so ordinary
-                    // matching has to complete it. Consuming it here would strand the subscribe call.
+                    // ...and so do these, but they are ALSO something a server says unprompted, which is
+                    // the case that was going nowhere. When a slot migrates away, the node holding its
+                    // shard channels drops them and says so - there is no command of ours to match that
+                    // to, so matching alone leaves this client still believing it is subscribed on a node
+                    // that has stopped delivering. `ClusterShardedTests.KeepSubscribedThroughSlotMigration`
+                    // asks exactly that question and requires the answer to be "nowhere, or the new node".
+                    //
+                    // Read from a COPY: the reader is handed on to the matching layer, which parses the
+                    // frame from the start, so consuming elements here would corrupt what it sees.
+                    // RespReader is a struct over the same buffer, so a copy reads without disturbing it.
+                    ForgetPlacement(reader, multiplexer, kind);
                     return RespOutOfBandResult.MatchToCommand;
 
                 case PhysicalConnection.PushKind.Invalidate:
@@ -212,6 +225,31 @@ namespace StackExchange.Redis
             }
 
             multiplexer.ReconfigureIfNeeded(blame, true, "broadcast");
+        }
+
+        /// <summary>Stop believing a channel is subscribed anywhere, because the server says it is not.</summary>
+        /// <param name="reader">A COPY of the reader, positioned on the push kind.</param>
+        /// <param name="multiplexer">Owns the subscription registry.</param>
+        /// <param name="kind">Which unsubscribe this is, which decides how the channel name is shaped.</param>
+        /// <remarks>
+        /// Clearing is the safe direction, and deliberately not conditional on whether an unsubscribe of
+        /// ours is in flight: a record cleared while a subscribe was landing costs one re-subscribe from
+        /// the next <c>EnsureSubscriptions</c>, where a record KEPT after the server dropped it is a
+        /// subscription the client never notices it has lost.
+        /// </remarks>
+        private static void ForgetPlacement(RespReader reader, ConnectionMultiplexer multiplexer, PhysicalConnection.PushKind kind)
+        {
+            var options = kind switch
+            {
+                PhysicalConnection.PushKind.SUnsubscribe => RedisChannel.RedisChannelOptions.Sharded,
+                PhysicalConnection.PushKind.PUnsubscribe => RedisChannel.RedisChannelOptions.Pattern,
+                _ => RedisChannel.RedisChannelOptions.None,
+            };
+
+            if (TryReadChannel(ref reader, multiplexer.ChannelPrefix.AsSpan(), options, out var channel))
+            {
+                multiplexer.ForgetSubscriptionPlacement(in channel);
+            }
         }
 
         private static bool TryReadChannel(
