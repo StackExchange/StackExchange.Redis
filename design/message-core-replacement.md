@@ -2305,10 +2305,25 @@ Each step is independently shippable and leaves the tree green.
   and it makes EVERY remaining `Message` site work through this core at once - which is what lets the
   interactive bridge stop being dialled without `IServer` and sentinel having to be rewritten first.
 
-  Revised sequence, then: the reply interface, then the Message executor over this core, then the connect
-  wait and "stop constructing bridges" together, then (2) subscriptions. (3) and (4) stop being
-  prerequisites and become cleanup - still worth doing, because a group method beats a `Message`, but no
-  longer in the way.
+  **Weighed against porting the tail, and the tail wins - which is a correction to the paragraph above.**
+  The lever has a cost that counting overrides does not show: `SetResult` runs for every reply on the
+  shipped path, so making its `connection` an interface puts an indirection in the hot path of the library
+  as it ships today, for the sake of scaffolding that is deleted at the end. And it is one big-bang diff
+  across 92 overrides, with the risk concentrated in the reply dispatch that every command depends on.
+
+  Porting is 68 `Message.Create` sites in `RedisServer.cs` across ~22 commands (`CLIENT`, `CLUSTER`,
+  `CONFIG`, `LATENCY`, `MEMORY`, `SCRIPT`, `SLOWLOG`, `SHUTDOWN`, `REPLICAOF`/`SLAVEOF`, `SAVE`/`BGSAVE`,
+  `ROLE`, `COMMAND`, `KEYS`/`SCAN`, ...). Each is independently verifiable, costs the shipped path nothing,
+  and - the deciding point - **a group method is the destination rather than scaffolding**. The reply
+  interface would be thrown away; these are kept.
+
+  **Sentinel does not have to move for the interactive bridge to go.** A sentinel is its own
+  `ServerEndPoint` with its own `ServerType` and connection model, so it can keep a bridge after ordinary
+  servers stop having one. That takes item (4)'s 462 messages off the critical path entirely, and leaves
+  the reply interface as the fallback lever for if sentinel ever does have to move with everything else.
+
+  Revised sequence, then: (3) the `IServer` tail, (2) subscriptions, then the connect wait and "stop
+  constructing bridges for non-sentinel servers" together. (4) sentinel keeps its bridge until last.
 
 #### Where the engine flag stands
 
