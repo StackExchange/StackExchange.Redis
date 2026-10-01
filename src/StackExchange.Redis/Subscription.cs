@@ -151,6 +151,24 @@ public partial class ConnectionMultiplexer
         /// </remarks>
         private volatile bool _onNewCore;
 
+        /// <summary>Where this core has a subscribe in flight; null when none is.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Separate from the placed endpoint, because "we are carrying this" and "the server has
+        /// confirmed it" are different questions and conflating them loses subscriptions.</b> The ping
+        /// gate wants the first - a fire-and-forget subscribe is flushed by a ping that has to go on the
+        /// socket the subscribe went out on, and that is true from the moment it is written. But
+        /// <c>IsConnectedAny</c> wants the second: answer it optimistically and a later
+        /// <c>EnsureSubscribedToServer</c> skips as "already subscribed", so a subscribe that never landed
+        /// is never retried. `Resp3HandshakeTests` reads that as a publish finding no subscribers at all.
+        /// </para>
+        /// <para>
+        /// So the endpoint is still recorded on CONFIRMATION, and this is what the ping asks about in the
+        /// window before it.
+        /// </para>
+        /// </remarks>
+        private volatile ServerEndPoint? _sendingVia;
+
         /// <summary>Record that the shipped path holds this subscription.</summary>
         /// <remarks><inheritdoc cref="_onNewCore" path="/remarks/para[2]"/></remarks>
         internal void OnSubscribedViaBridge() => _onNewCore = false;
@@ -175,7 +193,8 @@ public partial class ConnectionMultiplexer
         /// unsubscribe from something nobody subscribed to, which is only a round trip where a
         /// subscription exists.
         /// </remarks>
-        internal bool IsHeldByNewCoreOn(EndPoint endpoint) => _onNewCore && NamesEndpoint(endpoint);
+        internal bool IsHeldByNewCoreOn(EndPoint endpoint)
+            => _onNewCore && (NamesEndpoint(endpoint) || Equals(_sendingVia?.EndPoint, endpoint));
 
         /// <summary>Whether some connection is already carrying this subscription.</summary>
         /// <remarks>
@@ -247,7 +266,8 @@ public partial class ConnectionMultiplexer
             // copied out of the `in` parameter, because the local function below cannot capture one
             var target = channel;
 
-            if (IsPlaced) return _onNewCore ? SendViaNewCore() : null;
+            // in-flight counts as placed, or two calls race each other onto different cores
+            if (IsPlaced || _sendingVia is not null) return _onNewCore ? SendViaNewCore() : null;
 
             var core = subscriber.multiplexer.NewCore;
             if (!core.WouldSubscribeOnItsOwnSocket(server.EndPoint)) return null;
@@ -266,22 +286,38 @@ public partial class ConnectionMultiplexer
                 // EnsureSubscriptions corrects it, because IsLiveOn then answers false.
                 if (action == SubscriptionAction.Subscribe)
                 {
-                    _onNewCore = true; // before the endpoint, so a reader never sees one without the other
-                    AddEndpoint(server);
-                    return Settle(context.SubscribeAsync(target, Flags | flags));
+                    // ownership now, so a fire-and-forget caller's flush finds the right socket; the
+                    // ENDPOINT only on confirmation, so nothing reads this as "already subscribed"
+                    _onNewCore = true;
+                    _sendingVia = server;
+                    return Settle(context.SubscribeAsync(target, Flags | flags), this, server, place: true);
                 }
 
                 return Settle(context.UnsubscribeAsync(target, Flags | flags), this, server);
             }
 
             static async Task Settle(
-                ValueTask<long> pending, Subscription? self = null, ServerEndPoint? server = null)
+                ValueTask<long> pending,
+                Subscription? self = null,
+                ServerEndPoint? server = null,
+                bool place = false)
             {
-                await pending.ConfigureAwait(false);
+                try
+                {
+                    await pending.ConfigureAwait(false);
+                }
+                finally
+                {
+                    if (place && self is not null) self._sendingVia = null;
+                }
 
-                // an unsubscribe forgets the endpoint only once the server has confirmed it, because until
-                // then deliveries can still arrive and the subscription is still there to be re-used
-                if (self is not null && server is not null) self.TryRemoveEndpoint(server);
+                if (self is null || server is null) return;
+
+                // recorded, or forgotten, only once the server has confirmed: a subscription the server
+                // has not acknowledged must stay retryable, and one it has not yet dropped can still
+                // deliver
+                if (place) self.AddEndpoint(server);
+                else self.TryRemoveEndpoint(server);
             }
         }
 
@@ -560,7 +596,7 @@ public partial class ConnectionMultiplexer
         {
             foreach (var server in _servers)
             {
-                if (server.Value is { IsSubscriberConnected: true }) return true;
+                if (IsLiveOn(server.Value)) return true;
             }
 
             return false;
@@ -571,15 +607,14 @@ public partial class ConnectionMultiplexer
             int count = 0;
             foreach (var server in _servers)
             {
-                if (server.Value is { IsSubscriberConnected: true }) count++;
+                if (IsLiveOn(server.Value)) count++;
             }
 
             return count;
         }
 
         internal override bool IsConnectedTo(EndPoint endpoint)
-            => _servers.TryGetValue(endpoint, out var server)
-               && server.IsSubscriberConnected;
+            => _servers.TryGetValue(endpoint, out var server) && IsLiveOn(server);
 
         internal override bool NamesEndpoint(EndPoint endpoint) => _servers.ContainsKey(endpoint);
 
@@ -607,7 +642,7 @@ public partial class ConnectionMultiplexer
             foreach (var server in _servers)
             {
                 last = server.Value;
-                if (last is { IsSubscriberConnected: true })
+                if (IsLiveOn(last))
                 {
                     break;
                 }
@@ -624,7 +659,12 @@ public partial class ConnectionMultiplexer
             int count = 0;
             foreach (var server in _servers)
             {
-                if (server.Value.IsSubscriberConnected)
+                // NOT connected is what gets removed - this read `IsSubscriberConnected` with no negation,
+                // which is inverted against both this method's name and the single-node sibling. The
+                // effect was benign because GetSubscriptionChange re-checks liveness rather than trusting
+                // the record, so the cost was redundant SUBSCRIBEs on reconfigure rather than a lost
+                // subscription; it is still the opposite of what it says.
+                if (!IsLiveOn(server.Value))
                 {
                     // flag for removal
                     if (scratch.Length == count) // need to resize the scratch buffer, using the pool
@@ -665,9 +705,16 @@ public partial class ConnectionMultiplexer
                 var change = GetSubscriptionChange(server, flags);
                 if (change is not null)
                 {
-                    // make it so
-                    var message = GetSubscriptionMessage(channel, change.GetValueOrDefault(), flags, internalCall);
-                    subscriber.ExecuteSync(message, Processor, server);
+                    if (TrySendViaNewCore(subscriber, channel, change.GetValueOrDefault(), flags, server) is { } sent)
+                    {
+                        WaitUnlessDeclined(subscriber, sent, flags);
+                    }
+                    else
+                    {
+                        var message = GetSubscriptionMessage(channel, change.GetValueOrDefault(), flags, internalCall);
+                        subscriber.ExecuteSync(message, Processor, server);
+                    }
+
                     delta++;
                 }
             }
@@ -706,9 +753,16 @@ public partial class ConnectionMultiplexer
                     var change = GetSubscriptionChange(loopServer, flags);
                     if (change is not null)
                     {
-                        // make it so
-                        var message = GetSubscriptionMessage(channel, change.GetValueOrDefault(), flags, internalCall);
-                        await subscriber.ExecuteAsync(message, Processor, loopServer).ForAwait();
+                        if (TrySendViaNewCore(subscriber, channel, change.GetValueOrDefault(), flags, loopServer) is { } sent)
+                        {
+                            await sent.ForAwait();
+                        }
+                        else
+                        {
+                            var message = GetSubscriptionMessage(channel, change.GetValueOrDefault(), flags, internalCall);
+                            await subscriber.ExecuteAsync(message, Processor, loopServer).ForAwait();
+                        }
+
                         delta++;
                     }
                 }
@@ -726,6 +780,13 @@ public partial class ConnectionMultiplexer
             bool any = false;
             foreach (var server in _servers)
             {
+                if (TrySendViaNewCore(subscriber, channel, SubscriptionAction.Unsubscribe, flags, server.Value) is { } sent)
+                {
+                    WaitUnlessDeclined(subscriber, sent, flags);
+                    any = true;
+                    continue;
+                }
+
                 var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 any |= subscriber.ExecuteSync(message, Processor, server.Value);
             }
@@ -743,6 +804,13 @@ public partial class ConnectionMultiplexer
             bool any = false;
             foreach (var server in _servers)
             {
+                if (TrySendViaNewCore(subscriber, channel, SubscriptionAction.Unsubscribe, flags, server.Value) is { } sent)
+                {
+                    await sent.ForAwait();
+                    any = true;
+                    continue;
+                }
+
                 var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
                 any |= await subscriber.ExecuteAsync(message, Processor, server.Value).ForAwait();
             }

@@ -2247,12 +2247,18 @@ Each step is independently shippable and leaves the tree green.
      `Issue1101Tests.ExecuteWithUnsubscribe*` reads that as "expected 0 subscribers, found 1" after
      unsubscribing everything. So a subscription already placed decides where the next command for it
      goes, in either direction; only an unplaced one is free to be placed.
-  2. **Recorded at SEND time for a subscribe, not on completion.** A caller who declines the outcome -
-     fire-and-forget - then pings the subscriber to flush it, and the ping has to find this core holding
-     the subscription or it goes out on the other one's socket and flushes nothing
-     (`PubSubTests.TestBasicPubSubFireAndForget`). Where it turns out wrong, the next
-     `EnsureSubscriptions` corrects it, because `IsLiveOn` then answers false. An UNSUBSCRIBE still
-     forgets the endpoint only once confirmed: until then deliveries can still arrive.
+  2. **"We are carrying this" and "the server has confirmed it" are different questions**, and
+     conflating them loses subscriptions. The ping gate wants the first: a caller who declines the outcome
+     then pings the subscriber to flush it, and the ping has to travel on the socket the subscribe went
+     out on - true from the moment it is written (`PubSubTests.TestBasicPubSubFireAndForget`).
+     `IsConnectedAny` wants the second: answer it optimistically and a later
+     `EnsureSubscribedToServer` skips as "already subscribed", so a subscribe that never landed is never
+     retried - `Resp3HandshakeTests` reads that as a publish finding NO subscribers at all.
+
+     So ownership and an in-flight endpoint (`_sendingVia`) are recorded at SEND time, for the ping to
+     ask about, and the placed endpoint only on CONFIRMATION. An unsubscribe likewise forgets the
+     endpoint only once confirmed: until then deliveries can still arrive. In-flight counts as placed
+     too, or two concurrent calls race onto different cores.
   3. **Re-subscribe when THIS core's subscription socket establishes.** The shipped core re-subscribes
      when its own subscription bridge comes up; a socket this core brought back had no equivalent
      trigger, so the subscriptions stayed off until something unrelated happened to ask -
@@ -2288,8 +2294,20 @@ Each step is independently shippable and leaves the tree green.
   early when the client held no subscriptions, so an `UNSUBSCRIBE` there was never confirmed and the
   degraded ping waited for ever - a real server answers with a count regardless.
 
-  **What is left of D2.5**: `MultiNodeSubscription` (the keyspace shape, routed to several nodes at once),
-  the redirect-capable channels, and `IdentifyEndpointAsync`.
+  **`MultiNodeSubscription` followed immediately**, and needed nothing new: its four send sites route
+  through the same `TrySendViaNewCore`, and its liveness questions through the same `IsLiveOn`. The
+  sticky-ownership rule covers the multi-node case for free - `IsPlaced` is "any endpoint placed", so the
+  first placement decides for the whole subscription rather than per node, which is what stops one
+  channel from being half on each core across several servers.
+
+  While in there: `RemoveDisconnectedEndpoints` on that shape read `if (server.Value.IsSubscriberConnected)`
+  and then removed it - **inverted** against both the method's name and the single-node sibling, which
+  removes when `false`. The effect was benign, because `GetSubscriptionChange` re-checks liveness rather
+  than trusting the record, so the cost was redundant `SUBSCRIBE`s on reconfigure rather than a lost
+  subscription. Corrected with the negation it was missing.
+
+  **What is left of D2.5**: the redirect-capable channels (sharded and key-routed), and
+  `IdentifyEndpointAsync` - which want the same thing, a send that reports where it finished.
 
 - **D2.6 - Re-home the per-server beliefs** (script cache, `RunId`, profiling context) out of
   `ServerEndPoint`.
