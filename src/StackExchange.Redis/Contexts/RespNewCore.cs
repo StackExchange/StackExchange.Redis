@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Security;
@@ -563,31 +564,6 @@ namespace StackExchange.Redis
             return slot == ServerSelectionStrategy.NoSlot ? null : EndpointForSlot(slot, command, flags);
         }
 
-        /// <summary>
-        /// Whether a subscription on this endpoint would get a socket of its own, rather than sharing the
-        /// ordinary connection.
-        /// </summary>
-        /// <param name="endpoint">The endpoint.</param>
-        /// <remarks>
-        /// <para>
-        /// <b>Asked so a caller can decline a subscription whose socket is not yet DECIDED.</b> Sharing
-        /// the ordinary connection is right under RESP3 and is also where issue #3154 lives: this core
-        /// chooses the socket when a send is COMPOSED, so a subscribe composed while RESP3 was expected
-        /// and written after a reconnect negotiated RESP2 lands on the ordinary connection and puts it
-        /// into subscriber mode. The shipped core has a tested answer for that window
-        /// (<c>Resp3DowngradeTests</c>) and this one does not yet.
-        /// </para>
-        /// <para>
-        /// So the answer is yes only when the choice cannot change underneath it: this endpoint already
-        /// has a subscription socket, or its protocol has been NEGOTIATED as RESP2. An unknown protocol
-        /// says no - treating unknown as "probably RESP2" accepts exactly the subscriptions a later
-        /// downgrade can re-home. See design notes D2.5.
-        /// </para>
-        /// </remarks>
-        internal bool WouldSubscribeOnItsOwnSocket(EndPoint endpoint)
-            => _subscriptions.ContainsKey(endpoint)
-                || (_protocols.TryGetValue(endpoint, out var negotiated) && negotiated < RedisProtocol.Resp3);
-
         /// <summary>Whether the connection a subscription on this endpoint lives on is up.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
@@ -983,7 +959,7 @@ namespace StackExchange.Redis
                 && result.Protocol < RedisProtocol.Resp3
                 && config.TryResp3()
                 && _multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)
-                && _multiplexer.NewCoreHoldsSubscriptionsOn(endpoint))
+                && _multiplexer.NewCoreOwnsAnySubscription())
             {
                 DialSubscriptionSocket(endpoint);
             }
@@ -1033,6 +1009,12 @@ namespace StackExchange.Redis
                     // or nothing on this connection works either
                     _multiplexer.OnInternalError(ex);
                 }
+                finally
+                {
+                    // whatever happened, this is the moment anything waiting on the re-place is waiting
+                    // for - see `SubscriptionsSettling`
+                    SubscriptionsSettled(endpoint);
+                }
             }
 
             return connection;
@@ -1048,20 +1030,82 @@ namespace StackExchange.Redis
         /// wanted.
         /// </remarks>
         private void DialSubscriptionSocket(EndPoint endpoint)
-            => ThreadPool.QueueUserWorkItem(
-                static state =>
+        {
+            // recorded BEFORE the dial starts, not inside it: the point of the record is that a publish
+            // issued between here and the re-place can see that one is coming, and a record written from
+            // the worker is written too late to be seen by the thing it exists to hold back.
+            var settled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _settling[endpoint] = settled;
+
+            ThreadPool.QueueUserWorkItem(
+                static async state =>
                 {
-                    var (core, ep) = ((RespNewCore, EndPoint))state!;
+                    var (core, ep, tcs) = ((RespNewCore, EndPoint, TaskCompletionSource<bool>))state!;
                     try
                     {
-                        _ = core.SubscriptionEndpoint(ep).ConnectNowAsync(CancellationToken.None);
+                        await core.SubscriptionEndpoint(ep).ConnectNowAsync(CancellationToken.None)
+                            .ConfigureAwait(false);
+
+                        // NOT released here, even though this is where the dial finishes: the connect
+                        // completing is not the subscriptions being back, and measurably so - a socket
+                        // this core had already opened once returns from here long before the replacement
+                        // has run its establish hook. The hook releases it, by calling `SubscriptionsSettled`
+                        // once the re-place has gone out; all this does is bound the wait, so that a
+                        // replacement which never arrives cannot hold a publish for ever.
+                        await Task.Delay(core._multiplexer.TimeoutMilliseconds).ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
                         core._multiplexer.OnInternalError(ex, ep);
                     }
+                    finally
+                    {
+                        // a dial that FAILED must still release whatever waits on it: a publish blocked
+                        // for ever on a socket that is never coming is worse than one reaching nobody
+                        core.SubscriptionsSettled(ep);
+                    }
                 },
-                (this, endpoint));
+                (this, endpoint, settled));
+        }
+
+        private readonly ConcurrentDictionary<EndPoint, TaskCompletionSource<bool>> _settling = new();
+
+        /// <summary>Release anything held back waiting for this endpoint's subscriptions.</summary>
+        /// <param name="endpoint">The endpoint whose subscriptions are back on the wire.</param>
+        private void SubscriptionsSettled(EndPoint endpoint)
+        {
+            if (_settling.TryRemove(endpoint, out var settled)) settled.TrySetResult(true);
+        }
+
+        /// <summary>Subscription re-placements still in flight, which a publish must not overtake.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The shipped core gets this ordering by accident and this one has to arrange it.</b> There,
+        /// a connection failure drops the interactive and subscription bridges together and both
+        /// reconnect on the same heartbeat, so by the time ordinary commands flow again the subscription
+        /// bridge has had the same wall-clock to come back. Here the subscription socket is dialled
+        /// lazily, and the need for one is only known once the handshake reports a protocol below the
+        /// one asked for - which is strictly AFTER the ordinary connection is already warm. A publish
+        /// then goes out immediately on the warm socket while the subscription socket is still shaking
+        /// hands, and reaches nobody.
+        /// </para>
+        /// <para>
+        /// Normally empty, so normally free; it holds an entry only between a downgrade being observed
+        /// and that endpoint's subscriptions being back on the wire.
+        /// </para>
+        /// </remarks>
+        internal Task SubscriptionsSettling()
+        {
+            if (_settling.IsEmpty) return Task.CompletedTask;
+
+            List<Task>? pending = null;
+            foreach (var pair in _settling)
+            {
+                if (!pair.Value.Task.IsCompleted) (pending ??= new()).Add(pair.Value.Task);
+            }
+
+            return pending is null ? Task.CompletedTask : Task.WhenAll(pending);
+        }
 
         /// <summary>Subscribe this connection to the configuration-change broadcast.</summary>
         /// <param name="context">A context over the connection to subscribe on.</param>

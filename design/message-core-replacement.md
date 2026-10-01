@@ -3024,3 +3024,69 @@ identified, and the connection-lifecycle groups are suspected. Fixing those indi
 wasted work; the cache, cluster-detection, cross-slot and transaction-abort bugs found alongside them
 were genuine and worth having regardless.
 
+
+### 9d. The subscription decline is gone, and the four pieces that bought it
+
+`Subscription.TrySendViaNewCore` used to decline any subscription that would **share** the ordinary
+connection, so RESP3 subscriptions stayed on the shipped bridge. That decline was the gate on the
+subscription bridge: while it stood, the bridge had to exist to place those subscriptions. It is now
+removed - this core takes every channel shape - and the suite is back to its baseline. Four pieces made
+it safe, and each one was needed; each was measured by removing it again.
+
+1. **The socket is chosen when the send is COMPOSED**, from the negotiated protocol, so a known-RESP2
+   endpoint gets a socket of its own and a known-RESP3 one shares. An unknown protocol gets its own,
+   which is the conservative direction.
+2. **A send composed before the protocol was known is moved at the WRITE** -
+   `RespEndpointExecutor.RerouteSubscription`. This is issue #3154's window: a subscribe composed while
+   RESP3 was expected, written after a reconnect negotiated RESP2, would otherwise put the ordinary
+   connection into subscriber mode.
+3. **A connection establishing BELOW the protocol it expected dials its subscription socket at once**,
+   guarded on this core actually *owning* a subscription. Both halves were measured:
+   - without the dial, the re-place has to dial first and loses the race against whatever the caller
+     does next - `Resp3DowngradeTests` reads that as `PUBLISH => :0` before the re-subscribe;
+   - *unguarded*, an endpoint whose subscriptions belong to the shipped bridge also gets a socket, the
+     channel is subscribed twice, and the same test reads `PUBLISH => :3`.
+
+   The guard has to ask **ownership** (`Subscription.IsOwnedByNewCore`), not placement
+   (`IsHeldByNewCoreOn`). Placement necessarily answers no at exactly this moment, because the record is
+   dropped with the socket that died - so the placement question never dials anything.
+4. **Records naming the replaced socket are dropped before the re-place.** Liveness here is "is there a
+   connected subscription socket for that endpoint", which a *replacement* socket satisfies while
+   carrying nothing; the re-ensure then reads "already subscribed" and does nothing at all. The shipped
+   core gets this free, because its liveness is the bridge's own state.
+
+**And one piece the shipped core gets by accident had to be arranged on purpose.** There, a connection
+failure drops the interactive and subscription bridges together and both reconnect on the same
+heartbeat, so ordinary traffic and the subscription socket come back on the same wall-clock. Here the
+subscription socket is dialled lazily and the *need* for one is only known once the handshake reports a
+protocol below the one asked for - strictly after the ordinary connection is already warm. A publish
+then goes out immediately on the warm socket and reaches nobody. `RespNewCore.SubscriptionsSettling`
+is the explicit happens-before: an endpoint observed to downgrade holds an entry until its
+subscriptions are back on the wire, and `Publish`/`PublishAsync` wait on it, bounded by the configured
+timeout. It is normally empty and so normally free.
+
+Note that the barrier must be released by the **re-place**, not by the dial. Releasing it when
+`ConnectNowAsync` returns looks right and is not: a socket this core had already opened once returns
+from there long before the replacement has run its establish hook, so the barrier was already clear by
+the time the publish consulted it. Measured directly - the publish saw `settled=True` while the
+subscription connection's establish was still to come.
+
+**One test assertion was wrong rather than the code**, and is worth recording because the distinction
+took a while to see. `Resp3DowngradeTests` counted `INFO`, `CONFIG` and `CLUSTER` as "ordinary traffic"
+when deciding whether a connection mixed subscriptions and commands. Those are handshake probes, and a
+dedicated subscription socket legitimately sends them *before* its first subscribe: this core connects
+lazily, so its subscription socket can be the first socket to a server, and `RespHandshake` asks on
+purpose - a client that only ever subscribes still has to know where things live. Nothing is rejected
+by subscriber mode before subscriber mode is entered. The classifier now names only data commands, which
+leaves the poisoning the test exists to catch fully covered: that shows up as a connection carrying real
+traffic *and* a subscribe.
+
+`DefaultOptionsTests.VanillaResp2ConnectsWithSeparatePubSubConnection` needed the flag-aware treatment
+instead - it asked the *bridge's* subscription connection by id whether it was in subscriber mode, which
+only holds while the bridge places subscriptions. It now asks the server which socket is subscribed, and
+asserts the invariant that is true either way: under RESP2 the subscription is in subscriber mode on a
+socket that is not the one carrying ordinary commands.
+
+**Next**, and now unblocked: stop activating the subscription bridge under the engine flag, then stop
+constructing it. Measured at 63 failures when attempted naively before any of the above; worth
+re-measuring from here.

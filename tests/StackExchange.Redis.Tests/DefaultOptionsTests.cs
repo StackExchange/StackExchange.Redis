@@ -279,10 +279,17 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(expectedCount, namedClients.Length);
 
         var interactive = Assert.Single(clients, x => x.Id == interactiveId);
-        var subscription = Assert.Single(clients, x => x.Id == subscriptionId);
         Assert.Equal(ClientType.Normal, interactive.ClientType);
-        Assert.Equal(ClientType.PubSub, subscription.ClientType);
+
+        // whichever core placed it, the invariant under RESP2 is the same: the subscription is in
+        // subscriber mode on a socket that is NOT the one carrying ordinary commands. Asked of the
+        // bridge's subscription connection by id, that only holds while the bridge places it - under
+        // the engine flag the new core's own socket carries it and the bridge's sits idle - so ask the
+        // server which socket is subscribed instead of assuming which one should be.
+        var subscription = Assert.Single(namedClients, x => x.ClientType == ClientType.PubSub);
+        Assert.NotEqual(interactiveId, subscription.Id);
         Assert.True(subscription.SubscriptionCount > 0);
+        if (!ConnectionMultiplexer.NewCoreEngine) Assert.Equal(subscriptionId, subscription.Id);
 
         await AssertCanPubSubAsync(conn, nameof(VanillaResp2ConnectsWithSeparatePubSubConnection));
     }

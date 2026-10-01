@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -87,10 +87,17 @@ public class Resp3DowngradeTests(ITestOutputHelper log)
             "SUBSCRIBE", "UNSUBSCRIBE", "PSUBSCRIBE", "PUNSUBSCRIBE", "SSUBSCRIBE", "SUNSUBSCRIBE",
         };
 
-        // commands that only ever make sense on a connection serving ordinary traffic
+        // Commands that only ever make sense on a connection serving ordinary traffic. Deliberately only
+        // DATA commands: INFO, CONFIG and CLUSTER are handshake probes, and a dedicated subscription
+        // socket legitimately sends those BEFORE its first subscribe - a lazily-connecting core may open
+        // one as the first socket to a server, and a client that only ever subscribes still has to learn
+        // where things live. Nothing is rejected by subscriber mode before subscriber mode is entered.
+        //
+        // The poisoning this test exists to catch is untouched by that: it shows up as a connection
+        // carrying real traffic AND a subscribe, which these still name.
         private static readonly HashSet<string> InteractiveCommands = new(StringComparer.OrdinalIgnoreCase)
         {
-            "GET", "SET", "DEL", "EXISTS", "INFO", "CONFIG", "CLUSTER", "PUBLISH",
+            "GET", "SET", "DEL", "EXISTS", "PUBLISH",
         };
 
         private readonly ConcurrentDictionary<long, ConcurrentQueue<string>> _byClient = new();

@@ -196,6 +196,17 @@ public partial class ConnectionMultiplexer
         internal bool IsHeldByNewCoreOn(EndPoint endpoint)
             => _onNewCore && (NamesEndpoint(endpoint) || Equals(_sendingVia?.EndPoint, endpoint));
 
+        /// <summary>Whether this core owns this subscription, wherever it is or is not currently placed.</summary>
+        /// <remarks>
+        /// <b>Ownership, not placement, and the difference is the whole use.</b>
+        /// <see cref="IsHeldByNewCoreOn"/> asks where a subscription IS, which is what the subscriber's
+        /// ping needs; it necessarily answers no once the socket it named has died, because the record is
+        /// dropped with the socket. Deciding whether to dial a replacement is exactly the case where the
+        /// record has just been dropped, so asking the placement question there always answers no and
+        /// nothing is ever dialled.
+        /// </remarks>
+        internal bool IsOwnedByNewCore => _onNewCore;
+
         /// <summary>Whether a (un)subscribe for this subscription is on the wire right now.</summary>
         /// <remarks>
         /// <b>"Not live yet" and "nobody is doing anything about it" are different, and conflating them
@@ -229,16 +240,18 @@ public partial class ConnectionMultiplexer
         /// <param name="server">The server to send to.</param>
         /// <remarks>
         /// <para>
-        /// <b>Three declines, each one a lesson from a failing test rather than caution.</b> A channel
+        /// <b>Two declines, each one a lesson from a failing test rather than caution.</b> A channel
         /// that can be REDIRECTED stays on the shipped path: a sharded or key-routed subscribe sent to the
         /// wrong node answers <c>-MOVED</c> and then lives on the node it was redirected TO, so the server
         /// chosen before the send is the wrong answer and recording it is worse than not knowing
-        /// (<c>ClusterShardedTests.SubscribeToWrongServerAsync</c>). A subscription that would SHARE the
-        /// ordinary connection stays there too; see <c>RespNewCore.WouldSubscribeOnItsOwnSocket</c>. And
-        /// no server selected is "ours, nothing to do yet" rather than "not ours": falling through there
-        /// let the BRIDGE subscribe and then this core subscribe as well, which the server reports as two
-        /// subscribers and which delivers everything twice (<c>Resp3HandshakeTests</c>, as
-        /// <c>PUBLISH => :2</c>).
+        /// (<c>ClusterShardedTests.SubscribeToWrongServerAsync</c>). And no server selected is "ours,
+        /// nothing to do yet" rather than "not ours": falling through there let the BRIDGE subscribe and
+        /// then this core subscribe as well, which the server reports as two subscribers and which
+        /// delivers everything twice (<c>Resp3HandshakeTests</c>, as <c>PUBLISH => :2</c>).
+        /// <para>
+        /// There was a third - a subscription that would SHARE the ordinary connection - and what it
+        /// cost to retire it is written out at the point it used to sit.
+        /// </para>
         /// </para>
         /// <para>
         /// <b>The bookkeeping is the caller's rather than inferred from the reply.</b> The shipped path
@@ -280,16 +293,19 @@ public partial class ConnectionMultiplexer
             // in-flight counts as placed, or two calls race each other onto different cores
             if (IsPlaced || _sendingVia is not null) return _onNewCore ? SendViaNewCore() : null;
 
-            // A subscription that would SHARE the ordinary connection still goes to the shipped path. Three
-            // things now protect that case here - the compose-time socket choice, the write-time reroute,
-            // and dialling a subscription socket the moment a connection comes up below the expected
-            // protocol - and it is STILL not enough to take it, because what remains is not correctness
-            // but ORDER: the re-subscribe has to be on the wire before whatever the caller does next, and
-            // the establish path offers no such guarantee. `Resp3DowngradeTests` measures it as
-            // `PUBLISH => :0` arriving before the re-subscribe. See design notes D2.5.
-            var core = subscriber.multiplexer.NewCore;
-            if (!core.WouldSubscribeOnItsOwnSocket(server.EndPoint)) return null;
-
+            // No decline for a subscription that would SHARE the ordinary connection: this core takes every
+            // shape. Four pieces make that safe, and each was needed - see design notes D2.5.
+            //
+            //  - the socket is chosen at COMPOSE time from the negotiated protocol, so a known-RESP2
+            //    endpoint gets one of its own and a known-RESP3 one shares, both correctly;
+            //  - a send composed before the protocol was known and written after it settled otherwise is
+            //    moved at the WRITE, by RespEndpointExecutor.RerouteSubscription - issue #3154's window;
+            //  - a connection that establishes BELOW the expected protocol dials its subscription socket
+            //    immediately, so the re-place that follows does not have to dial first and lose the race
+            //    against whatever the caller does next;
+            //  - and the records naming the replaced socket are dropped before that re-place, because a
+            //    fresh socket carries nothing and a record naming it otherwise reads as "already
+            //    subscribed" and suppresses the re-ensure entirely.
             return SendViaNewCore();
 
             Task SendViaNewCore()

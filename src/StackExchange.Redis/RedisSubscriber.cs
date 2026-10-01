@@ -57,13 +57,6 @@ namespace StackExchange.Redis
             return false;
         }
 
-        /// <summary>
-        /// Gets which server, if any, there's a registered subscription to for this channel.
-        /// </summary>
-        /// <remarks>
-        /// This may be null if there is a subscription, but we don't have a connected server at the moment.
-        /// This behavior is fine but IsConnected checks, but is a subtle difference in <see cref="ISubscriber.SubscribedEndpoint(RedisChannel)"/>.
-        /// </remarks>
         /// <summary>Whether the new core holds any of this client's subscriptions on an endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
@@ -80,6 +73,18 @@ namespace StackExchange.Redis
             foreach (var pair in subscriptions)
             {
                 if (pair.Value.IsHeldByNewCoreOn(endpoint)) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether this core owns any subscription at all, placed or not.</summary>
+        /// <remarks><inheritdoc cref="Subscription.IsOwnedByNewCore" path="/remarks"/></remarks>
+        internal bool NewCoreOwnsAnySubscription()
+        {
+            foreach (var pair in subscriptions)
+            {
+                if (pair.Value.IsOwnedByNewCore) return true;
             }
 
             return false;
@@ -108,6 +113,13 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Gets which server, if any, there's a registered subscription to for this channel.
+        /// </summary>
+        /// <remarks>
+        /// This may be null if there is a subscription, but we don't have a connected server at the moment.
+        /// This behavior is fine but IsConnected checks, but is a subtle difference in <see cref="ISubscriber.SubscribedEndpoint(RedisChannel)"/>.
+        /// </remarks>
         internal ServerEndPoint? GetSubscribedServer(in RedisChannel channel)
         {
             if (!channel.IsNullOrEmpty && subscriptions.TryGetValue(channel, out Subscription? sub))
@@ -410,6 +422,14 @@ namespace StackExchange.Redis
 
             if (ConnectionMultiplexer.NewCoreEngine)
             {
+                var settling = multiplexer.NewCore.SubscriptionsSettling();
+                if (!settling.IsCompleted)
+                {
+                    // bounded, and deliberately: this holds back a publish so a re-placed subscription can
+                    // get in front of it, which is worth a wait and is not worth a hang
+                    settling.Wait(multiplexer.TimeoutMilliseconds);
+                }
+
                 var context = PubSubContext;
                 return TransitionalSync.Wait(
                     context.PubSub.PublishAsync(channel, message, flags), multiplexer, context.Raw.Executor);
@@ -426,12 +446,33 @@ namespace StackExchange.Redis
 
             if (ConnectionMultiplexer.NewCoreEngine)
             {
-                return PubSubContext.PubSub.PublishAsync(channel, message, flags).AsTask(asyncState, flags);
+                var settling = multiplexer.NewCore.SubscriptionsSettling();
+                return settling.IsCompleted
+                    ? PubSubContext.PubSub.PublishAsync(channel, message, flags).AsTask(asyncState, flags)
+                    : PublishWhenSettledAsync(settling, channel, message, flags);
             }
 
             var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message);
             // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
             return ExecuteAsync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
+        }
+
+        /// <summary>Publish once the subscriptions being re-placed are back on the wire.</summary>
+        /// <param name="settling"><see cref="RespNewCore.SubscriptionsSettling"/>.</param>
+        /// <param name="channel">The channel to publish to.</param>
+        /// <param name="message">The message to publish.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        private async Task<long> PublishWhenSettledAsync(
+            Task settling,
+            RedisChannel channel,
+            RedisValue message,
+            CommandFlags flags)
+        {
+            // bounded for the reason the synchronous path states; and the publish happens either way,
+            // because a publish that reaches nobody is still better than one that never happens
+            await Task.WhenAny(settling, Task.Delay(multiplexer.TimeoutMilliseconds)).ConfigureAwait(false);
+            return await PubSubContext.PubSub.PublishAsync(channel, message, flags)
+                .AsTask(asyncState, flags).ConfigureAwait(false);
         }
 
         void ISubscriber.Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags)
