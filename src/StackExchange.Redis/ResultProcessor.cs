@@ -248,6 +248,17 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[]>
             StringPairInterleaved = new StringPairInterleavedProcessor();
+
+        /// <summary>The same pair reader, typed so a handler with no connection can drive it.</summary>
+        /// <remarks>
+        /// <b>The context surface has no <c>PhysicalConnection</c> to ask about the protocol</b>, and does
+        /// not need one: the base's <c>ParseArray</c> takes "is jagged permitted" outright, for exactly
+        /// this caller - see the remark there. Typed here rather than downcast at each use site so one
+        /// place knows these are the same object, and so a server's configuration reads the same whichever
+        /// core asked for it.
+        /// </remarks>
+        internal static ValuePairInterleavedProcessorBase<KeyValuePair<string, string>> StringPairs { get; }
+            = (StringPairInterleavedProcessor)StringPairInterleaved;
         public static readonly TimeSpanProcessor
             TimeSpanFromMilliseconds = new TimeSpanProcessor(true),
             TimeSpanFromSeconds = new TimeSpanProcessor(false);

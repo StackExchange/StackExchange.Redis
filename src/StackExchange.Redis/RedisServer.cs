@@ -274,24 +274,10 @@ namespace StackExchange.Redis
             => Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.CLUSTER, RedisLiterals.SLOTS);
 
         public KeyValuePair<string, string>[] ConfigGet(RedisValue pattern = default, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetConfigGetMessage(pattern, flags);
-            return ExecuteSync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
-        }
+            => Wait(Context.Config.GetArray(pattern, flags));
 
         public Task<KeyValuePair<string, string>[]> ConfigGetAsync(RedisValue pattern = default, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetConfigGetMessage(pattern, flags);
-            return ExecuteAsync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
-        }
-
-        internal static Message GetConfigGetMessage(RedisValue pattern, CommandFlags flags)
-        {
-            if (pattern.IsNullOrEmpty) pattern = RedisLiterals.Wildcard;
-
-            // CONFIG as a whole is server-admin, but CONFIG GET is safe metadata
-            return Message.Create(-1, flags.WithRetryCategory(CommandFlags.CommandRetryConnection | Message.CommandServerSpecific), RedisCommand.CONFIG, RedisLiterals.GET, pattern);
-        }
+            => Context.Config.GetArray(pattern, flags).AsTask(asyncState, flags);
 
         public void ConfigResetStatistics(CommandFlags flags = CommandFlags.None)
             => Wait(Context.Config.ResetStatisticsAsync(flags));
@@ -307,18 +293,39 @@ namespace StackExchange.Redis
 
         public void ConfigSet(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.SET, setting, value);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-            ExecuteSync(Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting), ResultProcessor.AutoConfigure);
+            Wait(Context.Config.SetAsync(setting, value, flags));
+            RelearnSetting(setting, flags);
         }
 
         public Task ConfigSetAsync(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.SET, setting, value);
-            var task = ExecuteAsync(msg, ResultProcessor.DemandOK);
-            ExecuteSync(Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting), ResultProcessor.AutoConfigure);
+            var task = Context.Config.SetAsync(setting, value, flags).AsTask(asyncState, flags);
+            RelearnSetting(setting, flags);
             return task;
         }
+
+        /// <summary>Read back a setting the caller just changed, so the client's model of it is current.</summary>
+        /// <param name="setting">The setting that was changed.</param>
+        /// <param name="flags">The caller's flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Still on the shipped path, and that is not an oversight.</b> The point of this read is not
+        /// the reply - it is discarded - but what <c>ResultProcessor.AutoConfigure</c> does with it:
+        /// publish the setting to this <c>ServerEndPoint</c>, which is how <c>databases</c>,
+        /// <c>timeout</c> and <c>replica-read-only</c> stay true after a caller changes them. The context
+        /// surface has no equivalent yet; see design notes D2.8, where publishing what a handshake learns
+        /// is the discovery item.
+        /// </para>
+        /// <para>
+        /// Which socket carries it does not matter, which is why the split is harmless: <c>CONFIG</c> is
+        /// server-global rather than connection state, so reading it back on another connection to the
+        /// same server answers the same question.
+        /// </para>
+        /// </remarks>
+        private void RelearnSetting(RedisValue setting, CommandFlags flags)
+            => ExecuteSync(
+                Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting),
+                ResultProcessor.AutoConfigure);
 
         public long CommandCount(CommandFlags flags = CommandFlags.None)
             => Wait(Context.Diagnostics.CommandCountAsync(flags));

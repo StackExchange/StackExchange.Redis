@@ -9,8 +9,8 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 /// <summary>
-/// The diagnostic commands <see cref="IServer"/> used to build a <c>Message</c> for, now rendered by the
-/// context surface - checked against the bytes that <c>Message</c> produced.
+/// The <see cref="IServer"/> commands that used to build a <c>Message</c> and now render themselves on
+/// the context surface - checked against the bytes that <c>Message</c> produced.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Tests;
 /// to keep sending. See design notes D2.8, where the `IServer` tail is item (3).
 /// </para>
 /// </remarks>
-public class RespSurfaceDiagnosticsParityTests
+public class RespSurfaceServerParityTests
 {
     private sealed class FakeExecutor(string reply) : RespExecutorBase
     {
@@ -79,6 +79,7 @@ public class RespSurfaceDiagnosticsParityTests
     private const string HistoryReply = "*2\r\n*2\r\n:1405067822\r\n:251\r\n*2\r\n:1405067941\r\n:1001\r\n";
     private const string LatestReply = "*1\r\n*4\r\n$7\r\ncommand\r\n:1405067976\r\n:251\r\n:1001\r\n";
     private const string MapReply = "*2\r\n$14\r\npeak.allocated\r\n:1024\r\n";
+    private const string PairsReply = "*2\r\n$9\r\nmaxmemory\r\n$1\r\n0\r\n";
     private const string SlowLogReply =                 // one entry: id, time, duration, [command, args]
         "*1\r\n*4\r\n:1\r\n:1405067822\r\n:251\r\n*2\r\n$3\r\nget\r\n$1\r\nk\r\n";
 
@@ -181,6 +182,65 @@ public class RespSurfaceDiagnosticsParityTests
             Assert.True((flags & Message.CommandServerSpecific) != 0, sent);
         }
     }
+
+    [Fact]
+    public void ConfigSet()
+        => AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.CONFIG, RedisLiterals.SET, (RedisValue)"maxmemory", (RedisValue)"0"),
+            static ctx => ctx.Config.SetAsync("maxmemory", "0"),
+            "+OK\r\n");
+
+    /// <summary>An omitted pattern becomes <c>*</c>; <c>CONFIG GET</c> with no pattern is an error.</summary>
+    [Fact]
+    public void ConfigGetWithNoPatternAsksForEverything()
+        => AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.Wildcard),
+            static ctx => Discard(ctx.Config.GetArray()),
+            PairsReply);
+
+    [Fact]
+    public void ConfigGetCarriesItsPattern()
+        => AssertSame(
+            Message.Create(-1, CommandFlags.None, RedisCommand.CONFIG, RedisLiterals.GET, (RedisValue)"maxmemory*"),
+            static ctx => Discard(ctx.Config.GetArray("maxmemory*")),
+            PairsReply);
+
+    /// <summary>
+    /// <c>CONFIG GET</c> is a connection-category read, not the server-admin that bare <c>CONFIG</c> is.
+    /// </summary>
+    /// <remarks><inheritdoc cref="TheseReadsAreNodeLocal" path="/remarks"/></remarks>
+    [Fact]
+    public async Task ConfigGetIsSafeMetadata()
+    {
+        var executor = new FakeExecutor(PairsReply);
+        await Discard(new RespServerContext(new RespContext().WithExecutor(executor)).Config.GetArray());
+
+        var flags = Assert.Single(executor.Flags);
+        Assert.Equal(CommandFlags.CommandRetryConnection, Message.GetRetryCategory(flags));
+        Assert.True((flags & Message.CommandServerSpecific) != 0, "the answer belongs to the node asked");
+    }
+
+    /// <summary>Both wire shapes of a <c>CONFIG GET</c> reply read the same.</summary>
+    /// <remarks>
+    /// RESP3 answers a map and RESP2 a flat array. The handler permits jagged pairs and then detects the
+    /// shape from the bytes, which is what covers both - and a setting's value is always a scalar, so the
+    /// detection has nothing to misfire on.
+    /// </remarks>
+    [Theory]
+    [InlineData(PairsReply)]
+    [InlineData("%1\r\n$9\r\nmaxmemory\r\n$1\r\n0\r\n")]
+    [InlineData("*1\r\n*2\r\n$9\r\nmaxmemory\r\n$1\r\n0\r\n")]
+    public async Task TheConfigHandlerReadsEitherShape(string reply)
+    {
+        var pairs = await Context(reply).Config.GetArray();
+        var pair = Assert.Single(pairs);
+        Assert.Equal("maxmemory", pair.Key);
+        Assert.Equal("0", pair.Value);
+    }
+
+    [Fact]
+    public async Task AnEmptyConfigGetReadsAsEmpty()
+        => Assert.Empty(await Context("*0\r\n").Config.GetArray());
 
     /// <summary>The replies the handlers read, which the parity assertions above do not look at.</summary>
     /// <remarks>

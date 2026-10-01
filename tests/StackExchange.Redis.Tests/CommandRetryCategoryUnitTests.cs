@@ -355,8 +355,7 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
     [Fact]
     public void ServerSubCommands_AreCategorizedBySubCommand()
     {
-        const CommandFlags ServerAdmin = CommandFlags.CommandRetryServerAdmin,
-                           Connection = CommandFlags.CommandRetryConnection;
+        const CommandFlags ServerAdmin = CommandFlags.CommandRetryServerAdmin;
 
         // MEMORY defaults to read-only, so PURGE was previously treated as a harmless read
         var purge = RedisServer.GetMemoryPurgeMessage(CommandFlags.None);
@@ -368,14 +367,12 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
         // SLOWLOG GET has moved to the context surface and no longer builds a Message, so its category is
         // asserted on the request the group method issues; see RespSurfaceDiagnosticsParityTests.
 
-        // CONFIG defaults to server-admin; CONFIG GET is safe metadata (as the docs already claimed)
-        AssertCategory(Connection, RedisServer.GetConfigGetMessage(default, CommandFlags.None), "CONFIG GET");
+        // CONFIG GET has moved too; see RespSurfaceServerParityTests.ConfigGetIsSafeMetadata
 
         // all of these stay node-scoped: the answer belongs to the server we asked
         foreach (var msg in new[]
         {
             RedisServer.GetClusterNodesMessage(CommandFlags.None),
-            RedisServer.GetConfigGetMessage(default, CommandFlags.None),
         })
         {
             Assert.True((msg.Flags & Message.CommandServerSpecific) != 0, $"{msg.CommandAndKey} should be node-scoped");

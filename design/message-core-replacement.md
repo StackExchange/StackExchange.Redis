@@ -2246,10 +2246,21 @@ Each step is independently shippable and leaves the tree green.
   3. **The `IServer` long tail.** `Message.Create` sites, each wanting a group method and a handler.
      Mechanical and wide rather than hard; `INFO` is the worked example, parse-sharing included.
 
-     *Started.* 68 sites at the time of writing, **57** now: `LATENCY RESET`/`HISTORY`/`LATEST`,
+     *Started.* 68 sites at the time of writing, **53** now: `LATENCY RESET`/`HISTORY`/`LATEST`,
      `MEMORY STATS` and `SLOWLOG GET` moved to `Diagnostics`, which already carried the two `DOCTOR`s,
-     `MEMORY PURGE`, `SLOWLOG RESET` and `LASTSAVE`. 26 of the remainder are `SENTINEL`, which stays -
-     see below.
+     `MEMORY PURGE`, `SLOWLOG RESET` and `LASTSAVE`; `CONFIG GET`/`SET` moved to `Config`, which already
+     carried `REWRITE` and `RESETSTAT`. 26 of the remainder are `SENTINEL`, which stays - see below.
+
+     Two judgements worth not re-deriving. `CONFIG GET`'s group method is **internal**, as
+     `Hashes.GetAllArray` is: an array of string pairs is the OLD spelling, and what the new surface
+     should offer for `CONFIG GET` is a separate question from getting `IServer` off the `Message` path -
+     answering it by accident during a port would be a public shape chosen for a porting convenience. And
+     `ConfigSet`'s follow-up read is **deliberately left on the shipped path**: the point of that read is
+     not its reply but what `ResultProcessor.AutoConfigure` does with it - publish the setting to the
+     `ServerEndPoint`, which is how `databases`, `timeout` and `replica-read-only` stay true after a
+     caller changes them. There is no context-surface equivalent yet, and the split is harmless because
+     `CONFIG` is server-global rather than connection state, so the other socket answers the same
+     question.
 
      Two things worth copying into the next batch. The element parses are **shared, not rewritten**:
      `LatencyHistoryEntry.TryParseEntry` and its sibling are now internal statics called by both the

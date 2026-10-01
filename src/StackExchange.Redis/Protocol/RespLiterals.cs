@@ -298,6 +298,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment ResetStat { get; }
 
+        /// <summary>The <c>SET</c> subcommand of <c>CONFIG</c>; a setting and a value follow it.</summary>
+        [Resp]
+        internal static partial RespFragment Set { get; }
+
         /// <summary>The <c>HISTORY</c> subcommand of <c>LATENCY</c>; an event name follows it.</summary>
         [Resp]
         internal static partial RespFragment History { get; }
