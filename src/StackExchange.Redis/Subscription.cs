@@ -235,8 +235,36 @@ public partial class ConnectionMultiplexer
         /// deliveries, and the publishing node still reporting one subscriber -
         /// `ClusterTests.ClusterPubSub(withKeyPrefix: true)`. This core's establish-time re-subscribe
         /// feeds the same loop, which is how it reached three nodes rather than two.
+        /// <para>
+        /// <b>And BOUNDED, because "in flight" has to end.</b> A send to a node that has stopped accepting
+        /// writes never completes, so the endpoint it recorded is never cleared, so this answered yes for
+        /// ever and the ensure that would have re-aimed the subscription at a reachable sibling returned
+        /// "nothing to do" every time - leaving the channel pinned to a node that had gone away.
+        /// <c>RetirementUnderMaintenanceTests.ARefusingNodeAccumulatesOnlyOurOwnTrafficAndIsRetired</c>
+        /// measures exactly that.
+        /// </para>
+        /// <para>
+        /// Bounded by TIME rather than by asking whether the connection is live, which was tried and is
+        /// wrong: a subscription socket that is still dialling is not live either, so liveness cannot tell
+        /// "not up yet" from "never coming" - and treating the first as abandoned reopens the duplication
+        /// window above. <c>ClusterShardedTests.SubscribeToWrongServerAsync</c> catches that immediately,
+        /// as a subscription re-aimed away from the server the caller explicitly chose.
+        /// </para>
         /// </remarks>
-        internal bool HasSendInFlight => _sendingVia is not null;
+        internal bool HasSendInFlight
+        {
+            get
+            {
+                if (_sendingVia is not { } via) return false;
+
+                var timeout = via.Multiplexer.TimeoutMilliseconds;
+                return unchecked(Environment.TickCount - Volatile.Read(ref _sendingSince)) < timeout;
+            }
+        }
+
+        /// <summary>When the in-flight send was written, as a tick count.</summary>
+        /// <remarks><inheritdoc cref="HasSendInFlight" path="/remarks/para[2]"/></remarks>
+        private int _sendingSince;
 
         /// <summary>Whether some connection is already carrying this subscription.</summary>
         /// <remarks>
@@ -339,6 +367,7 @@ public partial class ConnectionMultiplexer
                     // ownership now, so a fire-and-forget caller's flush finds the right socket; the
                     // ENDPOINT only on confirmation, so nothing reads this as "already subscribed"
                     _onNewCore = true;
+                    Volatile.Write(ref _sendingSince, Environment.TickCount);
                     _sendingVia = server;
                     return Settle(
                         context.SubscribeAsync(target, Flags | flags),

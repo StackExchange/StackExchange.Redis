@@ -3248,3 +3248,39 @@ subscription socket) where it used to carry two. `BacklogTests.FailFast`,
 different failures**, except that six of them are the configuration channel not working at all - a
 client not being told the topology moved - against two that are a socket count and an undisposed
 multiplexer. It is the better of two unfinished states, not a finished one.
+
+### 9h. Slot routing does not skip an unreachable owner, and that is the next thing
+
+`RetirementUnderMaintenanceTests.ARefusingNodeAccumulatesOnlyOurOwnTrafficAndIsRetired` is the one
+reproducible flagged failure left that is neither a pre-existing artefact nor test interference. It
+fails on `Assert.NotEqual(doomed, subscriber.SubscribedEndpoint(channel))`: a sharded channel stays
+recorded on a node that has been black-holed, where the test's own comment says it should have been
+"re-aimed at the reachable sibling within a heartbeat".
+
+**Three plausible causes were ruled out by measurement before the real one:**
+
+- *The failure simulation not reaching this core.* It does - `ServerEndPoint.SimulateConnectionFailure`
+  already calls `NewCoreIfCreated?.SimulateConnectionFailure`, and `DropConnection` names that caller.
+- *`HasSendInFlight` answering yes for ever.* Real, and now fixed (below), but not this: bounding it
+  does not change the outcome.
+- *Liveness as the bound for that guard.* Tried and **wrong**: a subscription socket that is still
+  dialling is not live either, so liveness cannot tell "not up yet" from "never coming", and treating
+  the first as abandoned reopens the duplication window the guard exists for -
+  `ClusterShardedTests.SubscribeToWrongServerAsync` fails immediately, as a subscription re-aimed away
+  from the server the caller explicitly chose.
+
+**The actual cause is routing policy.** `EndpointForSlot` asks `_topology.Owners(slot)` and picks by
+role; nothing in that path asks whether the chosen node can be reached. The shipped selector does, and
+says so in its signature - `ServerSelectionStrategy.Select(slot, command, flags, allowDisconnected: false)`.
+So when a slot's owner is unreachable and the map has not caught up, this core keeps aiming at it and
+records it, while the shipped core skips to a reachable candidate for the same slot.
+
+That is a deliberate policy to port rather than a bug to patch around, and it is wanted well beyond this
+test: "the owner is down, use a reachable replica for this slot" is the behaviour every failover leans
+on. It wants doing with the fallback removal in D2.3, since both are about `EndpointForSlot` being the
+only routing authority.
+
+**Fixed along the way**: the in-flight guard was unbounded, so a send to a node that stopped accepting
+writes left its endpoint recorded for ever and every later `EnsureSubscribedToServer` returned "nothing
+to do". It is now bounded by the configured timeout. No test named this - it was found while diagnosing
+the above, and is kept because the unbounded case is real, not because it fixed the thing being chased.
