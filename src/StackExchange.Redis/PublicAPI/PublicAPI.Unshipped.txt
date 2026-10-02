@@ -1,1 +1,13 @@
 ﻿#nullable enable
+StackExchange.Redis.ConfigurationOptions.ConnectionAttemptCompleted -> System.EventHandler<StackExchange.Redis.ConnectionAttemptEventArgs!>?
+StackExchange.Redis.ConnectionAttemptEventArgs
+StackExchange.Redis.ConnectionAttemptEventArgs.ClientCertificateIssuer.get -> string?
+StackExchange.Redis.ConnectionAttemptEventArgs.ClientCertificateSubject.get -> string?
+StackExchange.Redis.ConnectionAttemptEventArgs.ClientCertificateThumbprint.get -> string?
+StackExchange.Redis.ConnectionAttemptEventArgs.ClientCertificateThumbprintSha256.get -> string?
+StackExchange.Redis.ConnectionAttemptEventArgs.ConnectionType.get -> StackExchange.Redis.ConnectionType
+StackExchange.Redis.ConnectionAttemptEventArgs.EndPoint.get -> System.Net.EndPoint?
+StackExchange.Redis.ConnectionAttemptEventArgs.Exception.get -> System.Exception?
+StackExchange.Redis.ConnectionAttemptEventArgs.FailureType.get -> StackExchange.Redis.ConnectionFailureType
+StackExchange.Redis.ConnectionAttemptEventArgs.IsSuccess.get -> bool
+override StackExchange.Redis.ConnectionAttemptEventArgs.ToString() -> string!

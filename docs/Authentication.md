@@ -92,6 +92,26 @@ can be used; this uses the normal
 [`LocalCertificateSelectionCallback`](https://learn.microsoft.com/dotnet/api/system.net.security.remotecertificatevalidationcallback)
 API.
 
+If you rotate client certificates and need to know whether a particular certificate worked (for example, to fall back to a
+known-good certificate), subscribe to `options.ConnectionAttemptCompleted` *before* connecting. It is raised once for every
+physical connection attempt, including every failed reconnect (unlike `ConnectionFailed`, which is raised once until the
+connection is restored), and identifies the client certificate used for that attempt by subject, issuer and thumbprint:
+
+``` csharp
+options.ConnectionAttemptCompleted += (sender, e) =>
+{
+    if (e.ClientCertificateThumbprintSha256 is { } thumbprint)
+    {
+        if (e.IsSuccess) MarkHealthy(thumbprint);
+        else MarkSuspect(thumbprint, e.FailureType, e.Exception);
+    }
+};
+```
+
+Note that a rejected client certificate does not necessarily surface as an authentication failure: with TLS 1.3 the client
+handshake completes before the server rejects the certificate, so the attempt typically fails as `SocketClosed` during the
+Redis handshake that follows.
+
 ## User certificates with implicit user authentication
 
 Historically, the client certificate only provided access to the server, but as the `default` user. From 8.6,

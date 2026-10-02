@@ -386,6 +386,18 @@ namespace StackExchange.Redis
         public event RemoteCertificateValidationCallback? CertificateValidation;
 
         /// <summary>
+        /// Raised once for every physical connection attempt (initial connect or reconnect, interactive or subscription), reporting
+        /// whether that attempt completed the Redis handshake, and identifying the client certificate selected for it, if any; note
+        /// that this cannot be specified in the configuration-string.
+        /// </summary>
+        /// <remarks>
+        /// Unlike <see cref="ConnectionMultiplexer.ConnectionFailed"/>, this is not suppressed while a server remains unreachable: every
+        /// failed reconnect attempt is reported. Subscribe before connecting, so that initial attempts are observed. Handlers are invoked
+        /// on a worker thread, not on the connection's own thread.
+        /// </remarks>
+        public event EventHandler<ConnectionAttemptEventArgs>? ConnectionAttemptCompleted;
+
+        /// <summary>
         /// The default (not explicitly configured) options for this connection, fetched based on our parsed endpoints.
         /// </summary>
         public DefaultOptionsProvider Defaults
@@ -1032,6 +1044,12 @@ namespace StackExchange.Redis
             private set => CertificateValidation = value;
         }
 
+        internal EventHandler<ConnectionAttemptEventArgs>? ConnectionAttemptCompletedHandler
+        {
+            get => ConnectionAttemptCompleted;
+            private set => ConnectionAttemptCompleted = value;
+        }
+
         /// <summary>
         /// How often to re-check the replication role of each connected server, in seconds (every minute by
         /// default), or <c>0</c> to never do so.
@@ -1123,6 +1141,7 @@ namespace StackExchange.Redis
             commandMap = commandMap,
             CertificateValidationCallback = CertificateValidationCallback,
             CertificateSelectionCallback = CertificateSelectionCallback,
+            ConnectionAttemptCompletedHandler = ConnectionAttemptCompletedHandler,
             ChannelPrefix = ChannelPrefix.Clone(),
 #pragma warning disable CS0618 // Type or member is obsolete
             SocketManager = SocketManager,

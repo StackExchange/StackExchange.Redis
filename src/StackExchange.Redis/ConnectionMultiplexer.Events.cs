@@ -1,12 +1,23 @@
 ﻿using System;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography.X509Certificates;
 using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis;
 
 public partial class ConnectionMultiplexer
 {
+    internal void OnConnectionAttemptCompleted(EndPoint endpoint, ConnectionType connectionType, bool isSuccess, ConnectionFailureType failureType, Exception? exception, X509Certificate? clientCertificate, string? physicalName)
+    {
+        if (_isDisposed) return;
+        var handler = RawConfig.ConnectionAttemptCompletedHandler;
+        if (handler != null)
+        {
+            CompleteAsWorker(new ConnectionAttemptEventArgs(handler, this, endpoint, connectionType, isSuccess, failureType, exception, clientCertificate, physicalName));
+        }
+    }
+
     /// <summary>
     /// Raised whenever a physical connection fails.
     /// </summary>
