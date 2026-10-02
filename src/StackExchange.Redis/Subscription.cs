@@ -173,6 +173,22 @@ public partial class ConnectionMultiplexer
         /// <remarks><inheritdoc cref="_onNewCore" path="/remarks/para[2]"/></remarks>
         internal void OnSubscribedViaBridge() => _onNewCore = false;
 
+        /// <summary>Record that this core holds this subscription, on a server it has already placed it on.</summary>
+        /// <param name="server">The server carrying it.</param>
+        /// <remarks>
+        /// <b>The missing half of <see cref="OnSubscribedViaBridge"/>.</b> Ownership is otherwise only
+        /// ever set by <see cref="TrySendViaNewCore"/>, which is right for every production path - but a
+        /// caller that places a subscription on this core's connection ITSELF then has no way to say so,
+        /// and the registry's answer to "is this live?" goes to the wrong core. The heartbeat reads that
+        /// as a subscription nobody is connected for and helpfully subscribes it again, which the server
+        /// reports as two subscribers to one channel.
+        /// </remarks>
+        internal void OnSubscribedViaNewCore(ServerEndPoint server)
+        {
+            _onNewCore = true;
+            AddEndpoint(server);
+        }
+
         /// <summary>Whether this subscription is live on a server, asked of whoever holds it.</summary>
         /// <param name="server">The server, or null when none is recorded.</param>
         /// <remarks><inheritdoc cref="_onNewCore" path="/remarks/para[1]"/></remarks>

@@ -88,9 +88,25 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
     [Fact]
     public async Task ASubscriptionOnTheNewCoreReceivesDeliveries()
     {
+        // Only under the engine flag, and that is the claim narrowing to where it is true rather than a
+        // test being hidden. The assertion is "exactly one subscriber, and the delivery came from this
+        // core's socket" - which needs this core to be the one the SUBSCRIPTION REGISTRY believes in.
+        // With the flag off the shipped bridge owns subscriptions, so a subscription placed here reads as
+        // live nowhere the registry can see and the heartbeat subscribes it again; the server then counts
+        // two subscribers and the test fails for a reason that is about neither core's delivery path.
+        // It had been failing on the shipped run for exactly that reason.
+        Assert.SkipUnless(ConnectionMultiplexer.NewCoreEngine, "the subscription registry has to agree whose subscription this is");
+
         await using var conn = Create(shared: false);
-        var core = CoreFor(conn);
         var muxer = TestMultiplexer.Unwrap(conn);
+
+        // the multiplexer's OWN core, not the fixture's. Liveness is asked of whichever core owns a
+        // subscription, and the registry asks `server.Multiplexer.NewCore` - so a subscription placed on
+        // a second, test-only core is owned by something the registry cannot see, reads as live nowhere,
+        // and gets subscribed a second time by the heartbeat. Two instances can never agree about this;
+        // the fixture's core is for asserting about COMMANDS, where there is no shared registry to
+        // disagree with.
+        var core = muxer.NewCore;
 
         var db = RespNewCoreFixture.Wrap(conn, -1, null);
         await db.PingAsync(); // the protocol is known rather than assumed, so the socket decision is real
@@ -106,11 +122,14 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
 
         var endpoint = conn.GetEndPoints()[0];
 
-        // Tell the registry this subscription already has a server. Without it the shipped heartbeat sees
-        // an entry nobody is connected for and helpfully subscribes it on ITS connection, so the publish
-        // below reports two receivers and the assertion that exactly one exists - the whole proof that the
-        // delivery came from the new core - fails for a reason that has nothing to do with the new core.
-        subscription.AddEndpoint(((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint));
+        // Tell the registry this subscription already has a server AND which core is carrying it. Naming
+        // the server alone is not enough: liveness is asked of whichever core owns the subscription, and
+        // ownership still said "the bridge", so the answer came back from a bridge that is not carrying
+        // it. The shipped heartbeat then sees an entry nobody is connected for and helpfully subscribes it
+        // on ITS connection, so the publish below reports two receivers and the assertion that exactly
+        // one exists - the whole proof that the delivery came from the new core - fails for a reason that
+        // has nothing to do with the new core.
+        subscription.OnSubscribedViaNewCore(((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint));
         await core.SubscriptionContext(endpoint).SendAsync($"{RedisCommand.SUBSCRIBE}{channel}");
 
         Assert.Equal(1, await conn.GetSubscriber().PublishAsync(channel, "delivered"));
