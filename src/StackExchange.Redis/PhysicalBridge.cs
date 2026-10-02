@@ -549,6 +549,8 @@ namespace StackExchange.Redis
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             Trace("OnFullyEstablished");
+            // the attempt itself succeeded (handshake complete), even if this bridge has since moved on and discards it below
+            connection.ReportAttemptOutcome(isSuccess: true, ConnectionFailureType.None, null);
             connection.SetIdle();
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
