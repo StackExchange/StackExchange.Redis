@@ -3364,3 +3364,34 @@ lopsided and the rotation was measuring that rather than the client. Checked dir
 reports `cluster_state:ok` with all 16384 slots assigned and OK - so the topology is intact and the
 rotation is the client's. The in-process server sharing port 6379 with the docker primary remains a
 separate, real source of batch-only failures.
+
+### 9k. D2.8's gate is NOT closed, and here is the itemised list
+
+Earlier notes recorded the discovery gate as measured closed - "with shipped `AutoConfigureAsync` off and
+both flags, the suite returns to baseline". **That is wrong, and re-measuring says so plainly: 26
+failures.** Correcting it is worth more than the original claim, because the failures cluster by belief
+and turn "D2.8 is next" into four named gaps. Gating the interactive handshake's `AutoConfigureAsync`
+call on `!NewCoreEngine` and running the full flagged suite gives:
+
+| missing belief | established by | tests |
+|---|---|---|
+| **product variant and product version** | `INFO server` fields other than `redis_version` | `ProductVariantUnitTests` (7), `ValkeyUnitTests.IdentifyValkeyCluster` (2) |
+| **tie-breaker** | `GET <tiebreaker key>` at the end of the handshake | `MultiPrimaryTests.TestMultiWithTiebreak` (6) |
+| **`CLUSTER NODES`** | distinct from `CLUSTER SLOTS`, which is all this core asks | `ClusterTests.InventKeyRoutesBackToTheServerThatInventedIt`, `ClusterNoRedirectRoutesSortedSetIntersectionLengthByKeys`, `ServerEndPointClusterProbeUnitTests.FirstHandshakeProbesBeforeClusterModeIsKnown` |
+| **the `SET` replica probe** | used only when `HELLO` cannot report the role | `HelloHandshakeTests.ReplicaProbeStillUsedWhenHelloUnavailable` |
+
+The rest of the 26 are the usual rotators.
+
+**What this core publishes today** is `Version` and `ServerType` (`RespNewCore.Publish`), plus the
+server-wide settings from `DiscoverServerConfigAsync` (`databases`, `replica-read-only`), the slot map
+and roles into `RespTopology`, and selectability and roles pushed the other way by `ServerEndPoint`. So
+the handshake asks `INFO server` already - it simply throws away everything except `redis_version`,
+because `ServerVersionHandler` looks for that one field.
+
+That makes the product variant the cheapest of the four and the largest single cluster, and it should
+reuse `AutoConfigureInfoField` plus its generated `TryParse` rather than growing a second spelling of
+the same rules - the shipped processor's comment about deferring the decision (there can be both
+`redis_version:6.1.2` and `valkey_version:12.3.4`, in any order) is a rule worth having once.
+
+**Order to close them in**, cheapest and most self-contained first: product variant, tie-breaker,
+`CLUSTER NODES`, replica probe. Only then is there any point re-measuring the gate.
