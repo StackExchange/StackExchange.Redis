@@ -3475,3 +3475,32 @@ at connect before reaching the thing under test.
 
 That makes the next piece specific and small to state: `ReconfigureAsync` concluding success from this
 core. It is also the last structural one - the three belief gaps in 9k are then ordinary work.
+
+### 9n. Three hypotheses for the fifteen seconds: one real, two wrong, and it is still not explained
+
+Continuing 9m, with the coupled experiment re-applied each time and the same 311-test family measured.
+Recording the misses as well as the hit, because the misses are what stop the next person re-running
+them - and because two of these were landed-looking changes that turned out to fix nothing.
+
+| hypothesis | result |
+|---|---|
+| `OnConnectedAsync`'s pending connection monitors are never completed, because only a bridge establishing completes them | **Wrong.** Completing them from this core's establish changed the measurement *not at all* - 36 failures, 6m30s, same ~15s spacing. Dropped, not landed. |
+| ...because `ConnectNewCoreAsync` runs AFTER the verdict (`ConnectImplAsync` line 714 vs the `ReconfigureAsync` call at 706), so there is no connection to complete them from | **Also wrong,** and this one looked certain. Dialling this core before the verdict: identical 36 / 6m30s. Dropped. |
+| `SendTracerAsync` writes to the shipped bridge, and that is how availability is *proved* | **Real, and landed.** 36 → 35, and the test that moved is `ConnectFailTimeoutTests.NoticesConnectFail` - precisely a test about noticing that a connect failed. But the duration did not budge. |
+
+**So the tracer was a genuine defect and not the cause.** `ReconfigureAsync` proves an endpoint is
+reachable by sending a tracer down the "already connected, show me" path of `OnConnectedAsync`, and
+`WriteDirectAsync` puts it on the shipped bridge - so with that bridge not dialling it is written to a
+connection that will never carry it. `SendTracerAsync` now asks the other core when that core has the
+endpoint connected, declining otherwise so it cannot report "unreachable" about a server the bridge is
+talking to perfectly well. Landed on its own merits: measured clean in both default configurations
+(shipped fully green, flagged within its usual rotation band), and it is an ordinary `Message` → new-core
+port of the kind this branch exists to do.
+
+**The fifteen seconds is still unexplained**, and the next step is to stop guessing at it.
+`ReconfigureAsync` already logs what is needed - `LogInformationAllowingEndpointsToRespond` with the
+remaining budget, `LogInformationServerStatus` per endpoint when not all connected, and
+`LogInformationEndpointState` after the await - so the cheap and decisive move is to run one failing
+connect with a log writer attached and read which endpoint's availability task is outstanding and what
+state its connections are in. Three hypotheses from reading the code produced one fix and two dead ends;
+the log will produce the answer.

@@ -1460,9 +1460,49 @@ namespace StackExchange.Redis
 
         internal Task<bool> SendTracerAsync(ILogger? log = null)
         {
+            // On the core that carries this endpoint's commands. The tracer is how availability is PROVED
+            // - `ReconfigureAsync` sends it down the "already connected, show me" path of
+            // `OnConnectedAsync` - and `WriteDirectAsync` puts it on the shipped bridge, so under the
+            // engine flag it proves the wrong connection. Measured against the step that stops that bridge
+            // dialling: with the tracer still on the bridge it is written to a connection that will never
+            // carry it, never completes, and the endpoint runs out the whole connect timeout
+            // (`ConnectFailTimeoutTests.NoticesConnectFail`). See design notes 9n.
+            if (TryTraceViaNewCore() is { } traced) return traced;
+
             var msg = GetTracerMessage(false);
             msg = LoggingMessage.Create(log, msg);
             return WriteDirectAsync(msg, ResultProcessor.Tracer);
+        }
+
+        /// <summary>Prove this endpoint answers, on the other core's connection.</summary>
+        /// <returns>The pending proof, or null when this core should send it itself.</returns>
+        /// <remarks>
+        /// Declines unless that core actually HAS this endpoint connected: a tracer is a question about a
+        /// connection, and asking it of a core that has not dialled would answer "unreachable" about a
+        /// server the shipped bridge may be talking to perfectly well.
+        /// </remarks>
+        private Task<bool>? TryTraceViaNewCore()
+        {
+            if (!ConnectionMultiplexer.NewCoreEngine) return null;
+            if (Multiplexer.NewCoreIfCreated is not { } core) return null;
+            if (!core.IsConnected(EndPoint)) return null;
+
+            return Traced(core.ServerContext(EndPoint).PingAsync(CommandFlags.NoRedirect));
+        }
+
+        private static async Task<bool> Traced(ValueTask pending)
+        {
+            try
+            {
+                await pending.ForAwait();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // the shipped tracer answers false rather than throwing, and callers branch on that
+                Debug.WriteLine(ex.Message);
+                return false;
+            }
         }
 
         internal string Summary()
