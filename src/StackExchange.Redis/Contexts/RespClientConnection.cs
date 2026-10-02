@@ -103,12 +103,36 @@ namespace StackExchange.Redis
 
         /// <summary>The server this connection reaches; set once the endpoint is known.</summary>
         /// <remarks>
+        /// <para>
         /// Borrowed from the old core rather than reinvented: <see cref="ServerEndPoint"/> already holds
         /// the script-cache belief and flushes it when a server's identity changes underneath, which is
         /// exactly the behaviour a preamble gate wants and is not worth a second implementation of while
         /// both cores exist.
+        /// </para>
+        /// <para>
+        /// <b>Held WEAKLY, which is a leak fix rather than a nicety, and the shipped core does the same
+        /// thing for the same reason.</b> A connection runs a read loop for as long as it is open, so the
+        /// loop's pending read keeps the connection reachable - and a <see cref="ServerEndPoint"/> holds
+        /// its multiplexer, so a strong reference here let an open socket keep the whole multiplexer
+        /// alive. A caller who abandons a multiplexer without disposing it then never gets it collected;
+        /// <c>GarbageCollectionTests.MuxerIsCollected</c> is written for that caller. <c>PhysicalConnection</c>
+        /// reaches its own bridge through a <see cref="WeakReference"/> and calls the property
+        /// <c>BridgeCouldBeNull</c> to say so out loud.
+        /// </para>
+        /// <para>
+        /// So this can go null while the connection is still open, and every caller already had to handle
+        /// that: the server is unknown until the endpoint is resolved, so null was always possible. What
+        /// it means afterwards is "nobody is modelling this server any more", and the honest response is
+        /// the same as before it was known - carry on without the belief.
+        /// </para>
         /// </remarks>
-        internal ServerEndPoint? Server { get; set; }
+        internal ServerEndPoint? Server
+        {
+            get => _server is not null && _server.TryGetTarget(out var server) ? server : null;
+            set => _server = value is null ? null : new WeakReference<ServerEndPoint>(value);
+        }
+
+        private WeakReference<ServerEndPoint>? _server;
 
         /// <inheritdoc/>
         ServerEndPoint? IRespPreambleTarget.Server => Server;

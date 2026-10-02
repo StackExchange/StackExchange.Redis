@@ -871,9 +871,15 @@ namespace StackExchange.Redis
             // the configured response pool goes to the connection, not just to the shipped core's reader:
             // every reply this core reads lands in an inbound buffer, and a caller who supplied a pool
             // asked to own the memory the replies live in
+            // WEAKLY again, and for the reason `RespClientConnection.Server` spells out: `Follow` is an
+            // instance method, so routing a redirect through a lambda held it - and through it this core
+            // and the multiplexer - for the connection's whole life. A redirect arriving after the core
+            // is gone has nothing to re-send to, so declining to follow is the whole of the answer.
+            var coreRef = new WeakReference<RespNewCore>(this);
             var connection = new RespClientConnection(
                 transport,
-                (in RespRedirect redirect, RespPayloadOperation operation) => Follow(endpoint, in redirect, operation),
+                (in RespRedirect redirect, RespPayloadOperation operation)
+                    => coreRef.TryGetTarget(out var core) && core.Follow(endpoint, in redirect, operation),
                 config.IncludeDetailInExceptions,
                 config.ResponseBufferPool);
             var context = new RespDatabaseContext(

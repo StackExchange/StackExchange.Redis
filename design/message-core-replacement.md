@@ -3196,10 +3196,28 @@ once the channel was carried again.
 
    Worth being clear about what this is: **the leak is not new.** Any new-core subscription socket has
    this shape, so it was there for every caller who subscribed; dialling at activation merely made it
-   true of every connection in every test. The shipped core passes this test while holding a subscription
-   bridge of its own, so its sockets are evidently not rooted when idle - that is the comparison to chase
-   next, and it belongs with the interactive bridge's connect-wait work, since both are questions about
-   what keeps a connection alive.
+   true of every connection in every test.
+
+   **Now fixed, and the shipped core said how.** `PhysicalConnection` reaches its bridge through a
+   `WeakReference` and names the property `BridgeCouldBeNull` to say so out loud - that is not a detail,
+   it is the contract that lets a socket be rooted without rooting the deployment. This core's connection
+   needed the same on all three of its paths out, found one at a time by measuring:
+
+   - `connection.OnPush` captured the multiplexer (a push after it is gone has nowhere to go);
+   - `connection.Server` held a `ServerEndPoint`, which holds its multiplexer;
+   - and the redirect router was `(redirect, operation) => Follow(endpoint, ...)`, an instance method, so
+     the lambda held this core and through it everything else. **This was the one that actually mattered**
+     - the first two alone left the multiplexer rooted.
+
+   Each can now go null while the connection is open, and that is sound rather than merely tolerable:
+   every caller already handled null, because none of these is known until the endpoint is resolved. What
+   null means afterwards is "nobody is modelling this any more", and carrying on without the belief is
+   the same answer as before it was known.
+
+   The hazard to keep in mind is the mirror image: a core whose only strong referrer was its connections
+   can now be collected while those connections are open. That is safe today because `NewCore` is held by
+   the multiplexer and the test fixture's is held by a `ConditionalWeakTable` keyed on it - but anything
+   that builds a core and keeps only a connection would silently stop following redirects.
 
 2. `RespConnectionStateTests.EagerConnectMapsTheWholeClusterFromOneConnection`, whose premise is that one
    connection suffices to map a cluster. Still true of the mapping; no longer true of the socket count.
