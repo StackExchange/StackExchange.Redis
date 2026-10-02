@@ -73,6 +73,12 @@ internal partial class PhysicalConnection
     /// </remarks>
     internal bool IsSyncWriter => _output is { IsSync: true };
 
+    /// <summary>
+    /// Asks a switchable writer to leave sync mode; the reader follows (see <c>ReadAllSync</c>'s hand-off to
+    /// <c>ReadAllAsync</c>). Returns <c>false</c> if the writer is not in sync mode, or cannot switch.
+    /// </summary>
+    internal bool TransitionToAsync() => _output?.TransitionToAsync() ?? false;
+
     private void InitOutput(Stream? stream)
     {
         if (stream is null) return;

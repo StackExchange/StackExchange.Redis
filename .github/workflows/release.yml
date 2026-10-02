@@ -68,6 +68,8 @@ jobs:
       with:
         name: packages
         path: .nupkgs/*.nupkg
+        include-hidden-files: true # .nupkgs is a dot-folder, which upload-artifact skips by default
+        if-no-files-found: error
     - name: NuGet login (OIDC to temp API key)
       if: github.event_name == 'release'
       uses: NuGet/login@v1

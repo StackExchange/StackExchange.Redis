@@ -25,8 +25,9 @@ public partial class ConnectionMultiplexer
         /// out of that queue. It does not *fix* the thread-pool, and nothing here can: it means only that redis
         /// traffic keeps flowing while the real problem is found. See docs/SyncOverAsync.md.
         /// <para>
-        /// Costs a reader and a writer thread per connection, so it is worth thinking about before enabling it
-        /// against a very wide cluster, where connection counts scale with the number of shards.
+        /// Costs three threads per connection - two readers (one pulling bytes off the socket, one parsing and
+        /// dispatching them) and a writer - so it is worth thinking about before enabling it against a very wide
+        /// cluster, where connection counts scale with the number of shards.
         /// </para>
         /// </remarks>
         DedicatedThreads = 2,
