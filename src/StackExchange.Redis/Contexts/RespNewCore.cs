@@ -319,18 +319,64 @@ namespace StackExchange.Redis
             // overwhelmingly common case is that nothing is.
             if (_topology.HasUnselectable && !_topology.IsSelectable(owners.Primary)) return null;
 
-            if (command.IsPrimaryOnly()) return owners.Primary;
+            if (command.IsPrimaryOnly()) return Usable(owners.Primary);
 
             switch (Message.GetPrimaryReplicaFlags(flags))
             {
                 case CommandFlags.DemandReplica:
-                    return PickReplica(owners.Replicas);
+                    return Usable(PickReplica(owners.Replicas));
                 case CommandFlags.PreferReplica:
-                    return PickReplica(owners.Replicas) ?? owners.Primary;
+                    return Usable(PickReplica(owners.Replicas)) ?? Usable(owners.Primary);
                 default:
-                    return owners.Primary;
+                    return Usable(owners.Primary);
             }
         }
+
+        /// <summary>An endpoint, unless this core knows it cannot be reached.</summary>
+        /// <param name="endpoint">The endpoint a slot's roles chose, or null if there was none.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The one selection question this core has to answer for itself.</b> The shipped selector asks
+        /// it in its signature - <c>Select(slot, command, flags, allowDisconnected: false)</c> - so a slot
+        /// whose owner has gone away routes to something reachable instead of being aimed at a socket that
+        /// can never write. Nothing here asked, so a downed owner kept being chosen and recorded;
+        /// <c>RetirementUnderMaintenanceTests.ARefusingNodeAccumulatesOnlyOurOwnTrafficAndIsRetired</c>
+        /// measures it as a channel still subscribed on the node that was black-holed.
+        /// </para>
+        /// <para>
+        /// <b>"Known down", not "not connected", and that distinction is the whole of it.</b> This core
+        /// dials lazily, so an endpoint nobody has needed yet is not connected and is perfectly usable -
+        /// barring it would route every first command away from the node that owns the slot. So an
+        /// endpoint counts as down only once it has been dialled AND has a connect fault to show for it.
+        /// <c>ServerEndPoint.PublishSelectable</c> says the same thing from the other side, which is why
+        /// it excludes <c>DidNotRespond</c>: that flag cannot tell the two apart and this can.
+        /// </para>
+        /// <para>
+        /// Returning null rather than a substitute, because choosing the substitute is not this method's
+        /// job: <see cref="EndpointForSlot"/> already falls through to the selector and then to
+        /// <c>EndpointForAny</c>, both of which prefer somewhere reachable.
+        /// </para>
+        /// </remarks>
+        private EndPoint? Usable(EndPoint? endpoint)
+            => endpoint is null || IsKnownDown(endpoint) ? null : endpoint;
+
+        /// <summary>Whether this core has dialled an endpoint and found it unreachable.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// <b>Either socket counts, and asking only about the ordinary one missed the case that matters.</b>
+        /// A node this core has only ever subscribed on has no entry among the ordinary executors, so a
+        /// check that looks there alone reports it as fine - which is exactly the shape of a sharded
+        /// channel's node going away: the subscription socket is the only one that was ever opened, it is
+        /// the one that failed, and the routing decision being made is for that channel.
+        /// </remarks>
+        internal bool IsKnownDown(EndPoint endpoint)
+            => Faulted(_endpoints, endpoint) || Faulted(_subscriptions, endpoint);
+
+        private static bool Faulted(
+            ConcurrentDictionary<EndPoint, RespEndpointExecutor> executors, EndPoint endpoint)
+            => executors.TryGetValue(endpoint, out var dialled)
+                && !dialled.IsConnectedNow
+                && dialled.LastConnectFault is not null;
 
         /// <summary>Choose one of a set of replicas.</summary>
         /// <param name="replicas">The candidates; may be empty.</param>

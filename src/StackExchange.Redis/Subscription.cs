@@ -426,12 +426,26 @@ public partial class ConnectionMultiplexer
                 if (command is RedisCommand.SSUBSCRIBE
                     && subscriber is not null
                     && subscriber.multiplexer.NewCore.EndpointForChannel(placed, command, flags) is { } landed
-                    && !Equals(landed, server.EndPoint)
-                    && subscriber.multiplexer.GetServerEndPoint(landed, ServerProvenance.Configured, activate: false)
-                        is { } moved)
+                    && !Equals(landed, server.EndPoint))
                 {
-                    self.AddEndpoint(moved);
-                    return;
+                    // ...unless the slot's new owner is a node we know we cannot reach, in which case
+                    // NOTHING is recorded. The re-resolution reads the slot map, and a -MOVED updates that
+                    // map whether or not the resend it caused ever landed - so a redirect pointing at a
+                    // node that has gone away would otherwise record the subscription as living there,
+                    // which is the one answer that is certainly wrong: it is not on the server we aimed at
+                    // (that node redirected us away) and it is not on the one we were sent to (that node
+                    // cannot be written to). Unplaced is the truth, and it is also what lets the next
+                    // `EnsureSubscribedToServer` try again.
+                    // `RetirementUnderMaintenanceTests.ARefusingNodeAccumulatesOnlyOurOwnTrafficAndIsRetired`
+                    // measures exactly this, as a channel still subscribed on the black-holed node.
+                    if (subscriber.multiplexer.NewCore.IsKnownDown(landed)) return;
+
+                    if (subscriber.multiplexer.GetServerEndPoint(landed, ServerProvenance.Configured, activate: false)
+                        is { } moved)
+                    {
+                        self.AddEndpoint(moved);
+                        return;
+                    }
                 }
 
                 self.AddEndpoint(server);
