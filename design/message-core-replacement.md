@@ -3167,3 +3167,51 @@ So the lower bound is a test's business for now - `ConnectUsesSingleSocket` wait
 to arrive, keeping the upper bound it actually exists to protect (a reconnect loop opening a second
 socket still reads 2 and still fails). The real fix belongs with the interactive bridge's connect wait,
 which is the same problem and wants solving once.
+
+### 9g. What the subscription bridge's removal actually cost, measured
+
+Full-suite numbers, both flags, net10.0, against the commit before this stretch (`32d0362f`):
+
+| | baseline | here |
+|---|---|---|
+| flagged failures | 5 | 10 |
+| shipped failures | 3 | 2 |
+
+**Fixed along the way**: `SanityChecks.ValueTupleNotReferenced` (a tuple used as a `QueueUserWorkItem`
+state object - this library cannot reference `System.ValueTuple`), `InProcPubSubTests.TestBasicPubSubFireAndForget`,
+and all five configuration-channel tests plus `FailoverTests.ConfigVerifyReceiveConfigChangeBroadcast`
+once the channel was carried again.
+
+**Two are real and attributable, both to dialling the configuration channel's socket at activation**
+(bisected by disabling exactly that call):
+
+1. `GarbageCollectionTests.MuxerIsCollected`. **A subscription connection holds a standing read** - that
+   is what waiting for deliveries is - so the socket stays rooted by the IO system while it is open, and
+   every strong reference out of it keeps the multiplexer alive with it. A caller who abandons a
+   multiplexer without disposing it never gets it collected. One of those references was
+   `connection.OnPush`, which captured the multiplexer directly; it now holds it **weakly**, which is
+   right on its own terms (a push arriving after the multiplexer is gone has nowhere to go) but is *not
+   sufficient* - the endpoint executor's own connect delegate captures the core, and the core the
+   multiplexer.
+
+   Worth being clear about what this is: **the leak is not new.** Any new-core subscription socket has
+   this shape, so it was there for every caller who subscribed; dialling at activation merely made it
+   true of every connection in every test. The shipped core passes this test while holding a subscription
+   bridge of its own, so its sockets are evidently not rooted when idle - that is the comparison to chase
+   next, and it belongs with the interactive bridge's connect-wait work, since both are questions about
+   what keeps a connection alive.
+
+2. `RespConnectionStateTests.EagerConnectMapsTheWholeClusterFromOneConnection`, whose premise is that one
+   connection suffices to map a cluster. Still true of the mapping; no longer true of the socket count.
+
+**The rest of the gap is the two-cores artefact**, and shows up as timing: under RESP2 a node now carries
+three sockets (the shipped interactive bridge, this core's interactive connection, this core's
+subscription socket) where it used to carry two. `BacklogTests.FailFast`,
+`ConnectFailTimeoutTests.NoticesConnectFail`, `ClusterTopologyUnitTests.SlotMapIsDrivenByTheSlotsView`,
+`RetirementUnderMaintenanceTests.ARefusingNodeAccumulatesOnlyOurOwnTrafficAndIsRetired` and
+`ClusterTests.MovedProfiling` move in and out of the failure list between runs of the same build.
+
+**Why the dial stays despite that.** Withdrawing it was measured too: **ten failures become ten
+different failures**, except that six of them are the configuration channel not working at all - a
+client not being told the topology moved - against two that are a socket count and an undisposed
+multiplexer. It is the better of two unfinished states, not a finished one.

@@ -1919,7 +1919,7 @@ namespace StackExchange.Redis
                 {
                     // the same leg, on the core that owns it: there is no subscription bridge to activate
                     // under the flag, and the configuration channel is subscribed by CONNECTING rather
-                    // than by anyone asking for it - see the method's own notes
+                    // than by anyone asking for it - see the method's own notes, including its known cost
                     server.Multiplexer.NewCore.DialSubscriptionSocketForConfigurationChannel(server.EndPoint);
                 }
                 else

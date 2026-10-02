@@ -941,8 +941,22 @@ namespace StackExchange.Redis
             connection.DeliversArrays = subscription && result.Protocol < RedisProtocol.Resp3;
 
             // deliveries arrive here: on the subscription connection under RESP2, and on this one under
-            // RESP3, where a push can land on any connection
-            connection.OnPush = frame => RespPushDispatch.Dispatch(frame, _multiplexer, endpoint);
+            // RESP3, where a push can land on any connection.
+            //
+            // WEAKLY, and that is a leak rather than a nicety. A subscription connection holds a standing
+            // read - that is what waiting for deliveries IS - so the socket is rooted by the IO system for
+            // as long as it is open, and a delegate capturing the multiplexer made the socket root the
+            // multiplexer too. A caller who abandons a multiplexer without disposing it then never gets it
+            // collected: `GarbageCollectionTests.MuxerIsCollected` is written for exactly that caller, and
+            // the shipped core passes it while holding a subscription bridge of its own. An ordinary
+            // connection hid the problem by having no standing read to be rooted by.
+            //
+            // A push that arrives after the multiplexer is gone has nowhere to go and nothing to tell, so
+            // "not recognised" is the whole of the correct behaviour.
+            var muxerRef = new WeakReference<ConnectionMultiplexer>(_multiplexer);
+            connection.OnPush = frame => muxerRef.TryGetTarget(out var muxer)
+                ? RespPushDispatch.Dispatch(frame, muxer, endpoint)
+                : RespOutOfBandResult.NotRecognized;
 
             // A connection that asked for RESP3 and was answered less than that needs a SUBSCRIPTION
             // socket, and needs it now rather than when something next subscribes. The shipped core
@@ -967,8 +981,14 @@ namespace StackExchange.Redis
             // configuration channel also lives on the subscription socket under RESP2, and nothing else
             // will ever ask for it - a lazily-dialled socket that waits for a subscribe waits for ever
             // when the only subscriber is the thing that rides the socket's own handshake.
+            //
+            // Still only on a DOWNGRADE (`TryResp3`), which is what this hook is for. A client that asked
+            // for RESP2 in the first place has already had its socket dialled by `ActivateServer`, which
+            // knew it would need one without having to connect to find out - so dropping that condition
+            // just dials a second time. `RespSubscriptionConnectionTests` counts the sockets and says so.
             if (!subscription
                 && result.Protocol < RedisProtocol.Resp3
+                && config.TryResp3()
                 && _multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)
                 && (_multiplexer.NewCoreOwnsAnySubscription()
                     || _multiplexer.ConfigurationChangedChannel is not null))
@@ -1061,10 +1081,17 @@ namespace StackExchange.Redis
         /// interactive bridge, so this core had no reason to connect and the broadcast reached nobody.
         /// </para>
         /// <para>
-        /// Conditioned on <c>KnowOrAssumeResp3</c>, which is the same question the shipped core asks in
-        /// the same place before activating its subscription bridge - so an endpoint that turns out to
-        /// speak RESP3 after all is left holding a spare subscription socket, exactly as the shipped core
-        /// would have been left holding a spare bridge.
+        /// Conditioned on <c>KnowOrAssumeResp3</c> by its caller, which is the same question the shipped
+        /// core asks in the same place before activating its subscription bridge - so an endpoint that
+        /// turns out to speak RESP3 after all is left holding a spare subscription socket, exactly as the
+        /// shipped core would have been left holding a spare bridge.
+        /// </para>
+        /// <para>
+        /// <b>This has a known cost, recorded in design notes 9g rather than hidden:</b> the socket it
+        /// opens roots the multiplexer, so a multiplexer that is abandoned without being disposed is no
+        /// longer collected (<c>GarbageCollectionTests.MuxerIsCollected</c>). Kept anyway, because
+        /// withdrawing it loses the configuration channel entirely under RESP2 - six failing tests
+        /// against two - but it is not finished.
         /// </para>
         /// </remarks>
         internal void DialSubscriptionSocketForConfigurationChannel(EndPoint endpoint)
@@ -1118,9 +1145,17 @@ namespace StackExchange.Redis
                         // completing is not the subscriptions being back, and measurably so - a socket
                         // this core had already opened once returns from here long before the replacement
                         // has run its establish hook. The hook releases it, by calling `SubscriptionsSettled`
-                        // once the re-place has gone out; all this does is bound the wait, so that a
-                        // replacement which never arrives cannot hold a publish for ever.
-                        await Task.Delay(core._multiplexer.TimeoutMilliseconds).ConfigureAwait(false);
+                        // once the re-place has gone out; this only bounds the wait, so that a replacement
+                        // which never arrives cannot hold a publish for ever.
+                        //
+                        // ONLY when something is actually waiting. A timer armed after every dial keeps
+                        // this state - and through it the core and the multiplexer - reachable for the
+                        // whole timeout, which is a rooted multiplexer per dial and six of them per
+                        // cluster connect. `GarbageCollectionTests.MuxerIsCollected` says so directly.
+                        if (dial.HoldsPublishes)
+                        {
+                            await Task.Delay(core._multiplexer.TimeoutMilliseconds).ConfigureAwait(false);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -1133,7 +1168,7 @@ namespace StackExchange.Redis
                         core.SubscriptionsSettled(ep);
                     }
                 },
-                new SubscriptionDial(this, endpoint));
+                new SubscriptionDial(this, endpoint, holdPublishes));
         }
 
         /// <summary>The state a queued dial needs, as a class because this library cannot use tuples.</summary>
@@ -1142,11 +1177,13 @@ namespace StackExchange.Redis
         /// <c>SanityChecks.ValueTupleNotReferenced</c> fails the build's intent if one creeps in. A single
         /// allocation per dial, and a dial is already opening a socket.
         /// </remarks>
-        private sealed class SubscriptionDial(RespNewCore core, EndPoint endpoint)
+        private sealed class SubscriptionDial(RespNewCore core, EndPoint endpoint, bool holdPublishes)
         {
             public RespNewCore Core => core;
 
             public EndPoint Endpoint => endpoint;
+
+            public bool HoldsPublishes => holdPublishes;
         }
 
         private readonly ConcurrentDictionary<EndPoint, TaskCompletionSource<bool>> _settling = new();
