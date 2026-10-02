@@ -110,7 +110,12 @@ options.ConnectionAttemptCompleted += (sender, e) =>
 
 Note that a rejected client certificate does not necessarily surface as an authentication failure: with TLS 1.3 the client
 handshake completes before the server rejects the certificate, so the attempt typically fails as `SocketClosed` during the
-Redis handshake that follows.
+Redis handshake that follows. `e.Stage` says how far the attempt got (`Connect`, `Tunnel`, `Tls`, `Handshake`, or
+`Established` on success), so that case reports `Handshake`.
+
+The same event also describes the server side of TLS: `e.TlsHostName` is the host name sent as SNI (which can differ from
+`e.EndPoint`), and `e.ServerCertificatePolicyErrors`, `e.ServerCertificateChainStatus` and `e.ServerCertificateAccepted` report
+what the platform found when validating the server certificate, and what was decided.
 
 ## User certificates with implicit user authentication
 

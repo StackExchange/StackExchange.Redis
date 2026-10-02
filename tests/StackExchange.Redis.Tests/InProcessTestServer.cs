@@ -102,7 +102,12 @@ public class InProcessTestServer : MemoryCacheRedisServer
         return result;
     }
 
-    public ConfigurationOptions GetClientConfig(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default)
+    /// <param name="withPubSub">Whether to enable the pub/sub commands.</param>
+    /// <param name="defaultOnly">Whether to connect only to the default endpoint.</param>
+    /// <param name="writeMode">The write mode to use.</param>
+    /// <param name="validateServerCertificate">When using TLS, whether to configure a validation callback that trusts this server's
+    /// (self-signed) certificate; when false, the platform default applies, which rejects it.</param>
+    public ConfigurationOptions GetClientConfig(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default, bool validateServerCertificate = true)
     {
         var commands = GetCommands();
         if (!withPubSub)
@@ -135,7 +140,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         TestConfig.ApplyMaintenanceDefault(config);
         if (!string.IsNullOrEmpty(Password)) config.Password = Password;
         config.Ssl = UseSsl; // explicitly, ignore provider defaults
-        if (UseSsl)
+        if (UseSsl && validateServerCertificate)
         {
 #if !NETFRAMEWORK
             config.CertificateValidation += _certificateValidationCallback;

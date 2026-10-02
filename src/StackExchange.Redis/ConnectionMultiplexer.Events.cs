@@ -8,13 +8,23 @@ namespace StackExchange.Redis;
 
 public partial class ConnectionMultiplexer
 {
-    internal void OnConnectionAttemptCompleted(EndPoint endpoint, ConnectionType connectionType, bool isSuccess, ConnectionFailureType failureType, Exception? exception, X509Certificate? clientCertificate, string? tlsHostName, string? physicalName)
+    internal void OnConnectionAttemptCompleted(
+        EndPoint endpoint,
+        ConnectionType connectionType,
+        bool isSuccess,
+        ConnectionAttemptStage stage,
+        ConnectionFailureType failureType,
+        Exception? exception,
+        X509Certificate? clientCertificate,
+        string? tlsHostName,
+        ServerCertificateCheck? serverCertificateCheck,
+        string? physicalName)
     {
         if (_isDisposed) return;
         var handler = RawConfig.ConnectionAttemptCompletedHandler;
         if (handler != null)
         {
-            CompleteAsWorker(new ConnectionAttemptEventArgs(handler, this, endpoint, connectionType, isSuccess, failureType, exception, clientCertificate, tlsHostName, physicalName));
+            CompleteAsWorker(new ConnectionAttemptEventArgs(handler, this, endpoint, connectionType, isSuccess, stage, failureType, exception, clientCertificate, tlsHostName, serverCertificateCheck, physicalName));
         }
     }
 

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 #if !NETFRAMEWORK
+using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 #endif
@@ -29,11 +30,14 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         foreach (var attempt in new[] { interactive, subscription })
         {
             Assert.True(attempt.IsSuccess);
+            Assert.Equal(ConnectionAttemptStage.Established, attempt.Stage);
             Assert.Equal(ConnectionFailureType.None, attempt.FailureType);
             Assert.Null(attempt.Exception);
             Assert.Null(attempt.ClientCertificateSubject);
             Assert.Null(attempt.ClientCertificateThumbprint);
             Assert.Null(attempt.TlsHostName); // no TLS
+            Assert.Null(attempt.ServerCertificatePolicyErrors);
+            Assert.Null(attempt.ServerCertificateAccepted);
         }
     }
 
@@ -61,6 +65,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         Assert.All(interactive, a =>
         {
             Assert.False(a.IsSuccess);
+            Assert.Equal(ConnectionAttemptStage.Connect, a.Stage);
             Assert.NotEqual(ConnectionFailureType.None, a.FailureType);
             Assert.Equal(endpoint, a.EndPoint);
         });
@@ -91,6 +96,13 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         Assert.Equal(Sha256(good), attempt.ClientCertificateThumbprintSha256);
         Assert.Equal(options.ResolveTlsHostName(attempt.EndPoint!), attempt.TlsHostName);
         Assert.False(string.IsNullOrEmpty(attempt.TlsHostName));
+        Assert.Equal(ConnectionAttemptStage.Established, attempt.Stage);
+
+        // the test server's certificate is self-signed, and accepted by the test's own validation callback regardless
+        output.WriteLine($"server certificate: {attempt.ServerCertificatePolicyErrors} / {attempt.ServerCertificateChainStatus}, accepted: {attempt.ServerCertificateAccepted}");
+        Assert.True(attempt.ServerCertificateAccepted);
+        Assert.NotNull(attempt.ServerCertificatePolicyErrors);
+        Assert.NotNull(attempt.ServerCertificateChainStatus);
     }
 
     [Fact]
@@ -113,8 +125,10 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
 
         await WaitForAsync(() => !attempts.IsEmpty);
         var attempt = attempts.First();
-        output.WriteLine($"rejected attempt: {attempt.FailureType}: {attempt.Exception?.GetType().Name}: {attempt.Exception?.Message}");
+        output.WriteLine($"rejected attempt: {attempt.Stage}, {attempt.FailureType}: {attempt.Exception?.GetType().Name}: {attempt.Exception?.Message}");
         Assert.False(attempt.IsSuccess);
+        Assert.True(attempt.Stage is ConnectionAttemptStage.Tls or ConnectionAttemptStage.Handshake); // TLS 1.3: Handshake, TLS 1.2: Tls
+        Assert.True(attempt.ServerCertificateAccepted); // the failure is the client certificate, not the server's
         Assert.NotEqual(ConnectionFailureType.None, attempt.FailureType);
         Assert.Equal(bad.Subject, attempt.ClientCertificateSubject);
         Assert.Equal(bad.Thumbprint, attempt.ClientCertificateThumbprint);
@@ -145,6 +159,85 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         output.WriteLine($"selection callback invoked {selections} time(s); reported thumbprint: {attempt.ClientCertificateThumbprint ?? "(null)"}");
         Assert.True(attempt.IsSuccess);
         Assert.Null(attempt.ClientCertificateThumbprint);
+    }
+
+    [Fact]
+    public async Task ServerCertificateRejectedByPlatformDefault()
+    {
+        // no validation callback configured: the library observes validation through its own callback, which must keep the
+        // platform-default semantics (reject a certificate with any errors - here, a self-signed one)
+        using var server = new InProcessTestServer(output, useSsl: true);
+        var options = server.GetClientConfig(withPubSub: false, validateServerCertificate: false);
+        options.AbortOnConnectFail = false;
+        options.ConnectTimeout = 2000;
+        var attempts = Observe(options);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        Assert.False(conn.IsConnected);
+
+        await WaitForAsync(() => !attempts.IsEmpty);
+        var attempt = attempts.First();
+        output.WriteLine($"server certificate: {attempt.ServerCertificatePolicyErrors} / {attempt.ServerCertificateChainStatus}; {attempt.FailureType}: {attempt.Exception?.Message}");
+        Assert.False(attempt.IsSuccess);
+        Assert.Equal(ConnectionAttemptStage.Tls, attempt.Stage);
+        Assert.Equal(ConnectionFailureType.AuthenticationFailure, attempt.FailureType);
+        Assert.False(attempt.ServerCertificateAccepted);
+        Assert.True(attempt.ServerCertificatePolicyErrors!.Value.HasFlag(SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.NotEqual(X509ChainStatusFlags.NoError, attempt.ServerCertificateChainStatus);
+
+        // observing must not cost the detail that the platform's own message would have given
+        Assert.Contains(nameof(SslPolicyErrors.RemoteCertificateChainErrors), attempt.Exception?.Message);
+    }
+
+    [Fact]
+    public async Task ServerCertificateRejectedByCallback()
+    {
+        using var server = new InProcessTestServer(output, useSsl: true);
+        var options = server.GetClientConfig(withPubSub: false, validateServerCertificate: false);
+        options.AbortOnConnectFail = false;
+        options.ConnectTimeout = 2000;
+        options.CertificateValidation += (_, _, _, _) => false;
+        var attempts = Observe(options);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        Assert.False(conn.IsConnected);
+
+        await WaitForAsync(() => !attempts.IsEmpty);
+        var attempt = attempts.First();
+        Assert.False(attempt.IsSuccess);
+        Assert.Equal(ConnectionAttemptStage.Tls, attempt.Stage);
+        Assert.False(attempt.ServerCertificateAccepted);
+        Assert.NotNull(attempt.ServerCertificatePolicyErrors);
+    }
+
+    [Fact]
+    public async Task OptionsValidationCallbackIsNotDisplaced()
+    {
+        // SslStream throws if a constructor callback differs from one in SslClientAuthenticationOptions; observing must
+        // not introduce a constructor callback when the options supply their own
+        using var server = new InProcessTestServer(output, useSsl: true);
+        var options = server.GetClientConfig(withPubSub: false, validateServerCertificate: false);
+        int validations = 0;
+        options.SslClientAuthenticationOptions = host => new SslClientAuthenticationOptions
+        {
+            TargetHost = host,
+            RemoteCertificateValidationCallback = (_, _, _, _) =>
+            {
+                System.Threading.Interlocked.Increment(ref validations);
+                return true;
+            },
+        };
+        var attempts = Observe(options);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        Assert.True(conn.IsConnected);
+
+        await WaitForAsync(() => !attempts.IsEmpty);
+        var attempt = Assert.Single(attempts);
+        Assert.True(attempt.IsSuccess);
+        Assert.True(validations > 0);
+        Assert.Null(attempt.ServerCertificateAccepted); // the options own validation, so the library did not observe it
+        Assert.Equal(options.ResolveTlsHostName(attempt.EndPoint!), attempt.TlsHostName);
     }
 
     private static X509Certificate2 CreateClientCertificate(string name)

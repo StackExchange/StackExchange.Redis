@@ -10,5 +10,16 @@ StackExchange.Redis.ConnectionAttemptEventArgs.EndPoint.get -> System.Net.EndPoi
 StackExchange.Redis.ConnectionAttemptEventArgs.Exception.get -> System.Exception?
 StackExchange.Redis.ConnectionAttemptEventArgs.FailureType.get -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionAttemptEventArgs.IsSuccess.get -> bool
+StackExchange.Redis.ConnectionAttemptEventArgs.ServerCertificateAccepted.get -> bool?
+StackExchange.Redis.ConnectionAttemptEventArgs.ServerCertificateChainStatus.get -> System.Security.Cryptography.X509Certificates.X509ChainStatusFlags?
+StackExchange.Redis.ConnectionAttemptEventArgs.ServerCertificatePolicyErrors.get -> System.Net.Security.SslPolicyErrors?
+StackExchange.Redis.ConnectionAttemptEventArgs.Stage.get -> StackExchange.Redis.ConnectionAttemptStage
+StackExchange.Redis.ConnectionAttemptStage
+StackExchange.Redis.ConnectionAttemptStage.Connect = 100 -> StackExchange.Redis.ConnectionAttemptStage
+StackExchange.Redis.ConnectionAttemptStage.Established = 500 -> StackExchange.Redis.ConnectionAttemptStage
+StackExchange.Redis.ConnectionAttemptStage.Handshake = 400 -> StackExchange.Redis.ConnectionAttemptStage
+StackExchange.Redis.ConnectionAttemptStage.Tls = 300 -> StackExchange.Redis.ConnectionAttemptStage
+StackExchange.Redis.ConnectionAttemptStage.Tunnel = 200 -> StackExchange.Redis.ConnectionAttemptStage
+StackExchange.Redis.ConnectionAttemptStage.Unknown = 0 -> StackExchange.Redis.ConnectionAttemptStage
 StackExchange.Redis.ConnectionAttemptEventArgs.TlsHostName.get -> string?
 override StackExchange.Redis.ConnectionAttemptEventArgs.ToString() -> string!

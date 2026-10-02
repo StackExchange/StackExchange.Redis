@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net;
+using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -26,10 +27,12 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
         EndPoint? endPoint,
         ConnectionType connectionType,
         bool isSuccess,
+        ConnectionAttemptStage stage,
         ConnectionFailureType failureType,
         Exception? exception,
         X509Certificate? clientCertificate,
         string? tlsHostName,
+        ServerCertificateCheck? serverCertificateCheck,
         string? physicalName)
     {
         this.handler = handler;
@@ -37,9 +40,16 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
         EndPoint = endPoint;
         ConnectionType = connectionType;
         IsSuccess = isSuccess;
+        Stage = stage;
         FailureType = failureType;
         Exception = exception;
         TlsHostName = tlsHostName;
+        if (serverCertificateCheck is not null)
+        {
+            ServerCertificatePolicyErrors = serverCertificateCheck.PolicyErrors;
+            ServerCertificateChainStatus = serverCertificateCheck.ChainStatus;
+            ServerCertificateAccepted = serverCertificateCheck.Accepted;
+        }
         _physicalName = physicalName ?? GetType().Name;
 
         // Snapshot rather than retain: this is delivered on a worker after the attempt has finished, by which time
@@ -72,6 +82,11 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
     public bool IsSuccess { get; }
 
     /// <summary>
+    /// How far the attempt got: <see cref="ConnectionAttemptStage.Established"/> on success, otherwise the stage during which it failed.
+    /// </summary>
+    public ConnectionAttemptStage Stage { get; }
+
+    /// <summary>
     /// The type of failure, or <see cref="ConnectionFailureType.None"/> on success.
     /// </summary>
     public ConnectionFailureType FailureType { get; }
@@ -83,6 +98,27 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
     /// </summary>
     /// <remarks>When <c>SslClientAuthenticationOptions</c> is used, this is its <c>TargetHost</c>, as supplied by the caller.</remarks>
     public string? TlsHostName { get; }
+
+    /// <summary>
+    /// The errors the platform found when validating the server certificate, if the library observed that validation; null otherwise
+    /// (for example: TLS was not used, the handshake failed before validation, or <c>SslClientAuthenticationOptions</c> supplied its
+    /// own validation callback).
+    /// </summary>
+    /// <remarks>Non-empty errors do not imply rejection: a configured <see cref="ConfigurationOptions.CertificateValidation"/> callback
+    /// may accept the certificate regardless; see <see cref="ServerCertificateAccepted"/>.</remarks>
+    public SslPolicyErrors? ServerCertificatePolicyErrors { get; }
+
+    /// <summary>
+    /// The combined status flags of the server certificate chain, under the same conditions as <see cref="ServerCertificatePolicyErrors"/>;
+    /// this gives the detail behind <see cref="SslPolicyErrors.RemoteCertificateChainErrors"/> (for example, an untrusted root or an expired certificate).
+    /// </summary>
+    public X509ChainStatusFlags? ServerCertificateChainStatus { get; }
+
+    /// <summary>
+    /// Whether the server certificate was accepted (by the configured validation callback, or by the platform default when none is
+    /// configured), under the same conditions as <see cref="ServerCertificatePolicyErrors"/>.
+    /// </summary>
+    public bool? ServerCertificateAccepted { get; }
 
     /// <summary>
     /// Gets the exception if available (this can be null, and is always null on success).
@@ -125,4 +161,11 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
     /// Returns the physical name of the connection.
     /// </summary>
     public override string ToString() => _physicalName;
+}
+
+internal sealed class ServerCertificateCheck(SslPolicyErrors policyErrors, X509ChainStatusFlags chainStatus, bool accepted)
+{
+    public SslPolicyErrors PolicyErrors { get; } = policyErrors;
+    public X509ChainStatusFlags ChainStatus { get; } = chainStatus;
+    public bool Accepted { get; } = accepted;
 }

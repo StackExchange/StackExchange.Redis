@@ -100,6 +100,8 @@ namespace StackExchange.Redis
         private int _attemptOutcomeReported;
         private X509Certificate? _clientCertificate; // only captured when someone is listening for attempt outcomes
         private string? _tlsHostName; // the host we asked TLS to authenticate (and send as SNI), if we performed TLS
+        private ServerCertificateCheck? _serverCertificateCheck; // only captured when someone is listening for attempt outcomes
+        private volatile ConnectionAttemptStage _attemptStage = ConnectionAttemptStage.Connect;
 
         internal void ReportAttemptOutcome(bool isSuccess, ConnectionFailureType failureType, Exception? exception)
         {
@@ -107,8 +109,55 @@ namespace StackExchange.Redis
             var clientCertificate = Interlocked.Exchange(ref _clientCertificate, null); // nothing to gain from keeping it
             if (BridgeCouldBeNull is { } bridge)
             {
-                bridge.Multiplexer.OnConnectionAttemptCompleted(bridge.ServerEndPoint.EndPoint, connectionType, isSuccess, failureType, exception, clientCertificate, _tlsHostName, _physicalName);
+                var stage = isSuccess ? ConnectionAttemptStage.Established : _attemptStage;
+                bridge.Multiplexer.OnConnectionAttemptCompleted(
+                    bridge.ServerEndPoint.EndPoint,
+                    connectionType,
+                    isSuccess,
+                    stage,
+                    failureType,
+                    exception,
+                    clientCertificate,
+                    _tlsHostName,
+                    Volatile.Read(ref _serverCertificateCheck),
+                    _physicalName);
             }
+        }
+
+        // capture what was selected, so that a failed handshake can still say which certificate it used
+        private LocalCertificateSelectionCallback ObserveClientCertificate(LocalCertificateSelectionCallback selector)
+            => (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) =>
+            {
+                var selected = selector(sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers);
+                _clientCertificate = selected;
+                return selected;
+            };
+
+        // capture what the platform thought of the server certificate, and what was decided; SslStream does not expose
+        // this afterwards, and an AuthenticationException only describes it in (TFM-specific) message text
+        private RemoteCertificateValidationCallback ObserveServerCertificate(RemoteCertificateValidationCallback? validator)
+            => (sender, certificate, chain, sslPolicyErrors) =>
+            {
+                var chainStatus = X509ChainStatusFlags.NoError;
+                if (chain is not null)
+                {
+                    foreach (var status in chain.ChainStatus)
+                    {
+                        chainStatus |= status.Status;
+                    }
+                }
+
+                // with no callback configured, this is the platform default: accept only a certificate without errors
+                var accepted = validator is null ? sslPolicyErrors == SslPolicyErrors.None : validator(sender, certificate, chain, sslPolicyErrors);
+                Volatile.Write(ref _serverCertificateCheck, new ServerCertificateCheck(sslPolicyErrors, chainStatus, accepted));
+                return accepted;
+            };
+
+        private static void OnTlsFault(PhysicalBridge bridge, Exception ex)
+        {
+            Debug.WriteLine(ex.Message);
+            bridge.Multiplexer.SetAuthSuspect(ex);
+            bridge.Multiplexer.Logger?.LogErrorConnectionIssue(ex, ex.Message);
         }
 
         private int clientSentQuit;
@@ -1228,6 +1277,7 @@ namespace StackExchange.Redis
                     StartTransportReading(transport);
 
                     log?.LogInformationTransportConnected(bridge.Name, transport.IsEncrypted);
+                    _attemptStage = ConnectionAttemptStage.Handshake;
                     await bridge.OnConnectedAsync(this, log).ForAwait();
                     return true;
                 }
@@ -1235,6 +1285,7 @@ namespace StackExchange.Redis
                 var tunnel = config.Tunnel;
                 if (tunnel is not null)
                 {
+                    _attemptStage = ConnectionAttemptStage.Tunnel;
                     stream = await tunnel.BeforeAuthenticateAsync(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
                 }
 
@@ -1243,26 +1294,46 @@ namespace StackExchange.Redis
 
                 if (config.Ssl)
                 {
+                    _attemptStage = ConnectionAttemptStage.Tls;
                     log?.LogInformationConfiguringTLS();
                     var host = _tlsHostName = config.ResolveTlsHostName(bridge.ServerEndPoint.EndPoint);
 
                     stream ??= DemandSocketStream(socket);
-                    var observeAttempt = config.ConnectionAttemptCompletedHandler is not null;
+                    var certificateValidation = config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback();
                     var certificateSelection = config.CertificateSelectionCallback ?? GetAmbientClientCertificateCallback();
-                    if (observeAttempt && certificateSelection is { } selector)
+                    bool optionsValidate = false, optionsSelect = false;
+#if NET
+                    SslClientAuthenticationOptions? configOptions;
+                    try
                     {
-                        // capture what was selected, so that a failed handshake can still say which certificate it used
-                        certificateSelection = (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) =>
-                        {
-                            var selected = selector(sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers);
-                            _clientCertificate = selected;
-                            return selected;
-                        };
+                        configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
+                    }
+                    catch (Exception ex)
+                    {
+                        OnTlsFault(bridge, ex);
+                        throw;
+                    }
+                    if (configOptions is not null)
+                    {
+                        _tlsHostName = configOptions.TargetHost; // the caller's options decide what is actually sent
+                        optionsValidate = configOptions.RemoteCertificateValidationCallback is not null;
+                        optionsSelect = configOptions.LocalCertificateSelectionCallback is not null;
+                    }
+#endif
+                    var observeAttempt = config.ConnectionAttemptCompletedHandler is not null;
+                    var observingDefaultValidation = false; // i.e. we supplied the only validation callback
+                    if (observeAttempt)
+                    {
+                        observingDefaultValidation = !optionsValidate && certificateValidation is null;
+                        // SslStream refuses a constructor callback that differs from one also supplied via the options, so we
+                        // only observe through the callbacks that the options leave to us
+                        if (!optionsValidate) certificateValidation = ObserveServerCertificate(certificateValidation);
+                        if (!optionsSelect && certificateSelection is not null) certificateSelection = ObserveClientCertificate(certificateSelection);
                     }
                     var ssl = new SslStream(
                         innerStream: stream,
                         leaveInnerStreamOpen: false,
-                        userCertificateValidationCallback: config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback(),
+                        userCertificateValidationCallback: certificateValidation,
                         userCertificateSelectionCallback: certificateSelection,
                         encryptionPolicy: EncryptionPolicy.RequireEncryption);
                     try
@@ -1270,10 +1341,8 @@ namespace StackExchange.Redis
                         try
                         {
 #if NET
-                            var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
                             if (configOptions is not null)
                             {
-                                _tlsHostName = configOptions.TargetHost; // the caller's options decide what is actually sent
                                 await ssl.AuthenticateAsClientAsync(configOptions).ForAwait();
                             }
                             else
@@ -1286,9 +1355,7 @@ namespace StackExchange.Redis
                         }
                         catch (Exception ex)
                         {
-                            Debug.WriteLine(ex.Message);
-                            bridge.Multiplexer.SetAuthSuspect(ex);
-                            bridge.Multiplexer.Logger?.LogErrorConnectionIssue(ex, ex.Message);
+                            OnTlsFault(bridge, ex);
                             throw;
                         }
                         if (observeAttempt)
@@ -1320,6 +1387,14 @@ namespace StackExchange.Redis
                     }
                     catch (AuthenticationException authexception)
                     {
+                        if (observingDefaultValidation && Volatile.Read(ref _serverCertificateCheck) is { Accepted: false } check)
+                        {
+                            // Supplying a callback (only to observe) changes the platform's message from describing the errors to
+                            // "rejected by the provided callback"; restore that detail, rather than lose it by observing.
+                            authexception = new AuthenticationException(
+                                $"The remote certificate is invalid: {check.PolicyErrors} (chain status: {check.ChainStatus}).",
+                                authexception);
+                        }
                         RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, authexception, isInitialConnect: true);
                         bridge.Multiplexer.Trace("Encryption failure");
                         return false;
@@ -1334,6 +1409,7 @@ namespace StackExchange.Redis
 
                 log?.LogInformationConnected(bridge.Name);
 
+                _attemptStage = ConnectionAttemptStage.Handshake;
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;
             }
