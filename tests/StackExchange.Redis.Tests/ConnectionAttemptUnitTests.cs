@@ -33,6 +33,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
             Assert.Null(attempt.Exception);
             Assert.Null(attempt.ClientCertificateSubject);
             Assert.Null(attempt.ClientCertificateThumbprint);
+            Assert.Null(attempt.TlsHostName); // no TLS
         }
     }
 
@@ -88,6 +89,8 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         Assert.Equal(good.Issuer, attempt.ClientCertificateIssuer);
         Assert.Equal(good.Thumbprint, attempt.ClientCertificateThumbprint);
         Assert.Equal(Sha256(good), attempt.ClientCertificateThumbprintSha256);
+        Assert.Equal(options.ResolveTlsHostName(attempt.EndPoint!), attempt.TlsHostName);
+        Assert.False(string.IsNullOrEmpty(attempt.TlsHostName));
     }
 
     [Fact]

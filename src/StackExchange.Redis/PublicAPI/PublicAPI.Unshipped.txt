@@ -10,4 +10,5 @@ StackExchange.Redis.ConnectionAttemptEventArgs.EndPoint.get -> System.Net.EndPoi
 StackExchange.Redis.ConnectionAttemptEventArgs.Exception.get -> System.Exception?
 StackExchange.Redis.ConnectionAttemptEventArgs.FailureType.get -> StackExchange.Redis.ConnectionFailureType
 StackExchange.Redis.ConnectionAttemptEventArgs.IsSuccess.get -> bool
+StackExchange.Redis.ConnectionAttemptEventArgs.TlsHostName.get -> string?
 override StackExchange.Redis.ConnectionAttemptEventArgs.ToString() -> string!

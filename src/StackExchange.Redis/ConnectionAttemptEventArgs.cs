@@ -29,6 +29,7 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
         ConnectionFailureType failureType,
         Exception? exception,
         X509Certificate? clientCertificate,
+        string? tlsHostName,
         string? physicalName)
     {
         this.handler = handler;
@@ -38,6 +39,7 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
         IsSuccess = isSuccess;
         FailureType = failureType;
         Exception = exception;
+        TlsHostName = tlsHostName;
         _physicalName = physicalName ?? GetType().Name;
 
         // Snapshot rather than retain: this is delivered on a worker after the attempt has finished, by which time
@@ -73,6 +75,14 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
     /// The type of failure, or <see cref="ConnectionFailureType.None"/> on success.
     /// </summary>
     public ConnectionFailureType FailureType { get; }
+
+    /// <summary>
+    /// The host name the library asked TLS to authenticate for this attempt (sent as SNI, and used to validate the server
+    /// certificate), or null if the library did not perform TLS. This can differ from <see cref="EndPoint"/>, for example when
+    /// <see cref="ConfigurationOptions.SslHost"/> is configured or a host name is inferred for an address endpoint.
+    /// </summary>
+    /// <remarks>When <c>SslClientAuthenticationOptions</c> is used, this is its <c>TargetHost</c>, as supplied by the caller.</remarks>
+    public string? TlsHostName { get; }
 
     /// <summary>
     /// Gets the exception if available (this can be null, and is always null on success).

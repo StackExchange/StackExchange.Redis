@@ -99,6 +99,7 @@ namespace StackExchange.Redis
         // separate from failureReported, which only fires for the bridge's *current* connection
         private int _attemptOutcomeReported;
         private X509Certificate? _clientCertificate; // only captured when someone is listening for attempt outcomes
+        private string? _tlsHostName; // the host we asked TLS to authenticate (and send as SNI), if we performed TLS
 
         internal void ReportAttemptOutcome(bool isSuccess, ConnectionFailureType failureType, Exception? exception)
         {
@@ -106,7 +107,7 @@ namespace StackExchange.Redis
             var clientCertificate = Interlocked.Exchange(ref _clientCertificate, null); // nothing to gain from keeping it
             if (BridgeCouldBeNull is { } bridge)
             {
-                bridge.Multiplexer.OnConnectionAttemptCompleted(bridge.ServerEndPoint.EndPoint, connectionType, isSuccess, failureType, exception, clientCertificate, _physicalName);
+                bridge.Multiplexer.OnConnectionAttemptCompleted(bridge.ServerEndPoint.EndPoint, connectionType, isSuccess, failureType, exception, clientCertificate, _tlsHostName, _physicalName);
             }
         }
 
@@ -1243,7 +1244,7 @@ namespace StackExchange.Redis
                 if (config.Ssl)
                 {
                     log?.LogInformationConfiguringTLS();
-                    var host = config.ResolveTlsHostName(bridge.ServerEndPoint.EndPoint);
+                    var host = _tlsHostName = config.ResolveTlsHostName(bridge.ServerEndPoint.EndPoint);
 
                     stream ??= DemandSocketStream(socket);
                     var observeAttempt = config.ConnectionAttemptCompletedHandler is not null;
@@ -1272,6 +1273,7 @@ namespace StackExchange.Redis
                             var configOptions = config.SslClientAuthenticationOptions?.Invoke(host);
                             if (configOptions is not null)
                             {
+                                _tlsHostName = configOptions.TargetHost; // the caller's options decide what is actually sent
                                 await ssl.AuthenticateAsClientAsync(configOptions).ForAwait();
                             }
                             else
