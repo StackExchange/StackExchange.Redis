@@ -200,16 +200,9 @@ internal partial class RedisDatabase
         Exclude exclude,
         CommandFlags flags)
     {
-        static RedisValue GetTerminator(RedisValue value, Exclude exclude, bool isStart)
-        {
-            if (value.IsNull) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
-            var mask = isStart ? Exclude.Start : Exclude.Stop;
-            var isExclusive = (exclude & mask) != 0;
-            return ((isExclusive ? "(" : "[") + value).AsRedisValue();
-        }
-
-        var from = GetTerminator(start, exclude, true);
-        var to = GetTerminator(end, exclude, false);
+        // same lexicographic bounds as ZRANGEBYLEX; built from the raw bytes, so binary members are preserved
+        var from = GetLexRange(start, exclude, isStart: true, Order.Ascending);
+        var to = GetLexRange(end, exclude, isStart: false, Order.Ascending);
         return count < 0
             ? Message.Create(Database, flags, RedisCommand.VRANGE, key, from, to)
             : Message.Create(Database, flags, RedisCommand.VRANGE, key, from, to, count);
