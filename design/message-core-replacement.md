@@ -3321,3 +3321,31 @@ because this core stops aiming anything at a node it knows is gone: the node is 
 before changing anything, by relaxing only that precondition - the whole rest of the test passes, so
 retirement itself was never the problem. The flagged path now asserts the stronger property (nothing is
 queued there at all) rather than skipping, since everything after that point still has to hold.
+
+### 9j. The flagged path is now flaky rather than failing, and that is the next measurement
+
+With 9i in, the **shipped** suite is fully green and the **flagged** suite settles at five to seven
+failures per run - but **only `ReconnectRetryPolicyUnitTests` (two cases) appears in every run.**
+Across three consecutive runs of the same build the rest of the list was almost entirely different:
+`RespClientCacheTests.SweepIfDueHonoursTheInterval`, `TransitionalStreamTests.StreamConsumerGroupAutoClaim_MultiStream`,
+`Issues.SO22786599Tests.Execute`, `ConnectCustomConfigTests.DisabledCommandsStillConnectCluster`,
+`RespStaleWhileRevalidateTests.TheGraceIsNotRestartedByLaterReads`, `ConnectFailTimeoutTests.NoticesConnectFail`,
+`ClusterTopologyUnitTests.SlotMapIsDrivenByTheSlotsView`, `PubSubKeyNotificationTestsStandalone.*`,
+`ClusterTests.MovedProfiling`.
+
+That is a different problem from the one this branch has been working through, and worth naming as such:
+the flagged path has stopped having *specific* defects and started being *noisy*. The stable count is
+two; the observed count is five to seven. Claiming "two failures" would be dishonest, and so would
+listing seven as though they were seven defects.
+
+**The most likely driver is socket pressure from running two cores.** Under RESP2 a node now carries
+three sockets - the shipped interactive bridge, this core's interactive connection, and this core's
+subscription socket - where it carried two before, and several of the rotating tests are explicitly
+about timing (an interval, a timeout, a connect failure, a profiled redirect). The in-process test
+server also shares port 6379 with the docker primary, which is how
+`SlotMapIsDrivenByTheSlotsView` fails in a batch and passes alone.
+
+If that is right, the fix is not test-by-test: it is the interactive bridge going away, which removes a
+socket per node and the handshake that comes with it. So the next step is the one already queued -
+D2.8, and the connect wait - and the measurement to take afterwards is this rotation, not any individual
+name on the list.
