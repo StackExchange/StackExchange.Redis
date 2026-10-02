@@ -31,20 +31,17 @@ namespace StackExchange.Redis.Configuration
         /// </summary>
         public override string ConfigurationChannel => "";
 
-        // Auto-enlistment, deliberately withheld for now; maintenance notifications ship purely opt-in, and
-        // this goes back in a follow-up once the feature has been through formal acceptance testing. Kept here
-        // commented rather than deleted so that what returns is exactly what was reviewed.
-        //
-        // Note this provider is reached only by naming it (defaults=enterprise), never by endpoint matching,
-        // so restoring it enlists nobody who did not already ask for this deployment posture. It is withheld
-        // anyway, so that in this release the *only* thing that turns the feature on is maintNotifications.
-        //
-        // Auto rather than Enabled: a cluster that has not been updated yet, or has the feature switched off,
-        // must keep working. Choose Enabled explicitly if you would rather a connection be refused than run
-        // without advance warning.
-        //
-        // [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
-        // public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
+        /// <summary>
+        /// Ask for maintenance notifications, tolerating a server that doesn't offer them.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="MaintenanceNotificationMode.Auto"/> rather than
+        /// <see cref="MaintenanceNotificationMode.Enabled"/>: a cluster that has not been updated yet, or has
+        /// the feature switched off, must keep working. Choose <c>Enabled</c> explicitly if you would rather a
+        /// connection be refused than run without advance warning.
+        /// </remarks>
+        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
+        public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
 
         // Note: no GetDefaultSsl and no DefaultVersion override. Both are deployment choices here rather than
         // properties of the product - TLS is configured per database, and the version is whatever was

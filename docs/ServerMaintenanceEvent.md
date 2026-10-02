@@ -29,33 +29,28 @@ Server-side you may also see it discussed as *maintenance mode*, *shard migratio
 
 ## Do I need to configure anything?
 
-**Yes — for now.** In this release maintenance notifications are **purely opt-in**: nothing turns them on for you, whatever you connect to. You get them only by asking, with `maintNotifications=Auto` (or `Enabled`).
+Usually not. If you connect using the hostname your provider gave you, the matching options provider recognizes it and turns the feature on for you.
 
-> **This is temporary.** The intent is that the options providers enlist you automatically, so that connecting to a recognized Redis Cloud or Azure Managed Redis hostname turns the feature on without any configuration — exactly as the table below describes. That is held back only until the feature has been through formal acceptance testing, and is expected to land in a follow-up release. Until then, treat the "will be" column as a statement of direction, not of current behaviour.
+| You connect to | Recognized as | Notifications |
+|---|---|---|
+| `something.cloud.redislabs.com`, `.cloud.redis.io`, `.redislabs.com` | Redis Cloud | on (`Auto`) |
+| `something.redis.azure.net`, `.redisenterprise.cache.azure.net` | Azure Managed Redis | on (`Auto`) |
+| `defaults=enterprise`, `defaults=rediscloud`, `defaults=amr` | named explicitly | on (`Auto`) |
+| your own hostname, a CNAME, private DNS, or through a proxy | nothing | **off** |
+| a self-managed Redis Enterprise cluster | nothing (there is no DNS pattern to recognize) | **off** |
 
-| You connect to | Recognized as | Notifications now | Will be |
-|---|---|---|---|
-| `something.cloud.redislabs.com`, `.cloud.redis.io`, `.redislabs.com` | Redis Cloud | **off** unless asked | on (`Auto`) |
-| `something.redis.azure.net`, `.redisenterprise.cache.azure.net` | Azure Managed Redis | **off** unless asked | on (`Auto`) |
-| `defaults=enterprise`, `defaults=rediscloud`, `defaults=amr` | named explicitly | **off** unless asked | on (`Auto`) |
-| your own hostname, a CNAME, private DNS, or through a proxy | nothing | **off** | **off** |
-| a self-managed Redis Enterprise cluster | nothing (there is no DNS pattern to recognize) | **off** | **off** |
-
-Nothing fails when the feature is off: the connection works normally and you simply never receive a notification. So to use it today, ask for it explicitly. Either:
+The last two rows are the ones to know about, because nothing fails: the connection works normally and you simply never receive a notification. If your endpoint does not look like your provider's, say so explicitly. Either:
 
 ```csharp
-// change nothing except this feature
+// the whole deployment posture: prefer RESP3, skip the OSS config-broadcast channel, and ask for notifications
+var options = ConfigurationOptions.Parse("my-redis.internal.example.com:6379,defaults=enterprise");
+```
+
+or, to change nothing except this feature:
+
+```csharp
 var options = ConfigurationOptions.Parse("my-redis.internal.example.com:6379,maintNotifications=Auto");
 ```
-
-or, to take the whole deployment posture as well - prefer RESP3 and skip the OSS config-broadcast channel:
-
-```csharp
-var options = ConfigurationOptions.Parse(
-    "my-redis.internal.example.com:6379,defaults=enterprise,maintNotifications=Auto");
-```
-
-Note that `maintNotifications` is needed in *both* forms for now: while the feature is opt-in, naming a provider sets that provider's other defaults but does not turn notifications on. Once auto-enlistment lands, `defaults=enterprise` alone will be enough.
 
 `defaults=` accepts `rediscloud`, `enterprise`, `amr` and `azure`; see [Configuration](Configuration.md) for what each provider sets. It is also the right answer for a *hosted* deployment reached somewhere its own provider cannot see it, such as behind a CNAME or a private endpoint.
 
