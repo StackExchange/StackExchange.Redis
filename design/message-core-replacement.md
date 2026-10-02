@@ -3436,3 +3436,42 @@ that connects and never sends anything. The step that resolves it is a single on
 connect *while* the shipped core stops - and the eager-connect machinery for it already exists
 (`ConnectMode.Discover`, one socket, map filled from it). The three remaining beliefs then have to be
 established by that dial, which is where the earlier itemisation is still exactly the to-do list.
+
+### 9m. The coupled move, measured - and the blocker is `ReconfigureAsync`'s verdict
+
+9l said the remaining three belief gaps are not the blocker and that the step is a single coupled one:
+this core dialling at connect while the shipped core stops. That was wired up as an experiment and
+measured, which is the only way to find out what it actually costs.
+
+**The experiment** (all under the flag, reverted afterwards; patch kept in the scratchpad): `ActivateServer`
+stops activating the interactive bridge; `ConnectMode` defaults to `Discover` so this core dials one
+socket at connect; `ServerEndPoint.IsConnected` also consults this core; `IsSelectable` asks this core's
+connectivity instead of creating a bridge to ask about; and the shipped `AutoConfigureAsync` is gated off.
+
+**The result**: a narrow family of 311 tests - `ConfigTests`, `ConnectFailTimeoutTests`,
+`ClusterTopologyUnitTests`, `ValkeyUnitTests`, `MultiPrimaryTests` - went from about twenty seconds to
+**six and a half minutes, with 36 failures**, failures spaced about fifteen seconds apart.
+
+**The fifteen seconds is `ConnectImplAsync` deciding the multiplexer never connected.** Not a slow
+handshake and not a per-endpoint wait: `ReconfigureAsync(first: true)` returns false, so connect throws
+`UnableToConnect` after its retries, and `AbortOnConnectFail` is on by default in these tests. Every
+"failure" in the list is that one exception.
+
+**One hypothesis eliminated, which is why this is worth writing down.** The obvious candidate was
+`OnConnectedAsync`'s pending connection monitors - waiters that only `OnFullyEstablished` completes, so a
+bridge that never establishes leaves them hanging. A `ServerEndPoint.OnNewCoreConnected` was written to
+complete them from this core's establish instead, and the measurement did not move **at all**: same 36
+failures, same 6m30s, same spacing. So those waiters are not what connect is waiting on, and that change
+was dropped rather than landed - it fixes something that is masked by an earlier failure, and landing an
+unverified change on the strength of a plausible story is how the "measured closed" error in 9k happened.
+Revisit it only once the verdict below moves.
+
+**So the blocker is named precisely.** The design notes have said from the start that *"nothing in the
+`Message` inventory holds the shipped bridges up; `ReconfigureAsync` does"* - this pins which part:
+`ReconfigureAsync`'s own success criterion, computed from whether a shipped bridge handshook, is what
+`ConnectImplAsync` turns into "it was not possible to connect". Until that verdict can be reached from
+this core's connections, nothing else about the coupled move can be measured, because every test fails
+at connect before reaching the thing under test.
+
+That makes the next piece specific and small to state: `ReconfigureAsync` concluding success from this
+core. It is also the last structural one - the three belief gaps in 9k are then ordinary work.
