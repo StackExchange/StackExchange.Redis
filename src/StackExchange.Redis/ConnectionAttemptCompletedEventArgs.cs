@@ -15,14 +15,14 @@ namespace StackExchange.Redis;
 /// success once the Redis handshake has completed, or failure if the attempt ends before that point. A connection that fails
 /// <em>after</em> it was established is a disconnect, not a failed attempt, and does not report here.
 /// </remarks>
-public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
+public sealed class ConnectionAttemptCompletedEventArgs : EventArgs, ICompletable
 {
-    private readonly EventHandler<ConnectionAttemptEventArgs>? handler;
+    private readonly EventHandler<ConnectionAttemptCompletedEventArgs>? handler;
     private readonly object sender;
     private readonly string _physicalName;
 
-    internal ConnectionAttemptEventArgs(
-        EventHandler<ConnectionAttemptEventArgs>? handler,
+    internal ConnectionAttemptCompletedEventArgs(
+        EventHandler<ConnectionAttemptCompletedEventArgs>? handler,
         object sender,
         EndPoint? endPoint,
         ConnectionType connectionType,
@@ -33,6 +33,8 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
         X509Certificate? clientCertificate,
         string? tlsHostName,
         ServerCertificateCheck? serverCertificateCheck,
+        long sequenceNumber,
+        DateTime completedTimeUtc,
         string? physicalName)
     {
         this.handler = handler;
@@ -44,6 +46,8 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
         FailureType = failureType;
         Exception = exception;
         TlsHostName = tlsHostName;
+        SequenceNumber = sequenceNumber;
+        CompletedTimeUtc = completedTimeUtc;
         if (serverCertificateCheck is not null)
         {
             ServerCertificatePolicyErrors = serverCertificateCheck.PolicyErrors;
@@ -54,17 +58,46 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
 
         // Snapshot rather than retain: this is delivered on a worker after the attempt has finished, by which time
         // whoever supplied the certificate may have disposed it - and we have no business holding it (or its key).
+        // This runs on the connection's own path, so each read is guarded: a certificate disposed while the attempt
+        // was in flight (plausible mid-rotation) throws when read, and observing must never affect the connection.
         if (clientCertificate is not null)
         {
-            ClientCertificateSubject = clientCertificate.Subject;
-            ClientCertificateIssuer = clientCertificate.Issuer;
-            ClientCertificateThumbprint = clientCertificate.GetCertHashString();
-            using var sha256 = SHA256.Create();
-            ClientCertificateThumbprintSha256 = ToHex(sha256.ComputeHash(clientCertificate.GetRawCertData()));
+            ClientCertificateSubject = TryRead(clientCertificate, static c => c.Subject);
+            ClientCertificateIssuer = TryRead(clientCertificate, static c => c.Issuer);
+            ClientCertificateThumbprint = TryRead(clientCertificate, static c => c.GetCertHashString());
+            ClientCertificateThumbprintSha256 = TryRead(clientCertificate, static c =>
+            {
+                using var sha256 = SHA256.Create();
+                return ToHex(sha256.ComputeHash(c.GetRawCertData()));
+            });
+        }
+    }
+
+    private static string? TryRead(X509Certificate certificate, Func<X509Certificate, string?> read)
+    {
+        try
+        {
+            return read(certificate);
+        }
+        catch
+        {
+            return null; // e.g. disposed; the identity is then simply unknown
         }
     }
 
     private static string ToHex(byte[] value) => BitConverter.ToString(value).Replace("-", "");
+
+    /// <summary>
+    /// Identifies this outcome among those reported by the same multiplexer: it increases with every outcome, in the order they
+    /// were recorded. Handlers are invoked on worker threads, so they can observe outcomes out of order, or concurrently; use this
+    /// (rather than arrival order) to tell which outcome is the more recent.
+    /// </summary>
+    public long SequenceNumber { get; }
+
+    /// <summary>
+    /// When this outcome was recorded (UTC).
+    /// </summary>
+    public DateTime CompletedTimeUtc { get; }
 
     /// <summary>
     /// Gets the server endpoint of the attempt.
@@ -133,7 +166,9 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
     /// If the handshake itself failed, this is the certificate returned by <see cref="ConfigurationOptions.CertificateSelection"/>, when that
     /// callback ran; a certificate supplied via <c>SslClientAuthenticationOptions</c> is only identified after a completed handshake.</para>
     /// <para>This is only known when the library performs TLS itself; it is always null when a tunnel supplies the transport.</para>
-    /// <para>The same applies to the other <c>ClientCertificate*</c> members.</para>
+    /// <para>The same applies to the other <c>ClientCertificate*</c> members. Any of them may also be null if the certificate could
+    /// not be read (for example, because it was disposed while the attempt was in flight).</para>
+    /// <para>Certificate subjects and issuers can contain tenant or personal identifiers; consider that before logging them.</para>
     /// </remarks>
     public string? ClientCertificateSubject { get; }
 
@@ -145,6 +180,8 @@ public sealed class ConnectionAttemptEventArgs : EventArgs, ICompletable
     /// <summary>
     /// The SHA-1 thumbprint (upper-case hex, as <see cref="X509Certificate2.Thumbprint"/>) of the client certificate used for this attempt, if any.
     /// </summary>
+    /// <remarks>This identifies a certificate; it is not suitable as a basis for trust decisions, given SHA-1's weaknesses. Prefer
+    /// <see cref="ClientCertificateThumbprintSha256"/> where possible.</remarks>
     public string? ClientCertificateThumbprint { get; }
 
     /// <summary>

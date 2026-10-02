@@ -62,6 +62,17 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         await WaitForAsync(() => attempts.Count(a => a.ConnectionType == ConnectionType.Interactive) >= 4);
         var interactive = attempts.Where(a => a.ConnectionType == ConnectionType.Interactive).ToArray();
         output.WriteLine($"interactive attempts: {interactive.Length}");
+
+        // handlers can run out of order, so the sequence (not arrival) is what orders outcomes
+        var all = attempts.ToArray();
+        Assert.Equal(all.Length, all.Select(a => a.SequenceNumber).Distinct().Count());
+        Assert.All(all, a => Assert.True(a.SequenceNumber > 0));
+        var ordered = all.OrderBy(a => a.SequenceNumber).ToArray();
+        for (int i = 1; i < ordered.Length; i++)
+        {
+            Assert.True(ordered[i].CompletedTimeUtc >= ordered[i - 1].CompletedTimeUtc);
+        }
+        Assert.All(all, a => Assert.True(a.CompletedTimeUtc > DateTime.UtcNow.AddMinutes(-1) && a.CompletedTimeUtc <= DateTime.UtcNow));
         Assert.All(interactive, a =>
         {
             Assert.False(a.IsSuccess);
@@ -69,6 +80,27 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
             Assert.NotEqual(ConnectionFailureType.None, a.FailureType);
             Assert.Equal(endpoint, a.EndPoint);
         });
+    }
+
+    [Fact]
+    public async Task WrongPasswordIsAnAuthenticationFailureDuringTheHandshake()
+    {
+        using var server = new InProcessTestServer(output) { Password = "right" };
+        var options = server.GetClientConfig(withPubSub: false);
+        options.Password = "wrong";
+        options.AbortOnConnectFail = false;
+        options.ConnectTimeout = 2000;
+        var attempts = Observe(options);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        Assert.False(conn.IsConnected);
+
+        await WaitForAsync(() => !attempts.IsEmpty);
+        var attempt = attempts.First();
+        output.WriteLine($"wrong password: {attempt.Stage}, {attempt.FailureType}: {attempt.Exception?.Message}");
+        Assert.False(attempt.IsSuccess);
+        Assert.Equal(ConnectionAttemptStage.Handshake, attempt.Stage);
+        Assert.Equal(ConnectionFailureType.AuthenticationFailure, attempt.FailureType);
     }
 
 #if !NETFRAMEWORK // the in-process server only does TLS on .NET
@@ -133,6 +165,101 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         Assert.Equal(bad.Subject, attempt.ClientCertificateSubject);
         Assert.Equal(bad.Thumbprint, attempt.ClientCertificateThumbprint);
         Assert.Equal(Sha256(bad), attempt.ClientCertificateThumbprintSha256);
+    }
+
+    [Fact]
+    public async Task WrongPasswordIsNotMistakenForARejectedClientCertificate()
+    {
+        // the certificate is fine, the password is not: anything acting on certificate health must leave this alone
+        using var good = CreateClientCertificate("good-client");
+        using var server = new InProcessTestServer(output, useSsl: true)
+        {
+            Password = "right",
+            ClientCertificateValidator = cert => cert is not null && cert.GetCertHashString() == good.Thumbprint,
+        };
+        var options = server.GetClientConfig(withPubSub: false);
+        options.Password = "wrong";
+        options.AbortOnConnectFail = false;
+        options.ConnectTimeout = 2000;
+        options.CertificateSelection += (_, _, _, _, _) => good;
+        var attempts = Observe(options);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        Assert.False(conn.IsConnected);
+
+        await WaitForAsync(() => !attempts.IsEmpty);
+        var attempt = attempts.First();
+        Assert.False(attempt.IsSuccess);
+        Assert.Equal(ConnectionAttemptStage.Handshake, attempt.Stage);
+        Assert.Equal(ConnectionFailureType.AuthenticationFailure, attempt.FailureType);
+        Assert.True(attempt.ServerCertificateAccepted);
+        Assert.Equal(good.Thumbprint, attempt.ClientCertificateThumbprint);
+        Assert.False(IsLikelyClientCertificateRejection(attempt));
+    }
+
+    [Fact]
+    public async Task RejectedClientCertificateMatchesTheDocumentedClassification()
+    {
+        using var good = CreateClientCertificate("good-client");
+        using var bad = CreateClientCertificate("bad-client");
+        using var server = new InProcessTestServer(output, useSsl: true)
+        {
+            ClientCertificateValidator = cert => cert is not null && cert.GetCertHashString() == good.Thumbprint,
+        };
+        var options = server.GetClientConfig(withPubSub: false);
+        options.AbortOnConnectFail = false;
+        options.ConnectTimeout = 2000;
+        options.CertificateSelection += (_, _, _, _, _) => bad;
+        var attempts = Observe(options);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+
+        await WaitForAsync(() => !attempts.IsEmpty);
+        Assert.True(IsLikelyClientCertificateRejection(attempts.First()));
+    }
+
+    // mirrors the classification documented in docs/Authentication.md; keep the two in step
+    private static bool IsLikelyClientCertificateRejection(ConnectionAttemptCompletedEventArgs e)
+        => !e.IsSuccess
+        && e.ServerCertificateAccepted == true
+        && ((e.Stage == ConnectionAttemptStage.Tls && e.FailureType == ConnectionFailureType.AuthenticationFailure)
+            || (e.Stage == ConnectionAttemptStage.Handshake && e.FailureType == ConnectionFailureType.SocketClosed));
+
+    [Fact]
+    public void DisposedClientCertificateDoesNotThrow()
+    {
+        // the snapshot runs on the connection's own path; a certificate disposed mid-attempt must not break it
+        var cert = CreateClientCertificate("disposed-client");
+        cert.Dispose();
+
+        string? subjectAfterDispose;
+        try
+        {
+            subjectAfterDispose = cert.Subject;
+        }
+        catch (Exception ex)
+        {
+            subjectAfterDispose = $"(throws {ex.GetType().Name})";
+        }
+        output.WriteLine($"disposed certificate Subject: {subjectAfterDispose}");
+
+        var args = new ConnectionAttemptCompletedEventArgs(
+            handler: null,
+            sender: this,
+            endPoint: null,
+            connectionType: ConnectionType.Interactive,
+            isSuccess: true,
+            stage: ConnectionAttemptStage.Established,
+            failureType: ConnectionFailureType.None,
+            exception: null,
+            clientCertificate: cert,
+            tlsHostName: null,
+            serverCertificateCheck: null,
+            sequenceNumber: 1,
+            completedTimeUtc: DateTime.UtcNow,
+            physicalName: null);
+        output.WriteLine($"snapshot: subject={args.ClientCertificateSubject ?? "(null)"}, sha256={args.ClientCertificateThumbprintSha256 ?? "(null)"}");
+        Assert.True(args.IsSuccess);
     }
 
     [Fact]
@@ -259,9 +386,9 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
     }
 #endif
 
-    private static ConcurrentQueue<ConnectionAttemptEventArgs> Observe(ConfigurationOptions options)
+    private static ConcurrentQueue<ConnectionAttemptCompletedEventArgs> Observe(ConfigurationOptions options)
     {
-        var attempts = new ConcurrentQueue<ConnectionAttemptEventArgs>();
+        var attempts = new ConcurrentQueue<ConnectionAttemptCompletedEventArgs>();
         options.ConnectionAttemptCompleted += (_, e) => attempts.Enqueue(e);
         return attempts;
     }

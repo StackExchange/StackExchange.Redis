@@ -395,7 +395,7 @@ namespace StackExchange.Redis
         /// failed reconnect attempt is reported. Subscribe before connecting, so that initial attempts are observed. Handlers are invoked
         /// on a worker thread, not on the connection's own thread.
         /// </remarks>
-        public event EventHandler<ConnectionAttemptEventArgs>? ConnectionAttemptCompleted;
+        public event EventHandler<ConnectionAttemptCompletedEventArgs>? ConnectionAttemptCompleted;
 
         /// <summary>
         /// The default (not explicitly configured) options for this connection, fetched based on our parsed endpoints.
@@ -1044,7 +1044,7 @@ namespace StackExchange.Redis
             private set => CertificateValidation = value;
         }
 
-        internal EventHandler<ConnectionAttemptEventArgs>? ConnectionAttemptCompletedHandler
+        internal EventHandler<ConnectionAttemptCompletedEventArgs>? ConnectionAttemptCompletedHandler
         {
             get => ConnectionAttemptCompleted;
             private set => ConnectionAttemptCompleted = value;

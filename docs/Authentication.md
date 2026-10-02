@@ -100,22 +100,47 @@ connection is restored), and identifies the client certificate used for that att
 ``` csharp
 options.ConnectionAttemptCompleted += (sender, e) =>
 {
-    if (e.ClientCertificateThumbprintSha256 is { } thumbprint)
-    {
-        if (e.IsSuccess) MarkHealthy(thumbprint);
-        else MarkSuspect(thumbprint, e.FailureType, e.Exception);
-    }
+    if (e.ClientCertificateThumbprintSha256 is not { } thumbprint) return; // no client certificate involved
+
+    if (e.IsSuccess) RecordSuccess(thumbprint, e.SequenceNumber);
+    else if (IsLikelyClientCertificateRejection(e)) RecordSuspectedRejection(thumbprint, e.SequenceNumber);
+    // anything else (socket connect, server certificate, a wrong password, ...) says nothing about the client certificate
 };
+
+static bool IsLikelyClientCertificateRejection(ConnectionAttemptCompletedEventArgs e)
+    => !e.IsSuccess
+    && e.ServerCertificateAccepted == true // the server certificate was fine...
+    && ((e.Stage == ConnectionAttemptStage.Tls && e.FailureType == ConnectionFailureType.AuthenticationFailure) // TLS 1.2
+        || (e.Stage == ConnectionAttemptStage.Handshake && e.FailureType == ConnectionFailureType.SocketClosed)); // TLS 1.3
 ```
 
-Note that a rejected client certificate does not necessarily surface as an authentication failure: with TLS 1.3 the client
-handshake completes before the server rejects the certificate, so the attempt typically fails as `SocketClosed` during the
-Redis handshake that follows. `e.Stage` says how far the attempt got (`Connect`, `Tunnel`, `Tls`, `Handshake`, or
-`Established` on success), so that case reports `Handshake`.
+`e.Stage` says how far the attempt got: `Connect`, `Tunnel`, `Tls`, `Handshake`, or `Established` on success. Telling a rejected
+client certificate apart from other failures needs both the stage and the failure type:
+
+- With TLS 1.2, the server rejects the certificate during the TLS handshake: `Tls` + `AuthenticationFailure`.
+- With TLS 1.3, the client's TLS handshake completes *before* the server rejects the certificate, and the server then hangs up
+  during the Redis handshake that follows: `Handshake` + `SocketClosed`.
+- A wrong password or ACL problem is the server *replying* with an error during the Redis handshake: `Handshake` +
+  `AuthenticationFailure`. That says nothing about the certificate, and must not count against it.
+
+Even so, `SocketClosed` is a weak signal: server restarts, connection resets, `maxclients` and network interruptions look the
+same. If you act on it, for example by falling back to an older certificate:
+
+- **require corroboration**, such as several consecutive suspected rejections of the same certificate, rather than reacting to
+  one;
+- **keep retrying the primary certificate** periodically, so that a fallback is never permanent;
+- **check the fallback certificate's expiry** before using it, and consider whether falling back is acceptable at all: certificates
+  are often rotated because the old one is expiring or compromised;
+- **don't assume ordering**: handlers run on worker threads, so outcomes can arrive out of order, concurrently, or after the next
+  attempt has already selected its certificate. Use `e.SequenceNumber` (or `e.CompletedTimeUtc`) to order them.
 
 The same event also describes the server side of TLS: `e.TlsHostName` is the host name sent as SNI (which can differ from
 `e.EndPoint`), and `e.ServerCertificatePolicyErrors`, `e.ServerCertificateChainStatus` and `e.ServerCertificateAccepted` report
 what the platform found when validating the server certificate, and what was decided.
+
+Two cautions: the SHA-1 `e.ClientCertificateThumbprint` identifies a certificate but is not a basis for trust decisions (prefer
+`e.ClientCertificateThumbprintSha256`), and certificate subjects can contain tenant or personal identifiers, so consider that
+before logging them.
 
 ## User certificates with implicit user authentication
 

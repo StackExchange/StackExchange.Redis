@@ -1,7 +1,7 @@
 ﻿namespace StackExchange.Redis;
 
 /// <summary>
-/// How far a physical connection attempt got; see <see cref="ConnectionAttemptEventArgs.Stage"/>.
+/// How far a physical connection attempt got; see <see cref="ConnectionAttemptCompletedEventArgs.Stage"/>.
 /// </summary>
 /// <remarks>Values are spaced apart, so that finer-grained stages can be added later without renumbering; compare stages by order, not equality, where "at least as far as" is meant.</remarks>
 public enum ConnectionAttemptStage

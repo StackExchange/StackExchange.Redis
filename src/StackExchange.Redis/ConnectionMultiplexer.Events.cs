@@ -2,6 +2,7 @@
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis;
@@ -24,9 +25,26 @@ public partial class ConnectionMultiplexer
         var handler = RawConfig.ConnectionAttemptCompletedHandler;
         if (handler != null)
         {
-            CompleteAsWorker(new ConnectionAttemptEventArgs(handler, this, endpoint, connectionType, isSuccess, stage, failureType, exception, clientCertificate, tlsHostName, serverCertificateCheck, physicalName));
+            var sequenceNumber = Interlocked.Increment(ref _connectionAttemptSequence);
+            CompleteAsWorker(new ConnectionAttemptCompletedEventArgs(
+                handler,
+                this,
+                endpoint,
+                connectionType,
+                isSuccess,
+                stage,
+                failureType,
+                exception,
+                clientCertificate,
+                tlsHostName,
+                serverCertificateCheck,
+                sequenceNumber,
+                DateTime.UtcNow,
+                physicalName));
         }
     }
+
+    private long _connectionAttemptSequence;
 
     /// <summary>
     /// Raised whenever a physical connection fails.

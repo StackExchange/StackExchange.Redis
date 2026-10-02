@@ -107,6 +107,20 @@ namespace StackExchange.Redis
         {
             if (Interlocked.CompareExchange(ref _attemptOutcomeReported, 1, 0) != 0) return;
             var clientCertificate = Interlocked.Exchange(ref _clientCertificate, null); // nothing to gain from keeping it
+            // This runs on the connection's own path (including establishing a healthy connection), so nothing that merely
+            // *observes* the attempt may be allowed to throw into it.
+            try
+            {
+                ReportAttemptOutcomeCore(isSuccess, failureType, exception, clientCertificate);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+        }
+
+        private void ReportAttemptOutcomeCore(bool isSuccess, ConnectionFailureType failureType, Exception? exception, X509Certificate? clientCertificate)
+        {
             if (BridgeCouldBeNull is { } bridge)
             {
                 var stage = isSuccess ? ConnectionAttemptStage.Established : _attemptStage;
