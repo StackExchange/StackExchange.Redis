@@ -3395,3 +3395,44 @@ the same rules - the shipped processor's comment about deferring the decision (t
 
 **Order to close them in**, cheapest and most self-contained first: product variant, tie-breaker,
 `CLUSTER NODES`, replica probe. Only then is there any point re-measuring the gate.
+
+### 9l. Product variant moved; and why closing the other three will not close the gate either
+
+**Done: the product variant and version.** `RespHandshake.DiscoverProductAsync` reads `INFO server` and
+derives both, reusing `AutoConfigureInfoField` and its generated `TryParse` so the field names keep one
+spelling. Asked once per server, gated on an empty recorded product version - the same "has anyone said?"
+test the database count uses - and placed in `DiscoverServerConfigAsync`, which is already the
+interactive-only home for beliefs nothing else has described. That leaves the handshake transcript
+untouched, which matters: several tests assert it exactly.
+
+From `INFO`, not from `HELLO`, which matches the shipped core. `HELLO` does carry a `server` field and
+reading it would be free, but it names the product without its product version, and the version is half
+of the belief. The variant is also decided across the whole reply rather than per line, because
+`redis_version` and `valkey_version` can both be present in either order - the shipped processor's rule,
+now in one place.
+
+With the gate on, that closes `ProductVariantUnitTests` (7 of the 26).
+
+**And then the gate stops being about beliefs at all.** `ValkeyUnitTests.IdentifyValkeyCluster` still
+fails, and tracing says `DiscoverProductAsync` is **never called** in it: the test connects, asks
+`GetProductVariant`, and never issues a command - so this core, which dials on first use, never dials,
+and nothing discovers anything. The belief is not missing; the *connection* is.
+
+That is the real shape of D2.8, and it is circular:
+
+- the shipped core establishes its beliefs **at connect**, from a handshake it performs because it dials
+  every endpoint at startup;
+- this core establishes them **when first used**, because it dials lazily - which is the whole point of
+  it, and is what makes a six-node cluster cost one socket;
+- so the shipped handshake cannot be turned off until this core dials at startup, and this core cannot
+  dial at startup without adding a socket per endpoint on top of the shipped bridges that are still
+  dialling. `RespConnectionStateTests.EagerConnectMapsTheWholeClusterFromOneConnection` already says
+  exactly this in its own remarks: *"Not yet called from `Connect`: while the shipped core still dials
+  every endpoint of its own, doing this at startup adds a socket rather than replacing one."*
+
+**So the remaining three gaps are not the blocker, and closing them one at a time would not close the
+gate.** The tie-breaker, `CLUSTER NODES` and the replica probe would each fail the same way for a client
+that connects and never sends anything. The step that resolves it is a single one - this core dialling at
+connect *while* the shipped core stops - and the eager-connect machinery for it already exists
+(`ConnectMode.Discover`, one socket, map filled from it). The three remaining beliefs then have to be
+established by that dial, which is where the earlier itemisation is still exactly the to-do list.

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -354,6 +355,10 @@ namespace StackExchange.Redis
         /// </remarks>
         internal static async Task DiscoverServerConfigAsync(RespDatabaseContext context, ServerEndPoint server)
         {
+            // FIRST, and outside the gate below, because the two beliefs are independent: a server whose
+            // database count somebody has already established can still have no product recorded.
+            await DiscoverProductAsync(context, server).ConfigureAwait(false);
+
             if (server.Databases > 0) return;
             if (!context.Raw.CommandMap.IsAvailable(RedisCommand.CONFIG)) return;
 
@@ -371,6 +376,125 @@ namespace StackExchange.Redis
             if (await ReadSettingAsync(context, readOnlyKey).ConfigureAwait(false) is { } readOnly)
             {
                 server.ReplicaReadOnly = !string.Equals(readOnly, "no", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>Which product this is - Redis, Valkey, Garnet and the rest - and its own version.</summary>
+        /// <param name="context">A context over the connection to ask on.</param>
+        /// <param name="server">The server to describe.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Not a cosmetic label: it changes routing rules.</b> <c>ServerEndPoint</c> decides whether a
+        /// cluster supports multiple databases from this - Valkey does, Redis does not - so a client that
+        /// never learns the product applies the wrong rule to a real deployment.
+        /// </para>
+        /// <para>
+        /// <b>From <c>INFO</c>, not from <c>HELLO</c>, which is deliberate and matches the shipped core.</b>
+        /// <c>HELLO</c> does carry a <c>server</c> field, and reading it would be free - but it names the
+        /// product without its product version, and the version is half of what is being established. The
+        /// variant is decided across the whole reply rather than per line, because both
+        /// <c>redis_version</c> and <c>valkey_version</c> can be present in either order; that is the
+        /// shipped processor's rule and this reuses its field table rather than growing a second copy.
+        /// </para>
+        /// <para>
+        /// Asked once per server: an empty recorded product version means nobody has described this one
+        /// yet, which is the same "has anyone said?" gate the database count uses. See design notes 9k.
+        /// </para>
+        /// </remarks>
+        private static async Task DiscoverProductAsync(RespDatabaseContext context, ServerEndPoint server)
+        {
+            _ = server.GetProductVariant(out var described);
+            if (!string.IsNullOrEmpty(described)) return;
+            if (!context.Raw.CommandMap.IsAvailable(RedisCommand.INFO)) return;
+
+            try
+            {
+                var product = await context.SendAsync(
+                    $"{RedisCommand.INFO}{RespLiterals.Server}",
+                    handler: ProductHandler.Instance).ConfigureAwait(false);
+
+                if (product.ProductVersion is { Length: > 0 })
+                {
+                    server.SetProductVariant(product.Variant, product.ProductVersion);
+                }
+            }
+            catch (RedisServerException)
+            {
+                // INFO can be restricted or renamed; an undescribed product behaves as it did before
+            }
+        }
+
+        /// <summary>What <c>INFO server</c> said this product is.</summary>
+        private readonly struct ProductReply(ProductVariant variant, string productVersion)
+        {
+            internal ProductVariant Variant { get; } = variant;
+
+            internal string ProductVersion { get; } = productVersion;
+        }
+
+        /// <summary>Reads the product and its version out of an <c>INFO server</c> reply.</summary>
+        /// <remarks>
+        /// Decodes the section and walks it a line at a time, which is what the shipped processor does with
+        /// the same reply - and the point is to go through <c>AutoConfigureInfoFieldMetadata</c> so the
+        /// field names have one spelling rather than two.
+        /// </remarks>
+        private sealed class ProductHandler : IRespHandler<ProductReply>
+        {
+            internal static readonly ProductHandler Instance = new();
+
+            public ProductReply Parse(ref RespReader reader)
+            {
+                if (!reader.IsScalar) return default;
+
+                var info = reader.ReadString();
+                if (string.IsNullOrEmpty(info)) return default;
+
+                var variant = ProductVariant.Redis;
+                var productVersion = "";
+
+                using var lines = new StringReader(info!);
+                while (lines.ReadLine() is { } line)
+                {
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# ", StringComparison.Ordinal)) continue;
+
+                    var split = line.IndexOf(':');
+                    if (split < 0) continue;
+                    if (!AutoConfigureInfoFieldMetadata.TryParse(line.AsSpan(0, split), out var field)) continue;
+
+                    var value = line.AsSpan(split + 1).Trim();
+                    switch (field)
+                    {
+                        case AutoConfigureInfoField.RedisVersion when variant is ProductVariant.Redis:
+                            // only while nothing better has been seen: a Valkey server reports both
+                            productVersion = value.ToString();
+                            break;
+                        case AutoConfigureInfoField.GarnetVersion:
+                            variant = ProductVariant.Garnet;
+                            productVersion = value.ToString();
+                            break;
+                        case AutoConfigureInfoField.ValkeyVersion:
+                            variant = ProductVariant.Valkey;
+                            productVersion = value.ToString();
+                            break;
+                        case AutoConfigureInfoField.DragonflyVersion:
+                            variant = ProductVariant.Dragonfly;
+                            productVersion = value.ToString();
+                            break;
+                        case AutoConfigureInfoField.MemuraiVersion:
+                            variant = ProductVariant.Memurai;
+                            productVersion = value.ToString();
+                            break;
+                        case AutoConfigureInfoField.RedictVersion:
+                            variant = ProductVariant.Redict;
+                            productVersion = value.ToString();
+                            break;
+                        case AutoConfigureInfoField.Executable when value.EndsWith("/keydb-server".AsSpan(), StringComparison.Ordinal):
+                            variant = ProductVariant.KeyDB;
+                            break;
+                    }
+                }
+
+                return new ProductReply(variant, productVersion);
             }
         }
 
