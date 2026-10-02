@@ -3284,3 +3284,40 @@ only routing authority.
 writes left its endpoint recorded for ever and every later `EnsureSubscribedToServer` returned "nothing
 to do". It is now bounded by the configured timeout. No test named this - it was found while diagnosing
 the above, and is kept because the unbounded case is real, not because it fixed the thing being chased.
+
+### 9i. Slot routing now asks whether the owner is reachable
+
+9h's diagnosis, carried out. Three parts, each needed, and the first two were each insufficient alone -
+worth recording because the symptom (`RetirementUnderMaintenanceTests`, a sharded channel still
+subscribed on a black-holed node) did not move until the third.
+
+1. **`ChooseByRole` asks whether its answer can be reached.** The shipped selector asks in its
+   signature - `Select(slot, command, flags, allowDisconnected: false)` - and nothing here did, so a
+   slot whose owner had gone away kept being chosen. `null` falls through to the selector and then to
+   `EndpointForAny`, both of which prefer somewhere reachable, so picking the substitute is not this
+   method's job.
+
+2. **"Known down", not "not connected".** This core dials lazily, so an endpoint nobody has needed yet
+   is unconnected and perfectly usable; barring it would route every first command away from the node
+   that owns the slot. Down means dialled AND holding a connect fault. `ServerEndPoint.PublishSelectable`
+   already depends on exactly this distinction from the other side, which is why it excludes
+   `DidNotRespond` - "that flag cannot tell the two apart and this can".
+
+3. **Either socket counts.** Asking only the ordinary executors missed the case that matters: a node
+   this core has only ever subscribed on has no ordinary executor at all, which is precisely the shape
+   of a sharded channel's node going away.
+
+**And the recording had the same hole from the other direction.** `Settle` re-resolves a sharded
+subscribe's endpoint from the slot map - correct, because a `-MOVED` is how the subscription moves - but
+a `-MOVED` updates that map whether or not the resend it caused ever landed. So a redirect pointing at a
+departed node recorded the subscription as living there: not where we aimed (that node redirected us
+away), not anywhere reachable (that node cannot be written to). It now records **nothing**, which is
+both the truth and what lets the next `EnsureSubscribedToServer` try again.
+
+**The test's premise changed rather than its subject.** It guards against vacuity by requiring the
+refusing node to be accumulating our own probe traffic - the "busy with probes, idle of caller work"
+state the shipped core has to reason its way out of. Under the flag that state no longer arises,
+because this core stops aiming anything at a node it knows is gone: the node is simply idle. Checked
+before changing anything, by relaxing only that precondition - the whole rest of the test passes, so
+retirement itself was never the problem. The flagged path now asserts the stronger property (nothing is
+queued there at all) rather than skipping, since everything after that point still has to hold.
