@@ -3013,8 +3013,16 @@ takes it, which is what `OnEnqueued` exists for, so nothing is paid until someth
 `MaintenanceRelaxationEvidenceTests.ATimeoutInsideAWindowSaysWhichEventCausedIt` pins it, and was
 checked both ways.
 
-Still wanted for a third sighting: the connection's own state at the moment `PendingCount` starts growing
-without bound, and whether `Drain` has stopped being called or has stopped consuming.
+**Third sighting, and it did not present as failures at all.** A full flagged suite run exceeded the
+thirty-minute timeout and was killed, having produced no result - where the same build's runs either side
+of it finished in about three minutes. The docker topology was checked immediately afterwards and was
+healthy (`cluster_state:ok`, `cluster_slots_assigned:16384`, `cluster_slots_ok:16384` on every node), so
+this was not environmental: something wedged and everything queued behind it, which is this section's
+whole subject. Worth knowing that the symptom can be "the run never finishes" rather than a failure list,
+because a CI job would report that as a timeout and not as this.
+
+Still wanted: the connection's own state at the moment `PendingCount` starts growing without bound, and
+whether `Drain` has stopped being called or has stopped consuming.
 
 ### 9c. What this buys beyond tidiness
 
@@ -3349,3 +3357,10 @@ If that is right, the fix is not test-by-test: it is the interactive bridge goin
 socket per node and the handshake that comes with it. So the next step is the one already queued -
 D2.8, and the connect wait - and the measurement to take afterwards is this rotation, not any individual
 name on the list.
+
+**Ruled out: a damaged test topology.** These runs follow hours of cluster tests that migrate slots and
+do not migrate them back, so the obvious suspicion is that the shared docker cluster had been left
+lopsided and the rotation was measuring that rather than the client. Checked directly - every node
+reports `cluster_state:ok` with all 16384 slots assigned and OK - so the topology is intact and the
+rotation is the client's. The in-process server sharing port 6379 with the docker primary remains a
+separate, real source of batch-only failures.
