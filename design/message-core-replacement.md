@@ -3172,10 +3172,20 @@ which is the same problem and wants solving once.
 
 Full-suite numbers, both flags, net10.0, against the commit before this stretch (`32d0362f`):
 
-| | baseline | here |
+| | baseline (`32d0362f`) | here |
 |---|---|---|
-| flagged failures | 5 | 10 |
-| shipped failures | 3 | 2 |
+| flagged failures | 5 | 5 |
+| shipped failures | 3 | 1 |
+
+The counts match; the membership does not, and that is the point. Gone from the list: the
+`ValueTuple` reference, `InProcPubSubTests.TestBasicPubSubFireAndForget`, all five
+configuration-channel tests, `FailoverTests.ConfigVerifyReceiveConfigChangeBroadcast`, and
+`GarbageCollectionTests.MuxerIsCollected`. Added: two timing-sensitive tests that the extra socket
+per node shakes loose - `ClusterTopologyUnitTests.SlotMapIsDrivenByTheSlotsView` (which passes alone,
+and whose in-batch failure is a `MOVED` from a *real* server, so it is the in-process server sharing
+port 6379 rather than a routing fault) and
+`RetirementUnderMaintenanceTests.ARefusingNodeAccumulatesOnlyOurOwnTrafficAndIsRetired`. The rest are
+the pre-existing dual-core artefacts already written up.
 
 **Fixed along the way**: `SanityChecks.ValueTupleNotReferenced` (a tuple used as a `QueueUserWorkItem`
 state object - this library cannot reference `System.ValueTuple`), `InProcPubSubTests.TestBasicPubSubFireAndForget`,
@@ -3219,8 +3229,13 @@ once the channel was carried again.
    the multiplexer and the test fixture's is held by a `ConditionalWeakTable` keyed on it - but anything
    that builds a core and keeps only a connection would silently stop following redirects.
 
-2. `RespConnectionStateTests.EagerConnectMapsTheWholeClusterFromOneConnection`, whose premise is that one
-   connection suffices to map a cluster. Still true of the mapping; no longer true of the socket count.
+2. `RespConnectionStateTests.EagerConnectMapsTheWholeClusterFromOneConnection`. Not the property under
+   test but its PRECONDITION - "nothing has been sent, so nothing has dialled" - which the activation
+   dial makes false before the test starts. Run with the configuration channel off, so the precondition
+   holds again and the thing being measured is untouched; the same treatment
+   `RespSubscriptionConnectionTests.NoSubscriptionMeansNoSecondSocket` needs, and for the same reason.
+   Fixing it also cleared `SlotMapIsDrivenByTheSlotsView` in that batch, which is what identified the
+   port sharing above rather than a routing fault.
 
 **The rest of the gap is the two-cores artefact**, and shows up as timing: under RESP2 a node now carries
 three sockets (the shipped interactive bridge, this core's interactive connection, this core's

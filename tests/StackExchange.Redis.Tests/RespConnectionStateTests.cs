@@ -290,7 +290,15 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
     public async Task EagerConnectMapsTheWholeClusterFromOneConnection()
     {
         Skip.IfNoCluster();
-        await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
+
+        // ...with the configuration channel off, because this core now dials for it at activation: that
+        // channel can only live on a subscription socket under RESP2, and nothing else would ever ask for
+        // it. Leaving it on makes "nothing has dialled" false before the test starts, which would be
+        // measuring the default configuration rather than the thing under test.
+        await using var conn = Create(
+            allowAdmin: true,
+            configuration: $"{TestConfig.Current.ClusterServersAndPorts},configChannel=",
+            log: Writer);
         var core = ((ConnectionMultiplexer)conn).NewCore;
 
         // nothing has been sent, so nothing has dialled
