@@ -417,6 +417,14 @@ namespace StackExchange.Redis
                 {
                     server.SetProductVariant(product.Variant, product.ProductVersion);
                 }
+
+                // ...and the mode, with the same guard `Publish` uses: a sentinel or a proxy is not
+                // something an INFO section gets to overrule.
+                if (product.ServerType is { } mode
+                    && server.ServerType is not (ServerType.Sentinel or ServerType.Twemproxy))
+                {
+                    server.ServerType = mode;
+                }
             }
             catch (RedisServerException)
             {
@@ -425,11 +433,20 @@ namespace StackExchange.Redis
         }
 
         /// <summary>What <c>INFO server</c> said this product is.</summary>
-        private readonly struct ProductReply(ProductVariant variant, string productVersion)
+        private readonly struct ProductReply(ProductVariant variant, string productVersion, ServerType? serverType)
         {
             internal ProductVariant Variant { get; } = variant;
 
             internal string ProductVersion { get; } = productVersion;
+
+            /// <summary>What the section called this server's mode, when it named one.</summary>
+            /// <remarks>
+            /// <b>Read from the same reply because it is in it</b>, and because <c>HELLO</c>'s <c>mode</c>
+            /// is not always there to ask: a server with no <c>HELLO</c> is exactly the case that needs
+            /// this, and a product that spells the field <c>server_mode</c> rather than <c>redis_mode</c>
+            /// is another - <c>ValkeyUnitTests</c> is built on both at once, and read as Standalone.
+            /// </remarks>
+            internal ServerType? ServerType { get; } = serverType;
         }
 
         /// <summary>Reads the product and its version out of an <c>INFO server</c> reply.</summary>
@@ -451,6 +468,7 @@ namespace StackExchange.Redis
 
                 var variant = ProductVariant.Redis;
                 var productVersion = "";
+                ServerType? serverType = null;
 
                 using var lines = new StringReader(info!);
                 while (lines.ReadLine() is { } line)
@@ -491,10 +509,15 @@ namespace StackExchange.Redis
                         case AutoConfigureInfoField.Executable when value.EndsWith("/keydb-server".AsSpan(), StringComparison.Ordinal):
                             variant = ProductVariant.KeyDB;
                             break;
+                        case AutoConfigureInfoField.RedisMode:
+                        case AutoConfigureInfoField.ServerMode:
+                            // both spellings, which is the shipped processor's rule and not a guess
+                            if (ServerTypeMetadata.TryParse(value, out var mode)) serverType = mode;
+                            break;
                     }
                 }
 
-                return new ProductReply(variant, productVersion);
+                return new ProductReply(variant, productVersion, serverType);
             }
         }
 
