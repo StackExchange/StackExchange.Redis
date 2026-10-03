@@ -3772,3 +3772,38 @@ suite fully green. What is left in that family splits into two:
 - **retention and replay** (3) plus `MovingRecyclesTheConnectionBeforeTheServerCloses` and
   `OneLogicalEventFromEveryNodeRaisesOneEvent`, which are about acting on what was parsed rather than
   parsing it.
+
+### 9u. Reconcile, and a correction: "better than shipped" broke a tested behaviour
+
+`ReconcileMaintenanceNotifications` settles the feature once the protocol is known, and decides whether
+an unavailable-but-`Enabled` feature should fail the connection. Same borrow-the-decision shape as 9s:
+the rule and its wording are now an `internal string?` overload returning the failure message, the
+shipped caller turns that into `RecordConnectionFailed`, and this core **throws out of its handshake** -
+which is the same thing in its own terms, since a handshake that throws fails the connect, and
+"`Enabled` means required: no notifications, no connection" is exactly that.
+
+**Then the measurement corrected me on something I had thought was an improvement.** The shipped core
+sends the opt-in on *intent* - whenever RESP3 was requested - and sorts out a downgrade afterwards,
+because it cannot read the `HELLO` reply. This core *can*, so it asked only when RESP3 had actually been
+negotiated: strictly fewer round trips, same end state, obviously better.
+
+It is not better, and `MaintenanceOptInClientTests.AutoIsOffWhenTheServerDowngradesToResp2` says so in
+its own name and comment: *"the server accepts the opt-in and then answers HELLO as RESP2... We asked,
+the server said OK, and we still treat it as off."* The test asserts the server **saw** the opt-in. That
+sequence is observable on the wire, deliberate, and covered - so skipping the request is an unflagged
+behaviour change dressed up as an optimisation. Reverted to asking on intent, with the reason written
+where the temptation is.
+
+Two smaller things the same tests caught:
+
+- **a group member never asks, and has to say so.** `MaintenanceMode` already returns `Disabled` for a
+  group member, so the request was correctly suppressed - but the shipped handshake also *warns*, because
+  a caller who wrote `maintNotifications=Enabled` asked for a guarantee and is not getting it. Silently
+  suppressing it is the gap that warning exists to close, and this core was reproducing the gap.
+- **the suppressed path still has to reconcile.** `Enabled` over RESP2 never gets as far as asking, and
+  failing it is the point; returning early without settling left the contradiction standing.
+
+**Maintenance: 70 → 8.** The flagged suite as a whole is now at **3** - the two documented
+`ReconnectRetryPolicyUnitTests` artefacts and one rotator - with the shipped suite fully green. One
+flagged run was terminated at its timeout again (9b-xiii) and re-ran clean, which is the third time that
+wedge has cost a measurement in this stretch.

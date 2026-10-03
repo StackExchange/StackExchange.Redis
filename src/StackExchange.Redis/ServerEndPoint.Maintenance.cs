@@ -57,7 +57,7 @@ internal sealed partial class ServerEndPoint
     /// satisfied: under <see cref="MaintenanceNotificationMode.Enabled"/> the reconcile below fails the
     /// connection for exactly this case.) We can't know what was *negotiated* at write time
     /// (the handshake is pipelined, and <c>HELLO</c> hasn't been answered yet), so this tests what we asked
-    /// for and <see cref="ReconcileMaintenanceNotifications"/> settles it once the reply has been processed.
+    /// for and <see cref="ReconcileMaintenanceNotifications(RedisProtocol)"/> settles it once the reply has been processed.
     /// </remarks>
     private bool ShouldRequestMaintenanceNotifications(bool isInteractive, bool negotiateResp3)
         => isInteractive
@@ -132,7 +132,7 @@ internal sealed partial class ServerEndPoint
 
     /// <summary>
     /// The server declined our request. Recorded rather than acted on: whether that matters is a question for
-    /// <see cref="ReconcileMaintenanceNotifications"/>, which sees the negotiated protocol too.
+    /// <see cref="ReconcileMaintenanceNotifications(RedisProtocol)"/>, which sees the negotiated protocol too.
     /// </summary>
     /// <param name="connection">Which connection was refused; unused, and nullable so the other core can report.</param>
     /// <param name="reason">What the server said.</param>
@@ -156,7 +156,32 @@ internal sealed partial class ServerEndPoint
     /// </remarks>
     private void ReconcileMaintenanceNotifications(PhysicalConnection connection)
     {
-        bool resp3 = connection.Protocol is >= RedisProtocol.Resp3;
+        if (ReconcileMaintenanceNotifications(connection.Protocol ?? RedisProtocol.Resp2) is not { } reason) return;
+
+        connection.RecordConnectionFailed(
+            ConnectionFailureType.ProtocolFailure,
+            new RedisConnectionException(ConnectionFailureType.ProtocolFailure, CommandFlags.None, reason, innerException: null));
+    }
+
+    /// <summary>Settle the feature now the protocol is known, and say why it cannot be honoured.</summary>
+    /// <param name="protocol">What the connection negotiated.</param>
+    /// <returns>The message to fail the connection with, or null if there is nothing wrong.</returns>
+    /// <remarks>
+    /// <para>
+    /// The decision rather than the consequence, so both cores can reach it and act in their own terms: the
+    /// shipped bridge records a connection failure, and the other core throws out of its handshake. Same
+    /// rule, same message, one copy.
+    /// </para>
+    /// <para>
+    /// <b><c>Enabled</c> means required: no notifications, no connection.</b> That includes a configuration
+    /// that never got as far as asking - requiring a RESP3-only feature over RESP2 is a contradiction, and
+    /// failing it is more useful than honouring half of it. Note the cross-client spec only calls for
+    /// failing when the <i>server</i> errors; extending that to the RESP2 cases is ours, and deliberate.
+    /// </para>
+    /// </remarks>
+    internal string? ReconcileMaintenanceNotifications(RedisProtocol protocol)
+    {
+        bool resp3 = protocol >= RedisProtocol.Resp3;
         if (!resp3)
         {
             // whatever the server said about the opt-in, nothing can arrive on a RESP2 connection
@@ -165,21 +190,23 @@ internal sealed partial class ServerEndPoint
 
         if (_maintenanceNotificationsActive || MaintenanceMode != MaintenanceNotificationMode.Enabled)
         {
-            return;
+            return null;
         }
 
-        // Enabled means required: no notifications, no connection. That includes a configuration that never
-        // got as far as asking - requiring a RESP3-only feature over RESP2 is a contradiction, and failing it
-        // is more useful than honouring half of it. Note the cross-client spec only calls for failing when
-        // the *server* errors; extending that to the RESP2 cases is ours, and deliberate
         var reason = !resp3
             ? (_maintenanceNotificationsRequested ? "the connection negotiated RESP2" : "RESP3 was not requested")
             : _maintenanceNotificationsRefusal ?? "the server did not accept the request";
 
-        connection.RecordConnectionFailed(
-            ConnectionFailureType.ProtocolFailure,
-            new RedisConnectionException(ConnectionFailureType.ProtocolFailure, CommandFlags.None, $"Maintenance notifications are enabled, but unavailable: {reason}", innerException: null));
+        return $"Maintenance notifications are enabled, but unavailable: {reason}";
     }
+
+    /// <summary>Record that the other core has asked this server for notifications.</summary>
+    /// <remarks>
+    /// Separate from the accept/refuse report because it is a different fact: it distinguishes "we asked
+    /// and were turned down" from "we never asked", which is the difference between the two RESP2 messages
+    /// <see cref="ReconcileMaintenanceNotifications(RedisProtocol)"/> can produce.
+    /// </remarks>
+    internal void OnMaintenanceNotificationsRequested() => _maintenanceNotificationsRequested = true;
 
     // The relaxed-timeout window, expressed as a single deadline in Environment.TickCount terms so that it
     // can be read without a lock from the heartbeat sweeps. Zero means "no window"; a deadline that computes

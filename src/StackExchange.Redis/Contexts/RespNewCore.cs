@@ -989,7 +989,10 @@ namespace StackExchange.Redis
                         context,
                         modelled,
                         new RespHandshake.ConnectedTransportFacts(
-                            result.Protocol, connected.RemoteAddress, connected.IsEncrypted))
+                            result.Protocol,
+                            connected.RemoteAddress,
+                            connected.IsEncrypted,
+                            requestedResp3: config.Protocol is null or RedisProtocol.Resp3))
                         .ConfigureAwait(false);
                 }
             }

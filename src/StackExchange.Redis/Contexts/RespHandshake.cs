@@ -436,10 +436,18 @@ namespace StackExchange.Redis
         /// <param name="protocol">What the handshake settled on; notifications arrive as pushes.</param>
         /// <param name="remoteAddress">The address actually reached, when it was an IP one.</param>
         /// <param name="isEncrypted">Whether the connection ended up encrypted.</param>
+        /// <param name="requestedResp3">Whether RESP3 was asked for, which is not whether it was got.</param>
         internal readonly struct ConnectedTransportFacts(
-            RedisProtocol protocol, IPAddress? remoteAddress, bool isEncrypted)
+            RedisProtocol protocol, IPAddress? remoteAddress, bool isEncrypted, bool requestedResp3 = false)
         {
             internal RedisProtocol Protocol { get; } = protocol;
+
+            /// <summary>Whether RESP3 was ASKED for, which is not the same as whether it was got.</summary>
+            /// <remarks>
+            /// The maintenance opt-in is sent on the intent, deliberately - see
+            /// <c>RequestMaintenanceNotificationsAsync</c>.
+            /// </remarks>
+            internal bool RequestedResp3 { get; } = requestedResp3;
 
             internal IPAddress? RemoteAddress { get; } = remoteAddress;
 
@@ -473,7 +481,33 @@ namespace StackExchange.Redis
         private static async Task RequestMaintenanceNotificationsAsync(
             RespDatabaseContext context, ServerEndPoint server, ConnectedTransportFacts connected)
         {
-            if (!server.ShouldRequestMaintenanceNotifications(connected.Protocol >= RedisProtocol.Resp3)) return;
+            // A GROUP MEMBER NEVER ASKS, and has to be told that it is not asking: a caller who wrote
+            // maintNotifications=Enabled asked for a guarantee and is not getting it, and the alternative
+            // to saying so is a deployment where the feature is silently absent with nothing to explain
+            // it. The shipped handshake warns in exactly this position.
+            if (server.Multiplexer.IsGroupMember
+                && server.Multiplexer.RawConfig.MaintenanceNotifications != MaintenanceNotificationMode.Disabled)
+            {
+                server.Multiplexer.Logger?.LogWarningMaintenanceNotificationsSuppressedForGroup(
+                    new(server), server.Multiplexer.RawConfig.MaintenanceNotifications);
+            }
+
+            // ON THE INTENT, not on what was negotiated, which looks like the worse choice and is not.
+            // This core knows the protocol by now and could skip a request it can see is pointless - but
+            // the shipped core asks whenever RESP3 was requested and settles a downgrade afterwards, and
+            // that sequence is observable on the wire and asserted:
+            // `MaintenanceOptInClientTests.AutoIsOffWhenTheServerDowngradesToResp2` requires the server to
+            // have SEEN the opt-in and the client to disbelieve the acceptance anyway. Diverging here
+            // would be an unflagged behaviour change dressed up as an optimisation.
+            if (!server.ShouldRequestMaintenanceNotifications(connected.RequestedResp3))
+            {
+                // ...but a feature that is REQUIRED and could not even be asked for still has to be
+                // settled: `Enabled` over a RESP2 connection is a contradiction, not a silent downgrade.
+                Reconcile(server, connected.Protocol);
+                return;
+            }
+
+            server.OnMaintenanceNotificationsRequested();
 
             var endpointType = server.MaintenanceMovingEndpointTypeLiteral(
                 connected.RemoteAddress, connected.IsEncrypted);
@@ -498,8 +532,29 @@ namespace StackExchange.Redis
             }
             catch (RedisServerException ex)
             {
-                // the server does not offer it, or will not right now; either way it is not a fault
+                // the server does not offer it, or will not right now; whether THAT is a fault is the
+                // reconcile's decision, not this one's
                 server.OnMaintenanceNotificationsRefused(null, ex.Message);
+            }
+
+            Reconcile(server, connected.Protocol);
+        }
+
+        /// <summary>Fail the connection when a required feature turned out to be unavailable.</summary>
+        /// <param name="server">The server whose answer is being settled.</param>
+        /// <param name="protocol">What this connection negotiated.</param>
+        /// <remarks>
+        /// <b>The shipped core records a connection failure here; this one throws, and that is the same
+        /// thing in this core's terms.</b> A handshake that throws fails the connect, which is exactly
+        /// what "Enabled means required: no notifications, no connection" asks for - and the decision
+        /// itself, including the wording, is the shipped one rather than a second copy.
+        /// </remarks>
+        private static void Reconcile(ServerEndPoint server, RedisProtocol protocol)
+        {
+            if (server.ReconcileMaintenanceNotifications(protocol) is { } reason)
+            {
+                throw new RedisConnectionException(
+                    ConnectionFailureType.ProtocolFailure, CommandFlags.None, reason, innerException: null);
             }
         }
 
