@@ -3608,3 +3608,42 @@ as one change once the belief gaps close. Patch kept as `coupled-9p.patch`.
 
 **Next: the tie-breaker.** Biggest cluster, named in 9k, and the one that is pure belief-moving rather
 than structure.
+
+### 9q. Working the 9k/9p list down: 24 → 5
+
+With the connect path solved (9p), the remaining coupled-move failures were belief gaps. Four closed,
+each measured against the coupled patch and then landed on its own merits in both default
+configurations:
+
+| belief | where | coupled family |
+|---|---|---|
+| **server mode** - `redis_mode` *and* `server_mode` from `INFO server` | `DiscoverProductAsync` | 24 → 18 |
+| **a refused `AUTH` must not fail the handshake** | the `AUTH` block | 18 → 6 |
+| **the tie-breaker** | `DiscoverTieBreakerAsync` | (with the above) |
+| **the replication role** - `role`, `master_host`, `master_port` from `INFO replication` | `DiscoverReplicationAsync` | 6 → 5 |
+
+Duration went with it: **6m30s → 11s** for the 311-test family.
+
+**Two attributions in 9k and 9p were wrong, and the measurement said so.** The four
+`ClusterTopologyUnitTests` and both `ValkeyUnitTests` were blamed on the missing `CLUSTER NODES`; they
+were `server_mode`. `ConfigTests.MutableOptions`' "it was not possible to connect" was read as a second
+structural problem; it was the `AUTH` refusal. **`CLUSTER NODES` is not on the list at all any more** -
+nothing measured needs it, so the 9k itemisation over-counted by a whole row.
+
+**The `AUTH` one is a defect worth noting on its own**, independent of this branch's direction. The
+shipped handshake writes `AUTH` fire-and-forget and *cannot* read the reply, so it continues and records
+the suspicion; this core awaited it with no catch, so any server that refused `AUTH` had no connection
+at all. The case is not a wrong password - it is one configuration spanning servers with different
+requirements, where the config's password reaches a server that has none and gets "Client sent AUTH, but
+no password is set". That took a healthy endpoint out of the deployment, after a full connect timeout.
+
+**What is left of the coupled move (5 failures), and both are reporting rather than routing:**
+
+- `ConfigTests.GetClients` (2) - `GetConnectionId(endpoint, Interactive)` is null, because it asks the
+  bridge and this core tracks no connection id at all. Needs `CLIENT ID` in the handshake, stored on the
+  connection, and `GetConnectionId` answering from whichever core holds it - the same shape as
+  `IsConnected` and the tracer.
+- `ConfigTests.TestManualHeartbeat` (2) and
+  `ConnectCustomConfigTests.HeartbeatConsistencyCheckPingsAsync` (1) - the heartbeat's consistency pings
+  are written to the shipped bridge, so with that bridge idle the op-count is zero. The same move as the
+  tracer in 9n, applied to the heartbeat.

@@ -382,6 +382,7 @@ namespace StackExchange.Redis
             // FIRST, and outside the gate below, because the two beliefs are independent: a server whose
             // database count somebody has already established can still have no product recorded.
             await DiscoverProductAsync(context, server).ConfigureAwait(false);
+            await DiscoverReplicationAsync(context, server).ConfigureAwait(false);
             await DiscoverTieBreakerAsync(context, server).ConfigureAwait(false);
 
             if (server.Databases > 0) return;
@@ -401,6 +402,111 @@ namespace StackExchange.Redis
             if (await ReadSettingAsync(context, readOnlyKey).ConfigureAwait(false) is { } readOnly)
             {
                 server.ReplicaReadOnly = !string.Equals(readOnly, "no", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>Whether this server replicates another, and which.</summary>
+        /// <param name="context">A context over the connection to ask on.</param>
+        /// <param name="server">The server to describe.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>A role is not a preference, it is a routing fact</b>, and the client refuses writes to a
+        /// replica on the strength of it. Unlearned, every server looks like a primary:
+        /// <c>MultiPrimaryTests.CannotFlushReplica</c> connects to the replica, looks for the server
+        /// where <c>IsReplica</c> is true, and finds none.
+        /// </para>
+        /// <para>
+        /// <b>From <c>INFO replication</c>, which is the only source always available.</b> This core does
+        /// ask <c>ROLE</c>, and that is better where it applies - a primary lists its replicas, so one
+        /// reply describes both sides - but it is asked only when the topology says roles could change a
+        /// decision, which with a single configured endpoint they cannot. That is exactly the case here.
+        /// <c>HELLO</c> carries a role too, and only under RESP3.
+        /// </para>
+        /// <para>
+        /// Re-read per handshake, like the tie-breaker and unlike the product: a failover changes this,
+        /// and a new connection is a reasonable moment to find out. The shipped handshake asks the same
+        /// two <c>INFO</c> sections for the same reason.
+        /// </para>
+        /// </remarks>
+        private static async Task DiscoverReplicationAsync(RespDatabaseContext context, ServerEndPoint server)
+        {
+            if (!context.Raw.CommandMap.IsAvailable(RedisCommand.INFO)) return;
+
+            try
+            {
+                var replication = await context.SendAsync(
+                    $"{RedisCommand.INFO}{RespLiterals.Replication}",
+                    handler: ReplicationHandler.Instance).ConfigureAwait(false);
+
+                if (replication.IsReplica is { } isReplica) server.IsReplica = isReplica;
+                if (replication.Primary is { } primary) server.PrimaryEndPoint = primary;
+            }
+            catch (RedisServerException)
+            {
+                // a restricted INFO leaves the role as it was, which is what it did before this asked
+            }
+        }
+
+        /// <summary>What <c>INFO replication</c> said about this server's side of the pair.</summary>
+        private readonly struct ReplicationReply(bool? isReplica, EndPoint? primary)
+        {
+            internal bool? IsReplica { get; } = isReplica;
+
+            internal EndPoint? Primary { get; } = primary;
+        }
+
+        /// <summary>Reads <c>role</c>, and the primary it names when this is a replica.</summary>
+        /// <remarks>
+        /// <c>master_host</c> and <c>master_port</c> arrive in the same section as <c>role</c>, which is
+        /// why they are read together rather than asked for separately - the shipped processor notes the
+        /// same adjacency.
+        /// </remarks>
+        private sealed class ReplicationHandler : IRespHandler<ReplicationReply>
+        {
+            internal static readonly ReplicationHandler Instance = new();
+
+            public ReplicationReply Parse(ref RespReader reader)
+            {
+                if (!reader.IsScalar) return default;
+
+                var info = reader.ReadString();
+                if (string.IsNullOrEmpty(info)) return default;
+
+                bool? isReplica = null;
+                string? host = null, port = null;
+
+                using var lines = new StringReader(info!);
+                while (lines.ReadLine() is { } line)
+                {
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# ", StringComparison.Ordinal)) continue;
+
+                    var split = line.IndexOf(':');
+                    if (split < 0) continue;
+                    if (!AutoConfigureInfoFieldMetadata.TryParse(line.AsSpan(0, split), out var field)) continue;
+
+                    var value = line.AsSpan(split + 1).Trim();
+                    switch (field)
+                    {
+                        case AutoConfigureInfoField.Role:
+                            if (KnownRoleMetadata.TryParse(value, out var replica)) isReplica = replica;
+                            break;
+                        case AutoConfigureInfoField.MasterHost:
+                            host = value.ToString();
+                            break;
+                        case AutoConfigureInfoField.MasterPort:
+                            port = value.ToString();
+                            break;
+                    }
+                }
+
+                // only when the section actually named one: a primary reports no master_host at all
+                EndPoint? primary = null;
+                if (host is { Length: > 0 } && Format.TryParseEndPoint(host, port, out var parsed))
+                {
+                    primary = parsed;
+                }
+
+                return new ReplicationReply(isReplica, primary);
             }
         }
 
