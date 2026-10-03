@@ -3547,3 +3547,64 @@ Not a long tail.
 static constructor on `Message`, neither of which belongs on that path. To re-run: add a
 `ConcurrentDictionary<RedisCommand, int>` increment at the top of `Message`'s constructor and dump it
 from an `AppDomain.ProcessExit` handler.
+
+### 9p. The connect path is solved: 15,081 ms to 72 ms
+
+9n gave up on hypotheses and said to read the connect log. That was right, and the log named it in one
+line:
+
+```
+Activating 127.0.0.1:6379: reached the connect wait with no connection open
+127.0.0.1:6379: OnConnectedAsync init (State=(null))     <- took the !IsConnected branch
+Allowing 1 endpoint(s) 00:00:05 to respond...
+127.0.0.1:6379: Did not respond (Task.Status: WaitingForActivation)
+Total connect time: 15,081 ms                            <- three attempts x ConnectTimeout
+```
+
+So 9n's **first** hypothesis had the mechanism right all along - the pending connection monitor is
+handed out and never completed. It failed as a fix for a reason neither it nor the second hypothesis
+could see alone: **the two were each half of one change, and I tested them one at a time.** The hook had
+no connection to fire from; the ordering had nobody to complete the waiter. Tried together, still
+nothing - and the reason for *that* is the actual finding:
+
+**`muxerEndpoints=0`.** Dialling this core before `ReconfigureAsync` iterates an empty endpoint list and
+silently does nothing, because the multiplexer has no endpoints until that method has resolved them.
+The `[post-dial] isConn=False` / `[eager-dialled] connectedNow=True` lines arrived in that order from
+two *different* call sites - mine before the verdict finding nothing, and the pre-existing one at
+`ConnectImplAsync` line 714 succeeding afterwards, too late to matter.
+
+The dial has to happen **inside `ReconfigureAsync`'s per-endpoint loop**, next to `ActivateServer` -
+the first moment an endpoint exists - fire-and-forget, so the loop's own shared budget is what waits.
+With that, plus the establish completing the monitor:
+
+| | connect time |
+|---|---|
+| before | **15,081 ms** |
+| after | **72 ms** |
+
+and the log reads `OnConnectedAsync init` → `OnConnectedAsync completed (127.0.0.1:6379 connected on the
+new core)`, with `int=Disconnected` throughout. **The shipped interactive bridge never connected and the
+multiplexer came up anyway.** That is the coupled move working for the first time.
+
+**The 311-test family: 36 failures / 6m30s → 24 failures / 50s**, and the character has changed entirely.
+Not one is "it was not possible to connect" any more; they are the belief gaps itemised in 9k, now the
+only thing left:
+
+- `MultiPrimaryTests.TestMultiWithTiebreak` (~8) - the **tie-breaker**, biggest cluster, and still five
+  seconds apiece because the election waits for it;
+- `ClusterTopologyUnitTests.AutoConfigurePopulatesTheTopology`, `SlotMapIsDrivenByTheSlotsView`,
+  `SlotLessNodesAreKnownButNotConnected`, `HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints` -
+  **`CLUSTER NODES`**;
+- `ValkeyUnitTests.IdentifyValkeyCluster` - product variant; worth re-checking, since 9l blamed the
+  missing *connection* and there now is one at connect;
+- `ConfigTests.GetClients`, `MutableOptions`, `ConnectCustomConfigTests.HeartbeatConsistencyCheckPings` -
+  not yet diagnosed.
+
+**Nothing from this is landed yet, deliberately.** The enabling half (`DialEndpointSoon`,
+`OnNewCoreConnected`) is not inert in the default configuration - the dial would give this core an eager
+socket per endpoint while the shipped bridges are still dialling, which is the socket-per-node cost 9j
+suspects for the rotation. It belongs with the switch that stops those bridges, so the whole thing lands
+as one change once the belief gaps close. Patch kept as `coupled-9p.patch`.
+
+**Next: the tie-breaker.** Biggest cluster, named in 9k, and the one that is pure belief-moving rather
+than structure.
