@@ -399,13 +399,18 @@ namespace StackExchange.Redis
         /// may not know how many databases it has.
         /// </para>
         /// </remarks>
-        internal static async Task DiscoverServerConfigAsync(RespDatabaseContext context, ServerEndPoint server)
+        /// <param name="connected">How the connection was made; needed by the maintenance opt-in.</param>
+        internal static async Task DiscoverServerConfigAsync(
+            RespDatabaseContext context,
+            ServerEndPoint server,
+            ConnectedTransportFacts connected = default)
         {
             // FIRST, and outside the gate below, because the two beliefs are independent: a server whose
             // database count somebody has already established can still have no product recorded.
             await DiscoverProductAsync(context, server).ConfigureAwait(false);
             await DiscoverReplicationAsync(context, server).ConfigureAwait(false);
             await DiscoverTieBreakerAsync(context, server).ConfigureAwait(false);
+            await RequestMaintenanceNotificationsAsync(context, server, connected).ConfigureAwait(false);
 
             if (server.Databases > 0) return;
             if (!context.Raw.CommandMap.IsAvailable(RedisCommand.CONFIG)) return;
@@ -424,6 +429,77 @@ namespace StackExchange.Redis
             if (await ReadSettingAsync(context, readOnlyKey).ConfigureAwait(false) is { } readOnly)
             {
                 server.ReplicaReadOnly = !string.Equals(readOnly, "no", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>How the connection was made, as far as the maintenance opt-in needs to know.</summary>
+        /// <param name="protocol">What the handshake settled on; notifications arrive as pushes.</param>
+        /// <param name="remoteAddress">The address actually reached, when it was an IP one.</param>
+        /// <param name="isEncrypted">Whether the connection ended up encrypted.</param>
+        internal readonly struct ConnectedTransportFacts(
+            RedisProtocol protocol, IPAddress? remoteAddress, bool isEncrypted)
+        {
+            internal RedisProtocol Protocol { get; } = protocol;
+
+            internal IPAddress? RemoteAddress { get; } = remoteAddress;
+
+            internal bool IsEncrypted { get; } = isEncrypted;
+        }
+
+        /// <summary>Ask this server to tell us when it is about to disrupt us.</summary>
+        /// <param name="context">A context over the connection to ask on.</param>
+        /// <param name="server">The server to record the answer against.</param>
+        /// <param name="connected">How the connection was made; see the struct.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The opt-in is the whole feature's gate.</b> Everything downstream - the relaxation windows,
+        /// the retention and replay, the migration handling - hangs off a connection that has asked, and a
+        /// connection that has not asked is simply never told. So with this core carrying the commands and
+        /// only the shipped bridge opting in, the client was being warned on a connection it no longer
+        /// used. That is the largest single cluster of failures in the coupled move: six test classes.
+        /// </para>
+        /// <para>
+        /// <b>RESP3 only, because the notifications are pushes</b> - which is why the shipped core asks the
+        /// same question of the same three facts (interactive, RESP3, feature enabled, <c>CLIENT</c>
+        /// available), and why that decision is borrowed rather than restated here.
+        /// </para>
+        /// <para>
+        /// The reply is read, and that is the point of asking from here rather than writing it blind: "the
+        /// server agreed" and "the server declined, and here is why" are different facts that the shipped
+        /// core can only distinguish through a result processor. A refusal is ordinary - plenty of
+        /// deployments do not offer this - so it is recorded, never thrown.
+        /// </para>
+        /// </remarks>
+        private static async Task RequestMaintenanceNotificationsAsync(
+            RespDatabaseContext context, ServerEndPoint server, ConnectedTransportFacts connected)
+        {
+            if (!server.ShouldRequestMaintenanceNotifications(connected.Protocol >= RedisProtocol.Resp3)) return;
+
+            var endpointType = server.MaintenanceMovingEndpointTypeLiteral(
+                connected.RemoteAddress, connected.IsEncrypted);
+
+            try
+            {
+                // a bare ON when no preference is configured, which is what the shipped core sends too
+                if (endpointType.IsNull)
+                {
+                    await context.SendAsync(
+                        $"{RedisCommand.CLIENT}{RespLiterals.Maint_Notifications}{RedisLiterals.ON}")
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    await context.SendAsync(
+                        $"{RedisCommand.CLIENT}{RespLiterals.Maint_Notifications}{RedisLiterals.ON}{RespLiterals.MovingEndpointType}{endpointType}")
+                        .ConfigureAwait(false);
+                }
+
+                server.OnMaintenanceNotificationsAccepted(null);
+            }
+            catch (RedisServerException ex)
+            {
+                // the server does not offer it, or will not right now; either way it is not a fault
+                server.OnMaintenanceNotificationsRefused(null, ex.Message);
             }
         }
 

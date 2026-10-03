@@ -65,31 +65,45 @@ internal sealed partial class ServerEndPoint
         && MaintenanceMode != MaintenanceNotificationMode.Disabled
         && Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT);
 
-    /// <summary>
-    /// The server agreed to send them.
-    /// </summary>
+    /// <summary>Whether the other core should ask this server for maintenance notifications.</summary>
+    /// <param name="negotiateResp3">Whether that connection settled on RESP3.</param>
     /// <remarks>
-    /// Logged as well as recorded, so that the connect log answers "is this actually on?" outright. Previously
-    /// only the *refusal* was logged, which meant a working feature left no trace and could only be inferred
-    /// from the absence of a complaint - and that is indistinguishable from never having asked.
+    /// The same decision, asked by the core that now owns the connection: the notifications arrive as
+    /// pushes, so RESP3 is not a preference here but a precondition, and a disabled feature or a
+    /// command map without <c>CLIENT</c> means there is nothing to ask for. Interactive is implied -
+    /// this is only ever called from an interactive handshake.
     /// </remarks>
-    /// <summary>
-    /// The wire value for the configured <c>moving-endpoint-type</c>, or null to send no preference.
-    /// </summary>
-    private RedisValue MaintenanceMovingEndpointTypeLiteral(PhysicalConnection connection)
+    internal bool ShouldRequestMaintenanceNotifications(bool negotiateResp3)
+        => ShouldRequestMaintenanceNotifications(isInteractive: true, negotiateResp3);
+
+    /// <summary>The wire value for <c>moving-endpoint-type</c>, classified from how we actually connected.</summary>
+    /// <param name="remoteAddress">The address reached, or null when it was not an IP one.</param>
+    /// <param name="isEncrypted">Whether the connection ended up encrypted.</param>
+    /// <remarks>
+    /// <b>The two facts, rather than a connection to read them off.</b> Only whoever built the transport
+    /// knows them - the address REACHED is not the endpoint dialled, and encryption can be a tunnel's
+    /// decision - so the core that connected reports them and the classification stays in one place.
+    /// </remarks>
+    internal RedisValue MaintenanceMovingEndpointTypeLiteral(IPAddress? remoteAddress, bool isEncrypted)
     {
         var configured = Multiplexer.RawConfig.MaintenanceMovingEndpointType;
         if (configured == MaintenanceEndpointType.Auto)
         {
-            // classify the address we actually reached, not the endpoint we dialled - the latter is usually a
-            // name, and where it resolved to is what decides whether we are inside the deployment's network
-            configured = MaintenanceEndpointTypeResolver.Derive(
-                (connection.VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address,
-                connection.IsEncrypted);
+            configured = MaintenanceEndpointTypeResolver.Derive(remoteAddress, isEncrypted);
         }
 
         return ToLiteral(configured);
     }
+
+    /// <summary>
+    /// The wire value for the configured <c>moving-endpoint-type</c>, or null to send no preference.
+    /// </summary>
+    private RedisValue MaintenanceMovingEndpointTypeLiteral(PhysicalConnection connection)
+        // classify the address we actually reached, not the endpoint we dialled - the latter is usually a
+        // name, and where it resolved to is what decides whether we are inside the deployment's network
+        => MaintenanceMovingEndpointTypeLiteral(
+            (connection.VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address,
+            connection.IsEncrypted);
 
     private static RedisValue ToLiteral(MaintenanceEndpointType type) => type switch
     {
@@ -101,7 +115,16 @@ internal sealed partial class ServerEndPoint
         _ => RedisValue.Null, // ServerDefault: a bare ON, which is what we have always sent
     };
 
-    internal void OnMaintenanceNotificationsAccepted(PhysicalConnection connection)
+    /// <summary>
+    /// The server agreed to send them.
+    /// </summary>
+    /// <remarks>
+    /// Logged as well as recorded, so that the connect log answers "is this actually on?" outright. Previously
+    /// only the *refusal* was logged, which meant a working feature left no trace and could only be inferred
+    /// from the absence of a complaint - and that is indistinguishable from never having asked.
+    /// </remarks>
+    /// <param name="connection">Which connection opted in; unused, and nullable so the other core can report.</param>
+    internal void OnMaintenanceNotificationsAccepted(PhysicalConnection? connection)
     {
         _maintenanceNotificationsActive = true;
         Multiplexer.Logger?.LogInformationMaintenanceNotificationsAccepted(new(this));
@@ -111,7 +134,9 @@ internal sealed partial class ServerEndPoint
     /// The server declined our request. Recorded rather than acted on: whether that matters is a question for
     /// <see cref="ReconcileMaintenanceNotifications"/>, which sees the negotiated protocol too.
     /// </summary>
-    internal void OnMaintenanceNotificationsRefused(PhysicalConnection connection, string reason)
+    /// <param name="connection">Which connection was refused; unused, and nullable so the other core can report.</param>
+    /// <param name="reason">What the server said.</param>
+    internal void OnMaintenanceNotificationsRefused(PhysicalConnection? connection, string reason)
     {
         _maintenanceNotificationsActive = false;
         _maintenanceNotificationsRefusal = reason;

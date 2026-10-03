@@ -35,13 +35,33 @@ namespace StackExchange.Redis
     /// </remarks>
     internal static class RespTransportFactory
     {
+        /// <summary>A connected transport, and the two facts about HOW it connected that outlive the socket.</summary>
+        /// <param name="transport">The transport itself.</param>
+        /// <param name="remoteAddress">The address actually reached, when it was an IP one.</param>
+        /// <param name="isEncrypted">Whether the stream ended up encrypted.</param>
+        /// <remarks>
+        /// <b>Reported rather than inferred, because only the factory knows.</b> The address REACHED is not
+        /// the endpoint dialled - that is usually a name - and whether the result is encrypted can be the
+        /// tunnel's decision rather than the configuration's. Both are needed to classify this connection
+        /// for <c>moving-endpoint-type</c>, which decides which address a server announces when it moves
+        /// a shard: guessing it internal when it is external sends a client somewhere it cannot reach.
+        /// </remarks>
+        internal readonly struct ConnectedTransport(DuplexTransport transport, IPAddress? remoteAddress, bool isEncrypted)
+        {
+            internal DuplexTransport Transport { get; } = transport;
+
+            internal IPAddress? RemoteAddress { get; } = remoteAddress;
+
+            internal bool IsEncrypted { get; } = isEncrypted;
+        }
+
         /// <summary>Connect, and hand back something that can be written to.</summary>
         /// <param name="endpoint">The logical endpoint being connected to.</param>
         /// <param name="config">The configuration carrying the tunnel and TLS intent.</param>
         /// <param name="connectionType">Which connection this is; tunnels are told.</param>
         /// <param name="onAuthSuspect">Told when a TLS failure looks like an authentication problem.</param>
         /// <param name="cancellationToken">Cancels the connect attempt.</param>
-        internal static async Task<DuplexTransport> ConnectAsync(
+        internal static async Task<ConnectedTransport> ConnectAsync(
             EndPoint endpoint,
             ConfigurationOptions config,
             ConnectionType connectionType,
@@ -71,7 +91,9 @@ namespace StackExchange.Redis
                             "TLS was requested, but the transport supplied by the tunnel is not encrypted.");
                     }
 
-                    return owned;
+                    // the tunnel owns the whole transport, so it is also the only thing that knows
+                    // whether it is encrypted - and there is no socket here to read an address from
+                    return new ConnectedTransport(owned, null, owned.IsEncrypted);
                 }
             }
 
@@ -128,12 +150,16 @@ namespace StackExchange.Redis
                     stream = new NetworkStream(socket, ownsSocket: true);
                 }
 
-                if (config.Ssl)
+                var encrypted = config.Ssl;
+                if (encrypted)
                 {
                     stream = await AuthenticateAsync(stream, endpoint, config, onAuthSuspect).ConfigureAwait(false);
                 }
 
-                return new StreamDuplexTransport(stream);
+                return new ConnectedTransport(
+                    new StreamDuplexTransport(stream),
+                    (socket?.RemoteEndPoint as IPEndPoint)?.Address,
+                    encrypted);
             }
             catch
             {

@@ -46,6 +46,14 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Id { get; }
 
+        /// <summary>The <c>MAINT_NOTIFICATIONS</c> sub-command of <c>CLIENT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Maint_Notifications { get; }
+
+        /// <summary>The <c>moving-endpoint-type</c> argument of <c>CLIENT MAINT_NOTIFICATIONS</c>.</summary>
+        [Resp("moving-endpoint-type")]
+        internal static partial RespFragment MovingEndpointType { get; }
+
         /// <summary>The <c>LEN</c> operand of <c>LCS</c>.</summary>
         [Resp]
         internal static partial RespFragment Len { get; }

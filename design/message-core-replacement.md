@@ -3692,3 +3692,42 @@ single thing still living on the shipped bridge.
 **Caveat on the number**: one full run of this same build was killed at the 25-minute timeout, where the
 runs either side took about 3.5 minutes. That is 9b-xiii's wedge again, and it means 126 is a figure from
 a run that completed rather than a stable average.
+
+### 9s. The maintenance opt-in moves; the pushes are the remaining 58
+
+The opt-in is the feature's gate: everything downstream - relaxation windows, retention and replay,
+migration handling - hangs off a connection that has asked, and one that has not asked is simply never
+told. So with this core carrying the commands and only the shipped bridge opting in, the client was being
+warned on a connection it no longer used.
+
+`RespHandshake.RequestMaintenanceNotificationsAsync` now sends
+`CLIENT MAINT_NOTIFICATIONS ON [moving-endpoint-type <t>]` and reads the reply - which is the point of
+asking from here rather than writing it blind, since "agreed" and "declined, because X" are different
+facts the shipped core can only separate through a result processor. Both decisions are *borrowed* rather
+than restated: `ShouldRequestMaintenanceNotifications` and `MaintenanceMovingEndpointTypeLiteral` gained
+overloads the other core can call, and the shipped callers now delegate to them, so there is one copy of
+each rule.
+
+**`moving-endpoint-type` needed real plumbing, and approximating it would have been wrong.** For `Auto`
+the type is derived from *the address actually reached* and whether the connection is encrypted - not the
+endpoint dialled, which is usually a name. Only whoever built the transport knows either, and encryption
+can be the tunnel's decision rather than the configuration's. So `RespTransportFactory.ConnectAsync` now
+returns a `ConnectedTransport` carrying both, and this core passes them through. Guessing internal where
+it is external would send a client to an address it cannot reach when a shard moves.
+
+**That fixed ~11 of the maintenance failures; 58 remain, and they all want the same thing.** The
+notifications themselves arrive as pushes, and `RespPushDispatch` does not recognise them -
+`MaintenanceNotificationTests`, `MaintenanceRelaxationTests` and the retention tests are all downstream
+of that.
+
+**The shape of the remaining work, which is a refactor rather than a port.** The parse lives in
+`PhysicalConnection.OnMaintenanceNotification` - about 270 lines - and it is *deliberately* tolerant in
+ways worth keeping exactly: an optional sequence id (go-redis length-checks these frames at two elements
+and reads no seq at all, so being stricter than a client that demonstrably works is a bug), a time that
+may be present on a shape that has none or absent from one that should, `SMIGRATED`'s nested triplets,
+and explicit nulls. Reimplementing that against the same wire formats would be a second spelling of
+subtle compatibility rules - the thing this branch has consistently avoided. So the move is to lift the
+body out of `PhysicalConnection` into something taking `(muxer, server, kind, reader, isConnected)` and
+call it from both dispatchers, the way `ResubscribeToServer` is now called from both.
+
+Not attempted at the end of a long session: a 270-line refactor of shipped parsing deserves a fresh one.

@@ -907,7 +907,7 @@ namespace StackExchange.Redis
             // silently ignored every one of those - and the TLS I added to it first was a second copy of
             // the shipped logic, which is worse than none: two versions of a security decision, free to
             // drift. DuplexTransport is the boundary; everything below it belongs to the factory.
-            var transport = await RespTransportFactory.ConnectAsync(
+            var connected = await RespTransportFactory.ConnectAsync(
                 endpoint,
                 config,
                 subscription ? ConnectionType.Subscription : ConnectionType.Interactive,
@@ -923,7 +923,7 @@ namespace StackExchange.Redis
             // is gone has nothing to re-send to, so declining to follow is the whole of the answer.
             var coreRef = new WeakReference<RespNewCore>(this);
             var connection = new RespClientConnection(
-                transport,
+                connected.Transport,
                 (in RespRedirect redirect, RespPayloadOperation operation)
                     => coreRef.TryGetTarget(out var core) && core.Follow(endpoint, in redirect, operation),
                 config.IncludeDetailInExceptions,
@@ -984,7 +984,12 @@ namespace StackExchange.Redis
                 // questions, and the answers are server-wide so one connection asking is enough.
                 if (!subscription)
                 {
-                    await RespHandshake.DiscoverServerConfigAsync(context, modelled).ConfigureAwait(false);
+                    await RespHandshake.DiscoverServerConfigAsync(
+                        context,
+                        modelled,
+                        new RespHandshake.ConnectedTransportFacts(
+                            result.Protocol, connected.RemoteAddress, connected.IsEncrypted))
+                        .ConfigureAwait(false);
                 }
             }
 
