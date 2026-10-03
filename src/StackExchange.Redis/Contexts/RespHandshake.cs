@@ -91,6 +91,9 @@ namespace StackExchange.Redis
         /// What to report as <c>lib-name</c>, suffixes included, or null/empty to report nothing.
         /// </param>
         /// <param name="libraryVersion">What to report as <c>lib-ver</c>, or null/empty to report nothing.</param>
+        /// <param name="onAuthSuspect">
+        /// Told when the server refused <c>AUTH</c>, which does not fail the handshake; see the catch.
+        /// </param>
         /// <param name="cancellationToken">Cancels the handshake.</param>
         /// <returns>What the connection ended up speaking, and what it turned out to be.</returns>
         internal static async Task<RespHandshakeResult> PerformAsync(
@@ -105,19 +108,40 @@ namespace StackExchange.Redis
             Caching.RespClientCache? clientCache = null,
             string? libraryName = null,
             string? libraryVersion = null,
+            Action<Exception>? onAuthSuspect = null,
             CancellationToken cancellationToken = default)
         {
             if (password is not null)
             {
                 // "" is a legitimate password, for 'nopass' logins - hence null rather than empty as the
                 // "no auth needed" signal, matching ConfigurationOptions
-                if (user is { Length: > 0 })
+                try
                 {
-                    await context.SendAsync($"{RedisCommand.AUTH}{(RedisValue)user}{(RedisValue)password}").ConfigureAwait(false);
+                    if (user is { Length: > 0 })
+                    {
+                        await context.SendAsync($"{RedisCommand.AUTH}{(RedisValue)user}{(RedisValue)password}").ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await context.SendAsync($"{RedisCommand.AUTH}{(RedisValue)password}").ConfigureAwait(false);
+                    }
                 }
-                else
+                catch (RedisServerException ex)
                 {
-                    await context.SendAsync($"{RedisCommand.AUTH}{(RedisValue)password}").ConfigureAwait(false);
+                    // A REFUSED AUTH DOES NOT FAIL THE CONNECTION, and that is parity rather than
+                    // laxity. The shipped handshake writes AUTH fire-and-forget and cannot read the
+                    // reply at all, so it necessarily continues and records the suspicion
+                    // (`ConnectionMultiplexer.SetAuthSuspect`); commands then fail individually, with
+                    // the server's own words, which is a far better diagnostic than a connection that
+                    // never exists.
+                    //
+                    // The case that made this matter is not a wrong password: it is ONE configuration
+                    // spanning servers with different requirements. A config carrying the secure
+                    // server's password also reaches the plain one, which answers "Client sent AUTH, but
+                    // no password is set" - so awaiting that reply took a perfectly good endpoint out of
+                    // the deployment. `MultiPrimaryTests` reads it as "Single primary detected" where two
+                    // were expected, after a full connect timeout.
+                    onAuthSuspect?.Invoke(ex);
                 }
             }
 
@@ -358,6 +382,7 @@ namespace StackExchange.Redis
             // FIRST, and outside the gate below, because the two beliefs are independent: a server whose
             // database count somebody has already established can still have no product recorded.
             await DiscoverProductAsync(context, server).ConfigureAwait(false);
+            await DiscoverTieBreakerAsync(context, server).ConfigureAwait(false);
 
             if (server.Databases > 0) return;
             if (!context.Raw.CommandMap.IsAvailable(RedisCommand.CONFIG)) return;
@@ -376,6 +401,50 @@ namespace StackExchange.Redis
             if (await ReadSettingAsync(context, readOnlyKey).ConfigureAwait(false) is { } readOnly)
             {
                 server.ReplicaReadOnly = !string.Equals(readOnly, "no", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>Who this server says should be primary.</summary>
+        /// <param name="context">A context over the connection to ask on.</param>
+        /// <param name="server">The server to describe.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The deciding vote in the primary election, and without it there is no election.</b> With
+        /// several candidate primaries the client reads an agreed key from each and believes the answer
+        /// they agree on; a client that never reads it logs "had no tiebreaker set" against every
+        /// endpoint and then "No primaries detected" - which is what <c>MultiPrimaryTests</c> measures,
+        /// ten tests of it.
+        /// </para>
+        /// <para>
+        /// Re-read on every handshake rather than once, unlike the product: a tie-breaker is mutable
+        /// state on the server and changing it is precisely how an operator moves the election. Caching
+        /// it would make this client ignore the next change.
+        /// </para>
+        /// <para>
+        /// Same three conditions the shipped handshake applies - not a cluster (where slots decide and
+        /// there is nothing to elect), a tie-breaker actually configured, and <c>GET</c> available - and
+        /// the same tolerance: a deployment that restricts <c>GET</c> loses the tie-breaker benefit
+        /// rather than the connection.
+        /// </para>
+        /// </remarks>
+        private static async Task DiscoverTieBreakerAsync(RespDatabaseContext context, ServerEndPoint server)
+        {
+            if (server.ServerType == ServerType.Cluster) return;
+            if (!server.Multiplexer.RawConfig.TryGetTieBreaker(out var key)) return;
+            if (!context.Raw.CommandMap.IsAvailable(RedisCommand.GET)) return;
+
+            try
+            {
+                // DATABASE ZERO explicitly, because a tie-breaker is a key and the context asking may
+                // name no database at all - a server context carries -1, and `GET` without a database
+                // is refused before it reaches a socket ("A target database is required for GET"). The
+                // shipped message hard-codes 0 for the same reason.
+                var elected = await context.WithDatabase(0).Strings.GetAsync(key).ConfigureAwait(false);
+                server.TieBreakerResult = elected.IsNull ? null : (string?)elected;
+            }
+            catch (RedisServerException)
+            {
+                // a restricted or renamed GET costs the tie-breaker, not the connection
             }
         }
 

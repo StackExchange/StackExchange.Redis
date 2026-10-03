@@ -951,6 +951,7 @@ namespace StackExchange.Redis
                 subscription ? null : _multiplexer.ClientCache,
                 _multiplexer.GetFullLibraryName(),
                 ServerEndPoint.ClientInfoSanitize(Utils.GetLibVersion()),
+                _multiplexer.SetAuthSuspect,
                 cancellationToken).ConfigureAwait(false);
 
             // recorded BEFORE the connection is handed back, for the same reason the topology is: the
