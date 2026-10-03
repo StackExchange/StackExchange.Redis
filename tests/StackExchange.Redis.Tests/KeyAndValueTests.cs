@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Xunit;
@@ -178,5 +178,23 @@ public class KeyAndValueTests
         Assert.Equal((byte)'a', blob[0]);
         Assert.Equal((byte)'b', blob[1]);
         Assert.Equal((byte)'c', blob[2]);
+    }
+
+    [Fact]
+    public void Issue3233_RedisValueStrictNumericEquality()
+    {
+        RedisValue thousandString = "1,000";
+        RedisValue thousandNumber = 1000;
+        Assert.False(thousandString.Equals(thousandNumber));
+        Assert.False(thousandNumber.Equals(thousandString));
+
+        RedisValue parensString = "(5)";
+        RedisValue negativeNumber = -5;
+        Assert.False(parensString.Equals(negativeNumber));
+        Assert.False(negativeNumber.Equals(parensString));
+
+        RedisValue floatNumber = 123.456;
+        RedisValue floatString = "123.456";
+        Assert.True(floatString.Equals(floatNumber));
     }
 }

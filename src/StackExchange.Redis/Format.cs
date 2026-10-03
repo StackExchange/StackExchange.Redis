@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
@@ -197,7 +197,7 @@ namespace StackExchange.Redis
                 case 4 when s[0] == '-' && TryParseInfNaN(s.AsSpan(1), false, out value):
                     return true;
             }
-            return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
+            return double.TryParse(s, NumberStyles.Float, NumberFormatInfo.InvariantInfo, out value);
 
             static bool TryParseInfNaN(ReadOnlySpan<char> s, bool positive, out double value)
             {
