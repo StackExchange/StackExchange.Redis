@@ -971,6 +971,36 @@ namespace StackExchange.Redis
             // identity changes underneath. Borrowed rather than reimplemented while both cores exist.
             connection.Server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
 
+            // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
+            // thing marking it as one is that this connection subscribes. Set it nowhere else: on an
+            // interactive connection it would start eating replies. Read from what the handshake NEGOTIATED
+            // rather than what was configured - a server can answer RESP2 to a RESP3 request.
+            connection.DeliversArrays = subscription && result.Protocol < RedisProtocol.Resp3;
+
+            // deliveries arrive here: on the subscription connection under RESP2, and on this one under
+            // RESP3, where a push can land on any connection.
+            //
+            // WEAKLY, and that is a leak rather than a nicety. A subscription connection holds a standing
+            // read - that is what waiting for deliveries IS - so the socket is rooted by the IO system for
+            // as long as it is open, and a delegate capturing the multiplexer made the socket root the
+            // multiplexer too. A caller who abandons a multiplexer without disposing it then never gets it
+            // collected: `GarbageCollectionTests.MuxerIsCollected` is written for exactly that caller, and
+            // the shipped core passes it while holding a subscription bridge of its own. An ordinary
+            // connection hid the problem by having no standing read to be rooted by.
+            //
+            // A push that arrives after the multiplexer is gone has nowhere to go and nothing to tell, so
+            // "not recognised" is the whole of the correct behaviour.
+            var muxerRef = new WeakReference<ConnectionMultiplexer>(_multiplexer);
+            connection.OnPush = frame => muxerRef.TryGetTarget(out var muxer)
+                ? RespPushDispatch.Dispatch(frame, muxer, endpoint)
+                : RespOutOfBandResult.NotRecognized;
+
+            // BEFORE any discovery that can PROVOKE a push, which is not a detail. The maintenance opt-in
+            // below makes the server replay whatever it retained for this shard, and a push arriving
+            // before the dispatcher is wired is dropped as unrecognised - so the replay was lost and the
+            // "(catch-up)" line `MaintenanceNotificationTests+Retention` looks for never appeared. The
+            // configuration channel taught the same lesson at the other end of this method; this is the
+            // same rule applied to the other thing that asks a server to start talking.
             // ...and told what this handshake just learned, which is the direction of travel for D2.8.
             // Today the client's beliefs about a server come from the SHIPPED bridge handshaking its own
             // socket; this core handshakes one too and learns the same facts from it. Publishing them is
@@ -996,30 +1026,6 @@ namespace StackExchange.Redis
                         .ConfigureAwait(false);
                 }
             }
-
-            // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
-            // thing marking it as one is that this connection subscribes. Set it nowhere else: on an
-            // interactive connection it would start eating replies. Read from what the handshake NEGOTIATED
-            // rather than what was configured - a server can answer RESP2 to a RESP3 request.
-            connection.DeliversArrays = subscription && result.Protocol < RedisProtocol.Resp3;
-
-            // deliveries arrive here: on the subscription connection under RESP2, and on this one under
-            // RESP3, where a push can land on any connection.
-            //
-            // WEAKLY, and that is a leak rather than a nicety. A subscription connection holds a standing
-            // read - that is what waiting for deliveries IS - so the socket is rooted by the IO system for
-            // as long as it is open, and a delegate capturing the multiplexer made the socket root the
-            // multiplexer too. A caller who abandons a multiplexer without disposing it then never gets it
-            // collected: `GarbageCollectionTests.MuxerIsCollected` is written for exactly that caller, and
-            // the shipped core passes it while holding a subscription bridge of its own. An ordinary
-            // connection hid the problem by having no standing read to be rooted by.
-            //
-            // A push that arrives after the multiplexer is gone has nowhere to go and nothing to tell, so
-            // "not recognised" is the whole of the correct behaviour.
-            var muxerRef = new WeakReference<ConnectionMultiplexer>(_multiplexer);
-            connection.OnPush = frame => muxerRef.TryGetTarget(out var muxer)
-                ? RespPushDispatch.Dispatch(frame, muxer, endpoint)
-                : RespOutOfBandResult.NotRecognized;
 
             // A connection that asked for RESP3 and was answered less than that needs a SUBSCRIPTION
             // socket, and needs it now rather than when something next subscribes. The shipped core

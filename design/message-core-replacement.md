@@ -3845,3 +3845,34 @@ What is left in the family is no longer about connections at all:
 - `OneLogicalEventFromEveryNodeRaisesOneEvent` - the per-event dedup across nodes.
 - `RelaxationDoesNotSuppressConnectionFailure` and `RetirementUnderMaintenance...` - both about faults
   *inside* a window, which is the relaxation side rather than the notification side.
+
+### 9w. Retention replay: the push was arriving before anything was listening
+
+The three retention tests turned out not to be about what "established" means at all - that was the wrong
+guess in 9v. They were an **ordering bug in this core's connect**, and the same one the configuration
+channel hit at the other end of the same method.
+
+`DiscoverServerConfigAsync` - which sends the maintenance opt-in - ran *before* `connection.OnPush` was
+wired. Asking a server for maintenance notifications makes it replay whatever it retained for that
+shard, immediately, so the replay arrived at a connection with no dispatcher attached and was dropped as
+unrecognised. The `(catch-up)` log line the tests look for never appeared, because the frame never
+reached the parser.
+
+Moving the `OnPush`/`DeliversArrays` assignment above the discovery block fixes all three. The rule is
+already written down a few lines further on, for `SubscribeToConfigurationChannelAsync`: *"AFTER OnPush,
+which is not a detail: a push arriving before the dispatcher is wired is dropped as unrecognised."* The
+opt-in is the other thing that asks a server to start talking, and it needed the same ordering. Worth
+generalising in one's head: **anything that provokes a server into sending must come after the thing
+that listens** - and in this method there are now two such requests, both below the wiring.
+
+**Maintenance: 6 → 3.** Flagged suite 4, shipped fully green.
+
+The last three in the family are each a different question, and none is about the notification pipeline:
+
+- `OneLogicalEventFromEveryNodeRaisesOneEvent` - cross-node dedup via
+  `muxer.TryClaimMaintenanceEvent`, which is shared already; the likely gap is that only one core's
+  connections receive the broadcast, so there is nothing to deduplicate against.
+- `MaintenanceRelaxationTests.RelaxationDoesNotSuppressConnectionFailure` - the relaxation side:
+  whether a fault inside a window is still reported as a fault.
+- `RetirementUnderMaintenanceTests.ARefusingNodeAccumulates...` - still the 9i/9h case, where the test's
+  premise about probe traffic no longer holds under this core.
