@@ -42,6 +42,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Replication { get; }
 
+        /// <summary>The <c>ID</c> sub-command, as used by <c>CLIENT ID</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Id { get; }
+
         /// <summary>The <c>LEN</c> operand of <c>LCS</c>.</summary>
         [Resp]
         internal static partial RespFragment Len { get; }

@@ -3172,7 +3172,11 @@ namespace StackExchange.Redis
         }
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
-            => TryResolveServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+            // whichever core holds the connection: the bridge first, since it is the one with an id when
+            // it is dialling, and otherwise this core's - which under the engine flag is the connection
+            // actually carrying the commands, and the only one the server can name
+            => TryResolveServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId
+                ?? NewCoreIfCreated?.ConnectionId(endpoint, type);
 
         internal uint UpdateLatency()
         {

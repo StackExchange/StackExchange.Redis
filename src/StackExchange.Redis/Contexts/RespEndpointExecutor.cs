@@ -241,6 +241,19 @@ namespace StackExchange.Redis
         /// </remarks>
         internal long OperationCount => Volatile.Read(ref _operationCount);
 
+        /// <summary>What the server calls this executor's current connection, if it has one.</summary>
+        /// <remarks><inheritdoc cref="RespClientConnection.ConnectionId" path="/remarks"/></remarks>
+        internal long? ConnectionId
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _connection is RespClientConnection { IsClosed: false } live ? live.ConnectionId : null;
+                }
+            }
+        }
+
         /// <summary>Connections this executor has opened, including reconnects.</summary>
         internal long SocketCount => Volatile.Read(ref _socketCount);
 
@@ -1127,6 +1140,71 @@ namespace StackExchange.Redis
 
             timeoutMilliseconds = EffectiveTimeout(timeoutMilliseconds);
             if (timeoutMilliseconds > 0) connection.ExpirePending(TimeSpan.FromMilliseconds(timeoutMilliseconds));
+
+            KeepAlive();
+        }
+
+        private int _lastWriteTickCount = Environment.TickCount;
+
+        /// <summary>Say something on an idle connection, so it is not closed underneath us.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>An idle connection is a connection being timed out.</b> Servers close one after their own
+        /// <c>timeout</c> - the very setting this core reads during discovery - and the network between
+        /// will do it sooner. The shipped bridge has sent a keep-alive on this schedule for as long as it
+        /// has existed; this core sent nothing at all, so a connection carrying no traffic was simply
+        /// waiting to be dropped. The tests that notice are the ones that measure the heartbeat doing
+        /// something: <c>ConfigTests.TestManualHeartbeat</c> and
+        /// <c>ConnectCustomConfigTests.HeartbeatConsistencyCheckPingsAsync</c>, both as an operation count
+        /// that never moves.
+        /// </para>
+        /// <para>
+        /// Two schedules, as the shipped bridge has: every heartbeat when consistency checks are on -
+        /// their whole purpose is to notice a dropped stream promptly, so skipping one because the
+        /// connection is busy would defeat them - and otherwise only once the connection has been quiet
+        /// for <c>WriteEverySeconds</c>.
+        /// </para>
+        /// <para>
+        /// Fire-and-forget on the pool, and never awaited: this runs on the heartbeat, and a heartbeat
+        /// that waits for a reply from a server that has stopped answering is a heartbeat that stops
+        /// beating for everything else.
+        /// </para>
+        /// </remarks>
+        private void KeepAlive()
+        {
+            if (Server is not { } server) return;
+
+            var always = server.Multiplexer.RawConfig.HeartbeatConsistencyChecks;
+            if (!always)
+            {
+                var writeEverySeconds = server.WriteEverySeconds;
+                if (writeEverySeconds <= 0) return;
+
+                var idleMilliseconds = unchecked(Environment.TickCount - Volatile.Read(ref _lastWriteTickCount));
+                if (idleMilliseconds < writeEverySeconds * 1000) return;
+            }
+
+            if (!server.Multiplexer.CommandMap.IsAvailable(RedisCommand.PING)) return;
+
+            Volatile.Write(ref _lastWriteTickCount, Environment.TickCount);
+            ThreadPool.QueueUserWorkItem(static state => _ = ((RespEndpointExecutor)state!).PingAsync(), this);
+        }
+
+        private async Task PingAsync()
+        {
+            try
+            {
+                await new RespDatabaseContext(
+                        new RespContext(Server!.Multiplexer.RawConfig.CommandMap, database: -1).WithExecutor(this))
+                    .PingAsync(CommandFlags.NoRedirect)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // a keep-alive that fails has told us something, and the connection's own failure
+                // handling is what acts on it; there is nobody here to report to
+                System.Diagnostics.Debug.WriteLine(ex.Message);
+            }
         }
 
         /// <summary>The timeout that actually applies, after any maintenance window has had its say.</summary>
@@ -1656,6 +1734,10 @@ namespace StackExchange.Redis
         /// </remarks>
         private bool Send(RespConnection connection, RespPayloadOperation operation)
         {
+            // when this connection last had anything to say, for the keep-alive below. A tick count
+            // rather than a timestamp: it is only ever compared against itself.
+            Volatile.Write(ref _lastWriteTickCount, Environment.TickCount);
+
             // Asked HERE, at the write, because the answer can have changed since this was composed: see
             // RerouteSubscription. A subscribe queued while RESP3 was expected and written after the
             // handshake settled on RESP2 would otherwise put this connection into subscriber mode.

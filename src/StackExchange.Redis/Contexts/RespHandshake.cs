@@ -15,9 +15,17 @@ namespace StackExchange.Redis
     /// <param name="serverType">What the server turned out to be.</param>
     /// <param name="version">The server version, when HELLO reported one.</param>
     /// <param name="knowsServerType">Whether the server type was determined rather than defaulted.</param>
+    /// <param name="connectionId">What the server calls this connection, when it would say.</param>
     internal readonly struct RespHandshakeResult(
-        RedisProtocol protocol, ServerType serverType, Version? version = null, bool knowsServerType = false)
+        RedisProtocol protocol,
+        ServerType serverType,
+        Version? version = null,
+        bool knowsServerType = false,
+        long? connectionId = null)
     {
+        /// <summary>What the server calls this connection, when it would say.</summary>
+        internal long? ConnectionId { get; } = connectionId;
+
         /// <summary>Whether <see cref="ServerType"/> was actually determined, rather than defaulted.</summary>
         /// <remarks>
         /// <b>The difference matters to whoever is told.</b> <see cref="ServerType"/> has no "not yet
@@ -332,9 +340,23 @@ namespace StackExchange.Redis
                 }
             }
 
+            long? connectionId = null;
             if (context.Raw.CommandMap.IsAvailable(RedisCommand.CLIENT))
             {
                 await IdentifyAsync(context, clientName, libraryName, libraryVersion).ConfigureAwait(false);
+
+                // ...and what the server calls this connection, which is the only handle on it from
+                // outside: CLIENT LIST names it, CLIENT KILL takes it. The shipped handshake asks in the
+                // same breath as the rest of the CLIENT work.
+                try
+                {
+                    connectionId = await context.SendAsync<long>(
+                        $"{RedisCommand.CLIENT}{RespLiterals.Id}").ConfigureAwait(false);
+                }
+                catch (RedisServerException)
+                {
+                    // CLIENT ID arrived in 5.0; older or restricted servers simply have no id to give
+                }
             }
 
             if (clientCache is not null)
@@ -347,7 +369,7 @@ namespace StackExchange.Redis
                 await context.SendAsync($"{RedisCommand.SELECT}{database}").ConfigureAwait(false);
             }
 
-            return new RespHandshakeResult(protocol, serverType, version, knowServerType);
+            return new RespHandshakeResult(protocol, serverType, version, knowServerType, connectionId);
         }
 
         /// <summary>Read the server-wide settings the client models, for a server nothing has described yet.</summary>

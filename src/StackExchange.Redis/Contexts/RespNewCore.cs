@@ -963,6 +963,7 @@ namespace StackExchange.Redis
             // the handshake's SELECT is where this connection's database is decided; recording it is what
             // lets a later command for a different one know it has to say so first
             connection.CurrentDatabase = database;
+            connection.ConnectionId = result.ConnectionId;
 
             // which server this reached, so a preamble gate can consult the endpoint's beliefs - a loaded
             // script is server-wide, and ServerEndPoint already tracks that and flushes it when a server's
@@ -1588,6 +1589,50 @@ namespace StackExchange.Redis
             => endpoint is not null
                 && ((_endpoints.TryGetValue(endpoint, out var interactive) && interactive.IsConnectedNow)
                     || (_subscriptions.TryGetValue(endpoint, out var subscription) && subscription.IsConnectedNow));
+
+        /// <summary>What the server calls this core's connection to an endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="connectionType">Which of its connections to name.</param>
+        /// <remarks><inheritdoc cref="RespClientConnection.ConnectionId" path="/remarks"/></remarks>
+        internal long? ConnectionId(EndPoint endpoint, ConnectionType connectionType)
+        {
+            if (endpoint is null) return null;
+
+            // The subscription leg falls back to the ordinary connection when it IS the ordinary
+            // connection, which under RESP3 it is - there is no second socket, so asking for "the
+            // subscription connection's id" and being told null would describe a connection that does
+            // not exist rather than the one carrying the deliveries. `IsSubscriptionConnected` resolves
+            // it the same way and for the same reason.
+            if (connectionType == ConnectionType.Subscription)
+            {
+                if (_subscriptions.TryGetValue(endpoint, out var dedicated)) return dedicated.ConnectionId;
+                return _protocols.TryGetValue(endpoint, out var negotiated) && negotiated >= RedisProtocol.Resp3
+                    ? ConnectionId(endpoint, ConnectionType.Interactive)
+                    : null;
+            }
+
+            return _endpoints.TryGetValue(endpoint, out var interactive) ? interactive.ConnectionId : null;
+        }
+
+        /// <summary>How many operations this core has run against an endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// <b>Asked by <c>ServerEndPoint.OperationCount</c>, which sums bridges and so reported zero for a
+        /// server this core had been talking to all along.</b> It is the quick path beside
+        /// <see cref="AddCounters"/>, and it needed the same treatment for the same reason - most visibly
+        /// where a test asks whether the heartbeat is doing anything at all
+        /// (<c>ConfigTests.TestManualHeartbeat</c>), since under the flag the only thing keeping a
+        /// connection alive is this core's own keep-alive.
+        /// </remarks>
+        internal long OperationCount(EndPoint endpoint)
+        {
+            if (endpoint is null) return 0;
+
+            long count = 0;
+            if (_endpoints.TryGetValue(endpoint, out var interactive)) count += interactive.OperationCount;
+            if (_subscriptions.TryGetValue(endpoint, out var subscription)) count += subscription.OperationCount;
+            return count;
+        }
 
         /// <summary>Fold an endpoint's counters into a snapshot the shipped surface reports.</summary>
         /// <param name="endpoint">The endpoint.</param>

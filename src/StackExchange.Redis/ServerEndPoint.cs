@@ -244,7 +244,8 @@ namespace StackExchange.Redis
             ? subscription?.ConnectionState ?? State.Disconnected
             : InteractiveConnectionState;
 
-        public long OperationCount => (interactive?.OperationCount ?? 0) + (subscription?.OperationCount ?? 0);
+        public long OperationCount => (interactive?.OperationCount ?? 0) + (subscription?.OperationCount ?? 0)
+            + (Multiplexer.NewCoreIfCreated?.OperationCount(EndPoint) ?? 0);
 
         public bool RequiresReadMode => serverType == ServerType.Cluster && IsReplica;
 

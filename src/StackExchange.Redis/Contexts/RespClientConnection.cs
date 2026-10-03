@@ -245,6 +245,15 @@ namespace StackExchange.Redis
         /// will re-check under that lock before acting.
         /// </para>
         /// </remarks>
+        /// <summary>What the server calls this connection, when it was asked.</summary>
+        /// <remarks>
+        /// <b>The client's own identity on the wire</b>, and the only way to point at this connection in
+        /// <c>CLIENT LIST</c> or kill it by id. Reported through <c>IInternalConnectionMultiplexer.GetConnectionId</c>,
+        /// which until now could only answer about a bridge - so under the engine flag it answered null
+        /// about the connection actually carrying the commands (<c>ConfigTests.GetClients</c>).
+        /// </remarks>
+        internal long? ConnectionId { get; set; }
+
         internal int CurrentDatabase { get; set; }
 
         /// <inheritdoc/>
