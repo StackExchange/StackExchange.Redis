@@ -3647,3 +3647,48 @@ no password is set". That took a healthy endpoint out of the deployment, after a
   `ConnectCustomConfigTests.HeartbeatConsistencyCheckPingsAsync` (1) - the heartbeat's consistency pings
   are written to the shipped bridge, so with that bridge idle the op-count is zero. The same move as the
   tracer in 9n, applied to the heartbeat.
+
+### 9r. The coupled family is green; the full suite says 126, and maintenance is half of it
+
+The 311-test family the last few sections worked against is now **fully green under the coupled move**:
+36 failures and 6m30s → **0 and 4s**. Four more pieces got it there, all landed on their own merits after
+measuring both default configurations:
+
+- **keep-alive.** The heartbeat reached this core's executors and only expired backlog and pending - it
+  sent nothing at all. An idle connection is a connection being timed out: a server closes one after its
+  own `timeout`, which is the very setting this core reads during discovery. Two schedules, as the
+  shipped bridge has.
+- **operation count.** `ServerEndPoint.OperationCount` summed bridges, so it read zero for a server this
+  core had been talking to all along - which is how a test asks whether the heartbeat is doing anything.
+- **connection id.** The handshake asks `CLIENT ID`; `GetConnectionId` answers from whichever core holds
+  the connection. It is the only handle on a connection from outside, and it was null for the one
+  carrying the commands. Under RESP3 the subscription leg falls back to the ordinary connection, because
+  there it *is* the ordinary connection.
+
+**But that family was not representative, and the full suite says so: 126 failures.** Worth stating
+plainly - optimising against a 311-test slice made the position look far better than it is. Grouped:
+
+| | count |
+|---|---|
+| **maintenance** - `MaintenanceNotificationTests` 29, `MaintenanceOptInClientTests` 18, `MaintenanceRelaxationTests` 14, `+Retention` 3, `MaintenanceInGroupTests` 3, `RelaxationEvidence` 2, `RetirementUnderMaintenance` 1 | **70 (56%)** |
+| `ClusterTests` | 8 |
+| `ExceptionFactoryTests` | 7 |
+| `UnroutableRedirectUnitTests` | 6 |
+| `HelloHandshakeTests` | 5 |
+| `ClusterFailoverRolesUnitTests`, `ClientKillTests` | 4 each |
+| `RespConnectionStateTests` | 3 |
+| ~14 other classes | 1-2 each |
+
+**So the next piece is one piece, not a scatter.** Maintenance notifications are over half of it, and they
+are a coherent feature rather than an assortment: the opt-in (`CLIENT MAINT_NOTIFICATIONS ON`, with its
+`moving-endpoint-type` argument) is sent only by the shipped handshake, and everything downstream - the
+pushes, the relaxation windows, the retention and replay - hangs off a connection that has opted in. This
+core neither opts in nor would recognise the pushes if it did.
+
+That also reframes the census in 9o. The connect path was 82% of remaining `Message` traffic by volume,
+and solving it structurally was necessary - but *by test weight* the maintenance feature is the largest
+single thing still living on the shipped bridge.
+
+**Caveat on the number**: one full run of this same build was killed at the 25-minute timeout, where the
+runs either side took about 3.5 minutes. That is 9b-xiii's wedge again, and it means 126 is a figure from
+a run that completed rather than a stable average.
