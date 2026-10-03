@@ -241,6 +241,19 @@ namespace StackExchange.Redis
         /// </remarks>
         internal long OperationCount => Volatile.Read(ref _operationCount);
 
+        /// <summary>The address this executor's current connection reached, if it has one.</summary>
+        /// <remarks><inheritdoc cref="RespClientConnection.RemoteAddress" path="/remarks"/></remarks>
+        internal System.Net.IPAddress? RemoteAddress
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _connection is RespClientConnection { IsClosed: false } live ? live.RemoteAddress : null;
+                }
+            }
+        }
+
         /// <summary>What the server calls this executor's current connection, if it has one.</summary>
         /// <remarks><inheritdoc cref="RespClientConnection.ConnectionId" path="/remarks"/></remarks>
         internal long? ConnectionId

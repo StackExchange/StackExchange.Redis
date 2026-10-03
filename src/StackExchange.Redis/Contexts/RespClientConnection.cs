@@ -254,6 +254,14 @@ namespace StackExchange.Redis
         /// </remarks>
         internal long? ConnectionId { get; set; }
 
+        /// <summary>The address this connection actually reached, when it was an IP one.</summary>
+        /// <remarks>
+        /// Needed by a <c>MOVING</c> handoff, which polls for the endpoint to change away from the address
+        /// it is on - so the address REACHED is the question, not the endpoint dialled. Reported by the
+        /// transport factory, because only whoever built the socket knows it.
+        /// </remarks>
+        internal System.Net.IPAddress? RemoteAddress { get; set; }
+
         internal int CurrentDatabase { get; set; }
 
         /// <inheritdoc/>

@@ -408,7 +408,13 @@ internal sealed partial class ServerEndPoint
     /// notification is delivered on the read loop, which must not wait for a DNS poll.
     /// </para>
     /// </remarks>
-    internal void OnMovingAnnounced(TimeSpan? window, EndPoint? successor, PhysicalConnection connection)
+    /// <param name="window">How long the server says the disruption will last.</param>
+    /// <param name="successor">Where it says to go instead, when it named somewhere.</param>
+    /// <param name="current">
+    /// The address the announcing connection actually reached. A parameter rather than a connection because
+    /// both cores announce now, and it is the only thing the handoff wanted from one.
+    /// </param>
+    internal void OnMovingAnnounced(TimeSpan? window, EndPoint? successor, IPAddress? current)
     {
         // One at a time per server. A rolling operation delivers one MOVING per connection, so a second one
         // arriving while a handoff is in flight is a repeat or a much later event; either way, starting a
@@ -422,8 +428,6 @@ internal sealed partial class ServerEndPoint
         var budget = window is { } value && value > TimeSpan.Zero
             ? value
             : Multiplexer.RawConfig.MaintenanceRelaxedTimeout; // no window given: use the relaxation floor
-        var current = (connection.VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address;
-
         _ = HandoffAsync(budget, successor, current);
     }
 

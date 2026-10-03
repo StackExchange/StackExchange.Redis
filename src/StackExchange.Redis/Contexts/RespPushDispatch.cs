@@ -46,6 +46,23 @@ namespace StackExchange.Redis
                 if (!reader.TryParseScalar(&PhysicalConnection.PushKindMetadata.TryParse, out kind)) kind = PhysicalConnection.PushKind.None;
             }
 
+            // BEFORE the pub/sub switch, exactly as the shipped reader does it: a maintenance notification's
+            // second element is not a channel name, so anything that reads it as one rejects the frame.
+            if (kind is >= PhysicalConnection.PushKind.Moving and <= PhysicalConnection.PushKind.SlotMigrated)
+            {
+                if (endpoint is null) return RespOutOfBandResult.NotRecognized;
+
+                PhysicalConnection.ReadMaintenanceNotification(
+                    multiplexer,
+                    multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false),
+                    isConnected: multiplexer.NewCoreIfCreated?.IsConnected(endpoint) == true,
+                    currentAddress: multiplexer.NewCoreIfCreated?.RemoteAddress(endpoint),
+                    kind,
+                    ref reader);
+
+                return RespOutOfBandResult.Handled;
+            }
+
             switch (kind)
             {
                 case PhysicalConnection.PushKind.Message:

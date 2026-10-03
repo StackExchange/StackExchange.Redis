@@ -964,6 +964,7 @@ namespace StackExchange.Redis
             // lets a later command for a different one know it has to say so first
             connection.CurrentDatabase = database;
             connection.ConnectionId = result.ConnectionId;
+            connection.RemoteAddress = connected.RemoteAddress;
 
             // which server this reached, so a preamble gate can consult the endpoint's beliefs - a loaded
             // script is server-wide, and ServerEndPoint already tracks that and flushes it when a server's
@@ -1618,6 +1619,14 @@ namespace StackExchange.Redis
 
             return _endpoints.TryGetValue(endpoint, out var interactive) ? interactive.ConnectionId : null;
         }
+
+        /// <summary>The address this core's connection to an endpoint actually reached.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks><inheritdoc cref="RespClientConnection.RemoteAddress" path="/remarks"/></remarks>
+        internal System.Net.IPAddress? RemoteAddress(EndPoint endpoint)
+            => endpoint is not null && _endpoints.TryGetValue(endpoint, out var executor)
+                ? executor.RemoteAddress
+                : null;
 
         /// <summary>How many operations this core has run against an endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>

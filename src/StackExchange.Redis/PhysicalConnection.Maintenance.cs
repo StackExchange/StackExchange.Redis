@@ -33,6 +33,46 @@ internal sealed partial class PhysicalConnection
     {
         _readStatus = ReadStatus.MaintenanceNotification;
 
+        // the four facts this parse needed `this` for, so that the OTHER core's dispatcher can supply its
+        // own and the rules stay in one copy - see ReadMaintenanceNotification
+        ReadMaintenanceNotification(
+            muxer,
+            BridgeCouldBeNull?.ServerEndPoint,
+            BridgeCouldBeNull?.IsConnected == true,
+            (VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address,
+            kind,
+            ref reader);
+
+        // always: a maintenance notification is not a reply to anything, so the frame is consumed
+        // whatever the parse made of it - which is why the shared routine returns nothing to decide
+        return OutOfBandResult.Handled;
+    }
+
+    /// <summary>Read a maintenance notification and act on it, whichever core's connection it arrived on.</summary>
+    /// <param name="muxer">Receives the event, and owns the per-event dedup.</param>
+    /// <param name="server">The server that sent it, when the client models one.</param>
+    /// <param name="isConnected">
+    /// Whether that connection is established yet; the only available signal for a retained catch-up copy.
+    /// </param>
+    /// <param name="currentAddress">The address this connection actually reached, for a <c>MOVING</c> handoff.</param>
+    /// <param name="kind">Which notification this is.</param>
+    /// <param name="reader">Positioned just past the kind.</param>
+    /// <remarks>
+    /// <b>Shared rather than reimplemented, and the tolerance is why.</b> This parse is deliberately
+    /// liberal in ways that are load-bearing: an optional sequence id (go-redis length-checks these frames
+    /// at two elements and reads no seq at all, so being stricter than a client that demonstrably works
+    /// would be the bug), a time that may be absent from a shape that should carry one or present on a
+    /// shape that should not, <c>SMIGRATED</c>'s nested triplets, and explicit nulls. A second copy of
+    /// those rules for the other core would be a second thing to get subtly wrong.
+    /// </remarks>
+    internal static void ReadMaintenanceNotification(
+        ConnectionMultiplexer muxer,
+        ServerEndPoint? server,
+        bool isConnected,
+        IPAddress? currentAddress,
+        PushKind kind,
+        ref RespReader reader)
+    {
         // at most three elements follow the type in any defined shape; anything beyond that is ignored
         string? e1 = null, e2 = null, e3 = null;
         List<ClusterSlotMigration>? migrations = null;
@@ -50,12 +90,12 @@ internal sealed partial class PhysicalConnection
                     // note the reader has to be moved *past* the aggregate: enumerating the children does not
                     // advance it, so without this the loop walks back into the triplets we just read and
                     // mistakes them for further top-level elements
-                    migrations = ReadSlotMigrations(ref reader);
+                    migrations = ReadSlotMigrations(muxer, ref reader);
                     continue;
                 }
 
-                Trace($"{kind}: non-scalar element {count}");
-                return OutOfBandResult.Handled;
+                muxer.Trace($"{kind}: non-scalar element {count}", nameof(ReadMaintenanceNotification));
+                return;
             }
 
             var element = reader.IsNull ? null : reader.ReadString();
@@ -77,7 +117,7 @@ internal sealed partial class PhysicalConnection
         long? sequenceId = TryParseInt64(e1, out var parsedSequenceId) ? parsedSequenceId : null;
         if (sequenceId is null)
         {
-            OnMaintenanceNotificationDropped(type, $"no readable sequence id in a {count + 1}-element frame; continuing without dedup");
+            OnMaintenanceNotificationDropped(muxer, type, $"no readable sequence id in a {count + 1}-element frame; continuing without dedup");
         }
 
         long? timeSeconds = null;
@@ -106,7 +146,6 @@ internal sealed partial class PhysicalConnection
             payload = e3 ?? e2;
         }
 
-        var server = BridgeCouldBeNull?.ServerEndPoint;
         EndPoint? newEndPoint = null;
         if (type == MaintenanceNotificationType.Moving && !string.IsNullOrEmpty(payload))
         {
@@ -115,14 +154,13 @@ internal sealed partial class PhysicalConnection
             newEndPoint = ParseMigrationEndPoint(payload);
             if (newEndPoint is null)
             {
-                Trace($"{kind}: no usable endpoint in '{payload}'");
+                muxer.Trace($"{kind}: no usable endpoint in '{payload}'", nameof(ReadMaintenanceNotification));
             }
         }
 
         var time = timeSeconds is { } value ? TimeSpan.FromSeconds(value) : (TimeSpan?)null;
         var raw = Describe(kind, sequenceId, timeSeconds, payload);
-        Trace($"maintenance notification: {raw}");
-        OnDetailLog($"maintenance notification: {raw}");
+        muxer.Trace($"maintenance notification: {raw}", nameof(ReadMaintenanceNotification));
 
         // A *retained* notification arriving before the bridge reports established is the server's catch-up
         // copy: Enterprise keeps the most recent shard-scoped completion and replays it to whoever opts in
@@ -133,7 +171,7 @@ internal sealed partial class PhysicalConnection
         // notification that merely happens to land mid-handshake from being mistaken for history - a
         // late-joining connection can legitimately be told about a disruption in progress, and `SMIGRATED` is
         // not retained at all, so one arriving here is news.
-        var isCatchUp = IsRetained(type) && BridgeCouldBeNull?.IsConnected != true;
+        var isCatchUp = IsRetained(type) && !isConnected;
 
         // relax before reporting: the event handler is consumer code, and the window should already be open
         // by the time anyone sees the notification that opened it
@@ -161,7 +199,7 @@ internal sealed partial class PhysicalConnection
                 // handoff simply was not asking.
                 if (isNew && type == MaintenanceNotificationType.Moving)
                 {
-                    server.OnMovingAnnounced(time, newEndPoint, this);
+                    server.OnMovingAnnounced(time, newEndPoint, currentAddress);
                 }
             }
             else if (IsWindowClosing(type))
@@ -185,8 +223,8 @@ internal sealed partial class PhysicalConnection
         // place for "here is what the server mentioned on the way in".
         if (isCatchUp)
         {
-            Trace($"{kind} seq {sequenceId} is a retained copy of a finished event; not raising it");
-            return OutOfBandResult.Handled;
+            muxer.Trace($"{kind} seq {sequenceId} is a retained copy of a finished event; not raising it", nameof(ReadMaintenanceNotification));
+            return;
         }
 
         // Per-server work above, one event below: relaxation is per-connection and every connection is told,
@@ -198,10 +236,8 @@ internal sealed partial class PhysicalConnection
         }
         else
         {
-            Trace($"{kind} seq {sequenceId} already reported by another node; not raising again");
+            muxer.Trace($"{kind} seq {sequenceId} already reported by another node; not raising again", nameof(ReadMaintenanceNotification));
         }
-
-        return OutOfBandResult.Handled;
     }
 
     /// <summary>
@@ -212,7 +248,7 @@ internal sealed partial class PhysicalConnection
     /// makes, and the right one: the other triplets are still actionable, and one bad entry should not lose a
     /// migration we could have applied. The slot list is a flat comma-and-range string inside each triplet.
     /// </remarks>
-    private List<ClusterSlotMigration> ReadSlotMigrations(ref RespReader reader)
+    private static List<ClusterSlotMigration> ReadSlotMigrations(ConnectionMultiplexer muxer, ref RespReader reader)
     {
         var results = new List<ClusterSlotMigration>();
         var outer = reader.AggregateChildren();
@@ -221,7 +257,7 @@ internal sealed partial class PhysicalConnection
             var triplet = outer.Value;
             if (!triplet.IsAggregate)
             {
-                Trace("slot migration: expected a triplet");
+                muxer.Trace("slot migration: expected a triplet", nameof(ReadSlotMigrations));
                 continue;
             }
 
@@ -242,7 +278,7 @@ internal sealed partial class PhysicalConnection
 
             if (index < 3)
             {
-                Trace($"slot migration: {index}-element triplet, skipped");
+                muxer.Trace($"slot migration: {index}-element triplet, skipped", nameof(ReadSlotMigrations));
                 continue;
             }
 
@@ -270,13 +306,11 @@ internal sealed partial class PhysicalConnection
         _ => false,
     };
 
-    private void OnMaintenanceNotificationDropped(MaintenanceNotificationType type, string reason)
-    {
+    private static void OnMaintenanceNotificationDropped(
+        ConnectionMultiplexer muxer, MaintenanceNotificationType type, string reason)
         // never fatal: a notification we cannot read is a diagnostic, not a protocol failure - the frame has
         // been consumed either way, so the connection is not at risk
-        Trace($"dropped {type} notification: {reason}");
-        OnDetailLog($"dropped {type} notification: {reason}");
-    }
+        => muxer.Trace($"dropped {type} notification: {reason}", nameof(ReadMaintenanceNotification));
 
     private static bool TryParseInt64(string? value, out long result)
         => long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);

@@ -3731,3 +3731,44 @@ body out of `PhysicalConnection` into something taking `(muxer, server, kind, re
 call it from both dispatchers, the way `ResubscribeToServer` is now called from both.
 
 Not attempted at the end of a long session: a 270-line refactor of shipped parsing deserves a fresh one.
+
+### 9t. The maintenance parse is now shared: 58 → 17
+
+9s said the remaining 58 all wanted the push path, and that the move was to lift the parse out rather
+than write a second copy. Done, and it was a smaller refactor than it looked: of the eleven members in
+`PhysicalConnection.Maintenance.cs`, **eight were already static**. Only three touched `this`, and
+between them they wanted exactly four facts - the server, whether the connection is established, the
+address it reached, and somewhere to trace.
+
+So `OnMaintenanceNotification` became `ReadMaintenanceNotification(muxer, server, isConnected,
+currentAddress, kind, ref reader)`, the instance method is a four-line wrapper supplying those from
+`this`, and `RespPushDispatch` calls the same routine. **The ~270 lines of deliberately tolerant parsing
+were not touched at all** - no second spelling of the optional sequence id, the movable time, the
+nested `SMIGRATED` triplets or the explicit nulls.
+
+Three details worth recording:
+
+- **It returns `void`.** The shipped signature returned `OutOfBandResult`, which is private to
+  `PhysicalConnection` and is a *different enum* from the new core's `RespOutOfBandResult`. Rather than
+  widen or map, note that a maintenance notification is never a reply to anything: the frame is consumed
+  whatever the parse made of it, so there is nothing to signal. Both callers return their own "handled".
+- **`OnMovingAnnounced` took a `PhysicalConnection` and used it for one thing** - the address the
+  announcing connection reached, to poll for the endpoint changing away from it. Now it takes the
+  address, which is also the third time this session that "the address we actually reached" has turned
+  out to be the real parameter hiding behind a connection (see also `moving-endpoint-type` in 9s and
+  `MaintenanceEndpointTypeResolver`).
+- **It goes before the pub/sub switch** in the dispatcher, exactly as the shipped reader orders it: a
+  maintenance notification's second element is not a channel name, so anything reading it as one rejects
+  the frame.
+
+**Maintenance failures: 58 → 17**, and the whole flagged suite stays in its usual band with the shipped
+suite fully green. What is left in that family splits into two:
+
+- the **opt-in's negative cases** - `EnabledFailsAgainstAServerThatRefuses`,
+  `EnabledFailsWhenTheServerDowngradesToResp2`, `EnabledFailsWhenResp2WasOurOwnChoice`,
+  `AutoIsOffWhenTheServerDowngradesToResp2`. These are about `ReconcileMaintenanceNotifications`, which
+  settles the feature once the protocol is known and decides whether a refusal is fatal; it runs from
+  `OnFullyEstablished` and this core has no equivalent;
+- **retention and replay** (3) plus `MovingRecyclesTheConnectionBeforeTheServerCloses` and
+  `OneLogicalEventFromEveryNodeRaisesOneEvent`, which are about acting on what was parsed rather than
+  parsing it.
