@@ -3504,3 +3504,46 @@ remaining budget, `LogInformationServerStatus` per endpoint when not all connect
 connect with a log writer attached and read which endpoint's availability task is outstanding and what
 state its connections are in. Three hypotheses from reading the code produced one fix and two dead ends;
 the log will produce the answer.
+
+### 9o. How far from one core: a census
+
+"How much still travels as a `Message`" has been answered by counting files, which flatters the
+position badly - `RedisDatabase.cs` holds 395 `Message.Create` sites and under both flags **not one of
+them runs**. So it was measured instead: a counter on the `Message` constructor, gated on an env var,
+dumped on process exit, over the same 2,282 tests (`StringTests`, `HashTests`, `ListTests`, `SetTests`,
+`KeyTests`, `BasicOpsTests`, `PubSubTests`) with flags off and on.
+
+| | Messages created |
+|---|---|
+| shipped | **79,114** |
+| both flags | **9,772** |
+
+**88% of the traffic is already off the old core, and 100% of the data path.** The shipped run's top
+commands are `PUBLISH` 15,252, `SADD` 12,264, `HINCRBY` 8,804, `HINCRBYFLOAT` 8,000, `SET` 6,661,
+`VADD` 2,488, `LPUSH`, `HSET`, `UNLINK`, `ZADD`... and in the flagged run **none of those appear at
+all**. Not one `SET`, `HSET`, `LPUSH` or `ZADD`. That is the `IDatabase` surface being genuinely gone
+rather than forwarded: `TransitionalDatabase` has a shipped fallback, and it is used by exactly two
+members (`GetFeatures`, `GetNextFailover`) - every command member goes to the new core.
+
+What the remaining 9,772 actually is:
+
+| | count | share |
+|---|---|---|
+| **the connect path** - `CLIENT`, `INFO`, `CLUSTER`, `CONFIG`, `QUIT`, `ECHO`, `HELLO`, `PING`, `SELECT`, `READONLY`/`READWRITE` | 8,050 | **82%** |
+| the tie-breaker `GET` | 862 | 9% |
+| `SENTINEL` | 432 | 4% |
+| `SUBSCRIBE`/`PSUBSCRIBE` - built to ROUTE, never sent (see `Subscription.TrySendViaNewCore`) | 403 | 4% |
+| `SCAN` (the `IServer` tail) | 25 | <1% |
+
+So the position is sharper than the file counts suggested, and it all points one way: **the connect path
+is 82% of what is left**, the tie-breaker is one of the four named D2.8 gaps (9k), sentinel keeps its own
+bridge by design and goes last, and the subscribe messages are an artefact of routing through
+`SelectServer` that disappears with the shipped selector.
+
+There is one structural problem between here and a single core, and it is the one 9m/9n is stuck in.
+Not a long tail.
+
+**Reproducing this**: the counter was reverted rather than kept - it needs a `getenv` per message, or a
+static constructor on `Message`, neither of which belongs on that path. To re-run: add a
+`ConcurrentDictionary<RedisCommand, int>` increment at the top of `Message`'s constructor and dump it
+from an `AppDomain.ProcessExit` handler.
