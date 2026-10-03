@@ -3807,3 +3807,41 @@ Two smaller things the same tests caught:
 `ReconnectRetryPolicyUnitTests` artefacts and one rotator - with the shipped suite fully green. One
 flagged run was terminated at its timeout again (9b-xiii) and re-ran clean, which is the third time that
 wedge has cost a measurement in this stretch.
+
+### 9v. The handoff recycles this core's connections too: 8 → 6
+
+A `MOVING` handoff exists to stop using a connection *before the server closes it*. Under the engine flag
+the connection in question is this core's - so a handoff that recycled only the shipped bridges replaced
+the sockets nobody was using and left the one carrying commands to be cut mid-flight, which is precisely
+the failure the feature exists to prevent.
+
+Both halves of `DrainThenRecycleAsync` now span cores, and both were already most of the way there:
+
+- **drain.** `ServerEndPoint.HasCallerWork()` summed bridges; it now asks this core too.
+  `RespEndpointExecutor.HasCallerWork()` is deliberately coarse - anything queued or awaiting a reply
+  counts - because the question is "would recycling now lose somebody's work?", and over-counting costs
+  a short wait where under-counting costs the command.
+- **recycle.** `DropConnection(reconnectImmediately: true)` already existed for the failure simulation,
+  so the recycle is that, per leg, immediately redialled: the endpoint is still the one we route to until
+  the topology says otherwise, so the next command should find a connection rather than pay the dial.
+
+**And it has to be REPORTED, which is the half the test judges.** The first attempt recycled correctly
+and still failed, with the assertion saying so in its own words - *"the recycle should be reported as a
+MaintenanceHandoff rather than silently"*. The replacement raises `ConnectionRestored`, so a silent drop
+leaves a consumer tracking connection state with an unpaired restore, and `MaintenanceHandoff` is what
+tells them it was deliberate rather than a fault. `ConnectionMultiplexer.OnConnectionFailed` is internal,
+so this core raises it directly with that type.
+
+**Maintenance: 8 → 6. The flagged suite is at 4, the shipped suite fully green.**
+
+What is left in the family is no longer about connections at all:
+
+- **retention and replay** (3) - `RetainedCompletionIsReplayedToANewConnection`,
+  `RetentionReplacesRatherThanAccumulates`. The server replays a retained completion to whoever opts in
+  next, and `isCatchUp` is detected as "a retained kind arriving before the bridge reports established".
+  That test is `BridgeCouldBeNull?.IsConnected != true` in shipped terms and is now passed in as
+  `isConnected` - but this core supplies its own answer, and for a connection that is mid-handshake the
+  two cores disagree about what "established" means. That is the next thing to pin down.
+- `OneLogicalEventFromEveryNodeRaisesOneEvent` - the per-event dedup across nodes.
+- `RelaxationDoesNotSuppressConnectionFailure` and `RetirementUnderMaintenance...` - both about faults
+  *inside* a window, which is the relaxation side rather than the notification side.

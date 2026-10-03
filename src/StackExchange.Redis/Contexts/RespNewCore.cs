@@ -1623,6 +1623,71 @@ namespace StackExchange.Redis
             return _endpoints.TryGetValue(endpoint, out var interactive) ? interactive.ConnectionId : null;
         }
 
+        /// <summary>Whether a caller is waiting on either of this core's connections to an endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks><inheritdoc cref="RespEndpointExecutor.HasCallerWork" path="/remarks"/></remarks>
+        internal bool HasCallerWork(EndPoint endpoint)
+        {
+            if (endpoint is null) return false;
+
+            return (_endpoints.TryGetValue(endpoint, out var interactive) && interactive.HasCallerWork())
+                || (_subscriptions.TryGetValue(endpoint, out var subscription) && subscription.HasCallerWork());
+        }
+
+        /// <summary>Replace this core's connections to an endpoint, because it is being moved.</summary>
+        /// <param name="endpoint">The endpoint being handed off.</param>
+        /// <returns>Whether there was anything to replace.</returns>
+        /// <remarks>
+        /// <b>The point of a handoff is to stop using a connection before the server closes it</b>, and
+        /// under the engine flag the connection in question is this core's - so a handoff that recycled
+        /// only the shipped bridges replaced the sockets nobody was using and left the ones carrying
+        /// commands to be cut mid-flight, which is the whole failure mode the feature exists to avoid.
+        /// <para>
+        /// Reconnecting immediately rather than lazily: the endpoint is still the one we route to until
+        /// the topology says otherwise, so the next command should find a connection rather than pay the
+        /// dial itself.
+        /// </para>
+        /// </remarks>
+        internal bool RecycleConnections(EndPoint endpoint)
+        {
+            if (endpoint is null) return false;
+
+            var recycled = false;
+            if (_endpoints.TryGetValue(endpoint, out var interactive)
+                && interactive.DropConnection(reconnectImmediately: true))
+            {
+                Report(endpoint, ConnectionType.Interactive);
+                recycled = true;
+            }
+
+            if (_subscriptions.TryGetValue(endpoint, out var subscription)
+                && subscription.DropConnection(reconnectImmediately: true))
+            {
+                Report(endpoint, ConnectionType.Subscription);
+                recycled = true;
+            }
+
+            return recycled;
+
+            // REPORTED, not dropped quietly, and that is the half a handoff is judged on: the replacement
+            // raises ConnectionRestored, so a silent drop leaves a consumer tracking connection state with
+            // an unpaired restore - and `MaintenanceHandoff` is what tells them it was deliberate rather
+            // than a fault. `MaintenanceNotificationTests.MovingRecyclesTheConnectionBeforeTheServerCloses`
+            // asserts exactly that, in those words.
+            void Report(EndPoint reported, ConnectionType connectionType)
+                => _multiplexer.OnConnectionFailed(
+                    reported,
+                    connectionType,
+                    ConnectionFailureType.MaintenanceHandoff,
+                    new RedisConnectionException(
+                        ConnectionFailureType.MaintenanceHandoff,
+                        CommandFlags.None,
+                        "The connection was replaced for a maintenance handoff.",
+                        innerException: null),
+                    reconfigure: false,
+                    physicalName: null);
+        }
+
         /// <summary>The address this core's connection to an endpoint actually reached.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks><inheritdoc cref="RespClientConnection.RemoteAddress" path="/remarks"/></remarks>

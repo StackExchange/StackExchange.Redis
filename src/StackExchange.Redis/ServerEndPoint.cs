@@ -401,7 +401,9 @@ namespace StackExchange.Redis
         /// property, and is excluded by the same test, since both set the internal-call flag.
         /// </remarks>
         internal bool HasCallerWork()
-            => interactive?.HasCallerWork() == true || subscription?.HasCallerWork() == true;
+            => interactive?.HasCallerWork() == true
+            || subscription?.HasCallerWork() == true
+            || Multiplexer.NewCoreIfCreated?.HasCallerWork(EndPoint) == true;
 
         /// <summary>
         /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in

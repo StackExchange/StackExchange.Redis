@@ -241,6 +241,26 @@ namespace StackExchange.Redis
         /// </remarks>
         internal long OperationCount => Volatile.Read(ref _operationCount);
 
+        /// <summary>Whether a caller is waiting on this executor right now.</summary>
+        /// <remarks>
+        /// <b>What a maintenance handoff drains before replacing the connection.</b> It is deliberately
+        /// coarse - anything queued or awaiting a reply counts - because the question it answers is "would
+        /// recycling now lose somebody's work?", and for that, over-counting costs a short wait while
+        /// under-counting costs the command.
+        /// </remarks>
+        internal bool HasCallerWork()
+        {
+            RespConnection? connection;
+            int backlog;
+            lock (_sync)
+            {
+                connection = _connection is { IsClosed: false } live ? live : null;
+                backlog = _backlog?.Count ?? 0;
+            }
+
+            return backlog > 0 || connection?.PendingCount > 0;
+        }
+
         /// <summary>The address this executor's current connection reached, if it has one.</summary>
         /// <remarks><inheritdoc cref="RespClientConnection.RemoteAddress" path="/remarks"/></remarks>
         internal System.Net.IPAddress? RemoteAddress
