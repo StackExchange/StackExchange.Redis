@@ -3876,3 +3876,45 @@ The last three in the family are each a different question, and none is about th
   whether a fault inside a window is still reported as a fault.
 - `RetirementUnderMaintenanceTests.ARefusingNodeAccumulates...` - still the 9i/9h case, where the test's
   premise about probe traffic no longer holds under this core.
+
+### 9x. Where the coupled move stands: 126 → 59, and it is a tail now
+
+Re-measured with everything from 9p-9w landed:
+
+| | flagged failures, coupled |
+|---|---|
+| 9r (first full measure) | **126** |
+| now | **59** |
+
+Maintenance was 56% of the first number and is now 3 of the second. What is left has no dominant
+cluster at all - 25 classes, the largest 8:
+
+| | count |
+|---|---|
+| `ClusterTests` | 8 |
+| `ExceptionFactoryTests` | 7 |
+| `UnroutableRedirectUnitTests` | 6 |
+| `HelloHandshakeTests` | 5 |
+| `ClientKillTests` | 4 |
+| `RespConnectionStateTests`, `ClusterFailoverRolesUnitTests` | 3 each |
+| `SecureTests`, `RespProtocolTests`, `InertClusterNodeUnitTests`, `DefaultOptionsTests`, `ConnectFailureRefreshTests` | 2 each |
+| 13 further classes | 1 each |
+
+**That is a change in the character of the work, and it is worth saying so rather than quoting a
+number.** Every step from 9m to 9w was *one thing blocking many tests* - the connect verdict, the
+`AUTH` refusal, the maintenance opt-in, the push ordering - and each paid for itself several times over.
+A 25-class tail with no cluster above 8 will not behave like that: it is mostly individual facts and
+individual expectations, and the honest expectation is that it costs roughly its length.
+
+Two things in it are known not to be work at all:
+
+- `RetirementUnderMaintenanceTests` is the 9h/9i case where the test's premise about accumulating probe
+  traffic stops holding once this core refuses to aim at an unreachable node - already analysed, and the
+  resolution is the test's premise rather than the product.
+- `SentinelTests` keeps its own bridge by design (D2.7) and goes last.
+
+**The order worth taking them in** is by whether they share a cause, since that is what has paid so far.
+Candidates that look like one cause each rather than seven: `ExceptionFactoryTests` (7) is almost
+certainly one thing - exception text naming bridge state - and `UnroutableRedirectUnitTests` (6) plus
+`HelloHandshakeTests` (5) are each a single mechanism. `ClusterTests` (8) is the one that is probably
+genuinely eight separate things.
