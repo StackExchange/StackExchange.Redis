@@ -4148,3 +4148,248 @@ alternative - asking per connection - is what the handshake argues against direc
 two nodes' differing answers mid-reshard would flap the map by whichever socket opened first.
 
 **`ClusterTests`: 18 → 5 → 3 → 2 → 0**, and 19m51s → 17s.
+
+### 9ad. A regression the coupled measurement was hiding, and the configuration that found it
+
+**The flagged-but-uncoupled configuration is a third measurement, and I had stopped taking it.** Everything
+in 9ab/9ac was measured with the coupled patch applied, and shipped was measured with the flags off. Both
+were green. `ClusterTopologyUnitTests.SlotMapIsDrivenByTheSlotsView` fails in neither - and fails under the
+engine flags with the patch *off*, which is the configuration that actually ships next.
+
+**The bug.** `SetClusterConfiguration` reads `ServerEndPoint.ClusterTopology` to decide which reply drives
+the shipped slot map, and falls back to the `CLUSTER NODES` view when the server has none. This core asks
+`CLUSTER SLOTS` once per deployment, so exactly one server held a topology - and the *second* connection
+publishing its own `CLUSTER NODES` (9ab) had no SLOTS view beside it and overwrote the map with the staler
+reply. The test is built precisely to catch that: the toy server reports a slot as migrated in SLOTS
+**only**, so a NODES-driven map routes to the wrong node and the `NoRedirect` write comes back `-MOVED`.
+
+**The fix is the asymmetry 9ac recorded, removed.** The slots view now lives on the core and is given to
+every server as each one publishes, rather than only to whichever node answered. That is the honest shape
+anyway: the map describes the deployment, so "which server holds it" was never a meaningful question - it
+was an artefact of the shipped core having asked per connection.
+
+**And the same configuration found a second one, bigger than the first.** The full flagged-but-uncoupled
+suite came back at 24 against a prior band of 3-6, clustered on
+`MaintenanceTopologyRefreshTests` (3), `PeriodicTopologyRefreshTests`, and seven
+`ClusterTests.ClusterNoRedirectRoutes*`. Cause: `RefreshTopologyAsync` was being called whenever a core
+exists, so in the dual-engine state it ran *alongside* the shipped sweep rather than instead of it - a
+second topology read per reconfiguration, which is extra round trips, a racing publish, and four tests
+that count reads.
+
+So the method stays committed and the CALL moved into the coupled patch, beside the change that gates the
+shipped sweep off. It is only ever correct there: "refresh the topology" is the right thing to do exactly
+once per reconfiguration, and which core should do it is decided by which core is dialling. Unused
+committed code is the lesser problem, and `DialEndpointSoon` already sits in the same position.
+
+**Then the stale-binary trap, for the fifth time in this work, in a new disguise.** The verification run
+came back with twenty-one failures that were obviously the *coupled* set - `InertClusterNodeUnitTests`,
+`SlotLessNodesAreKnownButNotConnected`, `ConnectFailureRefreshTests` - against a tree with the patch
+reverted. Cause: I had rebuilt `src/StackExchange.Redis.csproj` and then run with `--no-build`, so the test
+project's output directory still held the copy of `StackExchange.Redis.dll` from *its* last build, which was
+made with the patch applied. The file timestamps differ by 79 seconds and the sizes by a kilobyte.
+
+The rule the earlier four occurrences produced - grep the build output for `error` before trusting a run -
+does not cover this one, because the build genuinely succeeded. The rule that does: **`--no-build` is only
+safe after building the project you are about to run**, not a project it references. Simplest is to drop
+`--no-build` whenever the library has been rebuilt on its own. The cheap check, when in doubt, is that
+`src/.../bin/.../StackExchange.Redis.dll` and `tests/.../bin/.../StackExchange.Redis.dll` agree on size and
+timestamp.
+
+**And a second self-inflicted one in the same ten minutes, worth naming because it has now happened twice.**
+A shell command that greps or kills by process-name pattern will match *its own* command line, since that
+line contains the pattern. `pkill -f "StackExchange.Redis.Tests"` killed its own shell (exit 143), and
+`until ! pgrep -f testhost; do sleep 10; done` waited on itself forever. Match on something the command
+itself does not contain, or check for the artefact rather than the process.
+
+**Then the real cause of the refresh failures, which was neither of my first two guesses.**
+`MaintenanceTopologyRefreshTests.RefreshIsCoalescedRatherThanRepeated` fails on
+`Assert.True(await UntilRefreshedAsync(server, before))` - and that is **no** topology reads, not too many.
+Both of those tests count `CLUSTER` commands at the server to decide whether a refresh happened at all, and
+the answer had become "never": a slot-migration notification provoked a reconfiguration pass that re-read
+nothing.
+
+I had caused it in 9ac by making `GetEndpointsFromClusterNodes` read the published view - which is the only
+thing that re-read the topology - and then, in the first half of this section, moving its replacement
+(`RefreshTopologyAsync`) behind the patch. Between them the flagged-but-uncoupled configuration had no
+topology refresh at all.
+
+**Two corrections, and the second is the one that generalises.** First, the refresh belongs exactly where
+the sends were, so it is a *replacement* and not an addition: one topology read per reconfiguration, done
+by the core that owns the connections. `RefreshTopologyAsync` also had to grow the `CLUSTER NODES` half,
+since renewing only the deployment-wide SLOTS view leaves every server's own `ClusterConfiguration` at
+whatever its handshake saw.
+
+Second - and this is what finally made all three configurations agree - **"the core owns this" has to be
+tested, not assumed.** Under the flag alone this core connects lazily, so a deployment nobody has sent a
+command to has no connection here, and the shipped bridge is the only thing that can answer. The published
+view is non-null anyway, because shipped autoconfigure fills it, so the cached path was taken against a
+cache nothing was refreshing. Gating on `IsInteractiveConnected` for that endpoint is the whole fix, and it
+is the honest statement of the condition the code actually depends on.
+
+**And a fourth turn of the same screw, which is where it finally settled.** With the refresh back in the
+reconfiguration pass and gated on ownership, the flagged-only configuration went 27 -> 8 (its usual band) but
+the coupled one went 20 -> 27, with `ClusterFailoverRolesUnitTests` - the test 9z exists for - failing again,
+joined by `MovedToAPromotedReplicaIsFollowed`.
+
+Cause: `SetClusterConfiguration` calls `ApplyClusterRoles`, which **prefers the SLOTS view wherever a server
+has one**. The refresh was publishing the fresh slots only to the server that answered, so every other server
+still held its handshake-era view - and that stale view's role won over the `CLUSTER NODES` reply just read
+for it. After a failover that is the promoted node being told it is still a replica, by the very pass that
+was supposed to repair it.
+
+The fix is the rule already adopted for the handshake in this same commit, applied to the refresh too: the
+slots view is a deployment fact, so publish it to every server. Coupled went 6 -> 2 on the refresh-sensitive
+set and flagged-only stayed green.
+
+**Four wrong diagnoses in one section is the real finding here.** "Extra reads", then "the call is in the
+wrong place", then "ownership is not tested", then "the stale view wins" - and only the last was right. Each
+of the first three was a plausible mechanism reasoned forward from the gating, and each cost a build-and-run
+cycle. The assertion text said `Assert.True(await UntilRefreshedAsync(...))` - *no* reads - from the very
+first run, and the one that finally landed came from reading what `ApplyClusterRoles` actually does rather
+than what it was for.
+
+**Method note, and it is the same one as 9aa.** Two of the three diagnoses in this stretch that I got wrong
+came from reasoning about what *should* follow rather than reading the evidence. This one is the matching
+failure in measurement: two green configurations can bracket a broken third. The coupled patch masked it
+because under the coupled move the shipped slot map is not what routes.
+
+### 9ae. Where this leaves the three configurations, and the two items the refresh created
+
+**Measured state after 9ab-9ad, all three configurations:**
+
+| configuration | failures | note |
+|---|---|---|
+| shipped (no flags) | 0 | unchanged throughout |
+| engine flags, no coupled patch | 5 | its usual 3-6 rotation band |
+| coupled patch applied | 22 | was 20 before this stretch, 27 at the worst point |
+
+The flagged-only five are the known rotators: `ReconnectRetryPolicyUnitTests.RetryPolicyFailureCases` x2
+(the documented stable pair), plus `MovedProfiling`, `NoticesConnectFail` and one
+`ClusterNoRedirectRoutes*` - all timing-shaped, and each passes in isolation.
+
+**Two items in the coupled column are new, and both are the topology refresh doing its job too well.**
+
+`UnroutableRedirectUnitTests.RefreshingTheTopologyDoesNotMakeTheTargetRoutable` is the sharper one, and it
+is named for precisely the hazard: a refresh must not hand the client a way to reach a node it cannot
+address, because if it does the slot map routes directly, no redirect is issued, and every other test in
+that class silently stops testing anything. `127.0.0.1:6380` is now appearing in `GetEndPoints()`.
+
+The mechanism to check first: `RefreshNodesAsync` calls `SetClusterConfiguration`, which calls
+`UpdateNodeRelations`, which calls `GetServerEndPoint(node.EndPoint, ...)` - and that **creates**. So a node
+that `CLUSTER SLOTS` reports as the `"?"` placeholder can still be handed a dialable identity by the
+`CLUSTER NODES` reply, which names it by address. If that is it, the fix belongs with the placeholder rule
+9ac consolidated: the refusal is currently applied where an endpoint is *read* from a reply, and this is a
+path where one is *created* from a different reply's view of the same node.
+
+`ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` is the other, and it widened from RESP3-only
+to both protocols, which suggests the refresh is now re-publishing a slot map mid-migration where
+previously nothing did.
+
+**Neither is a reason to hold the committed work**: shipped is green and flagged-only is at its baseline, so
+both of these live entirely in the configuration that is still an applied patch. They are the next two
+things to do, in that order.
+
+### 9af. `UnroutableRedirect` again: the refresh should re-read SLOTS and nothing else
+
+**Bisected rather than reasoned about, which was the faster route by a wide margin.** Disabling the
+refresh's `CLUSTER NODES` publish outright made the test pass; that located the cause in one call in two
+minutes, after three guesses at the mechanism had each cost a build-and-run.
+
+**The cause.** Publishing a NODES view calls `SetClusterConfiguration`, and two of its four steps
+**create** a `ServerEndPoint` - `UpdateClusterRange` through `ResolveOrCreate`, and `UpdateNodeRelations` -
+both reaching `GetServerEndPoint`. NODES names every node by address, including one that `CLUSTER SLOTS`
+deliberately declined to name: the `"?"` placeholder a node uses when it prefers hostnames and announces
+none. So a refresh that published NODES handed the client a way to reach a node it must not address, which
+is precisely what that test guards - and the stakes are higher than one test, because once the slot map can
+route there directly no redirect is issued and every other test in the class silently stops testing
+anything.
+
+**Two fixes attempted and withdrawn, both recorded because both looked right.** Separating the genealogy
+pass (`resolveGenealogy: false`) did not help, because `UpdateClusterRange` creates too. Separating both
+(`governEndpoints: false`) broke `RoutableRedirectStillFollowsNormally` instead - the slot map is not
+optional, and skipping it is not a smaller change, it is a different bug.
+
+**What was actually wrong was the premise.** A refresh re-reads what can have changed about the
+*deployment*, and `CLUSTER SLOTS` is that; the roles follow from it for free, because `SetSlotRange`
+records the owners and that reaches `ServerEndPoint.IsReplica` through `RespTopology.RoleLearned`. The
+per-server `CLUSTER NODES` view is a handshake-time fact about one node, and a refresh has no business
+re-publishing it. `RefreshNodesAsync` is deleted; `ClusterFailoverRolesUnitTests` stays green without it,
+which is the proof that the role repair never needed NODES at all.
+
+That also retires the asymmetry note in 9ac from the other direction: SLOTS is published to every server
+because it describes the deployment, and NODES is published by exactly one connection because it describes
+one node. Each reply goes where its own scope says it should.
+
+**Coupled, on the refresh-sensitive set: 6 -> 1**, the remainder being the known patch-side
+`SlotLessNodesAreKnownButNotConnected`.
+
+**And `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` narrowed back to RESP3 only** - the
+RESP2 half was collateral from the NODES publish. What is left is an original tail item, not a regression:
+`SPUBLISH` times out with `bw: SpinningDown` and `qs: 1`, an in-flight sharded publish sitting on a
+connection being recycled mid-migration and not re-routed onto its replacement. RESP3 only because there is
+no separate subscription connection to fall back to.
+
+### 9ag. The failure-detection group: four tests, three capabilities this core did not have
+
+The largest coherent remaining group, and all three gaps were things the shipped bridge does that the new
+core simply never learned. None of them is a test-premise question; all three matter for a client that
+outlives a deployment change.
+
+**1. Nothing re-dialled a down endpoint.** `OnHeartbeat` returned early when there was no live connection,
+so this core only ever dialled on demand: a connection that went away stayed away until a caller happened
+to need it again, and an endpoint whose *first* dial failed was never tried a second time at all.
+`ConnectFailureRefreshTests` reads that as "expected the endpoint to be retried repeatedly, but saw 0
+attempts".
+
+`RetryConnectIfDue` fixes it, and the gate is the interesting part: retry only when a dial has already been
+attempted (`_connectRetryCount > 0`) or one has already succeeded (`_connects > 0`). Either means the
+endpoint is wanted; an executor nobody has used has neither and is left alone, so lazy connection is
+preserved exactly - verified by `RespConnectionStateTests` staying green.
+
+**2. Repeated connect failures provoked no topology read.** The mechanism already exists and is
+well-reasoned - `ServerEndPoint.OnRepeatedConnectFailure`, rate-limited to `ConfigCheckSeconds`, above a
+threshold, with the "37 hours across a Redis Cloud node replacement" story in its remarks - and this core
+simply never called it. It does now, from the connect-failure path, passing the count; `ServerEndPoint`
+keeps the restraint, which is where it belongs.
+
+**3. A dying connection raised no `ConnectionFailed`.** This is the one with consequences beyond the test
+suite: `ConnectionFailed` is a documented public event and the thing callers wire up to notice a
+deployment moving underneath them. This core raised it for a tripped circuit breaker and for a maintenance
+handoff - and for nothing else, so an ordinary dead socket was silent. Now raised from `RecordFault`, which
+is where the fault is already computed, with `reconfigure: false` because that judgement belongs to
+`OnRepeatedConnectFailure` and asking for a re-read per dropped socket is the stampede its rate limit
+exists to prevent.
+
+**And one more spanning surface.** `ServerEndPoint.LastException` read the shipped bridges only, which is
+what `ExceptionFactory` collects to explain *why* no connection was available - so under the flag
+"unable to resolve physical connection" arrived with no inner exception and nothing to act on. Same
+treatment as `IsConnected`, `OperationCount` and the connection state: ask the other core when the bridges
+have nothing to say.
+
+**Four tests to zero**: `ConnectFailureRefreshTests` x2, `MaintenanceRelaxationTests`,
+`ConnectionFailureErrorsTests`.
+
+**One of the three had to be partly withdrawn, and the trade is worth recording.** Failing the handshake
+on `WRONGPASS`/`NOAUTH` is the shape `SecureTests.ConnectWithWrongPassword` asks for and it fixed that case
+- but `ConfigTests.MutableOptions` changes the password at runtime and needs the connection to survive the
+window in which it is wrong, so the change traded one test for two. Reverted, with the reasoning left in
+the code: shipped gets both by continuing and letting the FIRST COMMAND fail with the auth suspicion
+attached, so that is where this core has to arrive too. The `SecureTests` pair stays open, unchanged from
+before.
+
+**And the `ConnectionFailed` raising needed the distinction shipped already makes.** Announcing every
+closed connection is wrong: a retirement, a maintenance recycle or a dispose is not a failure, and
+`MaintenanceNotificationTests` watches a graceful recycle and asserts that none is reported. So
+`RecordFault` takes `wasRequested`, exactly as `PhysicalBridge.OnConnectionFailed` does, and the recycle
+path passes it - that path already announces its own `MaintenanceHandoff`, so the socket failure was both
+redundant and misleading.
+
+**Deliberately not done: `SecureTests`' `password: ""` case.** It wants the *message* shipped synthesises in
+`ResultProcessor` for a NOAUTH reply ("NOAUTH Returned - connection has not yet authenticated"), which is a
+wording question rather than a behaviour one. The behaviour that matters - a genuinely wrong password
+failing the connect rather than deferring to the first command - is covered by the `WRONGPASS` half.
+
+**Also deliberately not done: the `DefaultOptionsTests` socket counts.** Three tests that predict how many
+sockets the server should see while two cores divide the work. Measuring the shipped legs rather than
+predicting them did not converge either, and the question dissolves entirely once the old core is deleted -
+so it is the wrong thing to spend time on now, and is recorded here rather than guessed at.
