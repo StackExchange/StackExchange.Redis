@@ -2095,6 +2095,24 @@ namespace StackExchange.Redis
                         }
 
                         log?.LogInformationTaskSummary();
+
+                        // One topology read per pass, by the core that owns the connections - replacing the
+                        // shipped AutoConfigureAsync sweep rather than joining it, which is why it is not
+                        // per endpoint. Before the loop below, deliberately: that loop reads IsReplica to
+                        // decide which servers are primaries, so a role repaired afterwards would be a
+                        // reconfiguration that disagrees with itself.
+                        //
+                        // Ownership is tested rather than assumed. Under the flag alone this core dials
+                        // lazily, so a deployment nobody has sent a command to has nothing open here and the
+                        // shipped sweep is the only thing that can answer; "refreshing" from a core with no
+                        // connections sends nothing and reports success, which is how
+                        // MaintenanceTopologyRefreshTests and PeriodicTopologyRefreshTests came to count
+                        // zero CLUSTER commands for a pass that was supposed to re-read the topology.
+                        if (NewCoreIfCreated is { HasAnyInteractiveConnection: true } refreshing)
+                        {
+                            await refreshing.RefreshTopologyAsync(log).ForAwait();
+                        }
+
                         EndPointCollection? updatedClusterEndpointCollection = null;
                         for (int i = 0; i < available.Length; i++)
                         {
@@ -2323,23 +2341,75 @@ namespace StackExchange.Redis
         {
             try
             {
-                // both views, freshly: SLOTS says who serves what and under which names, NODES lists every
-                // node including those serving nothing. Asked as a pair for symmetry - trusting the topology
-                // cached from autoconfigure here would mean acting on possibly-stale data while deliberately
-                // re-reading the other half
-                var slotsTask = ExecuteAsyncImpl(
-                    RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server);
-                var nodesTask = ExecuteAsyncImpl(
-                    RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
+                ClusterConfiguration? clusterConfig;
+                ClusterTopology? topology;
 
-                var slots = await slotsTask.ForAwait();
-                var clusterConfig = await nodesTask.ForAwait();
+                // The other core's handshake has already asked both of these - NODES per connection, SLOTS
+                // once for the deployment - so asking again would be a second answer to a settled question,
+                // and a costly one: a shipped Message write calls GetBridge with `create` defaulted to
+                // true, so these two commands alone were what dialled the shipped interactive bridge at all.
+                // Every endpoint therefore held two sockets where one was doing the work, which
+                // ClusterTests.ConnectUsesSingleSocket reads directly off the counters.
+                if (NewCoreEngine && NewCoreIfCreated is { } core
+                    && core.IsInteractiveConnected(server.EndPoint)
+                    && server.ClusterConfiguration is not null)
+                {
+                    // ...renewed by the refresh above, which is what makes reading rather than re-asking
+                    // correct: one topology read per pass, and this is the pass that did it
+                    clusterConfig = server.ClusterConfiguration;
+
+                    // ...and the SLOTS view, which is a fact about the DEPLOYMENT rather than about this
+                    // node, so whichever server happened to ask for it holds the answer for all of them.
+                    // Worth looking for: without it this takes the pre-4.0 path, which discovers endpoints
+                    // from NODES alone and so loses the identity-merging that keeps one node from becoming
+                    // two ServerEndPoints on a TLS/SNI cluster - a silent regression rather than a visible one
+                    topology = server.ClusterTopology;
+                    if (topology is null)
+                    {
+                        foreach (var peer in GetServerSnapshot())
+                        {
+                            if (peer.ClusterTopology is { } held)
+                            {
+                                topology = held;
+                                break;
+                            }
+                        }
+                    }
+
+                    // nothing published a view, so there is nothing to act on - fall through to asking,
+                    // rather than returning null and reporting a deployment with no endpoints
+                    if (clusterConfig is null)
+                    {
+                        var slotsRetry = ExecuteAsyncImpl(
+                            RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server);
+                        var nodesRetry = ExecuteAsyncImpl(
+                            RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
+
+                        var slotsAnswer = await slotsRetry.ForAwait();
+                        clusterConfig = await nodesRetry.ForAwait();
+                        topology ??= ClusterTopology.From(slotsAnswer);
+                    }
+                }
+                else
+                {
+                    // both views, freshly: SLOTS says who serves what and under which names, NODES lists every
+                    // node including those serving nothing. Asked as a pair for symmetry - trusting the topology
+                    // cached from autoconfigure here would mean acting on possibly-stale data while deliberately
+                    // re-reading the other half
+                    var slotsTask = ExecuteAsyncImpl(
+                        RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server);
+                    var nodesTask = ExecuteAsyncImpl(
+                        RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
+
+                    var slots = await slotsTask.ForAwait();
+                    clusterConfig = await nodesTask.ForAwait();
+                    topology = ClusterTopology.From(slots);
+                }
+
                 if (clusterConfig is null)
                 {
                     return null;
                 }
-
-                var topology = ClusterTopology.From(slots);
                 var clusterEndpoints = new EndPointCollection();
                 HashSet<EndPoint>? listedInSlots = null;
 

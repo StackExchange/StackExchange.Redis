@@ -8,8 +8,10 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using RESPite.Operations;
 using RESPite.Transports;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis
 {
@@ -35,6 +37,16 @@ namespace StackExchange.Redis
     {
         private readonly ConnectionMultiplexer _multiplexer;
         private readonly RespTopology _topology;
+
+        /// <summary>The deployment's <c>CLUSTER SLOTS</c> view, as last answered by any of its nodes.</summary>
+        /// <remarks>
+        /// <b>Here rather than per-server because that is what it describes.</b> The shipped core kept it on
+        /// each <see cref="ServerEndPoint"/> because its autoconfigure asked every connection; this core asks
+        /// once, so one node holds the answer and every other node needs to be given it - otherwise a
+        /// server publishing its own <c>CLUSTER NODES</c> has no SLOTS view beside it and
+        /// <c>SetClusterConfiguration</c> falls back to the staler reply for the slot map.
+        /// </remarks>
+        private ClusterSlotsResult? _clusterSlots;
 
         /// <summary>One executor - and so one connection - per endpoint, whatever databases are in use.</summary>
         private readonly ConcurrentDictionary<EndPoint, RespEndpointExecutor> _endpoints = new();
@@ -94,6 +106,12 @@ namespace StackExchange.Redis
                 // only worth an INFO REPLICATION per connection when there is something to prefer a
                 // replica OVER; a cluster learns the same thing from a reply it reads anyway
                 WantsRoles = multiplexer.RawConfig.EndPoints.Count > 1,
+
+                // and whatever it learns goes straight back out: IsReplica is what refuses a write
+                // client-side, so a role this core knows and the selector does not is a write that never
+                // reaches a server. The bounce back in through ServerEndPoint.IsReplica -> PublishRole ->
+                // OnRole terminates on the first hop, because the role recorded here already matches
+                RoleLearned = PublishRoleToSelector,
             };
             _features = new NewCoreFeatureProbe(this);
             _select = new SelectPreamble(new RespContext(multiplexer.RawConfig.CommandMap));
@@ -1178,6 +1196,30 @@ namespace StackExchange.Redis
             DialSubscriptionSocket(endpoint, holdPublishes: false);
         }
 
+        /// <summary>Start this endpoint's ordinary connection, without waiting for it.</summary>
+        /// <param name="endpoint">The endpoint to dial.</param>
+        /// <remarks>
+        /// Called from <c>ReconfigureAsync</c>'s per-endpoint loop, which is the first moment the endpoint
+        /// is known. Not awaited: that loop then waits on every endpoint's availability task with one
+        /// shared budget, and awaiting here would serialise what it deliberately runs in parallel.
+        /// </remarks>
+        internal void DialEndpointSoon(EndPoint endpoint)
+            => ThreadPool.QueueUserWorkItem(
+                static async state =>
+                {
+                    var dial = (SubscriptionDial)state!;
+                    try
+                    {
+                        await dial.Core.Endpoint(dial.Endpoint).ConnectNowAsync(CancellationToken.None)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        dial.Core._multiplexer.OnInternalError(ex, dial.Endpoint);
+                    }
+                },
+                new SubscriptionDial(this, endpoint, holdPublishes: false));
+
         /// <summary>Start this endpoint's subscription connection, without waiting for it.</summary>
         /// <param name="endpoint">The endpoint whose deliveries now need a socket of their own.</param>
         /// <param name="holdPublishes">
@@ -1607,6 +1649,38 @@ namespace StackExchange.Redis
                 && ((_endpoints.TryGetValue(endpoint, out var interactive) && interactive.IsConnectedNow)
                     || (_subscriptions.TryGetValue(endpoint, out var subscription) && subscription.IsConnectedNow));
 
+        /// <summary>Whether this core holds any live ordinary connection at all.</summary>
+        /// <remarks>
+        /// The question a reconfiguration asks before refreshing the topology: this core can only re-read a
+        /// deployment over a connection it has, and under the flag alone it dials lazily - so a deployment
+        /// nobody has sent a command to has nothing open here, and the shipped sweep is what answers.
+        /// </remarks>
+        internal bool HasAnyInteractiveConnection
+        {
+            get
+            {
+                foreach (var pair in _endpoints)
+                {
+                    if (pair.Value.IsConnectedNow) return true;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>Whether this core's ORDINARY connection to an endpoint is live.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// Narrower than <see cref="IsConnected"/> on purpose. That one answers "can this core reach the
+        /// server at all", which is what a caller wants; this one answers about one of the two connections,
+        /// which is what a diagnostic reporting per-connection state needs - a subscription socket being up
+        /// says nothing about whether commands have somewhere to go.
+        /// </remarks>
+        internal bool IsInteractiveConnected(EndPoint endpoint)
+            => endpoint is not null
+                && _endpoints.TryGetValue(endpoint, out var interactive)
+                && interactive.IsConnectedNow;
+
         /// <summary>What the server calls this core's connection to an endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <param name="connectionType">Which of its connections to name.</param>
@@ -1817,10 +1891,40 @@ namespace StackExchange.Redis
         /// correcting a belief and overwriting one held for a better reason.
         /// </para>
         /// </remarks>
-        private static void Publish(ServerEndPoint server, in RespHandshakeResult result)
+        private void Publish(ServerEndPoint server, in RespHandshakeResult result)
         {
             if (result.Version is { } version) server.Version = version;
             if (result.RoleFromHello is { } isReplica) server.IsReplica = isReplica;
+
+            // The SLOTS view first, and this ordering is load-bearing: SetClusterConfiguration below reads
+            // ServerEndPoint.ClusterTopology to decide which reply drives the shipped slot map, and falls
+            // back to the NODES view when there is none. A node that reports a slot as migrated in SLOTS
+            // only - which ClusterTopologyUnitTests.SlotMapIsDrivenByTheSlotsView builds on purpose - then
+            // has that migration overwritten by the staler reply.
+            //
+            // Held on the core and given to EVERY server, not just the one that answered, because the map
+            // describes the DEPLOYMENT: this core asks for it once (see the handshake, which explains why
+            // asking per connection would let two nodes' answers flap it mid-reshard), so without this the
+            // second connection publishes a NODES view with no SLOTS view beside it and clobbers the map.
+            if (result.ClusterSlots is { Assignments.Count: > 0 } answered)
+            {
+                Volatile.Write(ref _clusterSlots, answered);
+            }
+
+            if (Volatile.Read(ref _clusterSlots) is { } clusterSlots)
+            {
+                server.SetClusterSlots(clusterSlots);
+            }
+
+            // this node's own view of the cluster, which only it can give: see
+            // RespHandshakeResult.ClusterNodes for why it arrives here as text. One call sets the
+            // per-server view AND feeds UpdateClusterRange, ApplyClusterRoles and UpdateNodeRelations, so
+            // the shipped selector's slot map and the primary/replica genealogy come with it.
+            if (result.ClusterNodes is { Length: > 0 } nodes)
+            {
+                server.SetClusterConfiguration(new ClusterConfiguration(
+                    server.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint));
+            }
 
             if (result.KnowsServerType
                 && server.ServerType is not (ServerType.Sentinel or ServerType.Twemproxy))
@@ -1856,6 +1960,176 @@ namespace StackExchange.Redis
         /// </remarks>
         internal void OnRole(EndPoint endpoint, bool isReplica)
             => _topology.OnRole(endpoint, isReplica ? RespEndpointRole.Replica : RespEndpointRole.Primary);
+
+        /// <summary>Tell the selector a role this core discovered, which is the reverse of <see cref="OnRole"/>.</summary>
+        /// <param name="endpoint">The endpoint whose role changed.</param>
+        /// <param name="isReplica">What it turned out to be.</param>
+        /// <remarks>
+        /// <b>Roles are discovered here and enforced there.</b> <c>RespEndpointExecutor</c> refuses a
+        /// primary-only command against a replica by reading <c>ServerEndPoint.IsReplica</c>, and so does
+        /// the shipped selector - so a role learned from a <c>CLUSTER SLOTS</c> reply or a <c>-MOVED</c>
+        /// that stays inside <see cref="RespTopology"/> leaves the flag stale, and a write to a just-promoted
+        /// node is refused client-side rather than sent. Nothing corrects that: the refusal happens before
+        /// any byte goes out, so there is no redirect to follow.
+        /// <para>
+        /// This is what <c>ApplyClusterRoles</c> did from the shipped <c>CLUSTER NODES</c> sweep, moved to
+        /// where this core already reads the same facts. Never creates a server - a node nobody holds has no
+        /// flag to be stale - and leaves a sentinel alone, which answers neither role.
+        /// </para>
+        /// </remarks>
+        private void PublishRoleToSelector(EndPoint endpoint, bool isReplica)
+        {
+            if (_multiplexer.TryResolveServerEndPoint(endpoint) is { } server
+                && server.ServerType != ServerType.Sentinel
+                && server.IsReplica != isReplica)
+            {
+                server.IsReplica = isReplica;
+            }
+        }
+
+        /// <summary>Re-ask the deployment what shape it is, over connections that already exist.</summary>
+        /// <param name="log">Where to say what was found.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Discovery happens at handshake, and a reconfiguration has no handshake.</b> The slot map and
+        /// the roles are read once per deployment - deliberately, since they describe the deployment and not
+        /// the socket - so every later change to them arrived via the shipped <c>INFO replication</c> and
+        /// <c>CLUSTER NODES</c> sweep that <c>AutoConfigureAsync</c> ran. Take that away and a core with
+        /// live connections has no way at all to learn that the deployment moved underneath it: nothing
+        /// re-asks, because nothing reconnects.
+        /// </para>
+        /// <para>
+        /// A failover is the case that makes it visible rather than merely stale. The promoted replica
+        /// serves the slots, but this core still has it recorded as a replica, so a write to it is refused
+        /// client-side before a byte goes out - which means no <c>-MOVED</c> comes back, and the one signal
+        /// that would have corrected the map never arrives. <c>ClusterFailoverRolesUnitTests</c> is exactly
+        /// that: a refresh is expected to repair the roles, and it can only do so if something asks.
+        /// </para>
+        /// <para>
+        /// <b>SLOTS only, and NOT <c>CLUSTER NODES</c>.</b> A refresh re-reads what can have changed about
+        /// the DEPLOYMENT, and the roles follow from it for free: <c>SetSlotRange</c> records the owners,
+        /// which reaches <c>ServerEndPoint.IsReplica</c> through <see cref="RespTopology.RoleLearned"/>. The
+        /// per-server <c>CLUSTER NODES</c> view stays a handshake-time fact.
+        /// </para>
+        /// <para>
+        /// Re-reading NODES here was tried and withdrawn: publishing it calls <c>SetClusterConfiguration</c>,
+        /// which <b>creates</b> a <c>ServerEndPoint</c> for nodes the reply names - and NODES names every
+        /// node by address, including one <c>CLUSTER SLOTS</c> deliberately would not (the <c>"?"</c>
+        /// placeholder). That is a topology refresh handing the client a way to reach a node it must not
+        /// address, which <c>UnroutableRedirectUnitTests.RefreshingTheTopologyDoesNotMakeTheTargetRoutable</c>
+        /// exists to catch - and once the slot map routes there directly, no redirect is issued and every
+        /// other test in that class silently stops testing anything.
+        /// </para>
+        /// <para>
+        /// <b>Once, from one connected endpoint, for the cluster case</b> - the same reasoning as the
+        /// handshake's: one node's <c>CLUSTER SLOTS</c> describes them all, and asking several mid-reshard
+        /// just lets their differing answers flap the map. The standalone case asks each endpoint, because
+        /// there <c>ROLE</c> speaks for one replication pair and a deployment may hold several.
+        /// </para>
+        /// <para>
+        /// Failures are not errors here. A reconfiguration triggered by trouble will find endpoints that
+        /// cannot answer, and the point of the sweep is to take what it can get; the map it already holds
+        /// stays until something better replaces it.
+        /// </para>
+        /// </remarks>
+        internal async Task RefreshTopologyAsync(ILogger? log = null)
+        {
+            if (_topology.RoutesBySlot)
+            {
+                if (!_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.CLUSTER)) return;
+
+                foreach (var pair in _endpoints)
+                {
+                    if (!pair.Value.IsConnectedNow) continue;
+
+                    try
+                    {
+                        var slots = await Context(pair.Value).SendAsync(
+                            $"{RedisCommand.CLUSTER}{RespLiterals.Slots}",
+                            handler: RespHandshake.ClusterSlotsHandler.Instance).ConfigureAwait(false);
+
+                        if (slots is not { Assignments.Count: > 0 }) continue; // answered, told us nothing
+
+                        ApplySlots(pair.Key, slots);
+                        log?.LogInformation(
+                            $"Refreshed the slot map from {Format.ToString(pair.Key)}: {slots.Assignments.Count} range(s)");
+
+                        return; // one SLOTS answer is the whole deployment
+                    }
+                    catch (Exception ex)
+                    {
+                        log?.LogInformation($"{Format.ToString(pair.Key)} could not refresh the slot map: {ex.Message}");
+                    }
+                }
+
+                return;
+            }
+
+            if (!_topology.WantsRoles || !_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.ROLE)) return;
+
+            foreach (var pair in _endpoints)
+            {
+                if (!pair.Value.IsConnectedNow) continue;
+
+                try
+                {
+                    var role = await Context(pair.Value).SendAsync(
+                        $"{RedisCommand.ROLE}", handler: RespHandshake.RoleHandler.Instance).ConfigureAwait(false);
+
+                    _topology.OnRole(pair.Key, role.Role);
+                    if (role.Peers is not null)
+                    {
+                        foreach (var peer in role.Peers) _topology.OnRole(peer, role.PeerRole);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    log?.LogInformation($"{Format.ToString(pair.Key)} could not refresh its role: {ex.Message}");
+                }
+            }
+
+            RespDatabaseContext Context(RespEndpointExecutor executor)
+                => new(new RespContext(_multiplexer.RawConfig.CommandMap, database: -1).WithExecutor(executor));
+
+            // this core's map AND the shipped one, for the same reason the handshake does both: the shipped
+            // selector still answers for IServer and for the fallback write path, and a refresh that
+            // corrected only one of them would leave the two disagreeing about where a slot lives
+            void ApplySlots(EndPoint answeredBy, ClusterSlotsResult slots)
+            {
+                foreach (var assignment in slots.Assignments)
+                {
+                    if (assignment.Primary.EndPoint is not { } primary) continue;
+
+                    EndPoint[]? replicas = null;
+                    if (assignment.Replicas.Count != 0)
+                    {
+                        List<EndPoint>? usable = null;
+                        foreach (var replica in assignment.Replicas)
+                        {
+                            if (replica.EndPoint is { } endPoint) (usable ??= new()).Add(endPoint);
+                        }
+
+                        replicas = usable?.ToArray();
+                    }
+
+                    _topology.SetSlotRange(assignment.Slots.From, assignment.Slots.To, primary, replicas);
+                }
+
+                // ...to EVERY server, not just the one that answered, and for a sharper reason than the
+                // handshake's. SetClusterConfiguration calls ApplyClusterRoles, which prefers the SLOTS
+                // view where it has one - so a server still holding its handshake-era slots view has the
+                // STALE role win over the CLUSTER NODES reply that was just read for it. After a failover
+                // that is the promoted node being told it is still a replica, which is the whole of
+                // ClusterFailoverRolesUnitTests.
+                Volatile.Write(ref _clusterSlots, slots);
+                foreach (var peer in _multiplexer.GetServerSnapshot())
+                {
+                    if (peer.ServerType != ServerType.Sentinel) peer.SetClusterSlots(slots);
+                }
+
+                _ = answeredBy;
+            }
+        }
 
         /// <summary>Take the roles the client already knows, for endpoints this core has not dialled.</summary>
         /// <remarks>

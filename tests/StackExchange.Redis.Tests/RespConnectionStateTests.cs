@@ -28,7 +28,17 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
     public async Task AnUndialledEndpointIsDeferredRatherThanDisconnected()
     {
         Skip.IfNoCluster();
-        await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
+
+        // Discover, which is the only mode that states this test's premise: exactly one of six endpoints
+        // dialled, five not. Lazy would do it on the shipped engine - the PING below dials one - but under
+        // an engine that dials at connect it leaves the multiplexer with nothing open at all, the connect
+        // burns its full timeout, and six disconnected nodes have no slot map to defer against. Eager, the
+        // other direction, leaves nothing undialled to be deferred.
+        await using var conn = Create(
+            allowAdmin: true,
+            configuration: TestConfig.Current.ClusterServersAndPorts,
+            connectMode: ConnectMode.Discover,
+            log: Writer);
         var db = Transitional(conn.GetDatabase());
         await db.PingAsync();
 
@@ -294,10 +304,13 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
         // ...with the configuration channel off, because this core now dials for it at activation: that
         // channel can only live on a subscription socket under RESP2, and nothing else would ever ask for
         // it. Leaving it on makes "nothing has dialled" false before the test starts, which would be
-        // measuring the default configuration rather than the thing under test.
+        // measuring the default configuration rather than the thing under test. Lazy for the same reason,
+        // and more directly: this test calls ConnectEagerlyAsync itself and then asks what it opened, so
+        // it has to start from nothing opened whatever the default mode is.
         await using var conn = Create(
             allowAdmin: true,
             configuration: $"{TestConfig.Current.ClusterServersAndPorts},configChannel=",
+            connectMode: ConnectMode.Lazy,
             log: Writer);
         var core = ((ConnectionMultiplexer)conn).NewCore;
 
@@ -338,7 +351,15 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
     public async Task ConnectModeGovernsHowMuchIsOpened()
     {
         Skip.IfNoCluster();
-        await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
+
+        // the mode under test is the ARGUMENT below, so the multiplexer's own mode has to be the one that
+        // opens nothing - otherwise "Lazy should open nothing" is asked of a core that already opened
+        // something for its own reasons
+        await using var conn = Create(
+            allowAdmin: true,
+            configuration: TestConfig.Current.ClusterServersAndPorts,
+            connectMode: ConnectMode.Lazy,
+            log: Writer);
         var core = ((ConnectionMultiplexer)conn).NewCore;
 
         Assert.False(await core.ConnectEagerlyAsync(ConnectMode.Lazy), "Lazy should open nothing");

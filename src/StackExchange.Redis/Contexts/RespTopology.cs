@@ -393,12 +393,32 @@ namespace StackExchange.Redis
             else _unselectable[endpoint] = true;
         }
 
+        /// <summary>Told whenever a role is learned or changes, so the answer does not stay in here.</summary>
+        /// <remarks>
+        /// <b>The other half of the push <c>RespNewCore.OnRole</c> makes inbound.</b> Roles arrive here from
+        /// three places - a <c>ROLE</c> reply, the owners in a <c>CLUSTER SLOTS</c> reply, and the primary a
+        /// <c>-MOVED</c> names - and every one of them is news the rest of the client cannot get any other
+        /// way once the shipped <c>INFO replication</c> sweep is gone.
+        /// <para>
+        /// It matters most after a failover, which is the case that has no second chance: the slot map
+        /// follows, but <c>ServerEndPoint.IsReplica</c> is what refuses a write client-side, so a stale flag
+        /// turns every write to the promoted node into <c>Command cannot be issued to a replica</c> - with no
+        /// <c>-MOVED</c> coming back, because nothing reached the server to be redirected.
+        /// </para>
+        /// <para>
+        /// A delegate rather than a multiplexer reference because this type deliberately knows nothing about
+        /// one; it is also how the tests that construct a bare topology stay bare.
+        /// </para>
+        /// </remarks>
+        internal Action<EndPoint, bool>? RoleLearned { get; init; }
+
         /// <summary>Record what role an endpoint plays.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <param name="role">What it turned out to be.</param>
         /// <remarks>
         /// Idempotent, and cheap when it is: the snapshot is only rebuilt when the answer actually changed,
-        /// so re-running a handshake against an unchanged cluster allocates nothing.
+        /// so re-running a handshake against an unchanged cluster allocates nothing - and
+        /// <see cref="RoleLearned"/> only fires on a real change, so it is not a per-handshake callback.
         /// </remarks>
         internal void OnRole(EndPoint endpoint, RespEndpointRole role)
         {
@@ -406,6 +426,7 @@ namespace StackExchange.Redis
 
             if (_roles.TryGetValue(endpoint, out var existing) && existing == role) return;
             _roles[endpoint] = role;
+            RoleLearned?.Invoke(endpoint, role == RespEndpointRole.Replica);
 
             lock (_roles)
             {

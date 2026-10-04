@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using RESPite;
@@ -27,20 +27,7 @@ public sealed partial class ClusterSlotsResult
             }
             if (!reader.IsAggregate) return false;
 
-            // the reply is an array of [from, to, primary, replica...]; parse leniently, since bad topology
-            // data does silent damage - drop anything malformed rather than failing the whole reply
-            List<ClusterSlotAssignment>? assignments = null;
-            var ranges = reader.AggregateChildren();
-            while (ranges.MoveNext())
-            {
-                if (TryParseAssignment(ref ranges.Value, out var assignment))
-                {
-                    (assignments ??= new List<ClusterSlotAssignment>()).Add(assignment);
-                }
-            }
-
-            var result = new ClusterSlotsResult(
-                AsReadOnly(assignments));
+            var result = ParseCore(ref reader);
 
             if (autoConfigure)
             {
@@ -50,6 +37,36 @@ public sealed partial class ClusterSlotsResult
             SetResult(message, result);
             return true;
         }
+    }
+
+    /// <summary>Read a <c>CLUSTER SLOTS</c> reply, or <c>null</c> if it was not one.</summary>
+    /// <param name="reader">Positioned on the reply.</param>
+    /// <remarks>
+    /// <b>The shape check and the parse, so that both cores can share one parser.</b> Everything below this
+    /// point is pure <c>RespReader</c> work - the only thing the processor above adds is a
+    /// <c>PhysicalConnection</c> to record the side effect against, which the other core does not have and
+    /// does not want. Exposing this is what keeps the richer facts the shipped parser reads - node ids, the
+    /// <c>ip</c>/<c>hostname</c> metadata pair, the three distinct unusable endpoint forms - from being
+    /// approximated a second time somewhere else.
+    /// </remarks>
+    internal static ClusterSlotsResult? Parse(ref RespReader reader)
+        => reader.IsNull || !reader.IsAggregate ? null : ParseCore(ref reader);
+
+    private static ClusterSlotsResult ParseCore(ref RespReader reader)
+    {
+        // the reply is an array of [from, to, primary, replica...]; parse leniently, since bad topology
+        // data does silent damage - drop anything malformed rather than failing the whole reply
+        List<ClusterSlotAssignment>? assignments = null;
+        var ranges = reader.AggregateChildren();
+        while (ranges.MoveNext())
+        {
+            if (TryParseAssignment(ref ranges.Value, out var assignment))
+            {
+                (assignments ??= new List<ClusterSlotAssignment>()).Add(assignment);
+            }
+        }
+
+        return new ClusterSlotsResult(AsReadOnly(assignments));
     }
 
     private static bool TryParseAssignment(ref RespReader reader, out ClusterSlotAssignment assignment)

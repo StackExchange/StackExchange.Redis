@@ -17,14 +17,35 @@ namespace StackExchange.Redis
     /// <param name="knowsServerType">Whether the server type was determined rather than defaulted.</param>
     /// <param name="connectionId">What the server calls this connection, when it would say.</param>
     /// <param name="roleFromHello">What <c>HELLO</c> said this server's role is, when it said.</param>
+    /// <param name="clusterNodes">This node's own <c>CLUSTER NODES</c> text, when it answered one.</param>
+    /// <param name="clusterSlots">The <c>CLUSTER SLOTS</c> view, when this connection asked for one.</param>
     internal readonly struct RespHandshakeResult(
         RedisProtocol protocol,
         ServerType serverType,
         Version? version = null,
         bool knowsServerType = false,
         long? connectionId = null,
-        bool? roleFromHello = null)
+        bool? roleFromHello = null,
+        string? clusterNodes = null,
+        ClusterSlotsResult? clusterSlots = null)
     {
+        /// <summary>The <c>CLUSTER SLOTS</c> view, when this connection was the one that asked.</summary>
+        /// <remarks>
+        /// <b>Carried out so the shipped <c>ServerEndPoint.ClusterTopology</c> can be set from it</b>, which
+        /// is what identity-merging and topology ageing read. Null on every connection that skipped the ask -
+        /// which is most of them, since the map describes the deployment and one answer serves all.
+        /// </remarks>
+        internal ClusterSlotsResult? ClusterSlots { get; } = clusterSlots;
+
+        /// <summary>This node's own <c>CLUSTER NODES</c> text, when it answered one.</summary>
+        /// <remarks>
+        /// <b>Carried out raw rather than parsed here, because parsing it needs a <c>ServerEndPoint</c></b> -
+        /// <c>ClusterConfiguration</c> is built against the server that answered and the selection strategy -
+        /// and the handshake deliberately has neither. <c>RespNewCore.Publish</c> is where this core's
+        /// findings are written onto the shipped server object, so that is where it is turned into one.
+        /// </remarks>
+        internal string? ClusterNodes { get; } = clusterNodes;
+
         /// <summary>What <c>HELLO</c> reported as the role, when it reported one.</summary>
         /// <remarks>
         /// Null means <b>nobody has said</b>, which is the case the <c>SET</c> probe exists for - not
@@ -287,7 +308,7 @@ namespace StackExchange.Redis
             //
             // The first connection of ANY kind still asks, subscription connections included: a client that
             // only ever subscribes still has to know where things live.
-            List<SlotRange>? ranges = null;
+            ClusterSlotsResult? slots = null;
             var knowSlots = topology is { HasSlotMap: true, SlotMapSuspect: false };
             if ((serverType == ServerType.Cluster || clusterInfoDeclined)
                 && !knowSlots
@@ -296,12 +317,12 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    ranges = await context.SendAsync(
+                    slots = await context.SendAsync(
                         $"{RedisCommand.CLUSTER}{RespLiterals.Slots}",
                         handler: ClusterSlotsHandler.Instance).ConfigureAwait(false);
 
                     // slots exist, so this is a cluster whatever CLUSTER INFO did or did not say
-                    if (ranges.Count != 0) serverType = ServerType.Cluster;
+                    if (slots is { Assignments.Count: > 0 }) serverType = ServerType.Cluster;
                 }
                 catch (RedisServerException)
                 {
@@ -320,11 +341,54 @@ namespace StackExchange.Redis
             // draining against an unset topology is exactly the window that loses per-slot ordering
             topology?.OnServerType(serverType);
 
-            if (ranges is not null && topology is not null)
+            if (slots is not null && topology is not null)
             {
-                foreach (var range in ranges)
+                foreach (var assignment in slots.Assignments)
                 {
-                    topology.SetSlotRange(range.From, range.To, range.Endpoint, range.Replicas);
+                    // a node the reply could not give a dialable endpoint for is skipped rather than
+                    // guessed at: see ClusterSlotsHandler, and 9y for what guessing cost
+                    if (assignment.Primary.EndPoint is not { } primary) continue;
+
+                    EndPoint[]? replicas = null;
+                    if (assignment.Replicas.Count != 0)
+                    {
+                        List<EndPoint>? usable = null;
+                        foreach (var replica in assignment.Replicas)
+                        {
+                            if (replica.EndPoint is { } endPoint) (usable ??= new()).Add(endPoint);
+                        }
+
+                        replicas = usable?.ToArray();
+                    }
+
+                    topology.SetSlotRange(assignment.Slots.From, assignment.Slots.To, primary, replicas);
+                }
+            }
+
+            // CLUSTER NODES, and PER CONNECTION - which is the opposite of the rule above, deliberately.
+            // CLUSTER SLOTS describes the deployment, so one answer serves every connection; NODES is
+            // answered from the point of view of the node asked, and `myself` is the part that matters.
+            // ServerEndPoint.ClusterConfiguration is that per-server view, and several public surfaces are
+            // nothing but a read of it: IServer.ClusterConfiguration itself, InventKey (via
+            // GetServableSlot, which asks which slots THIS node serves), and the tracer key. Measured as
+            // ClusterTests.TestIdentity and InventKeyRoutesBackToTheServerThatInventedIt, both of which
+            // ask a server about itself and got null from the one server that had not been asked.
+            //
+            // The shipped core got this from AutoConfigureAsync on every connection, so asking here is
+            // parity rather than a new cost - and it is the last thing keeping that sweep alive.
+            string? clusterNodes = null;
+            if (serverType == ServerType.Cluster
+                && context.Raw.CommandMap.IsAvailable(RedisCommand.CLUSTER))
+            {
+                try
+                {
+                    clusterNodes = await context.SendAsync(
+                        $"{RedisCommand.CLUSTER}{RespLiterals.Nodes}",
+                        handler: RespHandlers.String).ConfigureAwait(false);
+                }
+                catch (RedisServerException)
+                {
+                    // a proxy or an ACL can refuse it; everything above still stands
                 }
             }
 
@@ -415,7 +479,7 @@ namespace StackExchange.Redis
                 await context.SendAsync($"{RedisCommand.SELECT}{database}").ConfigureAwait(false);
             }
 
-            return new RespHandshakeResult(protocol, serverType, version, knowServerType, connectionId, roleFromHello);
+            return new RespHandshakeResult(protocol, serverType, version, knowServerType, connectionId, roleFromHello, clusterNodes, slots);
         }
 
         /// <summary>Read the server-wide settings the client models, for a server nothing has described yet.</summary>
@@ -1174,110 +1238,26 @@ namespace StackExchange.Redis
         /// - <c>SanityChecks.ValueTupleNotReferenced</c> enforces it, and caught this - because the
         /// down-level targets would take a package dependency for it.
         /// </remarks>
-        internal readonly struct SlotRange(int from, int to, EndPoint endpoint, EndPoint[]? replicas)
-        {
-            /// <summary>First slot, inclusive.</summary>
-            internal int From { get; } = from;
-
-            /// <summary>Last slot, inclusive.</summary>
-            internal int To { get; } = to;
-
-            /// <summary>The primary serving the range.</summary>
-            internal EndPoint Endpoint { get; } = endpoint;
-
-            /// <summary>The endpoints replicating it; null when the reply listed none.</summary>
-            internal EndPoint[]? Replicas { get; } = replicas;
-        }
-
-        internal sealed class ClusterSlotsHandler : IRespHandler<List<SlotRange>>
+        /// <summary>Reads a <c>CLUSTER SLOTS</c> reply into the shipped model.</summary>
+        /// <remarks>
+        /// <b>A four-line handler over <see cref="ClusterSlotsResult.Parse"/>, which is the point.</b> This
+        /// used to be its own ~90-line parser producing a reduced <c>SlotRange</c> - from, to, primary, and
+        /// a flat list of replica endpoints - which was enough to route and not enough for anything else.
+        /// Two consequences, both real:
+        /// <para>
+        /// It discarded the node ids while reading past them, so nothing downstream could merge a node that
+        /// a reply named differently than we hold it, and <c>ServerEndPoint.ClusterTopology</c> - which
+        /// identity-merging and topology ageing are both built on - could not be populated from this core at
+        /// all. And it was a second implementation of the placeholder rules, which is how
+        /// <c>"?":6379</c> got into the slot map in the first place (9y): the shipped parser had always
+        /// refused those, in <c>ResolveEndPoint</c>, by the same test.
+        /// </para>
+        /// </remarks>
+        internal sealed class ClusterSlotsHandler : IRespHandler<ClusterSlotsResult?>
         {
             internal static readonly ClusterSlotsHandler Instance = new();
 
-            public List<SlotRange> Parse(ref RespReader reader)
-            {
-                var ranges = new List<SlotRange>();
-                var entries = reader.AggregateLength();
-
-                for (var i = 0; i < entries; i++)
-                {
-                    if (!reader.TryMoveNext()) break;
-                    var parts = reader.AggregateLength();
-                    if (parts < 3)
-                    {
-                        reader.SkipChildren();
-                        continue;
-                    }
-
-                    if (!reader.TryMoveNext() || !reader.TryReadInt64(out var from)
-                        || !reader.TryMoveNext() || !reader.TryReadInt64(out var to)
-                        || !reader.TryMoveNext())
-                    {
-                        break; // the reply is not the shape it promised; keep whatever parsed cleanly
-                    }
-
-                    // the primary for this range: [ip, port, id, ...]
-                    var endpoint = TryReadHost(ref reader);
-
-                    // every host after the first replicates it. Read rather than skipped, because this is
-                    // the only place the pairing is stated: which replicas serve THESE slots, as opposed to
-                    // the flat "is a replica" that INFO gives for one server.
-                    List<EndPoint>? replicas = null;
-                    for (var part = 3; part < parts; part++)
-                    {
-                        if (!reader.TryMoveNext()) break;
-                        if (TryReadHost(ref reader) is { } replica) (replicas ??= new()).Add(replica);
-                    }
-
-                    if (endpoint is not null)
-                    {
-                        ranges.Add(new SlotRange((int)from, (int)to, endpoint, replicas?.ToArray()));
-                    }
-                }
-
-                return ranges;
-            }
-
-            /// <summary>Read one <c>[ip, port, id, ...]</c> host entry, consuming all of it either way.</summary>
-            /// <param name="reader">Positioned on the host entry.</param>
-            /// <returns>The endpoint, or null if this entry was not one.</returns>
-            /// <remarks>
-            /// <b>Consuming all of it is the point, not a detail.</b> A host entry that was half-read leaves
-            /// the reader inside an aggregate the caller believes it has passed, and every range after it is
-            /// then read from the wrong place - a map that is wrong is far worse than a map that is short,
-            /// because nothing downstream can tell.
-            /// </remarks>
-            private static EndPoint? TryReadHost(ref RespReader reader)
-            {
-                EndPoint? endpoint = null;
-                var hostParts = reader.AggregateLength();
-                if (hostParts >= 2 && reader.TryMoveNext())
-                {
-                    var host = reader.ReadString();
-                    if (reader.TryMoveNext() && reader.TryReadInt64(out var port) && !string.IsNullOrEmpty(host))
-                    {
-                        _ = Format.TryParseEndPoint(host + ":" + port.ToString(CultureInfo.InvariantCulture), out endpoint);
-
-                        // ...and a placeholder is not an endpoint. A node that prefers hostnames and has
-                        // none announces "?", which parses perfectly well into something undialable - so
-                        // a slot map built from it routes commands at a host called "?" and they expire in
-                        // the backlog. The redirect path already refuses these; the slot map has to as
-                        // well, and by the same rule rather than a second copy of it.
-                        if (endpoint is not null && RespRedirect.IsUnroutableTarget(endpoint)) endpoint = null;
-                    }
-
-                    for (var skipped = 2; skipped < hostParts; skipped++)
-                    {
-                        if (!reader.TryMoveNext()) break;
-                        reader.SkipChildren();
-                    }
-                }
-                else
-                {
-                    reader.SkipChildren();
-                }
-
-                return endpoint;
-            }
+            public ClusterSlotsResult? Parse(ref RespReader reader) => ClusterSlotsResult.Parse(ref reader);
         }
 
         private sealed class HelloHandler : IRespHandler<HelloReply>
@@ -1376,7 +1356,7 @@ namespace StackExchange.Redis
         /// worth having, and it is the half that is certain by then.
         /// </para>
         /// </remarks>
-        private sealed class RoleHandler : IRespHandler<RoleReply>
+        internal sealed class RoleHandler : IRespHandler<RoleReply>
         {
             internal static readonly RoleHandler Instance = new();
 

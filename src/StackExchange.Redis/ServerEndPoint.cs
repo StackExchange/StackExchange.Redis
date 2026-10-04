@@ -239,10 +239,56 @@ namespace StackExchange.Redis
             }
         }
 
-        internal State InteractiveConnectionState => interactive?.ConnectionState ?? State.Disconnected;
-        internal State SubscriptionConnectionState => UsesSubscriptionBridge
-            ? subscription?.ConnectionState ?? State.Disconnected
-            : InteractiveConnectionState;
+        /// <summary>What state this endpoint's ordinary connection is in, whichever core holds it.</summary>
+        /// <remarks>
+        /// <b>Spans both cores for the same reason <see cref="OperationCount"/> and <see cref="IsConnected"/>
+        /// do.</b> This is a question about the endpoint, not about a bridge: once the other core carries
+        /// this endpoint's commands, a property that consults only the shipped bridge reports
+        /// <c>Disconnected</c> about a server the client is actively talking to.
+        /// <para>
+        /// <c>ConnectedEstablished</c> rather than a finer answer because that is all this core
+        /// distinguishes: it has a usable connection or it does not, with no separate "established" step to
+        /// be between. The shipped bridge's own state still wins wherever it has one, so nothing that
+        /// watches a bridge come up loses the intermediate states it was watching for.
+        /// </para>
+        /// </remarks>
+        internal State InteractiveConnectionState
+        {
+            get
+            {
+                var shipped = interactive?.ConnectionState ?? State.Disconnected;
+                return shipped == State.Disconnected
+                    && Multiplexer.NewCoreIfCreated?.IsInteractiveConnected(EndPoint) == true
+                        ? State.ConnectedEstablished
+                        : shipped;
+            }
+        }
+
+        /// <summary>As above, for whatever carries this endpoint's deliveries.</summary>
+        /// <remarks>
+        /// Three cases rather than two, because "which connection is this?" has three answers: a shipped
+        /// subscription bridge where one exists, this core's dedicated subscription socket where it has
+        /// opened one, and otherwise the interactive connection - which is where RESP3 deliveries arrive,
+        /// and where <see cref="SupportsSubscriptions"/> being false leaves nothing at all.
+        /// </remarks>
+        internal State SubscriptionConnectionState
+        {
+            get
+            {
+                if (UsesSubscriptionBridge)
+                {
+                    var shipped = subscription?.ConnectionState ?? State.Disconnected;
+                    return shipped == State.Disconnected
+                        && Multiplexer.NewCoreIfCreated?.IsSubscriptionConnected(EndPoint) == true
+                            ? State.ConnectedEstablished
+                            : shipped;
+                }
+
+                return Multiplexer.NewCoreIfCreated?.IsSubscriptionConnected(EndPoint) == true
+                    ? State.ConnectedEstablished
+                    : InteractiveConnectionState;
+            }
+        }
 
         public long OperationCount => (interactive?.OperationCount ?? 0) + (subscription?.OperationCount ?? 0)
             + (Multiplexer.NewCoreIfCreated?.OperationCount(EndPoint) ?? 0);

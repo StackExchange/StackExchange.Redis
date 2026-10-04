@@ -3951,3 +3951,200 @@ it is the point rather than a saving.
 
 **9k's itemisation is now closed out**: product variant ✓, tie-breaker ✓, replica probe ✓, and
 `CLUSTER NODES` turned out not to be needed by anything measured.
+
+### 9z. Roles after a failover, `CLIENT KILL`, and three tests whose premise the move invalidated
+
+Four families, and they turned out to be four different kinds of problem - which is the useful part, since
+the remaining tail is mostly going to be one of these four shapes.
+
+**`ClusterFailoverRolesUnitTests` (3 → 0), and the cause was a one-way push.** `RespTopology` learns roles
+from three places - a `ROLE` reply, the owners in a `CLUSTER SLOTS` reply, and the primary a `-MOVED`
+names - and recorded all of them in its own dictionary and nowhere else. But the thing that *refuses* a
+write to a replica is `ServerEndPoint.IsReplica`, read by both `RespEndpointExecutor` and the shipped
+selector, so after a failover this core knew the truth and the flag stayed stale. The consequence is worse
+than staleness: the refusal happens client-side, before a byte goes out, so no `-MOVED` comes back and the
+one signal that would have corrected it never arrives.
+
+`ServerEndPoint.IsReplica` already pushed *into* this core (`PublishRole` → `RespNewCore.OnRole`, added
+for `DemandReplica` on an undialled replica). The fix is the other half of that: `RespTopology.RoleLearned`,
+invoked from the single funnel every role change already passes through. The bounce back in terminates on
+the first hop, because by then the recorded role already matches - which is why `OnRole`'s existing
+"changed?" check is load-bearing rather than merely an optimisation.
+
+**That fixed one of the two tests. The other needed something that does not exist yet: a topology refresh.**
+Discovery happens at handshake, once per deployment, deliberately - the map describes the deployment, not
+the socket. Every *later* change to it arrived via the shipped `AutoConfigureAsync` sweep, which the coupled
+move gates off. So a core with live connections had no way at all to learn that the deployment moved
+underneath it: nothing re-asks, because nothing reconnects. `RespNewCore.RefreshTopologyAsync` is that
+sweep's replacement - one `CLUSTER SLOTS` from one connected endpoint for a cluster, `ROLE` per endpoint
+otherwise - called from `ReconfigureAsync` *before* the loop that reads `IsReplica` to decide which servers
+are primaries, so a reconfiguration cannot disagree with itself.
+
+It is called whenever a core exists, not only under the coupled move: refreshing the slot map on an explicit
+`ReconfigureAsync` is right in general, and the shipped path has no core to refresh.
+
+**`ClientKillTests` (4 → 0): a command left behind by its neighbours.** `CLIENT LIST` was ported to the
+context; `CLIENT KILL` next to it still built a `Message`, so under the flag it went down a pipeline with
+nothing on the other end and the test read it as a cancelled task. Moved to `RespDiagnostics` - under
+protest, as `ClientListArray`'s own remarks predicted, because killing a client is administration and not
+diagnosis; an admin group is the eventual home and inventing one for a single verb would decide a public
+surface as a side effect of a port.
+
+Both spellings of the public API - the filter object and the four loose arguments - now render through
+`ClientKillFilter`, which is where `replica`-vs-`slave` is decided; a second encoding would be free to
+disagree about that. The positional `CLIENT KILL <addr>` form stays its own method, because its wire shape
+and its reply (`+OK`, not a count) are genuinely different.
+
+**`RespConnectionStateTests` (3 → 0), and two of the three were my own patch being wrong.** The coupled
+patch dialled *every* endpoint at connect regardless of `ConnectMode`, which made `Lazy` unobservable -
+read by the test as "Lazy should open nothing" against a core that had opened six. Now the dial honours
+the mode: `Eager` dials all, `Discover` dials one (tracked by a per-pass flag, because the dial is
+fire-and-forget and "has anything connected yet?" is always false at the next endpoint), `Lazy` dials
+nothing.
+
+The two tests *about* `ConnectEagerlyAsync` then needed to say so: they call it themselves and ask what it
+opened, so they have to start from nothing opened whatever the ambient default is. `TestBase.Create` grew a
+`connectMode` parameter for that (and it forces `shared: false`, since the mode belongs to the whole
+multiplexer).
+
+**The third one I tried to pin the same way and that was wrong.** `AnUndialledEndpointIsDeferredRatherThanDisconnected`
+only needs *some* endpoint dialled and *some* not, which both `Lazy` and `Discover` give - `Lazy` because
+its own `PING` dials one. Pinning it to `Lazy` is actively worse than leaving it alone: under an engine that
+dials at connect it leaves the multiplexer with nothing open, the connect burns its full `ConnectTimeout`,
+and six disconnected nodes have no slot map to defer against. It reported `Connected=256` and took five
+seconds. Left at the default, with the reasoning written down so the next person does not "fix" it.
+
+### 9aa. `ClusterTests`, and what keeps the shipped interactive bridge alive
+
+Fifteen failures across seven tests, and the diagnosis was wrong twice before it was right. Both wrong
+readings are worth keeping, because both were plausible and both would have sent the work somewhere
+useless.
+
+**Wrong reading #1: "the shipped cluster view is never populated."** With `AutoConfigureAsync` gated off,
+`ClusterConfiguration`, the node relations and `ServerSelectionStrategy`'s slot map all look like they must
+be empty - and three tests read exactly those. I had started writing a replacement autoconfigure before
+reading the actual assertion text, which said `127.0.0.1:7001 serves slots but did not establish`. The
+`Assert.NotNull(config)` *before* it had passed: the view is populated, discovery works, and the failing
+endpoint simply had no connection. `GetEndpointsFromClusterNodes` still runs and still asks both questions.
+
+**Wrong reading #2, the same day, from the same habit.** `ConnectUsesSingleSocket` I recorded as "the
+shipped counter reports 0 because the bridge is not dialled". It reports **2**. `SocketCount` has spanned
+both cores since `AddCounters` existed; the number is two because *both* cores opened a socket.
+
+**Which is the actual finding, and it is a better one than either guess.** A shipped `Message` write calls
+`GetBridge(message)` with `create` defaulted to true, so any remaining shipped traffic dials the interactive
+bridge lazily, whatever `ActivateServer` was told not to do. And the remaining traffic that matters is the
+client's own: `GetEndpointsFromClusterNodes` sends `CLUSTER SLOTS` and `CLUSTER NODES` through
+`ExecuteAsyncImpl` on every reconfiguration of every cluster deployment.
+
+So the old interactive bridge is no longer kept alive by the data path - that left with the 100% figure in
+9x - it is kept alive by topology traffic. That reframes the next step: moving those two commands is not
+tidying, it is the second bridge retirement, and it is also the fix for several of these tests.
+
+**It also corrects 9y.** I closed that section with "`CLUSTER NODES` turned out not to be needed by anything
+measured". It is needed - not because `ClusterConfiguration` goes unpopulated, but because populating it is
+precisely what dials the connection we are trying to stop dialling.
+
+**The route is already half-built.** The core's `ClusterSlotsHandler` reads each `[ip, port, id, ...]` host
+entry and discards the id. Capturing it lets this core produce the shipped `ClusterSlotsResult`, which
+`ClusterTopology.From` and `UpdateClusterRange` already consume - so the move *removes* a duplicate
+`CLUSTER SLOTS` parser rather than adding one. `CLUSTER NODES` is simpler still: `ResultProcessor.ClusterNodes`
+only does `new ClusterConfiguration(strategy, text, origin)`, so a context route returning the raw text is
+the whole of it.
+
+**And six of the fifteen were mine, from an hour earlier.** Defaulting the coupled move to
+`ConnectMode.Discover` opens one socket, which is enough to map the deployment and not enough to behave
+like the shipped core: a non-routed pub/sub probe lands on the same endpoint ten times out of ten
+(`ClusterPubSub`, RESP3 only), five endpoints report no socket at all (`ConnectUsesSingleSocket`), and an
+endpoint that never handshook never learns it is in a cluster (`Connect`: *expected Cluster, actual
+Standalone*). Shipped activates every endpoint at connect, so `Eager` is the default that preserves
+behaviour; `Discover` is a mode worth offering and not one to impose. See 9z for the test that needs
+`Discover` pinned, and why pinning `Lazy` there was worse than leaving it alone.
+
+### 9ab. `ClusterTests` 18 → 2, and the measurement that was hiding behind a bad default
+
+**`Eager` instead of `Discover`: 18 → 5, and 19m51s → 15s.** The failure count understated it badly. With
+one socket open, five of six endpoints never handshake, so every test that touches them waits out its
+`ConnectTimeout` before failing or passing - the family spent twenty minutes almost entirely in connect
+waits. Restoring the shipped behaviour of activating every endpoint fixed `ClusterPubSub` (4),
+`ConnectUsesSingleSocket`'s missing sockets, `Connect`, `ClusterConnectsWhenTracerCommandsAreUnavailable`
+and the three `HotKeysClusterTests`, and took the family's runtime down by a factor of eighty.
+
+Worth recording as a method note: a default that makes everything slow *and* fails a handful of tests
+reads, from the failure list alone, like a handful of unrelated bugs.
+
+**Per-connection `CLUSTER NODES`: 5 → 3.** `TestIdentity` and `InventKeyRoutesBackToTheServerThatInventedIt`
+both ask a server about *itself* - `IServer.ClusterConfiguration`, and `InventKey` via `GetServableSlot`,
+which wants the slots THIS node serves. That view is per-server by nature: `CLUSTER NODES` is answered from
+the point of view of the node asked, and `myself` is the part that matters. Shipped got it from
+`AutoConfigureAsync` on every connection; the reconfigure pass asks exactly one server, so every other
+server's view stayed null.
+
+So the handshake now asks it too - per connection, which is the deliberate opposite of the `CLUSTER SLOTS`
+rule immediately above it in the same method. One is a fact about the deployment and one is a fact about the
+node, and that is the whole of the difference. The text comes out of the handshake raw and is turned into a
+`ClusterConfiguration` in `RespNewCore.Publish`, because building one needs a `ServerEndPoint` and the
+selection strategy, and the handshake has neither by design.
+
+**One call buys more than it looks like.** `SetClusterConfiguration` also drives `UpdateClusterRange`,
+`ApplyClusterRoles` and `UpdateNodeRelations` - so the shipped selector's slot map and the primary/replica
+genealogy arrive with it, rather than needing passes of their own.
+
+**`MovedProfiling` (RESP3) is not one of these.** It fails on
+`Assert.True(msg.EnqueuedToSending > TimeSpan.Zero)` and passes 3/3 in isolation: a timing assertion with a
+`DateTime.UtcNow` resolution floor, against a path that now enqueues and sends in the same breath. Recorded
+as a flake, not fixed - the test wants a `>= Zero` like the `ResponseToCompletion` line four below it,
+which already carries the comment "this can be immeasurably fast".
+
+**What is left is one thing, and it is the next piece of work.** `ConnectUsesSingleSocket` reports 2 because
+`GetEndpointsFromClusterNodes` still sends its `CLUSTER SLOTS` and `CLUSTER NODES` through
+`ExecuteAsyncImpl`, and a shipped `Message` write calls `GetBridge` with `create` defaulted to true. The
+`CLUSTER NODES` half is now redundant - the cache is populated per connection - but the function also needs
+the `ClusterTopology` that `CLUSTER SLOTS` builds, for identity-merging and for ageing out nodes the
+topology has stopped listing. Passing `topology: null` would make it take the pre-4.0 path and "work",
+which is the tempting wrong answer: identity-merging is what stops one node becoming two `ServerEndPoint`s
+on a TLS/SNI cluster, and losing it silently is worse than the extra socket.
+
+The real move is to have this core's `CLUSTER SLOTS` produce the shipped `ClusterSlotsResult`. Its handler
+already walks each `[ip, port, id, ...]` host entry and discards everything but the endpoint, so capturing
+the rest **removes** a parser rather than adding one - the shipped `ClusterSlotsResultProcessor` becomes
+redundant at the same time.
+
+### 9ac. One `CLUSTER SLOTS` parser, and the shipped interactive bridge stops being dialled: 18 → 0
+
+**The second socket was the last of the four causes, and fixing it retires the second shipped bridge.**
+`GetEndpointsFromClusterNodes` sent `CLUSTER SLOTS` and `CLUSTER NODES` through `ExecuteAsyncImpl` on every
+reconfiguration, and a shipped `Message` write calls `GetBridge` with `create` defaulted to true - so those
+two commands, and nothing else, were what dialled the shipped interactive bridge. Every endpoint carried two
+sockets with one doing the work.
+
+Both answers are now already in hand by the time that function runs, so it reads them instead of asking:
+`NODES` per connection (9ab) and `SLOTS` once for the deployment. With that, nothing writes a shipped
+`Message` on the interactive path at all, and `ConnectUsesSingleSocket` passes because there genuinely is
+one socket.
+
+**Taking the `SLOTS` view required deleting a parser, not writing one.** The core's `ClusterSlotsHandler`
+was ~90 lines producing a reduced shape - from, to, primary endpoint, replica endpoints - which could route
+and nothing else. It read past the node ids and discarded them, so `ServerEndPoint.ClusterTopology` could
+not be populated from this core, and identity-merging (what stops one node becoming two `ServerEndPoint`s
+when a reply names it differently - the TLS/SNI case) had nothing to work from.
+
+The shipped `ClusterSlotsResultProcessor` already parses all of it, and all of it except one line is pure
+`ref RespReader` work; the only thing the processor adds is a `PhysicalConnection` to hang the side effect
+on. So `ClusterSlotsResult.Parse` is now exposed and the core's handler is four lines over it. **The
+duplicate is gone rather than doubled**, which is the shape every one of these moves should have and several
+earlier ones did not.
+
+**And it subsumes 9y.** That section added a placeholder check to the core's handler because `"?":6379`
+parses into a perfectly good `DnsEndPoint` nobody can dial. The shipped parser had always refused those, in
+`ResolveEndPoint`, by the same test (`null`/`""`/`"?"`, and port outside 1..65535 - exactly
+`RespRedirect.IsUnroutableTarget`'s coverage). Two implementations of one rule was the actual defect; 9y
+fixed the copy, this removes it.
+
+**One honest asymmetry, recorded rather than smoothed over.** `ClusterTopology` is per-`ServerEndPoint`
+because shipped autoconfigure asked per connection, but this core asks once - so only the server that
+answered holds it. `GetEndpointsFromClusterNodes` therefore looks across the snapshot for one. The
+alternative - asking per connection - is what the handshake argues against directly above the call, since
+two nodes' differing answers mid-reshard would flap the map by whichever socket opened first.
+
+**`ClusterTests`: 18 → 5 → 3 → 2 → 0**, and 19m51s → 17s.

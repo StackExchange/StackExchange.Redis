@@ -338,6 +338,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Kill { get; }
 
+        /// <summary>The <c>NODES</c> subcommand of <c>CLUSTER</c>: every node, as this one sees them.</summary>
+        [Resp]
+        internal static partial RespFragment Nodes { get; }
+
         /// <summary>The <c>FILTERBY</c> operand of <c>COMMAND LIST</c>; a filter kind follows it.</summary>
         [Resp]
         internal static partial RespFragment FilterBy { get; }

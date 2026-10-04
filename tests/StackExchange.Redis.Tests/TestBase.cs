@@ -313,6 +313,7 @@ public abstract class TestBase : IDisposable
         Version? require = null,
         RedisProtocol? protocol = null,
         bool allowSimulateConnectionFailure = false,
+        ConnectMode? connectMode = null,
         [CallerMemberName] string caller = "")
     {
         if (Output == null)
@@ -321,6 +322,10 @@ public abstract class TestBase : IDisposable
         }
 
         if (allowSimulateConnectionFailure) shared = false;
+
+        // a connect mode is a property of the whole multiplexer, so a test that asks for one cannot be
+        // handed the shared connection - which was opened under whatever the default is
+        if (connectMode is not null) shared = false;
         // Default to protocol context if not explicitly passed in
         protocol ??= TestContext.Current.GetProtocol();
 
@@ -370,6 +375,7 @@ public abstract class TestBase : IDisposable
             highIntegrity,
             tunnel,
             allowSimulateConnectionFailure,
+            connectMode,
             caller);
 
         TestBase.ThrowIfIncorrectProtocol(conn, protocol);
@@ -435,7 +441,7 @@ public abstract class TestBase : IDisposable
         }
     }
 
-    public static ConnectionMultiplexer CreateDefault(
+    internal static ConnectionMultiplexer CreateDefault(
         TextWriter? output,
         string configuration,
         string? clientName = null,
@@ -461,6 +467,7 @@ public abstract class TestBase : IDisposable
         bool highIntegrity = false,
         Tunnel? tunnel = null,
         bool allowSimulateConnectionFailure = false,
+        ConnectMode? connectMode = null,
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
@@ -505,6 +512,10 @@ public abstract class TestBase : IDisposable
             if (protocol is not null) config.Protocol = protocol;
             if (highIntegrity) config.HighIntegrity = highIntegrity;
             if (allowSimulateConnectionFailure) config.AllowSimulateConnectionFailure = allowSimulateConnectionFailure;
+
+            // how much the new core opens at connect. Only the tests ABOUT that choice say anything here:
+            // everything else wants whatever the default has become, which is the point of measuring it
+            if (connectMode is not null) config.ConnectMode = connectMode.Value;
             if (checkConnect)
             {
                 config.AbortOnConnectFail = false;
