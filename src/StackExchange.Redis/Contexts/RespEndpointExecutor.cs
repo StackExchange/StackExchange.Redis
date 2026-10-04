@@ -1074,7 +1074,7 @@ namespace StackExchange.Redis
         /// and the next command dials again and drains it.
         /// </para>
         /// </remarks>
-        internal bool DropConnection(bool reconnectImmediately = false)
+        internal bool DropConnection(bool reconnectImmediately = false, bool wasRequested = false)
         {
             RespConnection? doomed;
             lock (_sync)
@@ -1084,7 +1084,7 @@ namespace StackExchange.Redis
             }
 
             if (doomed is null) return false;
-            RecordFault(doomed);
+            RecordFault(doomed, wasRequested);
             _ = doomed.DisposeAsync();
 
             // AND START GETTING IT BACK. Losing a connection is the event that should lead to a reconnect,
@@ -1129,13 +1129,17 @@ namespace StackExchange.Redis
 
         /// <summary>Remember why a connection ended.</summary>
         /// <param name="connection">The connection that is going away.</param>
+        /// <param name="wasRequested">
+        /// Whether we asked for this close - a retirement, a maintenance recycle, a dispose - in which case
+        /// it is recorded but not announced as a failure.
+        /// </param>
         /// <remarks>
         /// A connection that was CLOSED rather than broken has no fault of its own to report - a retirement,
         /// a circuit-breaker trip, a simulated failure - so one is written down instead. "No connection
         /// became available" followed by nothing is a diagnosis that does not diagnose, and "the connection
         /// was closed" is at least true and at least distinguishes it from never having had one.
         /// </remarks>
-        private void RecordFault(RespConnection? connection)
+        private void RecordFault(RespConnection? connection, bool wasRequested = false)
         {
             if (connection is null) return;
 
@@ -1147,6 +1151,33 @@ namespace StackExchange.Redis
                 CommandStatus.Unknown);
 
             Volatile.Write(ref _lastConnectFault, fault);
+
+            // ...and SAY so, which this core did not. ConnectionFailed is a documented public event and the
+            // thing callers wire up to notice a deployment moving underneath them; the shipped bridge
+            // raises it from RecordConnectionFailed whenever a socket dies, while this core raised it only
+            // for a tripped circuit breaker and a maintenance handoff. So under the engine flag an
+            // ordinary dead connection was silent - measured by MaintenanceRelaxationTests, which breaks a
+            // connection during a relaxed window and waits for somebody to notice.
+            //
+            // reconfigure: false, because the caller decides. A connection going away is not by itself a
+            // reason to re-read the topology - OnRepeatedConnectFailure is what judges that, with the
+            // restraint that question needs - and asking for one per dropped socket is the stampede the
+            // rate limit exists to prevent.
+            //
+            // ...and NOT when the close was asked for, which is the same distinction the shipped bridge
+            // makes with `wasRequested`. A retirement, a maintenance recycle or a dispose is not a failure,
+            // and announcing one is actively misleading: MaintenanceNotificationTests watches a graceful
+            // recycle and asserts that no failure is reported for it.
+            if (!wasRequested && _endpoint is { } reportAt && Server is { } server && !server.Multiplexer.IsDisposed)
+            {
+                server.Multiplexer.OnConnectionFailed(
+                    reportAt,
+                    IsSubscriptionEndpoint ? ConnectionType.Subscription : ConnectionType.Interactive,
+                    fault is RedisConnectionException rce ? rce.FailureType : ConnectionFailureType.SocketFailure,
+                    fault,
+                    reconfigure: false,
+                    physicalName: null);
+            }
         }
 
         /// <summary>Periodic upkeep: time out whatever has waited too long, queued or in flight.</summary>
@@ -1169,7 +1200,11 @@ namespace StackExchange.Redis
 
             RespConnection? connection;
             lock (_sync) connection = _connection;
-            if (connection is null || connection.IsClosed) return;
+            if (connection is null || connection.IsClosed)
+            {
+                RetryConnectIfDue();
+                return;
+            }
 
             timeoutMilliseconds = EffectiveTimeout(timeoutMilliseconds);
             if (timeoutMilliseconds > 0) connection.ExpirePending(TimeSpan.FromMilliseconds(timeoutMilliseconds));
@@ -1178,6 +1213,53 @@ namespace StackExchange.Redis
         }
 
         private int _lastWriteTickCount = Environment.TickCount;
+
+        private int _lastConnectRetryTicks;
+
+        /// <summary>Re-dial an endpoint that is down, if it is one we have already been asked for.</summary>
+        /// <remarks>
+        /// <b>The shipped bridge reconnects from its heartbeat; this core only ever dialled on demand.</b>
+        /// So a connection that went away stayed away until a caller happened to need it again - and an
+        /// endpoint whose first dial failed was never tried a second time at all, which is what
+        /// <c>ConnectFailureRefreshTests</c> reads as "saw 0 attempts" and
+        /// <c>MaintenanceRelaxationTests</c> as a dead connection nobody noticed.
+        /// <para>
+        /// <b>Only once something has asked</b>, which is what keeps this from undoing lazy connection.
+        /// A retry count above zero means a dial has been attempted and failed; <c>_connects</c> above zero
+        /// means one succeeded and the connection has since gone. Either way the endpoint is wanted. An
+        /// executor nobody has used has neither, and is left alone.
+        /// </para>
+        /// <para>
+        /// Once per heartbeat at most, and never while a dial is already in flight - the connect path
+        /// itself is what serialises that, so this only has to avoid queueing work per heartbeat tick.
+        /// </para>
+        /// </remarks>
+        private void RetryConnectIfDue()
+        {
+            if (Volatile.Read(ref _connectRetryCount) <= 0 && Volatile.Read(ref _connects) <= 0) return;
+            if (Server is { IsDisposed: true }) return;
+
+            var now = Environment.TickCount;
+            var last = Volatile.Read(ref _lastConnectRetryTicks);
+            if (last != 0 && unchecked(now - last) < 1000) return;
+            if (Interlocked.CompareExchange(ref _lastConnectRetryTicks, now == 0 ? 1 : now, last) != last) return;
+
+            ThreadPool.QueueUserWorkItem(
+                static async state =>
+                {
+                    var executor = (RespEndpointExecutor)state!;
+                    try
+                    {
+                        await executor.ConnectNowAsync(CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // the attempt itself records the fault and reports the count; there is nobody here
+                        // to tell, and a heartbeat that threw would take the sweep down with it
+                    }
+                },
+                this);
+        }
 
         /// <summary>Say something on an idle connection, so it is not closed underneath us.</summary>
         /// <remarks>
@@ -2031,9 +2113,20 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                Interlocked.Increment(ref _connectRetryCount);
+                var failures = Interlocked.Increment(ref _connectRetryCount);
                 var fault = AsConnectionFault(ex);
                 Volatile.Write(ref _lastConnectFault, fault);
+
+                // An endpoint that only ever refuses has nobody to tell the client it has moved: every
+                // other path that re-reads the topology needs somebody ELSE to notice first - a
+                // notification, a MOVED from a reachable node, a peer's broadcast. The shipped bridge
+                // closes that gap from its own retry loop; this core had no equivalent, so under the
+                // engine flag a dead address was dialled indefinitely. ServerEndPoint owns the restraint
+                // (ConfigCheckSeconds, and only above a threshold), so this just reports the count.
+                if (!IsSubscriptionEndpoint && Server is { } repeatedly)
+                {
+                    repeatedly.OnRepeatedConnectFailure((int)Math.Min(failures, int.MaxValue));
+                }
 
                 Queue<RespPayloadOperation>? stranded;
                 lock (_sync)

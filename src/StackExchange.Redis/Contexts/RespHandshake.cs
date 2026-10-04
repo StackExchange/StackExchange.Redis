@@ -198,6 +198,14 @@ namespace StackExchange.Redis
                     // the deployment. `MultiPrimaryTests` reads it as "Single primary detected" where two
                     // were expected, after a full connect timeout.
                     onAuthSuspect?.Invoke(ex);
+
+                    // TRIED AND REVERTED: failing the handshake on WRONGPASS/NOAUTH. It is the shape
+                    // SecureTests.ConnectWithWrongPassword asks for, and it fixed that one case - but
+                    // ConfigTests.MutableOptions changes the password at runtime and needs the connection
+                    // to survive the window in which it is wrong, so making the refusal fatal traded one
+                    // test for two. Shipped gets both by continuing here and letting the FIRST COMMAND
+                    // fail with the auth suspicion attached (ResultProcessor, SetAuthSuspect), so that is
+                    // where this core has to arrive too; see design note 9ag.
                 }
             }
 

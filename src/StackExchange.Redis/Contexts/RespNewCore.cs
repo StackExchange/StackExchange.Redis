@@ -1736,14 +1736,14 @@ namespace StackExchange.Redis
 
             var recycled = false;
             if (_endpoints.TryGetValue(endpoint, out var interactive)
-                && interactive.DropConnection(reconnectImmediately: true))
+                && interactive.DropConnection(reconnectImmediately: true, wasRequested: true))
             {
                 Report(endpoint, ConnectionType.Interactive);
                 recycled = true;
             }
 
             if (_subscriptions.TryGetValue(endpoint, out var subscription)
-                && subscription.DropConnection(reconnectImmediately: true))
+                && subscription.DropConnection(reconnectImmediately: true, wasRequested: true))
             {
                 Report(endpoint, ConnectionType.Subscription);
                 recycled = true;

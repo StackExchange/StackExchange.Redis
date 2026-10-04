@@ -235,7 +235,16 @@ namespace StackExchange.Redis
                 {
                     return subEx;
                 }
-                return snapshot?.LastException;
+
+                // ...and the other core's, when the shipped bridges have nothing to say - which under the
+                // engine flag is always, because they are not dialled. This is what ExceptionFactory
+                // collects to explain WHY no connection was available, so an empty answer here is an
+                // "unable to resolve physical connection" with no inner exception and nothing to act on.
+                // ConnectionFailureErrorsTests.SocketFailureError asserts precisely that the inner is
+                // there. Same spanning treatment as IsConnected, OperationCount and the connection state.
+                return snapshot?.LastException
+                    ?? Multiplexer.NewCoreIfCreated?.LastConnectFault(EndPoint, ConnectionType.Interactive)
+                    ?? Multiplexer.NewCoreIfCreated?.LastConnectFault(EndPoint, ConnectionType.Subscription);
             }
         }
 
