@@ -82,6 +82,12 @@ namespace StackExchange.Redis
         /// <param name="clientName">A name for this connection, or null.</param>
         /// <param name="database">The database to select; zero needs no command.</param>
         /// <param name="preferResp3">Whether to ask for RESP3.</param>
+        /// <param name="helloAvailable">
+        /// Whether <c>HELLO</c> should be sent at all. Separate from <paramref name="preferResp3"/>, which
+        /// only decides the protover: a deployment can opt out of the command entirely, by the command map
+        /// or by declaring an assumed server version older than 6.0 - and <c>ConfigurationOptions.TryHello</c>
+        /// is the one place that weighs both.
+        /// </param>
         /// <param name="topology">
         /// Told what the server turned out to be, before this returns. See the remarks: setting it here
         /// rather than afterwards is what makes the ordering invariant structural.
@@ -111,6 +117,7 @@ namespace StackExchange.Redis
             string? clientName = null,
             int database = 0,
             bool preferResp3 = true,
+            bool helloAvailable = true,
             RespTopology? topology = null,
             EndPoint? endpoint = null,
             Caching.RespClientCache? clientCache = null,
@@ -119,7 +126,18 @@ namespace StackExchange.Redis
             Action<Exception>? onAuthSuspect = null,
             CancellationToken cancellationToken = default)
         {
-            if (password is not null)
+            // WHO AUTHENTICATES depends on whether AUTH is available at all. A command map that disables it
+            // is not a map without credentials - a proxy can require them and refuse the command - and in
+            // that case HELLO is the only thing that can authenticate the connection, so the credentials
+            // travel with it. The shipped handshake makes the same split, and says the same thing about
+            // ordering: only the credential-carrying flavour of HELLO has to come first.
+            var canAuthDirectly = context.Raw.CommandMap.IsAvailable(RedisCommand.AUTH);
+            var helloCarriesCredentials = password is not null
+                && !canAuthDirectly
+                && helloAvailable
+                && context.Raw.CommandMap.IsAvailable(RedisCommand.HELLO);
+
+            if (password is not null && canAuthDirectly)
             {
                 // "" is a legitimate password, for 'nopass' logins - hence null rather than empty as the
                 // "no auth needed" signal, matching ConfigurationOptions
@@ -162,7 +180,13 @@ namespace StackExchange.Redis
             // without sending: a disabled command throws RedisCommandException before it reaches a socket,
             // which is not the RedisServerException these catches expect, so it would escape and fail the
             // whole handshake rather than being the ordinary decline every one of them is written for.
-            if (preferResp3 && context.Raw.CommandMap.IsAvailable(RedisCommand.HELLO))
+            // ON RESP2 AS WELL, which is not a wasted round trip: the reply carries the server's version,
+            // its mode and its role, so asking is cheaper than the INFO sections that are the alternative
+            // source for all three - which is exactly why the shipped handshake sends a bare HELLO even
+            // when it has no intention of speaking RESP3. Skipping it here meant this core asked for none
+            // of that, and `HelloHandshakeTests` says so plainly: it asserts HELLO is issued for BOTH
+            // protocols, with the protover that matches.
+            if (helloAvailable && context.Raw.CommandMap.IsAvailable(RedisCommand.HELLO))
             {
                 try
                 {
@@ -170,9 +194,20 @@ namespace StackExchange.Redis
                     // refused), or a perfectly successful reply that says proto 2. Both are normal, and
                     // only the reply distinguishes them - which is the thing the old handshake could not
                     // wait for.
-                    var hello = await context.SendAsync($"{RedisCommand.HELLO}{3}", handler: HelloHandler.Instance)
-                        .ConfigureAwait(false);
-                    if (hello.Proto >= 3) protocol = RedisProtocol.Resp3;
+                    //
+                    // The protover asked for is the one we actually want. Asking for 3 while configured
+                    // for RESP2 would be asking to be upgraded against the caller's wishes; asking for 2
+                    // is a discovery request that cannot change the protocol.
+                    var protover = preferResp3 ? 3 : 2;
+                    var hello = helloCarriesCredentials
+                        ? await context.SendAsync(
+                                $"{RedisCommand.HELLO}{protover}{RespLiterals.Auth}{(RedisValue)(user is { Length: > 0 } ? user : RedisLiterals.@default)}{(RedisValue)password!}",
+                                handler: HelloHandler.Instance)
+                            .ConfigureAwait(false)
+                        : await context.SendAsync(
+                                $"{RedisCommand.HELLO}{protover}", handler: HelloHandler.Instance)
+                            .ConfigureAwait(false);
+                    if (preferResp3 && hello.Proto >= 3) protocol = RedisProtocol.Resp3;
                     if (hello.Mode is { } mode)
                     {
                         serverType = mode;

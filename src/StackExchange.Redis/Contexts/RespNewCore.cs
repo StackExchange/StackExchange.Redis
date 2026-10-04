@@ -946,6 +946,7 @@ namespace StackExchange.Redis
                 ServerEndPoint.SanitizeClientName(_multiplexer.ClientName),
                 database,
                 config.Protocol is null or RedisProtocol.Resp3,
+                config.TryHello(out _),
                 _topology,
                 endpoint,
                 subscription ? null : _multiplexer.ClientCache,
