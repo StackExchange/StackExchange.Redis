@@ -3918,3 +3918,36 @@ Candidates that look like one cause each rather than seven: `ExceptionFactoryTes
 certainly one thing - exception text naming bridge state - and `UnroutableRedirectUnitTests` (6) plus
 `HelloHandshakeTests` (5) are each a single mechanism. `ClusterTests` (8) is the one that is probably
 genuinely eight separate things.
+
+### 9y. Placeholder endpoints, and the last D2.8 gap closes
+
+**`UnroutableRedirectUnitTests` (6 → 0), one cause.** A node that prefers hostnames and announces none
+reports `"?"`, and `"?:6379"` parses perfectly well into a `DnsEndPoint` nobody can dial. The *redirect*
+path already refused these - `RespRedirect.IsUnroutableTarget` exists for exactly that - but
+`ClusterSlotsHandler.TryReadHost` only checked for an empty host, so the placeholder went into the slot
+map and commands were routed at a server called `?`, expiring in the backlog five seconds later. The
+test reads it as a `RedisConnectionException` where a `RedisServerException` was expected: the client was
+dialling instead of letting the server's error stand.
+
+Fixed by sharing the rule rather than copying it - `IsUnroutableTarget` is now internal, and the slot map
+applies the same test. **A server can name a placeholder anywhere it names an endpoint** - a redirect, a
+slot map, a migration triplet - and the forms are identical in all of them, so one predicate is right and
+three are a liability. (The maintenance parse has its own `IsPlaceholderEndPoint`; worth folding in next
+time anything touches it.)
+
+**And the `SET` replica probe lands, which closes the last of 9k's four gaps.** With `HELLO`, `INFO` and
+`CONFIG` all unavailable - which a command map can arrange, and proxies do - nothing left will answer
+"are you a replica?", so the client asks by attempting a write and reading the refusal. Harmless by
+construction: `NX` so it cannot overwrite, `PX 1` so it cannot persist, and the client's own unique id as
+the key. Never in a cluster, where a replica answers `-MOVED` for its primary's slots rather than
+`-READONLY` and no hash tag can make the probe reliable.
+
+**The probe needed a second fact to be correct, and the first attempt got it wrong.** Firing it whenever
+`INFO` was unavailable made `NoReplicaProbeWhenHelloTellsUsTheRole` fail: `HELLO` carries the role, so a
+server that answered one has already settled this. So the handler now reads `HELLO`'s `role` field -
+free, and it also publishes `IsReplica` directly - and the probe is skipped when the role is known. That
+matters beyond tidiness: the probe needs a KEY, and an ACL can forbid it (#2968), so not having to send
+it is the point rather than a saving.
+
+**9k's itemisation is now closed out**: product variant ✓, tie-breaker ✓, replica probe ✓, and
+`CLUSTER NODES` turned out not to be needed by anything measured.

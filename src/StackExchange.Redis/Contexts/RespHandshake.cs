@@ -16,13 +16,22 @@ namespace StackExchange.Redis
     /// <param name="version">The server version, when HELLO reported one.</param>
     /// <param name="knowsServerType">Whether the server type was determined rather than defaulted.</param>
     /// <param name="connectionId">What the server calls this connection, when it would say.</param>
+    /// <param name="roleFromHello">What <c>HELLO</c> said this server's role is, when it said.</param>
     internal readonly struct RespHandshakeResult(
         RedisProtocol protocol,
         ServerType serverType,
         Version? version = null,
         bool knowsServerType = false,
-        long? connectionId = null)
+        long? connectionId = null,
+        bool? roleFromHello = null)
     {
+        /// <summary>What <c>HELLO</c> reported as the role, when it reported one.</summary>
+        /// <remarks>
+        /// Null means <b>nobody has said</b>, which is the case the <c>SET</c> probe exists for - not
+        /// "primary". The distinction is the whole reason this is nullable.
+        /// </remarks>
+        internal bool? RoleFromHello { get; } = roleFromHello;
+
         /// <summary>What the server calls this connection, when it would say.</summary>
         internal long? ConnectionId { get; } = connectionId;
 
@@ -172,6 +181,7 @@ namespace StackExchange.Redis
             }
 
             var protocol = RedisProtocol.Resp2;
+            bool? roleFromHello = null;
             var serverType = ServerType.Standalone;
             var knowServerType = false;
             var clusterInfoDeclined = false;
@@ -215,6 +225,7 @@ namespace StackExchange.Redis
                     }
 
                     version = hello.Version;
+                    roleFromHello = hello.IsReplica;
                 }
                 catch (RedisServerException)
                 {
@@ -404,7 +415,7 @@ namespace StackExchange.Redis
                 await context.SendAsync($"{RedisCommand.SELECT}{database}").ConfigureAwait(false);
             }
 
-            return new RespHandshakeResult(protocol, serverType, version, knowServerType, connectionId);
+            return new RespHandshakeResult(protocol, serverType, version, knowServerType, connectionId, roleFromHello);
         }
 
         /// <summary>Read the server-wide settings the client models, for a server nothing has described yet.</summary>
@@ -443,7 +454,7 @@ namespace StackExchange.Redis
             // FIRST, and outside the gate below, because the two beliefs are independent: a server whose
             // database count somebody has already established can still have no product recorded.
             await DiscoverProductAsync(context, server).ConfigureAwait(false);
-            await DiscoverReplicationAsync(context, server).ConfigureAwait(false);
+            await DiscoverReplicationAsync(context, server, connected.RoleKnown).ConfigureAwait(false);
             await DiscoverTieBreakerAsync(context, server).ConfigureAwait(false);
             await RequestMaintenanceNotificationsAsync(context, server, connected).ConfigureAwait(false);
 
@@ -472,9 +483,17 @@ namespace StackExchange.Redis
         /// <param name="remoteAddress">The address actually reached, when it was an IP one.</param>
         /// <param name="isEncrypted">Whether the connection ended up encrypted.</param>
         /// <param name="requestedResp3">Whether RESP3 was asked for, which is not whether it was got.</param>
+        /// <param name="roleKnown">Whether <c>HELLO</c> already reported the role, so nothing need probe for it.</param>
         internal readonly struct ConnectedTransportFacts(
-            RedisProtocol protocol, IPAddress? remoteAddress, bool isEncrypted, bool requestedResp3 = false)
+            RedisProtocol protocol,
+            IPAddress? remoteAddress,
+            bool isEncrypted,
+            bool requestedResp3 = false,
+            bool roleKnown = false)
         {
+            /// <summary>Whether the role is already settled, so the <c>SET</c> probe is unnecessary.</summary>
+            internal bool RoleKnown { get; } = roleKnown;
+
             internal RedisProtocol Protocol { get; } = protocol;
 
             /// <summary>Whether RESP3 was ASKED for, which is not the same as whether it was got.</summary>
@@ -596,6 +615,7 @@ namespace StackExchange.Redis
         /// <summary>Whether this server replicates another, and which.</summary>
         /// <param name="context">A context over the connection to ask on.</param>
         /// <param name="server">The server to describe.</param>
+        /// <param name="roleKnown">Whether <c>HELLO</c> already answered this, so nothing need probe.</param>
         /// <remarks>
         /// <para>
         /// <b>A role is not a preference, it is a routing fact</b>, and the client refuses writes to a
@@ -616,9 +636,17 @@ namespace StackExchange.Redis
         /// two <c>INFO</c> sections for the same reason.
         /// </para>
         /// </remarks>
-        private static async Task DiscoverReplicationAsync(RespDatabaseContext context, ServerEndPoint server)
+        private static async Task DiscoverReplicationAsync(
+            RespDatabaseContext context, ServerEndPoint server, bool roleKnown)
         {
-            if (!context.Raw.CommandMap.IsAvailable(RedisCommand.INFO)) return;
+            if (!context.Raw.CommandMap.IsAvailable(RedisCommand.INFO))
+            {
+                // ...and only if nothing has already said. `HELLO` carries the role, so a server that
+                // answered one has settled this already and the probe would be a write nobody needs -
+                // which matters because the probe needs a KEY, and an ACL can forbid that (#2968).
+                if (!roleKnown) await ProbeReplicaAsync(context, server).ConfigureAwait(false);
+                return;
+            }
 
             try
             {
@@ -632,6 +660,57 @@ namespace StackExchange.Redis
             catch (RedisServerException)
             {
                 // a restricted INFO leaves the role as it was, which is what it did before this asked
+            }
+        }
+
+        /// <summary>Find out whether this is a replica by trying to write to it.</summary>
+        /// <param name="context">A context over the connection to ask on.</param>
+        /// <param name="server">The server to describe.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The last resort, and sometimes the only one.</b> With <c>HELLO</c>, <c>INFO</c> and
+        /// <c>CONFIG</c> all unavailable - which a command map can do, and proxies do - there is nothing
+        /// left that will answer "are you a replica?", so the client asks by attempting a write and
+        /// reading the refusal. <c>HelloHandshakeTests.ReplicaProbeStillUsedWhenHelloUnavailable</c> is
+        /// built on exactly that configuration.
+        /// </para>
+        /// <para>
+        /// <b>Harmless by construction</b>, which is why it is acceptable at all: the value is set only if
+        /// absent (<c>NX</c>) and expires in a millisecond (<c>PX 1</c>), and the key is the client's own
+        /// unique id. The shipped probe is the same shape, and uses the same value as its own marker so
+        /// that anyone watching with <c>MONITOR</c> can see what it was for.
+        /// </para>
+        /// <para>
+        /// <b>Never in a cluster</b>, where a replica answers <c>-MOVED</c> for its primary's slots rather
+        /// than <c>-READONLY</c>: no hash tag can make the probe reliable there, so a cluster is left to
+        /// the slot map that already describes it.
+        /// </para>
+        /// </remarks>
+        private static async Task ProbeReplicaAsync(RespDatabaseContext context, ServerEndPoint server)
+        {
+            if (server.ServerType == ServerType.Cluster) return;
+            if (!context.Raw.CommandMap.IsAvailable(RedisCommand.SET)) return;
+
+            try
+            {
+                await context.WithDatabase(0).Strings
+                    .SetAsync(
+                        server.Multiplexer.UniqueId,
+                        RedisLiterals.replica_read_only,
+                        expiry: TimeSpan.FromMilliseconds(1),
+                        when: When.NotExists)
+                    .ConfigureAwait(false);
+
+                server.IsReplica = false;
+            }
+            catch (RedisServerException ex) when (ex.Kind == RedisErrorKind.ReadOnly)
+            {
+                // the refusal IS the answer
+                server.IsReplica = true;
+            }
+            catch (RedisServerException)
+            {
+                // anything else says nothing about the role, so the role stays as it was
             }
         }
 
@@ -1052,22 +1131,26 @@ namespace StackExchange.Redis
         /// assuming a shape - it is looking for one field, and the surrounding structure is exactly what
         /// is in question.
         /// </remarks>
-        /// <summary>The two fields of a <c>HELLO</c> reply that change what we do next.</summary>
+        /// <summary>The fields of a <c>HELLO</c> reply that change what we do next.</summary>
         /// <param name="proto">The protocol the server agreed to.</param>
         /// <param name="mode">What the server says it is, if it said.</param>
         /// <param name="version">The version it reported, if it did.</param>
+        /// <param name="isReplica">What it said this server's role is, when it said.</param>
         /// <remarks>
         /// A struct rather than a tuple: the library must not reference <c>System.ValueTuple</c>, which
         /// would add a facade dependency on the down-level targets - asserted by
         /// <c>SanityCheckTests.ValueTupleNotReferenced</c>, which is how this was caught.
         /// </remarks>
-        private readonly struct HelloReply(int proto, ServerType? mode, Version? version)
+        private readonly struct HelloReply(int proto, ServerType? mode, Version? version, bool? isReplica)
         {
             internal int Proto { get; } = proto;
 
             internal ServerType? Mode { get; } = mode;
 
             internal Version? Version { get; } = version;
+
+            /// <summary>What the reply said this server's role is, when it said.</summary>
+            internal bool? IsReplica { get; } = isReplica;
         }
 
         /// <summary>
@@ -1173,6 +1256,13 @@ namespace StackExchange.Redis
                     if (reader.TryMoveNext() && reader.TryReadInt64(out var port) && !string.IsNullOrEmpty(host))
                     {
                         _ = Format.TryParseEndPoint(host + ":" + port.ToString(CultureInfo.InvariantCulture), out endpoint);
+
+                        // ...and a placeholder is not an endpoint. A node that prefers hostnames and has
+                        // none announces "?", which parses perfectly well into something undialable - so
+                        // a slot map built from it routes commands at a host called "?" and they expire in
+                        // the backlog. The redirect path already refuses these; the slot map has to as
+                        // well, and by the same rule rather than a second copy of it.
+                        if (endpoint is not null && RespRedirect.IsUnroutableTarget(endpoint)) endpoint = null;
                     }
 
                     for (var skipped = 2; skipped < hostParts; skipped++)
@@ -1199,6 +1289,7 @@ namespace StackExchange.Redis
                 var proto = 2; // a reply we could not read is not a reason to claim RESP3
                 ServerType? mode = null;
                 Version? version = null;
+                bool? isReplica = null;
 
                 var count = reader.AggregateLength();
                 for (var i = 0; i < count; i++)
@@ -1207,6 +1298,7 @@ namespace StackExchange.Redis
                     var isProto = reader.Is("proto"u8);
                     var isMode = !isProto && reader.Is("mode"u8);
                     var isVersion = !isProto && !isMode && reader.Is("version"u8);
+                    var isRole = !isProto && !isMode && !isVersion && reader.Is("role"u8);
                     if (!reader.TryMoveNext()) break;
                     i++;
 
@@ -1217,6 +1309,17 @@ namespace StackExchange.Redis
                     else if (isVersion && reader.IsScalar)
                     {
                         _ = Format.TryParseVersion(reader.ReadString(), out version);
+                    }
+                    else if (isRole && reader.IsScalar)
+                    {
+                        // FREE, and it removes the need to ask: the shipped handshake tracks exactly this
+                        // as RoleKnownFromHello, and skips its SET probe when it is set. #2968 is about
+                        // that probe needing a key, which ACLs can forbid - so not having to send it is
+                        // the point rather than a saving.
+                        if (reader.TryGetSpan(out var span) && KnownRoleMetadata.TryParse(span, out var replica))
+                        {
+                            isReplica = replica;
+                        }
                     }
                     else if (isMode && reader.IsScalar)
                     {
@@ -1231,7 +1334,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                return new HelloReply(proto, mode, version);
+                return new HelloReply(proto, mode, version, isReplica);
             }
         }
 

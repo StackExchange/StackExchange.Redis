@@ -125,8 +125,17 @@ namespace StackExchange.Redis
             return slot < ServerSelectionStrategy.TotalSlots;
         }
 
-        /// <inheritdoc cref="IsUnroutable"/>
-        private static bool IsUnroutableTarget(EndPoint endpoint) => endpoint switch
+        /// <summary>Whether an endpoint a server named is one that could never be dialled.</summary>
+        /// <param name="endpoint">The endpoint as parsed.</param>
+        /// <remarks>
+        /// <b>Shared, because a server can name a placeholder anywhere it names an endpoint</b> - a
+        /// redirect, a slot map, a migration triplet - and the forms are the same in all of them: <c>"?"</c>
+        /// and the empty host are the contract's "no address", and a zero port is unusable whatever the
+        /// host says. Parsing one into a real <see cref="EndPoint"/> and routing to it produces a client
+        /// that dials a host called <c>?</c> and times out in its own backlog, which is what
+        /// <c>UnroutableRedirectUnitTests</c> measures when a hostname-preferring node announces none.
+        /// </remarks>
+        internal static bool IsUnroutableTarget(EndPoint endpoint) => endpoint switch
         {
             DnsEndPoint dns => dns.Port == 0 || dns.Host is "" or "?",
             IPEndPoint ip => ip.Port == 0,

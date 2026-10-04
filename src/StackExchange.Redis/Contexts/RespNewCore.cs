@@ -1023,7 +1023,8 @@ namespace StackExchange.Redis
                             result.Protocol,
                             connected.RemoteAddress,
                             connected.IsEncrypted,
-                            requestedResp3: config.Protocol is null or RedisProtocol.Resp3))
+                            requestedResp3: config.Protocol is null or RedisProtocol.Resp3,
+                            roleKnown: result.RoleFromHello is not null))
                         .ConfigureAwait(false);
                 }
             }
@@ -1819,6 +1820,7 @@ namespace StackExchange.Redis
         private static void Publish(ServerEndPoint server, in RespHandshakeResult result)
         {
             if (result.Version is { } version) server.Version = version;
+            if (result.RoleFromHello is { } isReplica) server.IsReplica = isReplica;
 
             if (result.KnowsServerType
                 && server.ServerType is not (ServerType.Sentinel or ServerType.Twemproxy))
