@@ -334,6 +334,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment List { get; }
 
+        /// <summary>The <c>KILL</c> subcommand of <c>CLIENT</c>: close other connections.</summary>
+        [Resp]
+        internal static partial RespFragment Kill { get; }
+
         /// <summary>The <c>FILTERBY</c> operand of <c>COMMAND LIST</c>; a filter kind follows it.</summary>
         [Resp]
         internal static partial RespFragment FilterBy { get; }

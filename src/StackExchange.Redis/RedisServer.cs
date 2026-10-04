@@ -177,45 +177,33 @@ namespace StackExchange.Redis
 
         public void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalAdmin), RedisCommand.CLIENT, RedisLiterals.KILL, Format.ToString(endpoint).AsRedisValue());
-            ExecuteSync(msg, ResultProcessor.DemandOK);
+            Wait(Context.Diagnostics.ClientKillAddress(Format.ToString(endpoint).AsRedisValue(), flags));
         }
 
         public Task ClientKillAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalAdmin), RedisCommand.CLIENT, RedisLiterals.KILL, Format.ToString(endpoint).AsRedisValue());
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
+            => Context.Diagnostics.ClientKillAddress(Format.ToString(endpoint).AsRedisValue(), flags).AsTask(asyncState, flags);
 
         public long ClientKill(long? id = null, ClientType? clientType = null, EndPoint? endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetClientKillMessage(endpoint, id, clientType, skipMe, flags);
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
+            => Wait(Context.Diagnostics.ClientKillCount(ClientKillArgs(endpoint, id, clientType, skipMe), flags));
 
         public Task<long> ClientKillAsync(long? id = null, ClientType? clientType = null, EndPoint? endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetClientKillMessage(endpoint, id, clientType, skipMe, flags);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
-        }
+            => Context.Diagnostics.ClientKillCount(ClientKillArgs(endpoint, id, clientType, skipMe), flags).AsTask(asyncState, flags);
 
         public long ClientKill(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalAdmin), RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands));
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
+            => Wait(Context.Diagnostics.ClientKillCount(filter.ToArray(Features.ReplicaCommands), flags));
 
         public Task<long> ClientKillAsync(ClientKillFilter filter, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalAdmin), RedisCommand.CLIENT, filter.ToList(Features.ReplicaCommands));
-            return ExecuteAsync(msg, ResultProcessor.Int64);
-        }
+            => Context.Diagnostics.ClientKillCount(filter.ToArray(Features.ReplicaCommands), flags).AsTask(asyncState, flags);
 
-        private Message GetClientKillMessage(EndPoint? endpoint, long? id, ClientType? clientType, bool? skipMe, CommandFlags flags)
-        {
-            var args = new ClientKillFilter().WithId(id).WithClientType(clientType).WithEndpoint(endpoint).WithSkipMe(skipMe).ToList(Features.ReplicaCommands);
-            return Message.Create(-1, flags.WithRetryCategory(NodeLocalAdmin), RedisCommand.CLIENT, args);
-        }
+        /// <summary>Render the loose-argument spelling of <c>CLIENT KILL</c> through the filter that owns the wire form.</summary>
+        /// <remarks>
+        /// The four-argument overload is the filter with four of its fields set; rendering it any other way
+        /// would be a second copy of the same encoding, free to disagree with the first about - say - whether
+        /// a replica is <c>replica</c> or <c>slave</c> on this server.
+        /// </remarks>
+        private RedisValue[] ClientKillArgs(EndPoint? endpoint, long? id, ClientType? clientType, bool? skipMe)
+            => new ClientKillFilter().WithId(id).WithClientType(clientType).WithEndpoint(endpoint).WithSkipMe(skipMe)
+                .ToArray(Features.ReplicaCommands);
 
         public ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None)
             => Wait(Context.Diagnostics.ClientListArray(flags));

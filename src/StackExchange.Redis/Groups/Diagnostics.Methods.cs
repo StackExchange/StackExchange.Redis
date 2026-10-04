@@ -276,6 +276,61 @@ public static partial class Diagnostics
         => diagnostics.Context.SendAsync(
             $"{RedisCommand.CLIENT}{RespLiterals.List}", flags, ClientListHandler.Instance, cancellationToken);
 
+    /// <summary>CLIENT KILL: close the connections a filter describes, and say how many.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="filter">The filter, already rendered - it begins with <c>KILL</c>.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Here under protest, as <see cref="ClientListArray"/> says: this is administration, not
+    /// diagnosis.</b> It sits in this group because an admin group does not exist yet and inventing one
+    /// for a single verb would decide the shape of a public surface as a side effect of a port. The
+    /// filter is rendered by <c>ClientKillFilter</c> so that both spellings of the public API - the
+    /// filter object and the four loose arguments - produce one wire form.
+    /// </para>
+    /// <para>
+    /// <b>Why it had to move at all.</b> The shipped overloads built a <c>Message</c>, so under the engine
+    /// flag they went down a pipeline with nothing on the other end while <c>CLIENT LIST</c> beside them -
+    /// already ported - answered from this core. <c>ClientKillTests</c> reads that as a cancelled task:
+    /// the command never reached a server, and killing a client is not something to report as a count.
+    /// </para>
+    /// <para>
+    /// <inheritdoc cref="CommandGetKeysArray" path="/remarks/node()[1]"/>
+    /// </para>
+    /// </remarks>
+    internal static ValueTask<long> ClientKillCount(
+        this in RespDiagnostics diagnostics,
+        ReadOnlySpan<RedisValue> filter,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.CLIENT}{filter}",
+            flags.WithRetryCategory(RespServerRetry.NodeLocalAdmin),
+            RespHandlers.Int64,
+            cancellationToken);
+
+    /// <summary>CLIENT KILL &lt;addr&gt;: close one connection by address, the original positional form.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="address">The address to close, as the server spells it.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Separate from <see cref="ClientKillCount"/> because the wire form is, and so is the reply.</b>
+    /// The positional spelling predates the filters, answers <c>+OK</c> rather than a count, and is the
+    /// only thing the oldest servers accept - so it is sent as written rather than reworded into
+    /// <c>ADDR</c>, which would change what a caller's existing code reaches.
+    /// </remarks>
+    internal static ValueTask ClientKillAddress(
+        this in RespDiagnostics diagnostics,
+        RedisValue address,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.CLIENT}{RespLiterals.Kill}{address}",
+            flags.WithRetryCategory(RespServerRetry.NodeLocalAdmin),
+            cancellationToken: cancellationToken);
+
     /// <summary>COMMAND GETKEYS: which of a command's arguments the server considers keys.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="command">The command and its arguments, as they would be sent.</param>
