@@ -126,8 +126,16 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
             // Example format: "Test Timeout, command=PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0, serverEndpoint: 127.0.0.1:6379, mgr: 10 of 10 available, clientName: TimeoutException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), v: 2.1.0 (see https://seredis.dev/Timeouts for some common client-side issues that can cause timeouts)";
             Assert.StartsWith("Test Timeout, command=PING", ex.Message);
             Assert.Contains("clientName: " + nameof(TimeoutException), ex.Message);
-            // Ensure our pipe numbers are in place
-            Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
+            // Ensure our pipe numbers are in place - split for the reason NoConnectionException's are:
+            // the socket and pipe byte counts exist only on the core that has a socket to poll and a pipe
+            // to measure, and this test hands in a detached ServerEndPoint with no bridge
+            Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive", ex.Message);
+            var fromNewCore = conn.UnderlyingMultiplexer.NewCoreIfCreated
+                ?.ConnectionStatus(server.EndPoint, ConnectionType.Interactive) is not null;
+            if (!fromNewCore)
+            {
+                Assert.Contains("in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
+            }
             Assert.Contains("mc: 1/1/0", ex.Message);
             Assert.Contains("serverEndpoint: " + server.EndPoint, ex.Message);
             Assert.Contains("IOCP: ", ex.Message);
@@ -209,7 +217,26 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
                 // Ensure our pipe numbers are in place if they should be
                 if (hasDetail)
                 {
-                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
+                    // The counters that exist on every core...
+                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive", ex.Message);
+
+                    // ...and the socket/pipe byte counts, which only one of them has. This test hands in a
+                    // DETACHED ServerEndPoint with no bridge, so the status comes from whichever core has a
+                    // connection to that endpoint - and the new core reports -1 for these three on purpose:
+                    // it polls no socket and has no pipe, so there is no number to give. ExceptionFactory
+                    // omits a negative rather than printing it, which is the honest outcome; filling them
+                    // with zeroes would be inventing data in the one message people read when diagnosing.
+                    // That core reports the equivalent in its own words - see the outbound/inbound figures
+                    // on its timeouts.
+                    // the same question GetBridgeStatus asks: does that core have an executor for this
+                    // endpoint at all? Not whether it is connected - an endpoint it tried and failed to
+                    // reach still has one, and still supplies the status that replaces the absent bridge's.
+                    var fromNewCore = ((ConnectionMultiplexer)conn).NewCoreIfCreated
+                        ?.ConnectionStatus(server.EndPoint, ConnectionType.Interactive) is not null;
+                    if (!fromNewCore)
+                    {
+                        Assert.Contains("in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
+                    }
                     Assert.Contains($"mc: {connCount}/{completeCount}/0", ex.Message);
                     Assert.Contains("serverEndpoint: " + server.EndPoint.ToString()?.Replace("Unspecified/", ""), ex.Message);
                 }
