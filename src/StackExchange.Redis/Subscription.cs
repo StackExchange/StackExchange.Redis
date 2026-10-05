@@ -676,7 +676,13 @@ public partial class ConnectionMultiplexer
             {
                 // if we consider replicas, there can be multiple valid target servers; we can't ask
                 // "is this the correct server?", but we can ask "is it suitable?", based on the slot
-                if (!subscriber.multiplexer.ServerSelectionStrategy.CanServeSlot(_currentServer, channel))
+                // the other core's map where it has one, since the MOVED that announced a migration corrects
+                // it directly and the shipped selector's waits for a reconfiguration; see RespNewCore.CanServe
+                var canServe = ConnectionMultiplexer.NewCoreEngine
+                    && subscriber.multiplexer.NewCoreIfCreated?.CanServe(current.EndPoint, channel) is { } byCore
+                        ? byCore
+                        : subscriber.multiplexer.ServerSelectionStrategy.CanServeSlot(_currentServer, channel);
+                if (!canServe)
                 {
                     var fireAndForget = flags | CommandFlags.FireAndForget;
                     if (TrySendViaNewCore(subscriber, channel, SubscriptionAction.Unsubscribe, fireAndForget, current) is null)

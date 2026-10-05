@@ -189,12 +189,64 @@ namespace StackExchange.Redis
         /// </remarks>
         protected override bool OnOutOfBand(ReadOnlySpan<byte> frame)
         {
+            // GROUND TRUTH FIRST: a subscription push whose kind is the command at the head of the queue IS
+            // that command's reply, whatever the dispatcher would have guessed. The server answers strictly
+            // in wire order, and the queue is in wire order, so there is nothing to infer.
+            //
+            // The guess this replaces was wrong in a way that cascaded. The dispatcher decides whether a
+            // `sunsubscribe` is unsolicited (a slot migrating away) or solicited (our own SUNSUBSCRIBE) from
+            // `Subscription.HasSendInFlight` - which is only ever set for SUBSCRIBE sends. So the reply to our
+            // own SUNSUBSCRIBE read as unsolicited and was consumed, and every reply after it then went to the
+            // wrong command: the ssubscribe confirmation to the SUNSUBSCRIBE, a PING's PONG to the next
+            // SSUBSCRIBE, and the PING itself was left waiting for an answer that had already been spent.
+            // Traced frame by frame on `RetirementUnderMaintenanceTests`, where that stranded PING was the
+            // tracer of a reconfiguration, which then held the reconfiguration lock for its whole relaxed
+            // timeout - so the topology was never re-read and a dead node was never retired.
+            //
+            // The shipped core asks the same question the same way: `PhysicalConnection.Read` checks
+            // `PeekChannelMessage(RedisCommand.SUNSUBSCRIBE, ...)` - its own outstanding commands - before
+            // treating a `sunsubscribe` as unsolicited.
+            if (SubscriptionCommandOf(frame) is { } answers
+                && TryPeekPending(out var head)
+                && head is RespPayloadOperation { Command: var waiting }
+                && waiting == answers)
+            {
+                return false; // match it to the command that is waiting for it
+            }
+
             var verdict = OnPush?.Invoke(frame) ?? RespOutOfBandResult.NotRecognized;
             return verdict switch
             {
                 RespOutOfBandResult.Handled => true,
                 RespOutOfBandResult.MatchToCommand => HeadIsKnownNotSubscription(),
                 _ => (RespPrefix)frame[0] == RespPrefix.Push, // unrecognised: drop a push, match an array
+            };
+        }
+
+        /// <summary>The command a subscription push is the reply to, if it is one.</summary>
+        /// <param name="frame">The out-of-band frame.</param>
+        /// <returns>The (un)subscribe command matching the push's kind, or null for anything else.</returns>
+        /// <remarks>
+        /// Reads only the kind, using the same parser the dispatcher uses, so the two cannot disagree about
+        /// what a frame is. Works for a RESP3 push and a RESP2 array alike, since both lead with the kind.
+        /// </remarks>
+        private static unsafe RedisCommand? SubscriptionCommandOf(ReadOnlySpan<byte> frame)
+        {
+            var reader = new RespReader(frame);
+            if (!(reader.SafeTryMoveNext() & reader.IsAggregate & !reader.IsStreaming)) return null;
+            if (reader.AggregateLength() < 2) return null;
+            if (!(reader.SafeTryMoveNext() & reader.IsInlineScalar & !reader.IsError)) return null;
+            if (!reader.TryParseScalar(&PhysicalConnection.PushKindMetadata.TryParse, out PhysicalConnection.PushKind kind)) return null;
+
+            return kind switch
+            {
+                PhysicalConnection.PushKind.Subscribe => RedisCommand.SUBSCRIBE,
+                PhysicalConnection.PushKind.PSubscribe => RedisCommand.PSUBSCRIBE,
+                PhysicalConnection.PushKind.SSubscribe => RedisCommand.SSUBSCRIBE,
+                PhysicalConnection.PushKind.Unsubscribe => RedisCommand.UNSUBSCRIBE,
+                PhysicalConnection.PushKind.PUnsubscribe => RedisCommand.PUNSUBSCRIBE,
+                PhysicalConnection.PushKind.SUnsubscribe => RedisCommand.SUNSUBSCRIBE,
+                _ => null,
             };
         }
 

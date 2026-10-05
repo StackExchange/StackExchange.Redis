@@ -1,4 +1,4 @@
-# V4 alpha: retiring the old core
+﻿# V4 alpha: retiring the old core
 
 The working plan. `message-core-replacement.md` is the history of *why*; this file is *what next*, kept
 current as items close. Whoever picks this up - a later session, after a context reset, after a power cut -
@@ -35,13 +35,12 @@ In order. The first unchecked item is the next action; the order puts the larges
       coupled patch. This item was written from a memory note a week out of date.
 - [x] **Reply desync on RESP3** - a confirmation push could answer an unrelated command. Guarded (3941e4fa, 9ak).
 - [x] **Reconfiguration storm at a dead node** - ~1,200 reconfigurations/s; outstanding work thousands → 0 (9al).
-- [ ] **Commands left on a replaced connection wait out their timeout** instead of being failed or re-sent.
-      One root behind two tests: `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` (RESP3,
-      `SPUBLISH` dies with `bw: SpinningDown`) and `RetirementUnderMaintenanceTests` (a tracer waits 9s
-      under relaxation, holding the reconfiguration lock so retirement never runs). Start by finding what
-      the connection's teardown does with its pending queue, and whether it runs at all on replacement.
-- [ ] RESP3 sharded subscription recorded on the old node after migration - needs a real signal of where a
-      redirected subscribe *landed*; the redirect-count gate was tried and withdrawn (9ak).
+- [x] **The reply to our own unsubscribe was read as unsolicited** - a desync, and the one root behind both
+      `ClusterShardedTests.KeepSubscribed*` and `RetirementUnderMaintenanceTests` (9am). Pushes now match
+      the command at the head of the queue; `RemoveIncorrectRouting` asks this core's map.
+- [ ] **Does `Protocol = Resp2` reach the handshake?** Tests labelled "(RESP2)" run on RESP3 connections
+      under the coupled patch (`>3` frames in the traces). Settle before landing the patch - a client that
+      ignored the configured protocol would be a visible behaviour change.
 - [ ] **`ConnectionRestored`**: move `OnNewCoreConnected` out of the patch into committed code.
 - [ ] **Land the coupled patch** as the committed engine-flag behaviour. After this, "coupled" and
       "flag-only" are the same configuration and the patch file retires.
@@ -101,5 +100,11 @@ Learned the expensive way; see `message-core-replacement.md` 9aa-9aj for the inc
 
 ## Status
 
-- HEAD: `f7f36406`. Shipped green; engine-flags-only 6 (its usual band of known rotators); coupled 10.
-- Compiler probe at HEAD: 335 error sites, 137 of them real decoupling.
+- Engine flags only: **3** (the known retry-policy rotators and Envoy). Coupled: 7 / 13 / 9 over three runs,
+  every consistent failure on the triaged list. Shipped green.
+- Fixed this session, each verified across all three configurations: `CLIENT KILL` port; topology
+  publishing and one shared `CLUSTER SLOTS` parser (the shipped interactive bridge no longer dials);
+  failure detection (`ConnectionFailed`, `OnRepeatedConnectFailure`, `LastException`); NOAUTH
+  conversion; a reply desync on confirmations; a reconfiguration storm at dead nodes; and the
+  solicited-unsubscribe desync behind the sharded and retirement tests.
+- Compiler probe: 335 error sites, 137 of them real decoupling (measured at f7f36406).

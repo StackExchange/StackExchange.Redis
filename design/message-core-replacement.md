@@ -4728,3 +4728,59 @@ the timeout - holding the reconfiguration lock the whole time.
 That is the same signature as `ClusterShardedTests`' `SPUBLISH` dying with `bw: SpinningDown`: a command left
 on a connection that is being replaced waits for its timeout instead of being failed or re-sent. Two tests,
 probably one root - which makes the root the next plan item rather than either test.
+
+### 9am. The root: the reply to our own unsubscribe was read as unsolicited
+
+The item 9al handed on - "commands left on a replaced connection wait out their timeout" - turned out to be
+neither about replacement nor about connections. Traced frame by frame on the connection carrying the
+9-second tracer, logging every enqueue beside every reply:
+
+```
+enqueued:  SUNSUBSCRIBE, SSUBSCRIBE, PING, SSUBSCRIBE       (in wire order - the queue was never wrong)
+
+reply                 head at the time    what happened
+sunsubscribe          SUNSUBSCRIBE        consumed as UNSOLICITED  <- the bug
+ssubscribe            SUNSUBSCRIBE        matched: the wrong command, now off by one
++PONG                 SSUBSCRIBE          matched: the wrong command again
+ssubscribe            PING                refused by 9ak's guard; PING stranded -> 9s -> "connection is closed"
+```
+
+**The cause.** `RespPushDispatch` decides whether a `sunsubscribe` is the server's spontaneous notice (a slot
+migrating away) or the reply to our own `SUNSUBSCRIBE` using `Subscription.HasSendInFlight` - which is only
+ever set for SUBSCRIBE sends. So the reply to our own unsubscribe looked unsolicited, was consumed, and every
+reply after it on that connection went to the wrong command. A desync: the class of bug that returns wrong
+answers rather than failing. It surfaced in the tests only indirectly - as a stuck tracer, which held the
+reconfiguration lock, which stopped the topology being re-read, which meant a dead node was never retired.
+
+The shipped core does not have it: `PhysicalConnection.Read` checks
+`PeekChannelMessage(RedisCommand.SUNSUBSCRIBE, channel)` - its own outstanding commands - first.
+
+**The fix uses the same ground truth.** The server answers in wire order and the queue is in wire order, so a
+subscription push whose kind matches the command at the head of the queue IS that command's reply; only
+otherwise does the dispatcher's classification apply. That also subsumes most of 9ak's guard.
+
+**And it exposed a second bug that the first had been cancelling.** With replies matched correctly, the
+"RESP2" sharded test started failing every time. Tracing showed why it had ever passed: after a slot
+migration, `Subscription.RemoveIncorrectRouting` asked the SHIPPED selector whether the new owner could
+serve the slot. Its map is refreshed only by a full reconfiguration, so it still named the old owner, and
+the client unsubscribed a correct subscription. The misread reply to that unsubscribe then triggered a
+resubscribe on the same node, undoing it. Two wrongs made a right. It now asks this core's map, which the
+`-MOVED` that announced the migration corrects directly (`RespNewCore.CanServe`), and falls back to the
+shipped check only where this core has no view.
+
+**Measured, three configurations:**
+
+| | before | after |
+|---|---|---|
+| coupled, three full runs | 10 / 11 / 10 | **7 / 13 / 9** |
+| `RetirementUnderMaintenanceTests` | failed all day | absent from all three |
+| `ClusterShardedTests.KeepSubscribed*` | failed every run | absent from all three, both protocols |
+| engine flags only | 5-8 | **3** - only the known rotators |
+
+Every coupled failure left is now on the triaged list (Sentinel, the retry-policy rotator, the `LoggerTests`
+threshold, the transitional socket counts, a racy premise) or is a timing flake that passes 5/5 alone.
+
+**One more finding, recorded rather than chased:** tests labelled "(RESP2)" run on RESP3 connections under
+the coupled patch - the traces show `>3` push frames. Either the configured protocol is not reaching the
+handshake, or the label means something narrower than it appears to. Worth checking before the patch lands,
+since a client that ignores `Protocol = Resp2` would be a behaviour change users would notice.

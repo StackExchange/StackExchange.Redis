@@ -1711,6 +1711,44 @@ namespace StackExchange.Redis
                 && ((_endpoints.TryGetValue(endpoint, out var interactive) && interactive.IsConnectedNow)
                     || (_subscriptions.TryGetValue(endpoint, out var subscription) && subscription.IsConnectedNow));
 
+        /// <summary>Whether this core's slot map says an endpoint serves a key-routed channel's slot.</summary>
+        /// <param name="endpoint">The endpoint the channel is subscribed on.</param>
+        /// <param name="channel">The channel.</param>
+        /// <returns>True or false where the map has a view of that slot; null where it has none.</returns>
+        /// <remarks>
+        /// <b>The question <c>Subscription.RemoveIncorrectRouting</c> asks, answered from the map that is
+        /// actually current.</b> It asked the shipped selector, whose map is only refreshed by a full
+        /// reconfiguration - so in the window after a slot migration it still named the OLD owner, called
+        /// the subscription on the NEW owner incorrect, and unsubscribed it. This core's map is corrected
+        /// by the very <c>-MOVED</c> that announced the migration (see <see cref="OnSlotMoved"/>), so it has
+        /// already caught up by the time anybody asks.
+        /// <para>
+        /// That mistake was hidden until today by a second one that undid it: the reply to that unsubscribe
+        /// was misread as an unsolicited <c>sunsubscribe</c> and triggered a resubscribe on the same node.
+        /// Correcting the misread (<c>RespClientConnection.OnOutOfBand</c>) exposed this, as
+        /// <c>ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync</c> failing every time.
+        /// </para>
+        /// <para>
+        /// A replica of the slot counts as serving it, since a replica-routed subscription is legitimately
+        /// placed there - which is the shipped check's "suitable" rather than "correct" as well.
+        /// </para>
+        /// </remarks>
+        internal bool? CanServe(EndPoint endpoint, in RedisChannel channel)
+        {
+            if (endpoint is null || !_topology.HasSlotMap) return null;
+
+            var slot = _multiplexer.ServerSelectionStrategy.HashSlot(channel);
+            if (slot < 0 || _topology.Owners(slot) is not { } owners) return null;
+
+            if (Equals(owners.Primary, endpoint)) return true;
+            foreach (var replica in owners.Replicas)
+            {
+                if (Equals(replica, endpoint)) return true;
+            }
+
+            return false;
+        }
+
         /// <summary>Whether this core holds any live ordinary connection at all.</summary>
         /// <remarks>
         /// The question a reconfiguration asks before refreshing the topology: this core can only re-read a
