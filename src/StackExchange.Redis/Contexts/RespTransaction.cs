@@ -105,6 +105,7 @@ namespace StackExchange.Redis
             operation.Attach(request.Span, request.Flags, cancellationToken);
             operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
             operation.Slot = request.Slot;
+            operation.Database = Database;
 
             // its first reply will be the +QUEUED receipt; the real result arrives from EXEC
             operation.ExpectsQueuedReceipt = true;

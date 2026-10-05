@@ -100,6 +100,7 @@ namespace StackExchange.Redis
             // own copy rather than a reference: the connection may still be writing after we return, and
             // fire-and-forget returns before the write at all
             operation.Attach(request.Span, request.Flags, cancellationToken);
+            operation.Database = Database;
 
             if (!_connection.Send(operation))
             {

@@ -997,7 +997,14 @@ namespace StackExchange.Redis
                 // name no database at all - a server context carries -1, and `GET` without a database
                 // is refused before it reaches a socket ("A target database is required for GET"). The
                 // v3 message hard-coded 0 for the same reason.
-                var elected = await context.WithDatabase(0).Strings.GetAsync(key).ConfigureAwait(false);
+                //
+                // And NEVER FOLLOWING A REDIRECT. This runs inside the handshake, on a connection nothing else
+                // can use yet, and a -MOVED followed from here dials the target and waits on ITS handshake -
+                // which reads its own tie-breaker, can be redirected in turn, and ends waiting on a connection
+                // that is still handshaking. Through a proxy that forwards -MOVED (the test Envoy does), that
+                // chain deadlocked every connect until the connect timeout. A redirect here means "this node
+                // does not hold the key", which for a tie-breaker is the same as not having one.
+                var elected = await context.WithDatabase(0).Strings.GetAsync(key, CommandFlags.NoRedirect).ConfigureAwait(false);
                 server.TieBreakerResult = elected.IsNull ? null : (string?)elected;
             }
             catch (RedisServerException)

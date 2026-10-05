@@ -416,6 +416,14 @@ namespace StackExchange.Redis
             DeclinedRedirectMessage = null;
             ExpectsQueuedReceipt = false;
             Slot = ServerSelectionStrategy.NoSlot;
+
+            // the DATABASE too, and that one is a data-integrity matter rather than a tidiness one: only the
+            // endpoint executor's Dispatch set it, so a batch's, a transaction's or a connection executor's
+            // operation inherited the previous life's - and a batched command re-sent after a -MOVED is
+            // written by the endpoint executor, which reads it to decide its SELECT. It went out against
+            // another caller's database (seen as "cannot switch to database: 33" on a cluster, which at least
+            // refused; a standalone server would simply have run it there).
+            Database = -1;
             Profile = null; // the next life gets its own record, or none
         }
 

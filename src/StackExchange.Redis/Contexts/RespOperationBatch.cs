@@ -84,6 +84,7 @@ namespace StackExchange.Redis
             operation.Attach(request.Span, request.Flags, cancellationToken);
             operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
             operation.Slot = request.Slot;
+            operation.Database = Database; // read if it is ever re-sent on its own, after a redirect
 
             lock (_sync)
             {
@@ -141,11 +142,13 @@ namespace StackExchange.Redis
             head.Attach(preamble.Span, preamble.Flags, default);
             head.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
             head.Slot = preamble.Slot;
+            head.Database = Database;
 
             var body = RespPayloadOperation.Rent();
             body.Attach(request.Span, request.Flags, cancellationToken);
             body.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
             body.Slot = request.Slot;
+            body.Database = Database;
 
             lock (_sync)
             {
