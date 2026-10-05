@@ -632,14 +632,18 @@ public static partial class VectorSets
         ReadOnlyLease<RedisValue>? IRespHandler<ReadOnlyLease<RedisValue>?>.Parse(ref RespReader reader)
             => ReadFlattened(ref reader, 1, static (ref RespReader r) => r.ReadRedisValue());
 
+        // a nil reply (VLINKS on a missing member) is an EMPTY lease on the IDatabase surface, as v3's
+        // FlattenedLeaseProcessor answered it - callers there have never had to null-check
         Lease<RedisValue>? IRespHandler<Lease<RedisValue>?>.Parse(ref RespReader reader)
-            => CopyOut(ReadFlattened(ref reader, 1, static (ref RespReader r) => r.ReadRedisValue()));
+            => CopyOut(ReadFlattened(ref reader, 1, static (ref RespReader r) => r.ReadRedisValue())) ?? Lease<RedisValue>.Empty;
 
         ReadOnlyLease<VectorSetLink>? IRespHandler<ReadOnlyLease<VectorSetLink>?>.Parse(ref RespReader reader)
             => ReadFlattened(ref reader, 2, static (ref RespReader r) => VectorSetLink.Read(ref r));
 
+        // a nil reply (VLINKS on a missing member) is an EMPTY lease on the IDatabase surface, as v3's
+        // FlattenedLeaseProcessor answered it - callers there have never had to null-check
         Lease<VectorSetLink>? IRespHandler<Lease<VectorSetLink>?>.Parse(ref RespReader reader)
-            => CopyOut(ReadFlattened(ref reader, 2, static (ref RespReader r) => VectorSetLink.Read(ref r)));
+            => CopyOut(ReadFlattened(ref reader, 2, static (ref RespReader r) => VectorSetLink.Read(ref r))) ?? Lease<VectorSetLink>.Empty;
     }
 
     /// <summary>VINFO: an attribute map, read through the type that carries the field names.</summary>

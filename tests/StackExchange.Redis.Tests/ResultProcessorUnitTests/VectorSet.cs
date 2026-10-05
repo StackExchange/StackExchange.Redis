@@ -110,10 +110,10 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var processor = Links;
         using var result = Execute(resp, processor);
 
-        // CHANGED: the old processor turned a nil reply into an empty lease; the handler returns null, which the
-        // IDatabase signature (Lease<T>?) allows. Reported: a caller that relied on never seeing null - VLINKS
-        // answers nil for a missing member - would now dereference null.
-        Assert.Null(result);
+        // a nil reply is an empty lease on the IDatabase surface, as it was in v3: VLINKS answers nil for a
+        // missing member, and callers there have never had to null-check
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Length);
     }
 
     [Fact]
@@ -165,10 +165,10 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var processor = LinksWithScores;
         using var result = Execute(resp, processor);
 
-        // CHANGED: the old processor turned a nil reply into an empty lease; the handler returns null, which the
-        // IDatabase signature (Lease<T>?) allows. Reported: a caller that relied on never seeing null - VLINKS
-        // answers nil for a missing member - would now dereference null.
-        Assert.Null(result);
+        // a nil reply is an empty lease on the IDatabase surface, as it was in v3: VLINKS answers nil for a
+        // missing member, and callers there have never had to null-check
+        Assert.NotNull(result);
+        Assert.Equal(0, result.Length);
     }
 
     [Fact]

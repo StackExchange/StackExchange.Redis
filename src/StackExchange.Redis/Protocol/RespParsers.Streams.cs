@@ -583,7 +583,7 @@ internal static partial class RespParsers
     /// <remarks><inheritdoc cref="TryParseStreamPendingInfo" path="/remarks"/></remarks>
     internal static StreamPendingMessageInfo[] ParseStreamPendingMessages(ref RespReader reader)
     {
-        if (!reader.IsAggregate) return [];
+        if (!reader.IsAggregate) throw new InvalidOperationException($"Unexpected response to XPENDING: {reader.Prefix}");
 
         return reader.ReadPastArray(
             static (ref RespReader itemReader) =>

@@ -91,13 +91,7 @@ public class StreamPendingMessages(ITestOutputHelper log) : ResultProcessorUnitT
     {
         var resp = "$5\r\nhello\r\n";
 
-        // CHANGED: the old processor rejected this shape ("Unexpected response"); the new handler maps a reply
-        // that is not an aggregate to an empty array. Pinned as found, and reported: it turns a protocol violation
-        // into a plausible-looking result instead of a fault.
-        var result = Execute(resp, Handler);
-
-        Assert.NotNull(result);
-        Assert.Empty(result);
+        ExecuteUnexpected(resp, Handler);
     }
 
     [Fact]
@@ -105,12 +99,6 @@ public class StreamPendingMessages(ITestOutputHelper log) : ResultProcessorUnitT
     {
         var resp = "$-1\r\n";
 
-        // CHANGED: the old processor rejected this shape ("Unexpected response"); the new handler maps a reply
-        // that is not an aggregate to an empty array. Pinned as found, and reported: it turns a protocol violation
-        // into a plausible-looking result instead of a fault.
-        var result = Execute(resp, Handler);
-
-        Assert.NotNull(result);
-        Assert.Empty(result);
+        ExecuteUnexpected(resp, Handler);
     }
 }

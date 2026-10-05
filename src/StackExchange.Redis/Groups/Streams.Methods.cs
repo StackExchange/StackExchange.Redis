@@ -200,24 +200,33 @@ public static partial class Streams
             => RespParsers.ParseRedisStreamEntries(ref reader, allowJaggedFields: true);
 
         StreamPendingInfo IRespHandler<StreamPendingInfo>.Parse(ref RespReader reader)
-            => RespParsers.TryParseStreamPendingInfo(ref reader, out var value) ? value : default;
+            => RespParsers.TryParseStreamPendingInfo(ref reader, out var value) ? value : throw Unexpected("XPENDING", ref reader);
 
         StreamPendingMessageInfo[] IRespHandler<StreamPendingMessageInfo[]>.Parse(ref RespReader reader)
             => RespParsers.ParseStreamPendingMessages(ref reader);
 
         StreamAutoClaimResult IRespHandler<StreamAutoClaimResult>.Parse(ref RespReader reader)
             => RespParsers.TryParseStreamAutoClaim(ref reader, allowJaggedFields: true, out var value)
-                ? value : StreamAutoClaimResult.Null;
+                ? value : throw Unexpected("XAUTOCLAIM", ref reader);
 
         StreamAutoClaimIdsOnlyResult IRespHandler<StreamAutoClaimIdsOnlyResult>.Parse(ref RespReader reader)
             => RespParsers.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
-                ? value : StreamAutoClaimIdsOnlyResult.Null;
+                ? value : throw Unexpected("XAUTOCLAIM", ref reader);
 
         RedisStream[] IRespHandler<RedisStream[]>.Parse(ref RespReader reader)
             => RespParsers.ParseRedisStreams(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
 
         StreamInfo IRespHandler<StreamInfo>.Parse(ref RespReader reader)
-            => RespParsers.TryParseStreamInfo(ref reader, allowJaggedFields: true, out var value) ? value : default;
+            => RespParsers.TryParseStreamInfo(ref reader, allowJaggedFields: true, out var value) ? value : throw Unexpected("XINFO STREAM", ref reader);
+
+        /// <summary>A reply these commands never legitimately send.</summary>
+        /// <remarks>
+        /// Thrown rather than answered with an empty result: a missing key or group is an error reply, which
+        /// never reaches a handler, so a nil or mis-shaped reply here is a protocol violation - and an empty
+        /// result would pass it off as a real answer. The v3 processors reported these the same way.
+        /// </remarks>
+        private static InvalidOperationException Unexpected(string command, ref RespReader reader)
+            => new($"Unexpected response to {command}: {reader.Prefix}{(reader.IsNull ? " (null)" : "")}");
     }
 
     /// <summary>

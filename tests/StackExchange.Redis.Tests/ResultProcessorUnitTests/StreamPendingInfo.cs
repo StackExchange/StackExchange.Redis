@@ -97,14 +97,7 @@ public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(
                    "$15\r\n1526984818136-0\r\n" +
                    "$15\r\n1526984818136-0\r\n";
 
-        // CHANGED: the old processor rejected this shape ("Unexpected response"); the new handler maps a reply
-        // that is not a four-element array to default(StreamPendingInfo). Pinned as found, and reported: it turns a protocol violation
-        // into a plausible-looking result instead of a fault.
-        // (a real parse always has a non-null Consumers; default is the only way to get a null one)
-        var result = Execute(resp, Handler);
-
-        Assert.Equal(default, result);
-        Assert.Null(result.Consumers);
+        ExecuteUnexpected(resp, Handler);
     }
 
     [Fact]
@@ -112,14 +105,7 @@ public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(
     {
         var resp = "$5\r\nhello\r\n";
 
-        // CHANGED: the old processor rejected this shape ("Unexpected response"); the new handler maps a reply
-        // that is not a four-element array to default(StreamPendingInfo). Pinned as found, and reported: it turns a protocol violation
-        // into a plausible-looking result instead of a fault.
-        // (a real parse always has a non-null Consumers; default is the only way to get a null one)
-        var result = Execute(resp, Handler);
-
-        Assert.Equal(default, result);
-        Assert.Null(result.Consumers);
+        ExecuteUnexpected(resp, Handler);
     }
 
     [Fact]
@@ -127,13 +113,6 @@ public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(
     {
         var resp = "$-1\r\n";
 
-        // CHANGED: the old processor rejected this shape ("Unexpected response"); the new handler maps a reply
-        // that is not a four-element array to default(StreamPendingInfo). Pinned as found, and reported: it turns a protocol violation
-        // into a plausible-looking result instead of a fault.
-        // (a real parse always has a non-null Consumers; default is the only way to get a null one)
-        var result = Execute(resp, Handler);
-
-        Assert.Equal(default, result);
-        Assert.Null(result.Consumers);
+        ExecuteUnexpected(resp, Handler);
     }
 }

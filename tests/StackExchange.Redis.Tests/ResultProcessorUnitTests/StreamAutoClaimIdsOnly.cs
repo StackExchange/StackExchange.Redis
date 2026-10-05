@@ -109,12 +109,7 @@ public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnit
     {
         var resp = "$5\r\nhello\r\n";
 
-        // CHANGED: the old processor rejected this shape ("Unexpected response"); the new handler maps a reply
-        // that is not the XAUTOCLAIM JUSTID shape to StreamAutoClaimIdsOnlyResult.Null. Pinned as found, and reported: it turns a protocol violation
-        // into a plausible-looking result instead of a fault.
-        var result = Execute(resp, Handler);
-
-        Assert.True(result.IsNull);
+        ExecuteUnexpected(resp, Handler);
     }
 
     [Fact]
@@ -122,11 +117,6 @@ public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnit
     {
         var resp = "$-1\r\n";
 
-        // CHANGED: the old processor rejected this shape ("Unexpected response"); the new handler maps a reply
-        // that is not the XAUTOCLAIM JUSTID shape to StreamAutoClaimIdsOnlyResult.Null. Pinned as found, and reported: it turns a protocol violation
-        // into a plausible-looking result instead of a fault.
-        var result = Execute(resp, Handler);
-
-        Assert.True(result.IsNull);
+        ExecuteUnexpected(resp, Handler);
     }
 }
