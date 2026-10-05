@@ -4503,3 +4503,142 @@ the full timeout instead of being failed or re-sent. A sharded publish during sl
 `-MOVED` to the same endpoint, which is the case already diagnosed as needing the retire to hand over the
 write slot rather than take it - and where the naive fix deadlocks. Same root as
 `MovedToSameEndpoint`; worth doing as one piece of work rather than two.
+
+### 9aj. The heartbeat retry was redundant, and the case against it was noise
+
+Two findings, both corrections to 9ag, and the second is a correction to an earlier draft of this note.
+
+**The retry 9ag added was never needed.** A failed connect already arms the policy-driven retry loop
+(`ArmConnectRetry` → `RetryWhenDueAsync`, consulting `DueForConnectRetry`) - the code says so in its own
+words: "A FAILED attempt has to lead to another one". So `RetryConnectIfDue` was a second trigger for a loop
+that was already running. Removing it, every test it was added for still passes:
+`ConnectFailureRefreshTests` x2, `MaintenanceRelaxationTests`, `ConnectionFailureErrorsTests`, and
+`RespConnectionStateTests` (the check on lazy connection).
+
+Which means I misread `ConnectFailureRefreshTests`' "saw 0 attempts". That test does not count dials; it
+counts the log line "Re-reading topology after {N} consecutive connect failures", which only
+`ServerEndPoint.OnRepeatedConnectFailure` writes. The dials were happening; nothing was reporting them.
+The fix that mattered was the *other* change in the same commit, the call to `OnRepeatedConnectFailure` -
+which stays. The retry is deleted: one retry mechanism, driven by the configured policy, is the right
+number.
+
+**And the claim that it multiplied queued work was noise.** An earlier draft of this section asserted the
+heartbeat retry inflated `RetirementUnderMaintenanceTests`' outstanding count ~7x, from 832 to 5,981, and
+committed that as a finding. The 832 was a single sample. Measured properly, five runs with the retry
+removed:
+
+| run | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| outstanding | 1,872 | 5,757 | 5,800 | 5,694 | 5,044 |
+
+5,981 sits squarely inside that. The retry made no measurable difference; the comparison was against a low
+outlier. The backoff added on the strength of it is gone with the retry it modified.
+
+**What is actually true about that test**, then: thousands of operations accumulate against a node that is
+never coming back, with or without any retry of mine, where the flagged premise says none should. That is a
+real gap and it is open. The count's spread (1.8k-5.8k across identical runs) also says the accumulation
+rate depends on timing, which is worth knowing before anyone tries to diagnose it by magnitude again.
+
+**Method note, and it is the one this whole stretch keeps teaching.** A single run is an anecdote. I drew a
+mechanism from one comparison, wrote it into a commit and a comment as fact, then built a "fix" on it - and
+the fix's failure to help was the first real evidence, which I first read as "the mechanism is subtler"
+rather than "the mechanism may not exist". Five runs would have taken three minutes.
+
+**One correction to 9ah while here.** It read `SlotLessNodesAreKnownButNotConnected` as racy *because*
+activation now dials. It also failed once on the SHIPPED path in a full suite, and passes 3/3 there in
+isolation - so the race is inherent to `Assert.False(api.IsConnected)` immediately after
+`conn.GetServer(idle)`, and the coupled move only makes a race that already existed lose every time rather
+than rarely. The fix it wants is the same (a grace loop, or an assertion about intent), but it is not a
+transitional-state artefact and should not be waved through as one.
+
+## 10. The deletion checklist: what "works without it" means
+
+The goal is to delete `Message`, `ResultProcessor`, `PhysicalBridge`, `PhysicalConnection` and
+`RedisDatabase` - **when the new core works without them**, which means more than passing tests. Three
+things the old core does that a test suite can miss entirely: its **recovery mechanisms**, its
+**side-effects** (state a reply writes back onto the server or connection), and its **logging** (the
+generated `[LoggerMessage]` event steps that people filter and alert on). Deleting the old core deletes all
+three, silently, unless each is ported first.
+
+The unit of progress is therefore a capability, not a failing test. Inventory as of 9aj:
+
+### A. Message traffic outside the data path
+
+`RedisDatabase` (865 call sites) dies wholesale - `TransitionalDatabase` replaces it, and the data path is
+already 100% off `Message`. What remains:
+
+| where | call sites | status |
+|---|---|---|
+| `RedisServer` | 60, across 15 methods | 8 are Sentinel (D2.7, deliberately last); **7 to port**: `ClusterNodes`, `ClusterNodesRaw`, `ConfigSet`, `Execute`, `ReplicaOf`, `ScriptLoad`, `Time` |
+| `ServerEndPoint` | 31 | autoconfigure, tracer, tie-breaker - mostly gated off under the coupled patch; needs triage |
+| `ConnectionMultiplexer` | 15 | reconfigure (`GetEndpointsFromClusterNodes` fallback), sentinel |
+| `RedisSubscriber` | 11 | subscription paths not yet on the core |
+| `RedisTransaction` | 5 | |
+
+### B. Side-effects: state a reply writes back
+
+29 sites in `ResultProcessor`, 20 distinct writes. **16 ported** (some only at grep level - a match can be a
+read - so each is confirmed as it is ticked). **Missing:**
+
+- `ServerEndPoint.RunId`
+- `PhysicalConnection.MultiDatabasesOverride`
+- `ServerEndPoint.SetLatency` (from the tracer's round trip)
+- `PhysicalConnection.SubscriptionCount`
+
+### C. Logging: the generated event steps
+
+**124 `[LoggerMessage]` events. The new core emits one.**
+
+- **~33 die outright** with the old core, because their only callers are in files being deleted:
+  `ResultProcessor` (15), `PhysicalConnection` (11), `PhysicalBridge` (7). Each needs an equivalent emit
+  point in the new core, using the *same generated method* so the event id, level and template survive.
+- **~91 live in files that survive** (`ConnectionMultiplexer` 64, `ServerEndPoint` 22, `EndPointCollection`
+  3, sentinel 2) - but some fire only from shipped-only paths inside those files (autoconfigure, bridge
+  activation) and go quiet under the flag. That subset needs **measuring**, not guessing: capture which
+  event ids fire on a coupled connect versus a shipped one, and diff.
+- **Correction to my own recent work:** the connection-lifecycle logging added in 94d6fdb3 uses
+  interpolated `LogInformation($"...")` calls. Those should be generated events, either reusing the
+  shipped ones where the meaning matches (connect, handshake, connection lost) or new `[LoggerMessage]`
+  definitions alongside them - an ad-hoc string has no event id and cannot be filtered.
+
+### D. Recovery mechanisms
+
+| mechanism | new core |
+|---|---|
+| reconnect with backoff | ✓ policy loop (`ArmConnectRetry`), armed on every failed connect |
+| backlog while disconnected, drain on reconnect | ✓ |
+| resubscribe on reconnect | ✓ |
+| MOVED / ASK | ✓ |
+| **MOVED to the same endpoint** | ✗ needs the retire to hand over the write slot; the naive fix deadlocks. Blocks `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` and `MovedToSameEndpoint` |
+| topology re-read after repeated failure | ✓ `OnRepeatedConnectFailure` |
+| maintenance handoff / relaxation | ✓ 9s-9v |
+| `ConnectionFailed` event | ✓ |
+| **`ConnectionRestored` event** | ✗ exists only inside the coupled *patch* (`OnNewCoreConnected`) - not committed |
+| **work aimed at a node known to be dead** | ✗ thousands of operations accumulate (9aj); the flagged premise says none should |
+| sentinel failover | ✗ D2.7, deliberately last |
+
+### The definitive inventory is the compiler
+
+Every list above is grep-derived and therefore an estimate. The authoritative version is to **delete the
+old core in a throwaway worktree and count what fails to compile**, by file: each error is a reference that
+must be ported or removed first, and the count is the honest measure of distance. Worth doing early and
+repeating, since it cannot miss anything grep does.
+
+### Measured: deleting the old core in a probe worktree
+
+Removed `Message*`, `ResultProcessor*`, `PhysicalBridge*`, `PhysicalConnection*` and `RedisDatabase*` at
+HEAD and built. **335 distinct error sites** - a lower bound, since the compiler suppresses cascades and
+more will surface as the first layer is fixed.
+
+- **198 vanish with the deletion itself** - files that are old-core helpers and go with it: the per-command
+  `Message` subclasses (`SortedSetAddMessage`, `IncrexMessage`, `StreamNackMessage`, ...), their result
+  processors, `Condition`'s internals, the `RespMessageExecutor` transitional shim, and the old
+  `RedisBatch`/`RedisTransaction`.
+- **137 are real decoupling in surviving infrastructure**, concentrated: `ServerEndPoint` (34),
+  `RedisServer` (20), `ConnectionMultiplexer` (19), `LoggerExtensions` (10 - events whose *signatures* take
+  `PhysicalBridge`/`Message`, so they need re-typing with their event ids preserved), `ExceptionFactory`
+  (9), `RedisBase` (7), profiling (`CommandTrace`, `ProfiledCommand` - a public feature built on `Message`).
+
+Two capabilities this surfaced that the grep inventory missed: **profiling** is built on `Message` and
+needs a new-core shape, and the **logging events' parameter types** couple them to the old core even where
+the calling code survives.

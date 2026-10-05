@@ -1209,11 +1209,7 @@ namespace StackExchange.Redis
 
             RespConnection? connection;
             lock (_sync) connection = _connection;
-            if (connection is null || connection.IsClosed)
-            {
-                RetryConnectIfDue();
-                return;
-            }
+            if (connection is null || connection.IsClosed) return;
 
             timeoutMilliseconds = EffectiveTimeout(timeoutMilliseconds);
             if (timeoutMilliseconds > 0) connection.ExpirePending(TimeSpan.FromMilliseconds(timeoutMilliseconds));
@@ -1222,53 +1218,6 @@ namespace StackExchange.Redis
         }
 
         private int _lastWriteTickCount = Environment.TickCount;
-
-        private int _lastConnectRetryTicks;
-
-        /// <summary>Re-dial an endpoint that is down, if it is one we have already been asked for.</summary>
-        /// <remarks>
-        /// <b>The shipped bridge reconnects from its heartbeat; this core only ever dialled on demand.</b>
-        /// So a connection that went away stayed away until a caller happened to need it again - and an
-        /// endpoint whose first dial failed was never tried a second time at all, which is what
-        /// <c>ConnectFailureRefreshTests</c> reads as "saw 0 attempts" and
-        /// <c>MaintenanceRelaxationTests</c> as a dead connection nobody noticed.
-        /// <para>
-        /// <b>Only once something has asked</b>, which is what keeps this from undoing lazy connection.
-        /// A retry count above zero means a dial has been attempted and failed; <c>_connects</c> above zero
-        /// means one succeeded and the connection has since gone. Either way the endpoint is wanted. An
-        /// executor nobody has used has neither, and is left alone.
-        /// </para>
-        /// <para>
-        /// Once per heartbeat at most, and never while a dial is already in flight - the connect path
-        /// itself is what serialises that, so this only has to avoid queueing work per heartbeat tick.
-        /// </para>
-        /// </remarks>
-        private void RetryConnectIfDue()
-        {
-            if (Volatile.Read(ref _connectRetryCount) <= 0 && Volatile.Read(ref _connects) <= 0) return;
-            if (Server is { IsDisposed: true }) return;
-
-            var now = Environment.TickCount;
-            var last = Volatile.Read(ref _lastConnectRetryTicks);
-            if (last != 0 && unchecked(now - last) < 1000) return;
-            if (Interlocked.CompareExchange(ref _lastConnectRetryTicks, now == 0 ? 1 : now, last) != last) return;
-
-            ThreadPool.QueueUserWorkItem(
-                static async state =>
-                {
-                    var executor = (RespEndpointExecutor)state!;
-                    try
-                    {
-                        await executor.ConnectNowAsync(CancellationToken.None).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        // the attempt itself records the fault and reports the count; there is nobody here
-                        // to tell, and a heartbeat that threw would take the sweep down with it
-                    }
-                },
-                this);
-        }
 
         /// <summary>Say something on an idle connection, so it is not closed underneath us.</summary>
         /// <remarks>
