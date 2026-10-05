@@ -211,7 +211,9 @@ public abstract class PubSubTestBase(
         var count = sub.Publish(key, "def", CommandFlags.FireAndForget);
         await PingAsync(pub, sub).ForAwait();
 
-        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => received.Count == 1);
+        // BOTH handlers: they are invoked one after the other, so waiting for the first alone can read the
+        // second a moment before it runs
+        await UntilConditionAsync(TimeSpan.FromSeconds(5), () => received.Count == 1 && Volatile.Read(ref secondHandler) == 1);
         Log(profiler);
 
         lock (received)
