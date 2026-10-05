@@ -1,7 +1,29 @@
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
+    /// <summary>
+    /// Marks a synchronous call, so the operations it rents run their continuations on the calling thread.
+    /// </summary>
+    /// <remarks>
+    /// The sync wrappers hold only a <see cref="System.Threading.Tasks.ValueTask"/>, which does not expose its
+    /// operation, so the call is marked before the operation exists: <c>Begin</c> is an argument evaluated ahead
+    /// of the async call (C# evaluates arguments left to right), and the matching <c>Wait</c> overload pumps and
+    /// ends it. See <see cref="SyncPump"/>.
+    /// </remarks>
+    internal readonly struct SyncCall
+    {
+        private SyncCall(SyncPump pump) => Pump = pump;
+
+        /// <summary>The call's pump.</summary>
+        internal SyncPump? Pump { get; }
+
+        /// <summary>Start a synchronous call on this thread.</summary>
+        internal static SyncCall Begin() => new(SyncPump.Enter());
+    }
+
     /// <summary>
     /// Blocks on an operation of the new core, for the synchronous half of a shipped interface.
     /// </summary>
@@ -21,6 +43,69 @@ namespace StackExchange.Redis
     /// </remarks>
     internal static class TransitionalSync
     {
+        /// <summary>Wait for a synchronous call, running its continuations on this thread meanwhile.</summary>
+        /// <typeparam name="T">The result type.</typeparam>
+        /// <param name="call">From <see cref="SyncCall.Begin"/>, evaluated before <paramref name="pending"/> was created.</param>
+        /// <param name="pending">The operation to wait for.</param>
+        /// <param name="multiplexer">Applies the configured timeout.</param>
+        /// <param name="executor">The executor, when it enforces its own timeouts.</param>
+        /// <returns>The result.</returns>
+        internal static T Wait<T>(SyncCall call, ValueTask<T> pending, IConnectionMultiplexer multiplexer, RespExecutorBase? executor)
+        {
+            var pump = call.Pump;
+            if (pump is null) return Wait(pending, multiplexer, executor);
+            try
+            {
+                if (!pending.IsCompleted)
+                {
+                    pending.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(pump.SignalDone);
+                    if (!pump.RunUntilDone(TimeoutFor(multiplexer, executor))) throw new TimeoutException();
+                }
+
+                return pending.GetAwaiter().GetResult();
+            }
+            finally
+            {
+                SyncPump.Exit(pump);
+            }
+        }
+
+        /// <inheritdoc cref="Wait{T}(SyncCall, ValueTask{T}, IConnectionMultiplexer, RespExecutorBase)"/>
+        /// <param name="call">From <see cref="SyncCall.Begin"/>, evaluated before <paramref name="pending"/> was created.</param>
+        /// <param name="pending">The operation to wait for.</param>
+        /// <param name="multiplexer">Applies the configured timeout.</param>
+        internal static void Wait(SyncCall call, ValueTask pending, IConnectionMultiplexer multiplexer)
+        {
+            var pump = call.Pump;
+            if (pump is null)
+            {
+                Wait(pending, multiplexer);
+                return;
+            }
+
+            try
+            {
+                if (!pending.IsCompleted)
+                {
+                    pending.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(pump.SignalDone);
+                    if (!pump.RunUntilDone(TimeoutFor(multiplexer, null))) throw new TimeoutException();
+                }
+
+                pending.GetAwaiter().GetResult();
+            }
+            finally
+            {
+                SyncPump.Exit(pump);
+            }
+        }
+
+        /// <summary>
+        /// The same limit the unpumped wait applies: none of our own where the executor times operations out
+        /// itself (its exception says far more than a bare timeout), and the multiplexer's otherwise.
+        /// </summary>
+        private static int TimeoutFor(IConnectionMultiplexer multiplexer, RespExecutorBase? executor)
+            => executor is { EnforcesTimeouts: true } ? Timeout.Infinite : multiplexer.TimeoutMilliseconds;
+
         /// <summary>Wait for a result.</summary>
         /// <typeparam name="T">The result type.</typeparam>
         /// <param name="pending">The operation to wait for.</param>

@@ -51,12 +51,22 @@ namespace StackExchange.Redis
 
         internal static RespPayloadOperation Rent()
         {
+            RespPayloadOperation? operation = null;
             for (var i = 0; i < Pool.Length; i++)
             {
-                if (Interlocked.Exchange(ref Pool[i], null) is { } reused) return reused;
+                if (Interlocked.Exchange(ref Pool[i], null) is { } reused)
+                {
+                    operation = reused;
+                    break;
+                }
             }
 
-            return new RespPayloadOperation();
+            operation ??= new RespPayloadOperation();
+
+            // rented during a synchronous call on this thread: its continuations run on that thread while the
+            // call waits, not on the pool - see SyncPump
+            SyncPump.Current?.OnRented(operation);
+            return operation;
         }
 
         private static void Return(RespPayloadOperation operation)

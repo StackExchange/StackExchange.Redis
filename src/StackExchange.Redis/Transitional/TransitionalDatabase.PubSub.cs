@@ -29,7 +29,7 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.PubSub.PublishAsync(channel, message, flags));
+            => Wait(SyncCall.Begin(), _inner.PubSub.PublishAsync(channel, message, flags));
 
         /// <inheritdoc/>
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)

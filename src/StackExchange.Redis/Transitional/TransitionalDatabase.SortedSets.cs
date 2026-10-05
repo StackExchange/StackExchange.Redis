@@ -41,7 +41,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.AddAsync(key, member, score, when, change: false, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.AddAsync(key, member, score, when, change: false, flags));
 
         /// <inheritdoc/>
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
@@ -65,7 +65,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.AddAsync(key, Required(values, nameof(values)), when, change: false, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.AddAsync(key, Required(values, nameof(values)), when, change: false, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
@@ -76,7 +76,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool SortedSetUpdate(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.AddAsync(key, member, score, when, change: true, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.AddAsync(key, member, score, when, change: true, flags));
 
         /// <inheritdoc/>
         public Task<bool> SortedSetUpdateAsync(RedisKey key, RedisValue member, double score, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
@@ -84,7 +84,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetUpdate(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.AddAsync(key, Required(values, nameof(values)), when, change: true, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.AddAsync(key, Required(values, nameof(values)), when, change: true, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetUpdateAsync(RedisKey key, SortedSetEntry[] values, SortedSetWhen when = SortedSetWhen.Always, CommandFlags flags = CommandFlags.None)
@@ -95,7 +95,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public double SortedSetIncrement(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.IncrementAsync(key, member, value, SortedSetWhen.Always, flags)).GetValueOrDefault();
+            => Wait(SyncCall.Begin(), _inner.SortedSets.IncrementAsync(key, member, value, SortedSetWhen.Always, flags)).GetValueOrDefault();
 
         /// <inheritdoc/>
         public async Task<double> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, CommandFlags flags = CommandFlags.None)
@@ -103,7 +103,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public double? SortedSetIncrement(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags)
-            => Wait(_inner.SortedSets.IncrementAsync(key, member, value, AsSortedSetWhen(when), flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.IncrementAsync(key, member, value, AsSortedSetWhen(when), flags));
 
         /// <inheritdoc/>
         public Task<double?> SortedSetIncrementAsync(RedisKey key, RedisValue member, double value, ValueCondition when, CommandFlags flags)
@@ -119,7 +119,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool SortedSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RemoveAsync(key, member, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RemoveAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<bool> SortedSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -127,7 +127,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetRemove(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RemoveAsync(key, Required(members, nameof(members)), flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RemoveAsync(key, Required(members, nameof(members)), flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRemoveAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
@@ -137,7 +137,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public double? SortedSetScore(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.ScoreAsync(key, member, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.ScoreAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -145,7 +145,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public double?[] SortedSetScores(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.ScoresArray(key, Required(members, nameof(members)), flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.ScoresArray(key, Required(members, nameof(members)), flags));
 
         /// <inheritdoc/>
         public Task<double?[]> SortedSetScoresAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
@@ -153,7 +153,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetLength(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.LengthAsync(key, min, max, exclude, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.LengthAsync(key, min, max, exclude, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetLengthAsync(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
@@ -161,7 +161,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.LengthByValueAsync(key, min, max, exclude, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.LengthByValueAsync(key, min, max, exclude, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
@@ -169,7 +169,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long? SortedSetRank(RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RankAsync(key, member, order, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RankAsync(key, member, order, flags));
 
         /// <inheritdoc/>
         public Task<long?> SortedSetRankAsync(RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -177,7 +177,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue SortedSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RandomMemberAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RandomMemberAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> SortedSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -185,7 +185,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SortedSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RandomMembersArray(key, count, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RandomMembersArray(key, count, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SortedSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -193,7 +193,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public SortedSetEntry[] SortedSetRandomMembersWithScores(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RandomMembersWithScoresArray(key, count, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RandomMembersWithScoresArray(key, count, flags));
 
         /// <inheritdoc/>
         public Task<SortedSetEntry[]> SortedSetRandomMembersWithScoresAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -203,7 +203,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SortedSetRangeByRank(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RangeByRankArray(key, start, stop, order, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RangeByRankArray(key, start, stop, order, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -211,7 +211,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RangeByRankWithScoresArray(key, start, stop, order, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RangeByRankWithScoresArray(key, start, stop, order, flags));
 
         /// <inheritdoc/>
         public Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -219,7 +219,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SortedSetRangeByScore(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RangeByScoreArray(key, start, stop, exclude, order, skip, take, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RangeByScoreArray(key, start, stop, exclude, order, skip, take, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SortedSetRangeByScoreAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
@@ -227,7 +227,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public SortedSetEntry[] SortedSetRangeByScoreWithScores(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RangeByScoreWithScoresArray(key, start, stop, exclude, order, skip, take, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RangeByScoreWithScoresArray(key, start, stop, exclude, order, skip, take, flags));
 
         /// <inheritdoc/>
         public Task<SortedSetEntry[]> SortedSetRangeByScoreWithScoresAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
@@ -243,7 +243,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default, RedisValue max = default, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RangeByValueArray(key, min, max, exclude, order, skip, take, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RangeByValueArray(key, min, max, exclude, order, skip, take, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default, RedisValue max = default, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
@@ -251,7 +251,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetRangeAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue start, RedisValue stop, SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long? take = null, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RangeAndStoreAsync(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RangeAndStoreAsync(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRangeAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue start, RedisValue stop, SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long? take = null, CommandFlags flags = CommandFlags.None)
@@ -261,7 +261,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetRemoveRangeByRank(RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RemoveRangeByRankAsync(key, start, stop, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RemoveRangeByRankAsync(key, start, stop, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRemoveRangeByRankAsync(RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None)
@@ -269,7 +269,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetRemoveRangeByScore(RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RemoveRangeByScoreAsync(key, start, stop, exclude, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RemoveRangeByScoreAsync(key, start, stop, exclude, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRemoveRangeByScoreAsync(RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
@@ -277,7 +277,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetRemoveRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.RemoveRangeByValueAsync(key, min, max, exclude, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.RemoveRangeByValueAsync(key, min, max, exclude, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRemoveRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
@@ -287,7 +287,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SortedSetCombine(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.CombineArray(operation, Required(keys, nameof(keys)), weights, aggregate, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.CombineArray(operation, Required(keys, nameof(keys)), weights, aggregate, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SortedSetCombineAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
@@ -295,7 +295,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public SortedSetEntry[] SortedSetCombineWithScores(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.CombineWithScoresArray(operation, Required(keys, nameof(keys)), weights, aggregate, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.CombineWithScoresArray(operation, Required(keys, nameof(keys)), weights, aggregate, flags));
 
         /// <inheritdoc/>
         public Task<SortedSetEntry[]> SortedSetCombineWithScoresAsync(SetOperation operation, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
@@ -303,7 +303,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.CombineAndStoreAsync(operation, destination, [first, second], default, aggregate, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.CombineAndStoreAsync(operation, destination, [first, second], default, aggregate, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
@@ -311,7 +311,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), weights, aggregate, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), weights, aggregate, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[]? weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
@@ -319,7 +319,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.CombineLengthAsync(Required(keys, nameof(keys)), limit > 0 ? limit : null, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.CombineLengthAsync(Required(keys, nameof(keys)), limit > 0 ? limit : null, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
@@ -329,7 +329,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.PopAsync(key, order, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.PopAsync(key, order, flags));
 
         /// <inheritdoc/>
         public Task<SortedSetEntry?> SortedSetPopAsync(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -337,7 +337,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.PopArray(key, count, order, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.PopArray(key, count, order, flags));
 
         /// <inheritdoc/>
         public Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -345,7 +345,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.SortedSets.PopAsync(Required(keys, nameof(keys)), count, order, flags));
+            => Wait(SyncCall.Begin(), _inner.SortedSets.PopAsync(Required(keys, nameof(keys)), count, order, flags));
 
         /// <inheritdoc/>
         public Task<SortedSetPopResult> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)

@@ -23,7 +23,7 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public bool GeoAdd(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.AddAsync(key, new GeoEntry(longitude, latitude, member), flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.AddAsync(key, new GeoEntry(longitude, latitude, member), flags));
 
         /// <inheritdoc/>
         public Task<bool> GeoAddAsync(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -31,7 +31,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool GeoAdd(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.AddAsync(key, value, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.AddAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> GeoAddAsync(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
@@ -39,7 +39,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long GeoAdd(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.AddAsync(key, Required(values, nameof(values)), flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.AddAsync(key, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<long> GeoAddAsync(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.RemoveAsync(key, member, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.RemoveAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<bool> GeoRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -55,7 +55,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.DistanceAsync(key, member1, member2, unit, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.DistanceAsync(key, member1, member2, unit, flags));
 
         /// <inheritdoc/>
         public Task<double?> GeoDistanceAsync(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
@@ -63,7 +63,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public string? GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.HashAsync(key, member, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.HashAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<string?> GeoHashAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -71,7 +71,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public string?[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.HashArray(key, Required(members, nameof(members)), flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.HashArray(key, Required(members, nameof(members)), flags));
 
         /// <inheritdoc/>
         public Task<string?[]> GeoHashAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
@@ -79,7 +79,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.PositionAsync(key, member, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.PositionAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<GeoPosition?> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -87,7 +87,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.PositionArray(key, Required(members, nameof(members)), flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.PositionArray(key, Required(members, nameof(members)), flags));
 
         /// <inheritdoc/>
         public Task<GeoPosition?[]> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
@@ -97,7 +97,7 @@ namespace StackExchange.Redis
         public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
         {
             DemandNotDouble(member);
-            return Wait(_inner.Geospatial.RadiusArray(key, member, double.NaN, double.NaN, radius, unit, count, order, options, flags));
+            return Wait(SyncCall.Begin(), _inner.Geospatial.RadiusArray(key, member, double.NaN, double.NaN, radius, unit, count, order, options, flags));
         }
 
         /// <inheritdoc/>
@@ -109,7 +109,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.RadiusArray(key, RedisValue.Null, longitude, latitude, radius, unit, count, order, options, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.RadiusArray(key, RedisValue.Null, longitude, latitude, radius, unit, count, order, options, flags));
 
         /// <inheritdoc/>
         public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
@@ -117,7 +117,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public GeoRadiusResult[] GeoSearch(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.SearchArray(key, member, double.NaN, double.NaN, shape, count, demandClosest, order, options, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.SearchArray(key, member, double.NaN, double.NaN, shape, count, demandClosest, order, options, flags));
 
         /// <inheritdoc/>
         public Task<GeoRadiusResult[]> GeoSearchAsync(RedisKey key, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
@@ -125,7 +125,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public GeoRadiusResult[] GeoSearch(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.SearchArray(key, RedisValue.Null, longitude, latitude, shape, count, demandClosest, order, options, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.SearchArray(key, RedisValue.Null, longitude, latitude, shape, count, demandClosest, order, options, flags));
 
         /// <inheritdoc/>
         public Task<GeoRadiusResult[]> GeoSearchAsync(RedisKey key, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
@@ -133,7 +133,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, member, shape, count, demandClosest, order, storeDistances, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, member, shape, count, demandClosest, order, storeDistances, flags));
 
         /// <inheritdoc/>
         public Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
@@ -141,7 +141,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, longitude, latitude, shape, count, demandClosest, order, storeDistances, flags));
+            => Wait(SyncCall.Begin(), _inner.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, longitude, latitude, shape, count, demandClosest, order, storeDistances, flags));
 
         /// <inheritdoc/>
         public Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)

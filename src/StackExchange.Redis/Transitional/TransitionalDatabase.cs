@@ -186,6 +186,12 @@ namespace StackExchange.Redis
         /// </remarks>
         private T Wait<T>(ValueTask<T> pending) => TransitionalSync.Wait(pending, multiplexer, _inner.Raw.Executor);
 
+        /// <summary>As <c>Wait</c>, for a call marked synchronous by <see cref="SyncCall.Begin"/>.</summary>
+        private T Wait<T>(SyncCall call, ValueTask<T> pending) => TransitionalSync.Wait(call, pending, multiplexer, _inner.Raw.Executor);
+
+        /// <summary>As <c>Wait</c>, for a call marked synchronous by <see cref="SyncCall.Begin"/>.</summary>
+        private void Wait(SyncCall call, ValueTask pending) => TransitionalSync.Wait(call, pending, multiplexer);
+
         /// <inheritdoc cref="TransitionalSync.Wait(ValueTask, IConnectionMultiplexer)"/>
         /// <param name="pending">The operation to wait for.</param>
         private void Wait(ValueTask pending) => TransitionalSync.Wait(pending, multiplexer);
@@ -272,7 +278,7 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="PingAsync" path="/remarks"/></remarks>
         public TimeSpan Ping(CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.PingMeasureAsync(flags));
+            => Wait(SyncCall.Begin(), _inner.PingMeasureAsync(flags));
 
         /// <inheritdoc/>
         /// <remarks>

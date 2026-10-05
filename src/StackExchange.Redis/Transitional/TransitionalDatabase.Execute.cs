@@ -23,7 +23,7 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Raw.ExecuteAsync(command, args, flags));
+            => Wait(SyncCall.Begin(), _inner.Raw.ExecuteAsync(command, args, flags));
 
         /// <inheritdoc/>
         public Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)

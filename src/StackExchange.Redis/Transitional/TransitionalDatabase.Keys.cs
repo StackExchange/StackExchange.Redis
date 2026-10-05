@@ -40,7 +40,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool KeyExists(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.ExistsAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.ExistsAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<bool> KeyExistsAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -48,7 +48,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long KeyExists(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.ExistsAsync(Required(keys, nameof(keys)), flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.ExistsAsync(Required(keys, nameof(keys)), flags));
 
         /// <inheritdoc/>
         public Task<long> KeyExistsAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -56,7 +56,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool KeyPersist(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.PersistAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.PersistAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<bool> KeyPersistAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -64,7 +64,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public TimeSpan? KeyTimeToLive(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.TimeToLiveAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.TimeToLiveAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<TimeSpan?> KeyTimeToLiveAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -72,7 +72,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public DateTime? KeyExpireTime(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.ExpireTimeAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.ExpireTimeAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<DateTime?> KeyExpireTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -80,7 +80,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool KeyTouch(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.TouchAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.TouchAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<bool> KeyTouchAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -88,7 +88,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long KeyTouch(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.TouchAsync(Required(keys, nameof(keys)), flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.TouchAsync(Required(keys, nameof(keys)), flags));
 
         /// <inheritdoc/>
         public Task<long> KeyTouchAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -96,7 +96,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisKey KeyRandom(CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.RandomAsync(flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.RandomAsync(flags));
 
         /// <inheritdoc/>
         public Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None)
@@ -104,7 +104,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisType KeyType(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.TypeAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.TypeAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisType> KeyTypeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -112,7 +112,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.RenameAsync(key, newKey, when, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.RenameAsync(key, newKey, when, flags));
 
         /// <inheritdoc/>
         public Task<bool> KeyRenameAsync(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None)
@@ -120,7 +120,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool KeyMove(RedisKey key, int database, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.MoveAsync(key, database, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.MoveAsync(key, database, flags));
 
         /// <inheritdoc/>
         public Task<bool> KeyMoveAsync(RedisKey key, int database, CommandFlags flags = CommandFlags.None)
@@ -128,7 +128,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool KeyCopy(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.CopyAsync(sourceKey, destinationKey, DestinationDatabase(destinationDatabase), replace, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.CopyAsync(sourceKey, destinationKey, DestinationDatabase(destinationDatabase), replace, flags));
 
         /// <inheritdoc/>
         public Task<bool> KeyCopyAsync(RedisKey sourceKey, RedisKey destinationKey, int destinationDatabase = -1, bool replace = false, CommandFlags flags = CommandFlags.None)
@@ -262,7 +262,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public string? KeyEncoding(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.EncodingAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.EncodingAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<string?> KeyEncodingAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -270,7 +270,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long? KeyRefCount(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.RefCountAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.RefCountAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long?> KeyRefCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -278,7 +278,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long? KeyFrequency(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.FrequencyAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.FrequencyAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long?> KeyFrequencyAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -286,7 +286,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.IdleTimeAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.IdleTimeAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -298,7 +298,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public void KeyRestore(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.RestoreAsync(key, Required(value, nameof(value)), expiry, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.RestoreAsync(key, Required(value, nameof(value)), expiry, flags));
 
         /// <inheritdoc/>
         public Task KeyRestoreAsync(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None)
@@ -331,7 +331,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Keys.DebugObjectAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Keys.DebugObjectAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None)

@@ -23,7 +23,7 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public bool StringGetBit(RedisKey key, long offset, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Bitmaps.GetAsync(key, offset, flags));
+            => Wait(SyncCall.Begin(), _inner.Bitmaps.GetAsync(key, offset, flags));
 
         /// <inheritdoc/>
         public Task<bool> StringGetBitAsync(RedisKey key, long offset, CommandFlags flags = CommandFlags.None)
@@ -31,7 +31,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool StringSetBit(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Bitmaps.SetAsync(key, offset, bit, flags));
+            => Wait(SyncCall.Begin(), _inner.Bitmaps.SetAsync(key, offset, bit, flags));
 
         /// <inheritdoc/>
         public Task<bool> StringSetBitAsync(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StringBitCount(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Bitmaps.CountAsync(key, start, end, indexType, flags));
+            => Wait(SyncCall.Begin(), _inner.Bitmaps.CountAsync(key, start, end, indexType, flags));
 
         /// <inheritdoc/>
         public Task<long> StringBitCountAsync(RedisKey key, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
@@ -63,7 +63,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Bitmaps.PositionAsync(key, bit, start, end, indexType, flags));
+            => Wait(SyncCall.Begin(), _inner.Bitmaps.PositionAsync(key, bit, start, end, indexType, flags));
 
         /// <inheritdoc/>
         public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None)
@@ -71,7 +71,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Bitmaps.OperationAsync(operation, destination, Sources(operation, first, second), flags));
+            => Wait(SyncCall.Begin(), _inner.Bitmaps.OperationAsync(operation, destination, Sources(operation, first, second), flags));
 
         /// <inheritdoc/>
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second = default, CommandFlags flags = CommandFlags.None)
@@ -79,7 +79,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StringBitOperation(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Bitmaps.OperationAsync(operation, destination, Required(keys, nameof(keys)), flags));
+            => Wait(SyncCall.Begin(), _inner.Bitmaps.OperationAsync(operation, destination, Required(keys, nameof(keys)), flags));
 
         /// <inheritdoc/>
         public Task<long> StringBitOperationAsync(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -87,7 +87,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long? StringBitField(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Bitmaps.FieldAsync(key, operation, flags));
+            => Wait(SyncCall.Begin(), _inner.Bitmaps.FieldAsync(key, operation, flags));
 
         /// <inheritdoc/>
         public Task<long?> StringBitFieldAsync(RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None)
@@ -95,7 +95,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Lease<long?> StringBitField(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Bitmaps.FieldWritableLease(key, operations.Span, flags));
+            => Wait(SyncCall.Begin(), _inner.Bitmaps.FieldWritableLease(key, operations.Span, flags));
 
         /// <inheritdoc/>
         public Task<Lease<long?>> StringBitFieldAsync(RedisKey key, ReadOnlyMemory<BitFieldOperation> operations, CommandFlags flags = CommandFlags.None)

@@ -132,9 +132,6 @@ Two caveats worth knowing before you enable it:
   synchronous read on a dedicated thread, once the socket has done any asynchronous operation (connecting
   does) - so without it, a starved pool can still delay the reader being told the reply has arrived. That
   setting is process-wide and changes where *all* socket completions run, so measure before adopting it.
-- in this v4 alpha, a **synchronous** caller is still woken through the thread-pool once its reply has been
-  read, so the flag keeps the connection itself moving but does not yet keep a blocked sync call moving on a
-  saturated pool; that is being worked on.
 
 Neither is meant to be permanent, and the first one especially. Work is in progress on dedicated readers built
 over the platform's native completion machinery — `io_uring` on Linux, IOCP on Windows — which would service

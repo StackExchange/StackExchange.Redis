@@ -15,7 +15,7 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.AddAsync(key, value, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.AddAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -23,7 +23,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.AddAsync(key, Required(values, nameof(values)), flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.AddAsync(key, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -31,7 +31,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool SetRemove(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.RemoveAsync(key, value, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.RemoveAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> SetRemoveAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -39,7 +39,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SetRemove(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.RemoveAsync(key, Required(values, nameof(values)), flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.RemoveAsync(key, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<long> SetRemoveAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool SetContains(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.ContainsAsync(key, value, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.ContainsAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -55,7 +55,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool[] SetContains(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.ContainsArray(key, Required(values, nameof(values)), flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.ContainsArray(key, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<bool[]> SetContainsAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -63,7 +63,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.LengthAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.LengthAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -71,7 +71,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SetMembers(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.MembersArray(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.MembersArray(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetMembersAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -79,7 +79,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool SetMove(RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.MoveAsync(source, destination, value, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.MoveAsync(source, destination, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> SetMoveAsync(RedisKey source, RedisKey destination, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -87,7 +87,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue SetPop(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.PopAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.PopAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> SetPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -95,7 +95,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.PopArray(key, count, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.PopArray(key, count, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -103,7 +103,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue SetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.RandomMemberAsync(key, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.RandomMemberAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> SetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -111,7 +111,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.RandomMembersArray(key, count, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.RandomMembersArray(key, count, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -122,7 +122,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SetCombine(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.CombineArray(operation, Pair(first, second), flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.CombineArray(operation, Pair(first, second), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -130,7 +130,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] SetCombine(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.CombineArray(operation, Required(keys, nameof(keys)), flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.CombineArray(operation, Required(keys, nameof(keys)), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -138,7 +138,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.CombineAndStoreAsync(operation, destination, Pair(first, second), flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.CombineAndStoreAsync(operation, destination, Pair(first, second), flags));
 
         /// <inheritdoc/>
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -146,7 +146,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.CombineAndStoreAsync(operation, destination, Required(keys, nameof(keys)), flags));
 
         /// <inheritdoc/>
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -154,7 +154,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SetIntersectionLength(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate: false, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.CombineLengthAsync(SetOperation.Intersect, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate: false, flags));
 
         /// <inheritdoc/>
         public Task<long> SetIntersectionLengthAsync(RedisKey[] keys, long limit = 0, CommandFlags flags = CommandFlags.None)
@@ -162,7 +162,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate, flags));
+            => Wait(SyncCall.Begin(), _inner.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate, flags));
 
         /// <inheritdoc/>
         public Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)

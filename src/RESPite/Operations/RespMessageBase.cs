@@ -79,7 +79,8 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         Flag_InlineParser = 1 << 6,     // the parser is safe to run on the IO thread
         Flag_Indefinite = 1 << 7,       // the outcome does not prove the pipeline is done with us
         Flag_Queued = 1 << 8,           // accepted by an owner that will send it later - a backlog
-        Flag_Awaited = 1 << 9;          // an async consumer attached a continuation; nobody is blocked on it
+        Flag_Awaited = 1 << 9,          // an async consumer attached a continuation; nobody is blocked on it
+        Flag_Sink = 1 << 10;            // a blocked synchronous caller will run this life's continuation
 
     private const int FlagMask = 0xFFFF;
 
@@ -531,7 +532,24 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         var pulse = Mark(definite);
         OnFinished(null);
-        _asyncCore.SetResult(response);
+        if (HasFlag(Flag_Sink))
+        {
+            // claimed by a blocked caller: the trampoline only posts, so run it here rather than paying a pool hop
+            _asyncCore.RunContinuationsAsynchronously = false;
+            try
+            {
+                _asyncCore.SetResult(response);
+            }
+            finally
+            {
+                _asyncCore.RunContinuationsAsynchronously = true;
+            }
+        }
+        else
+        {
+            _asyncCore.SetResult(response);
+        }
+
         Pulse(pulse);
         return true;
     }
@@ -540,7 +558,23 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         var pulse = Mark(definite);
         OnFinished(exception);
-        _asyncCore.SetException(exception);
+        if (HasFlag(Flag_Sink))
+        {
+            _asyncCore.RunContinuationsAsynchronously = false;
+            try
+            {
+                _asyncCore.SetException(exception);
+            }
+            finally
+            {
+                _asyncCore.RunContinuationsAsynchronously = true;
+            }
+        }
+        else
+        {
+            _asyncCore.SetException(exception);
+        }
+
         Pulse(pulse);
         return true;
     }
@@ -624,6 +658,10 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         OnReset();
 
         _asyncCore.Reset();
+        _interpose = false;
+        _sink = null;
+        _sinkContinuation = null;
+        _sinkState = null;
 
         // the version and the cleared flags land together, so nothing can observe a fresh version with
         // a previous life's claim still set; the parse capability is of the type, not the life, so it
@@ -723,9 +761,83 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// <inheritdoc/>
     public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
     {
-        _asyncCore.OnCompleted(continuation, state, token, flags);
+        if (_interpose)
+        {
+            // rented during a synchronous call: keep the continuation ourselves, so that if the caller blocks it
+            // can be run on that caller's thread (see TryAttachSink). Until then - and if the caller never blocks -
+            // the trampoline simply runs it, wherever the core dispatches it, exactly as before
+            _sinkContinuation = continuation;
+            _sinkState = state;
+            _asyncCore.OnCompleted(s_trampoline, this, token, flags);
+        }
+        else
+        {
+            _asyncCore.OnCompleted(continuation, state, token, flags);
+        }
+
         SetFlag(Flag_NoPulse | Flag_Awaited); // an async consumer will never be blocked in Wait
     }
+
+    private bool _interpose;
+    private IContinuationSink? _sink;
+    private long _sinkGeneration;
+    private Action<object?>? _sinkContinuation;
+    private object? _sinkState;
+
+    /// <summary>Keep this life's continuation, so a blocked synchronous caller can claim it later.</summary>
+    /// <remarks>Only before the continuation is registered. Harmless if nobody ever claims it.</remarks>
+    internal void Interpose() => _interpose = true;
+
+    /// <summary>
+    /// Run this life's continuation on <paramref name="sink"/>'s thread rather than the thread-pool.
+    /// </summary>
+    /// <param name="token">The life being claimed; a stale one is refused.</param>
+    /// <param name="sink">Where to run it.</param>
+    /// <param name="generation">The sink's call, so a sink reused for a later call declines this one.</param>
+    /// <returns>Whether it was claimed before the outcome was known.</returns>
+    /// <remarks>
+    /// Recorded with the version in one atomic step, like the outcome claim: a claim that loses a race with
+    /// completion and recycling cannot land on a later life. Called only by a caller that is about to block and
+    /// will pump the sink until it is done - never speculatively, which is what makes a sink safe to attach.
+    /// </remarks>
+    internal bool TryAttachSink(short token, IContinuationSink sink, long generation)
+    {
+        if (!_interpose) return false;
+        _sink = sink;
+        _sinkGeneration = generation;
+        while (true)
+        {
+            var state = Volatile.Read(ref _state);
+            if (VersionOf(state) != token) return false;        // a later life: not ours
+            if ((state & Flag_OutcomeKnown) != 0) return false;  // too late; the caller will be woken anyway
+            if (Interlocked.CompareExchange(ref _state, state | Flag_Sink, state) == state) return true;
+        }
+    }
+
+    private static readonly WaitCallback s_runOnPool = static state =>
+    {
+        var self = (RespMessageBase<TResponse>)state!;
+        self._sinkContinuation!(self._sinkState);
+    };
+
+    private static readonly Action<object?> s_trampoline = static state =>
+    {
+        var self = (RespMessageBase<TResponse>)state!;
+        if (!self.HasFlag(Flag_Sink))
+        {
+            // nobody claimed it: we were dispatched as any continuation is, so just run it
+            self._sinkContinuation!(self._sinkState);
+            return;
+        }
+
+        // claimed: we are running inline on the completing thread, which must not run library code that can
+        // send (that deadlocks against write backpressure) - so hand it to the blocked caller, or, if that call
+        // is already over, to the pool
+        if (!self._sink!.TryPost(self._sinkGeneration, self._sinkContinuation!, self._sinkState))
+        {
+            ThreadPool.UnsafeQueueUserWorkItem(s_runOnPool, self); // the fields hold until the continuation runs
+        }
+    };
 
     ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _asyncCore.GetStatus(token);
 
