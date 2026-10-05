@@ -79,6 +79,8 @@ runs:
         --logger trx
         --logger "GitHubActions;summary-include-passed=false;summary-include-skipped=false"
         --results-directory ./test-results/
+        --blame-hang-timeout 10m
+        --blame-hang-dump-type none
         /p:CI=true
 
     # Neither of these needs a server, and between them they took about four seconds - but nothing ran

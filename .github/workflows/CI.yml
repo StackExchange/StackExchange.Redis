@@ -274,10 +274,14 @@ jobs:
             exit 1
           }
       - name: StackExchange.Redis.Tests
+        # A hung test otherwise holds the job until GitHub's six-hour limit, and says nothing about which
+        # test it was. --blame-hang names it (in the run's Sequence file and the log) and kills it, so the
+        # rest still report; the step timeout is the backstop if even that does not return.
+        timeout-minutes: 90
         run: |
           $exitCode = 0
           foreach ($tfm in @("net10.0", "net481")) {
-            dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj --no-build -c Release -f $tfm --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+            dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj --no-build -c Release -f $tfm --logger trx --logger GitHubActions --results-directory ./test-results/ --blame-hang-timeout 10m --blame-hang-dump-type none /p:CI=true
             if ($LASTEXITCODE -ne 0) {
               $exitCode = $LASTEXITCODE
             }
