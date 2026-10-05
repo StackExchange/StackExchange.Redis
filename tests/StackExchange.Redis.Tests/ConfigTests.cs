@@ -607,8 +607,11 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
             Log("client id: " + id);
             Assert.NotNull(id);
             Assert.True(clients.Any(x => x.Id == id), "expected: " + id);
+            // the subscription socket is dialled in the background after connect, so give it a moment
+            await Poll.UntilAsync(() => conn.GetConnectionId(server.EndPoint, ConnectionType.Subscription) is not null, timeoutMilliseconds: 5000);
             id = conn.GetConnectionId(server.EndPoint, ConnectionType.Subscription);
             Assert.NotNull(id);
+            clients = server.ClientList(); // re-read: the list above may predate the subscription socket
             Assert.True(clients.Any(x => x.Id == id), "expected: " + id);
 
             var self = clients.First(x => x.Id == id);

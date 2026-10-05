@@ -159,6 +159,19 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       refusal. Improving it means re-aiming while the first send may still land, i.e. de-duplicating a
       subscription that ends up on two nodes - worth doing carefully, not urgent.
 
+- [ ] **HIGH: a RESP2 subscription that the server delivers to, but the client never dispatches.** Windows
+      net481, run 37365906241, `ClusterPubSub(sharded: false, withKeyRouting: true)`: subscribed to 7001,
+      every PUBLISH reported 1 receiver, the handler got 0 of 10. The server-side receiver count rules out a
+      missing subscription, so the frames reached a socket of ours and were dropped. Leading hypothesis: the
+      SUBSCRIBE went out on the INTERACTIVE connection (protocol not yet known at compose time - the #3154
+      window `RerouteSubscription` exists for), which does not treat arrays as deliveries. Not reproduced
+      locally (10/10 in isolation); needs load or net481 timing. Next: log, per delivery-shaped frame that
+      reaches a non-delivering connection, which connection and why - that turns the next CI hit into a cause.
+- [ ] **net481: `BufferedStreamWriterTests.FlushStateDoesNotLeakIntoNextPageActivation` still fails
+      intermittently** (both modes; the blocked write never starts within 5s). Once it was the socket leak
+      starving the run; it has recurred without it. The writer is the production transport's
+      (`StreamDuplexTransport`), so this wants understanding, not a wider timeout.
+
 ### Backlog (after the alpha gates; not blocking)
 
 - [ ] **Trusted-callback completion mode - an experiment, then maybe an opt-in.** Respire, a new multiplexed
