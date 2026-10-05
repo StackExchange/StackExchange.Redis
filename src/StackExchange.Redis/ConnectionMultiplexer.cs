@@ -35,7 +35,7 @@ namespace StackExchange.Redis
         /// </summary>
         internal int _connectAttemptCount = 0, _connectCompletedCount = 0, _connectionCloseCount = 0;
         internal long syncOps, asyncOps;
-        private long syncTimeouts, fireAndForgets, asyncTimeouts;
+        private long syncTimeouts, asyncTimeouts;
         private string? failureMessage, activeConfigCause;
         private TimerToken? pulse;
 
@@ -299,7 +299,6 @@ namespace StackExchange.Redis
             }
 
             const CommandFlags flags = CommandFlags.NoRedirect;
-            Message msg;
 
             log?.LogInformationCheckingServerAvailable(new(srv.EndPoint));
             try
@@ -315,20 +314,11 @@ namespace StackExchange.Redis
             var nodes = _serverSnapshot; // same as GetServerSnapshot(), but doesn't force span
             var newPrimary = Format.ToString(server.EndPoint);
 
-            // Every write in here names its node, and under the engine flag reaches it through that node's own
-            // context - the new core's connection to it - rather than WriteDirectAsync, which writes to a shipped
-            // bridge and so builds (and dials) one per node it touches.
+            // every write in here names its node, and reaches it through that node's own context
             async Task SetTieBreakerAsync(ServerEndPoint node, RedisKey key)
             {
-                if (NewCoreEngine)
-                {
-                    var strings = new RespStrings(node.GetRedisServer(null).Context.Raw.WithDatabase(0));
-                    await strings.SetAsync(key, newPrimary.AsRedisValue(), flags: flags | CommandFlags.FireAndForget).ForAwait();
-                    return;
-                }
-
-                var setMessage = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, key, newPrimary.AsRedisValue());
-                await node.WriteDirectAsync(setMessage, ResultProcessor.DemandOK).ForAwait();
+                var strings = new RespStrings(node.GetRedisServer(null).Context.Raw.WithDatabase(0));
+                await strings.SetAsync(key, newPrimary.AsRedisValue(), flags: flags | CommandFlags.FireAndForget).ForAwait();
             }
 
             // try and write this everywhere; don't worry if some folks reject our advances
@@ -396,17 +386,9 @@ namespace StackExchange.Redis
                     {
                         if (!node.IsConnected) continue;
                         log?.LogInformationBroadcastingViaNode(new(node.EndPoint));
-                        if (NewCoreEngine)
-                        {
-                            // with the channel prefix, applied by the context as the Message applied it at write
-                            var broadcast = new RespPubSub(node.GetRedisServer(null).Context.Raw.AppendChannelPrefix(RawConfig.ChannelPrefix));
-                            await broadcast.PublishAsync(channel, newPrimary.AsRedisValue(), flags | CommandFlags.FireAndForget).ForAwait();
-                        }
-                        else
-                        {
-                            msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary.AsRedisValue());
-                            await node.WriteDirectAsync(msg, ResultProcessor.Int64).ForAwait();
-                        }
+                        // with the channel prefix, which the server context deliberately does not carry
+                        var broadcast = new RespPubSub(node.GetRedisServer(null).Context.Raw.AppendChannelPrefix(RawConfig.ChannelPrefix));
+                        await broadcast.PublishAsync(channel, newPrimary.AsRedisValue(), flags | CommandFlags.FireAndForget).ForAwait();
                     }
                 }
             }
@@ -421,15 +403,7 @@ namespace StackExchange.Redis
                     if (node == server || node.ServerType != ServerType.Standalone) continue;
 
                     log?.LogInformationReplicatingToNode(new(node.EndPoint));
-                    if (NewCoreEngine)
-                    {
-                        await node.GetRedisServer(null).ReplicaOfAsync(server.EndPoint, flags).ForAwait();
-                    }
-                    else
-                    {
-                        msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
-                        await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
-                    }
+                    await node.GetRedisServer(null).ReplicaOfAsync(server.EndPoint, flags).ForAwait();
                 }
             }
 
@@ -450,38 +424,6 @@ namespace StackExchange.Redis
             {
                 log?.LogInformationVerifyingConfigurationIncomplete();
             }
-        }
-
-        internal void CheckMessage(Message message)
-        {
-            if (!RawConfig.AllowAdmin && message.IsAdmin)
-            {
-                throw ExceptionFactory.AdminModeNotEnabled(RawConfig.IncludeDetailInExceptions, message.Command, message, null);
-            }
-            if (message.Command != RedisCommand.UNKNOWN)
-            {
-                CommandMap.AssertAvailable(message.Command);
-            }
-
-            // using >= here because we will be adding 1 for the command itself (which is an argument for the purposes of the multi-bulk protocol)
-            if (message.ArgCount >= MessageWriter.REDIS_MAX_ARGS)
-            {
-                throw ExceptionFactory.TooManyArgs(message.CommandAndKey, message.ArgCount);
-            }
-        }
-
-        internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved, bool isSelf)
-        {
-            // If we're being told to re-send something because the hash slot moved, that means our topology is out of date
-            // ...and we should re-evaluate what's what.
-            // Allow for a 5-second back-off so we don't hammer this in a loop though
-            if (isMoved && LastReconfigureSecondsAgo > 5)
-            {
-                // Async kickoff a reconfigure
-                ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
-            }
-
-            return ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved, isSelf);
         }
 
         /// <summary>
@@ -776,7 +718,7 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         private Task ConnectNewCoreAsync()
-            => NewCoreEngine ? NewCore.ConnectEagerlyAsync(RawConfig.ConnectMode) : Task.CompletedTask;
+            => NewCore.ConnectEagerlyAsync(RawConfig.ConnectMode);
 
         private static void Validate([NotNull] ConfigurationOptions? config)
         {
@@ -1588,40 +1530,23 @@ namespace StackExchange.Redis
         /// Obtain an interactive connection to a database inside redis.
         /// </summary>
         /// <param name="db">The ID to get a database for.</param>
-        /// <param name="asyncState">The async state to pass into the resulting <see cref="RedisDatabase"/>.</param>
+        /// <param name="asyncState">The async state to pass into the resulting database.</param>
         public IDatabase GetDatabase(int db = -1, object? asyncState = null)
         {
             db = ApplyDefaultDatabase(db);
 
             // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
             return (asyncState == null && db <= MaxCachedDatabaseInstance)
-                ? GetCachedDatabaseInstance(db) : Surface(new RedisDatabase(this, db, asyncState), asyncState);
+                ? GetCachedDatabaseInstance(db) : Surface(db, asyncState);
         }
 
-        /// <summary>The database to hand out: the shipped one, or the new surface over it.</summary>
+        /// <summary>A database over the new core's connections.</summary>
         /// <remarks>
-        /// <para>
-        /// <b>The old database is still built either way</b>, and is handed to the new surface as its
-        /// fallback - which is what makes this switchable at all rather than all-or-nothing. Commands that
-        /// have moved take the new write path; the rest reach the server exactly as they did.
-        /// </para>
-        /// <para>
-        /// <b>Which engine carries it is a separate question</b>, and a separate flag: see
-        /// <c>FeatureFlags.NewCoreEngine</c>. The old database's context reaches the server through the
-        /// shipped pipeline, which cannot write a batch as one contiguous run - so every batch falls back
-        /// to the shipped implementation, and <c>RedisBatch : RedisDatabase</c> keeps the whole of the old
-        /// surface alive. A context over the core's own connections is what finally removes that, which is
-        /// why the engine flag exists even though it is a long way from green.
-        /// </para>
+        /// No fallback: there was one while the surface could still hand a command it had not moved to the shipped
+        /// <c>RedisDatabase</c>, and every member has moved; the old database went with the old core.
         /// </remarks>
-        private IDatabase Surface(RedisDatabase inner, object? asyncState)
-            => NewDatabaseSurface
-                ? new TransitionalDatabase(
-                    NewCoreEngine ? NewCore.GetDatabase(inner.Database) : inner.Context,
-                    this,
-                    asyncState,
-                    inner)
-                : inner;
+        private IDatabase Surface(int database, object? asyncState)
+            => new TransitionalDatabase(NewCore.GetDatabase(database), this, asyncState, null);
 
         private RespNewCore? _newCore;
 
@@ -1692,10 +1617,10 @@ namespace StackExchange.Redis
             // different instances, one of which (arbitrarily) ends up cached for later use.
             if (db == 0)
             {
-                return dbCacheZero ??= Surface(new RedisDatabase(this, 0, null), null);
+                return dbCacheZero ??= Surface(0, null);
             }
             var arr = dbCacheLow ??= new IDatabase[MaxCachedDatabaseInstance];
-            return arr[db - 1] ??= Surface(new RedisDatabase(this, db, null), null);
+            return arr[db - 1] ??= Surface(db, null);
         }
 
         /// <summary>
@@ -1916,7 +1841,7 @@ namespace StackExchange.Redis
             log.LogInformationTimeoutsSummary(
                 Volatile.Read(ref syncTimeouts),
                 Volatile.Read(ref asyncTimeouts),
-                Volatile.Read(ref fireAndForgets),
+                0, // fire-and-forget operations are not counted by the new core
                 LastHeartbeatSecondsAgo);
         }
 
@@ -1954,32 +1879,16 @@ namespace StackExchange.Redis
             // Eager only: Discover wants exactly one connection for the whole deployment, and which one
             // is a decision for the pass that can see them all, so that case stays in the loop. An inert
             // node never reaches here, which is what keeps it undialled.
-            if (NewCoreEngine)
+            if (server.Multiplexer.RawConfig.ConnectMode == ConnectMode.Eager)
             {
-                if (server.Multiplexer.RawConfig.ConnectMode == ConnectMode.Eager)
-                {
-                    server.Multiplexer.NewCore.DialEndpointSoon(server.EndPoint);
-                }
+                server.Multiplexer.NewCore.DialEndpointSoon(server.EndPoint);
             }
-            else
-            {
-                server.Activate(ConnectionType.Interactive, log);
-            }
-            // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+
             if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
             {
-                if (NewCoreEngine)
-                {
-                    // the same leg, on the core that owns it: there is no subscription bridge to activate
-                    // under the flag, and the configuration channel is subscribed by CONNECTING rather
-                    // than by anyone asking for it - see the method's own notes, including its known cost
-                    server.Multiplexer.NewCore.DialSubscriptionSocketForConfigurationChannel(server.EndPoint);
-                }
-                else
-                {
-                    // Intentionally not logging the sub connection
-                    server.Activate(ConnectionType.Subscription, null);
-                }
+                // the configuration channel is subscribed by CONNECTING rather than by anyone asking for it -
+                // see the method's own notes, including its known cost
+                server.Multiplexer.NewCore.DialSubscriptionSocketForConfigurationChannel(server.EndPoint);
             }
         }
 
@@ -2119,10 +2028,6 @@ namespace StackExchange.Redis
                             // about shipped activation; under the flag a null shipped bridge is the normal
                             // state for every endpoint, so the warning would fire for all of them and mean
                             // nothing (InertClusterNodeUnitTests asserts the absence of exactly this line).
-                            if (!NewCoreEngine && server.GetBridge(ConnectionType.Interactive, create: false) is null)
-                            {
-                                log?.LogInformationActivatingUndialledServer(new(server.EndPoint));
-                            }
                             ActivateServer(server, log);
 
                             // ...and the other core's connection for this endpoint, which is the one that
@@ -2140,7 +2045,7 @@ namespace StackExchange.Redis
                             // reads as "Lazy should open nothing" against a core that had opened six.
                             // Eager is handled inside ActivateServer above; this is only the Discover
                             // case, which needs the whole pass in view to pick one endpoint
-                            if (NewCoreEngine && RawConfig.ConnectMode == ConnectMode.Discover && !dialledOne)
+                            if (RawConfig.ConnectMode == ConnectMode.Discover && !dialledOne)
                             {
                                 dialledOne = true;
                                 NewCore.DialEndpointSoon(server.EndPoint);
@@ -2369,8 +2274,7 @@ namespace StackExchange.Redis
                     healthy = standaloneCount != 0 || clusterCount != 0 || sentinelCount != 0;
                     if (first && !healthy && attemptsLeft > 0)
                     {
-                        log?.LogInformationResettingFailingConnections();
-                        ResetAllNonConnected();
+                        // nothing to reset: the new core's endpoint executors retry on their own policy
                         log?.LogInformationRetryingAttempts(attemptsLeft);
                     }
                     // WTF("?: " + attempts);
@@ -2448,7 +2352,7 @@ namespace StackExchange.Redis
                 // true, so these two commands alone were what dialled the shipped interactive bridge at all.
                 // Every endpoint therefore held two sockets where one was doing the work, which
                 // ClusterTests.ConnectUsesSingleSocket reads directly off the counters.
-                if (NewCoreEngine && NewCoreIfCreated is { } core
+                if (NewCoreIfCreated is { } core
                     && core.IsInteractiveConnected(server.EndPoint)
                     && server.ClusterConfiguration is not null)
                 {
@@ -2496,29 +2400,13 @@ namespace StackExchange.Redis
                         topology ??= ClusterTopology.From(await slotsRead.ForAwait());
                     }
                 }
-                else if (NewCoreEngine)
+                else
                 {
-                    // not connected on the new core yet, or nothing cached: ASK, but on the new core. The
-                    // Message path below writes to a shipped bridge, which under the engine flag means building
-                    // one - and dialling it - for two topology reads.
+                    // not connected on the new core yet, or nothing cached: ask, as a pair - SLOTS says who serves
+                    // what and under which names, NODES lists every node including those serving nothing
                     var slotsRead = ReadClusterSlotsAsync(server);
                     clusterConfig = await new RedisServer(server, null).ClusterNodesAsync().ForAwait();
                     topology = ClusterTopology.From(await slotsRead.ForAwait());
-                }
-                else
-                {
-                    // both views, freshly: SLOTS says who serves what and under which names, NODES lists every
-                    // node including those serving nothing. Asked as a pair for symmetry - trusting the topology
-                    // cached from autoconfigure here would mean acting on possibly-stale data while deliberately
-                    // re-reading the other half
-                    var slotsTask = ExecuteAsyncImpl(
-                        RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server);
-                    var nodesTask = ExecuteAsyncImpl(
-                        RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
-
-                    var slots = await slotsTask.ForAwait();
-                    clusterConfig = await nodesTask.ForAwait();
-                    topology = ClusterTopology.From(slots);
                 }
 
                 if (clusterConfig is null)
@@ -2607,15 +2495,6 @@ namespace StackExchange.Redis
                     if (TryResolveServerEndPoint(identity) is { } known) return known.EndPoint;
                 }
                 return node.Identities.Count > 0 ? node.Identities[0] : null;
-            }
-        }
-
-        private void ResetAllNonConnected()
-        {
-            var snapshot = GetServerSnapshot();
-            foreach (var server in snapshot)
-            {
-                server.ResetNonConnected();
             }
         }
 
@@ -2855,311 +2734,16 @@ namespace StackExchange.Redis
             }
         }
 
-        internal ServerEndPoint? SelectServer(Message? message) =>
-            message == null ? null : ServerSelectionStrategy.Select(message);
-
         internal ServerEndPoint? SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key) =>
             ServerSelectionStrategy.Select(command, key, flags);
 
         internal ServerEndPoint? SelectServer(RedisCommand command, CommandFlags flags, in RedisChannel channel) =>
             ServerSelectionStrategy.Select(command, channel, flags);
 
-        private bool PrepareToPushMessageToBridge<T>(Message message, ResultProcessor<T>? processor, IResultBox<T>? resultBox, [NotNullWhen(true)] ref ServerEndPoint? server)
-        {
-            message.SetSource(processor, resultBox);
-
-            if (server == null)
-            {
-                // Infer a server automatically
-                server = SelectServer(message);
-
-                // If we didn't find one successfully, and we're allowed, queue for any viable server
-                if (server == null && RawConfig.BacklogPolicy.QueueWhileDisconnected)
-                {
-                    server = ServerSelectionStrategy.Select(message, allowDisconnected: true);
-                }
-            }
-            else // A server was specified - do we trust their choice, though?
-            {
-                if (message.IsPrimaryOnly() && server.IsReplica)
-                {
-                    throw ExceptionFactory.PrimaryOnly(RawConfig.IncludeDetailInExceptions, message.Command, message, server);
-                }
-
-                switch (server.ServerType)
-                {
-                    case ServerType.Cluster:
-                        if (message.GetHashSlot(ServerSelectionStrategy) == ServerSelectionStrategy.MultipleSlots)
-                        {
-                            throw ExceptionFactory.MultiSlot(RawConfig.IncludeDetailInExceptions, message);
-                        }
-                        break;
-                }
-
-                // If we're not allowed to queue while disconnected, we'll bomb out below.
-                if (!server.IsConnected && !RawConfig.BacklogPolicy.QueueWhileDisconnected)
-                {
-                    // Well, that's no use!
-                    server = null;
-                }
-            }
-
-            if (server != null)
-            {
-                var profilingSession = _profilingSessionProvider?.Invoke();
-                if (profilingSession != null)
-                {
-                    message.SetProfileStorage(ProfiledCommand.NewWithContext(profilingSession, server));
-                }
-
-                if (message.Db >= 0)
-                {
-                    int availableDatabases = server.Databases;
-                    if (availableDatabases > 0 && message.Db >= availableDatabases)
-                    {
-                        throw ExceptionFactory.DatabaseOutfRange(RawConfig.IncludeDetailInExceptions, message.Db, message, server);
-                    }
-                }
-
-                Trace("Queuing on server: " + message);
-                return true;
-            }
-            Trace("No server or server unavailable - aborting: " + message);
-            return false;
-        }
-
-        private ValueTask<WriteResult> TryPushMessageToBridgeAsync<T>(Message message, ResultProcessor<T>? processor, IResultBox<T>? resultBox, [NotNullWhen(true)] ref ServerEndPoint? server)
-            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
-
-        [Obsolete("prefer async")]
-        private WriteResult TryPushMessageToBridgeSync<T>(Message message, ResultProcessor<T>? processor, IResultBox<T>? resultBox, [NotNullWhen(true)] ref ServerEndPoint? server)
-            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
-
         /// <summary>
         /// Gets the client name for this multiplexer.
         /// </summary>
         public override string ToString() => string.IsNullOrWhiteSpace(ClientName) ? GetType().Name : ClientName;
-
-        internal Exception GetException(WriteResult result, Message message, ServerEndPoint? server, PhysicalBridge? bridge = null) => result switch
-        {
-            WriteResult.Success => throw new ArgumentOutOfRangeException(nameof(result), "Be sure to check result isn't successful before calling GetException."),
-            WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
-            WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, null, message, server, result, bridge),
-            _ => ExceptionFactory.ConnectionFailure(RawConfig.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, message.Flags, "An unknown error occurred when writing the message", server),
-        };
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize", Justification = "Intentional observation")]
-        internal static void ThrowFailed<T>(TaskCompletionSource<T>? source, Exception unthrownException)
-        {
-            try
-            {
-                throw unthrownException;
-            }
-            catch (Exception ex)
-            {
-                if (source is not null)
-                {
-                    source.TrySetException(ex);
-                    GC.KeepAlive(source.Task.Exception);
-                    GC.SuppressFinalize(source.Task);
-                }
-            }
-        }
-
-        [return: NotNullIfNotNull(nameof(defaultValue))]
-        internal T? ExecuteSyncImpl<T>(Message message, ResultProcessor<T>? processor, ServerEndPoint? server, T? defaultValue = default)
-        {
-            if (_isDisposed) throw new ObjectDisposedException(ToString());
-
-            if (message is null) // Fire-and forget could involve a no-op, represented by null - for example Increment by 0
-            {
-                return defaultValue;
-            }
-
-            Interlocked.Increment(ref syncOps);
-
-            if (message.IsFireAndForget)
-            {
-#pragma warning disable CS0618 // Type or member is obsolete
-                TryPushMessageToBridgeSync(message, processor, null, ref server);
-#pragma warning restore CS0618
-                Interlocked.Increment(ref fireAndForgets);
-                return defaultValue;
-            }
-            else
-            {
-                var source = SimpleResultBox<T>.Get();
-
-                bool timeout = false;
-                WriteResult result;
-                lock (source)
-                {
-#pragma warning disable CS0618 // Type or member is obsolete
-                    result = TryPushMessageToBridgeSync(message, processor, source, ref server);
-#pragma warning restore CS0618
-                    // Note this tests IsCompleted, *not* IsFaulted: the write path can fault and complete the
-                    // message inline on this thread (the lock is ours, so its PulseAll had no waiter and is
-                    // gone) - in which case there is nothing to wait for. But a fault published by *another*
-                    // thread always still owes us a pulse, and leaving early on that would let the pulse
-                    // arrive after we have recycled the box, landing on the next operation to borrow it.
-                    if (!source.IsCompleted)
-                    {
-                        if (result != WriteResult.Success)
-                        {
-                            throw GetException(result, message, server);
-                        }
-
-                        // Wait for the *completion*, not merely for a pulse: a pulse we did not cause must
-                        // not be allowed to shorten this wait (#3212).
-                        //
-                        // The deadline is not fixed, either. A sync caller commits to a duration when it
-                        // parks, so if maintenance relaxation begins while we are waiting we have to notice by
-                        // re-reading the budget rather than failing at the original deadline - without that, a
-                        // sync caller in flight when a MIGRATING arrives times out at the strict timeout while
-                        // its async neighbour is relaxed. It can shrink back too: when a window closes the
-                        // effective timeout drops to the configured value, and we stop at that.
-                        var startedAt = Environment.TickCount;
-                        var remaining = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
-                        while (true)
-                        {
-                            if (!Monitor.Wait(source, remaining))
-                            {
-                                Trace("Timeout performing " + message);
-                                timeout = true;
-                                break;
-                            }
-                            if (source.IsCompleted)
-                            {
-                                Trace("Timely response to " + message);
-                                break;
-                            }
-                            var budget = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
-                            remaining = budget - unchecked(Environment.TickCount - startedAt);
-                            if (remaining <= 0)
-                            {
-                                Trace("Timeout performing " + message);
-                                timeout = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (timeout) // note we throw *outside* of the main lock to avoid deadlock scenarios (#2376)
-                {
-                    Interlocked.Increment(ref syncTimeouts);
-                    // Very important not to return "source" to the pool here
-                    // Also note we return "success" when queueing a messages to the backlog, so we need to manually fake it back here when timing out in the backlog
-                    throw ExceptionFactory.Timeout(this, null, message, server, message.IsBacklogged ? WriteResult.TimeoutBeforeWrite : result, server?.GetBridge(message.Command, create: false));
-                }
-                // Snapshot these so that we can recycle the box
-                var val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
-                if (ex != null) throw ex;
-                Trace(message + " received " + val);
-                return val;
-            }
-        }
-
-        internal Task<T> ExecuteAsyncImpl<T>(Message? message, ResultProcessor<T>? processor, object? state, ServerEndPoint? server, T defaultValue)
-        {
-            static async Task<T> ExecuteAsyncImpl_Awaited(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T>? tcs, Message message, ServerEndPoint? server, T defaultValue)
-            {
-                var result = await write.ForAwait();
-                if (result != WriteResult.Success)
-                {
-                    var ex = @this.GetException(result, message, server);
-                    ThrowFailed(tcs, ex);
-                }
-                return tcs == null ? defaultValue : await tcs.Task.ForAwait();
-            }
-
-            if (_isDisposed) throw new ObjectDisposedException(ToString());
-
-            if (message == null)
-            {
-                return CompletedTask<T>.FromDefault(defaultValue, state);
-            }
-
-            Interlocked.Increment(ref asyncOps);
-
-            TaskCompletionSource<T>? tcs = null;
-            IResultBox<T>? source = null;
-            if (!message.IsFireAndForget)
-            {
-                source = TaskResultBox<T>.Create(out tcs, state);
-            }
-            var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
-            if (!write.IsCompletedSuccessfully)
-            {
-                return ExecuteAsyncImpl_Awaited(this, write, tcs, message, server, defaultValue);
-            }
-
-            if (tcs == null)
-            {
-                return CompletedTask<T>.FromDefault(defaultValue, null); // F+F explicitly does not get async-state
-            }
-            else
-            {
-                var result = write.Result;
-                if (result != WriteResult.Success)
-                {
-                    var ex = GetException(result, message, server);
-                    ThrowFailed(tcs, ex);
-                }
-                return tcs.Task;
-            }
-        }
-
-        internal Task<T?> ExecuteAsyncImpl<T>(Message? message, ResultProcessor<T>? processor, object? state, ServerEndPoint? server)
-        {
-            [return: NotNullIfNotNull(nameof(tcs))]
-            static async Task<T?> ExecuteAsyncImpl_Awaited(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T?>? tcs, Message message, ServerEndPoint? server)
-            {
-                var result = await write.ForAwait();
-                if (result != WriteResult.Success)
-                {
-                    var ex = @this.GetException(result, message, server);
-                    ThrowFailed(tcs, ex);
-                }
-                return tcs == null ? default : await tcs.Task.ForAwait();
-            }
-
-            if (_isDisposed) throw new ObjectDisposedException(ToString());
-
-            if (message == null)
-            {
-                return CompletedTask<T?>.Default(state);
-            }
-
-            Interlocked.Increment(ref asyncOps);
-
-            TaskCompletionSource<T?>? tcs = null;
-            IResultBox<T?>? source = null;
-            if (!message.IsFireAndForget)
-            {
-                source = TaskResultBox<T?>.Create(out tcs, state);
-            }
-            var write = TryPushMessageToBridgeAsync(message, processor, source!, ref server);
-            if (!write.IsCompletedSuccessfully)
-            {
-                return ExecuteAsyncImpl_Awaited(this, write, tcs, message, server);
-            }
-
-            if (tcs == null)
-            {
-                return CompletedTask<T?>.Default(null); // F+F explicitly does not get async-state
-            }
-            else
-            {
-                var result = write.Result;
-                if (result != WriteResult.Success)
-                {
-                    var ex = GetException(result, message, server);
-                    ThrowFailed(tcs, ex);
-                }
-                return tcs.Task;
-            }
-        }
 
         internal void OnAsyncTimeout() => Interlocked.Increment(ref asyncTimeouts);
 
@@ -3256,9 +2840,6 @@ namespace StackExchange.Redis
                 {
                     core.DrainAsync(RawConfig.AsyncTimeout).Wait(RawConfig.AsyncTimeout);
                 }
-
-                var quits = QuitAllServers();
-                WaitAllIgnoreErrors(quits);
             }
             DisposeAndClearServers();
 
@@ -3299,9 +2880,6 @@ namespace StackExchange.Redis
                         // best efforts: a close that throws is worse than a command that did not land
                     }
                 }
-
-                var quits = QuitAllServers();
-                await WaitAllIgnoreErrorsAsync("quit", quits, RawConfig.AsyncTimeout, null).ForAwait();
             }
 
             DisposeAndClearServers();
@@ -3334,36 +2912,13 @@ namespace StackExchange.Redis
             }
         }
 
-        private Task[] QuitAllServers()
-        {
-            // SIZED INSIDE THE LOCK, which it was not: the count was read first and the iteration done
-            // after taking it, so a server discovered in between - a sentinel deployment is still finding
-            // them while it shuts down - overran the array and threw IndexOutOfRangeException out of
-            // CloseAsync. Rare, and a crash on the way out is still a crash.
-            lock (servers)
-            {
-                var quits = new Task[2 * servers.Count];
-                var iter = servers.GetEnumerator();
-                int index = 0;
-                while (iter.MoveNext())
-                {
-                    var server = (ServerEndPoint)iter.Value!;
-                    quits[index++] = server.Close(ConnectionType.Interactive);
-                    quits[index++] = server.Close(ConnectionType.Subscription);
-                }
-
-                return quits;
-            }
-        }
-
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
             // whichever core holds the connection: the bridge first, since it is the one with an id when
             // it is dialling, and otherwise this core's - which under the engine flag is the connection
             // actually carrying the commands, and the only one the server can name
             // create: false, because asking must not dial: a bridge created here connects, and under the
             // engine flag that was a whole shipped handshake on a third socket just to answer a question
-            => TryResolveServerEndPoint(endpoint)?.GetBridge(type, create: false)?.ConnectionId
-                ?? NewCoreIfCreated?.ConnectionId(endpoint, type);
+            => NewCoreIfCreated?.ConnectionId(endpoint, type);
 
         internal uint UpdateLatency()
         {

@@ -330,6 +330,9 @@ namespace StackExchange.Redis
         string IFaultSubject.CommandString => Command.ToString();
 
         /// <inheritdoc/>
+        RedisCommand IFaultSubject.Command => Command;
+
+        /// <inheritdoc/>
         CommandFlags IFaultSubject.Flags => _flags;
 
         /// <inheritdoc/>

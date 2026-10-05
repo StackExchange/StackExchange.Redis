@@ -8,37 +8,6 @@ namespace StackExchange.Redis;
 
 public sealed partial class ClusterSlotsResult
 {
-    internal static readonly ResultProcessor<ClusterSlotsResult?> Processor = new ClusterSlotsResultProcessor();
-
-    /// <summary>
-    /// As <see cref="Processor"/>, but also records the result against the server that answered - the
-    /// autoconfigure path needs the side effect, callers of <c>CLUSTER SLOTS</c> do not.
-    /// </summary>
-    internal static readonly ResultProcessor<ClusterSlotsResult?> AutoConfigureProcessor = new ClusterSlotsResultProcessor(autoConfigure: true);
-
-    private sealed class ClusterSlotsResultProcessor(bool autoConfigure = false) : ResultProcessor<ClusterSlotsResult?>
-    {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
-        {
-            if (reader.IsNull)
-            {
-                SetResult(message, null);
-                return true;
-            }
-            if (!reader.IsAggregate) return false;
-
-            var result = ParseCore(ref reader);
-
-            if (autoConfigure)
-            {
-                connection.BridgeCouldBeNull?.ServerEndPoint?.SetClusterSlots(result);
-            }
-
-            SetResult(message, result);
-            return true;
-        }
-    }
-
     /// <summary>Read a <c>CLUSTER SLOTS</c> reply, or <c>null</c> if it was not one.</summary>
     /// <param name="reader">Positioned on the reply.</param>
     /// <remarks>

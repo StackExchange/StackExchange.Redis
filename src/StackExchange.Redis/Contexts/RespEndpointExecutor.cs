@@ -387,7 +387,7 @@ namespace StackExchange.Redis
 
         /// <summary>This endpoint's state, in the shape the client's diagnostics already speak.</summary>
         /// <remarks>
-        /// <b>Reported through <see cref="PhysicalBridge.BridgeStatus"/> rather than a new shape of its
+        /// <b>Reported through <see cref="BridgeStatus"/> rather than a new shape of its
         /// own.</b> Every surface that shows connection state - <c>GetCounters</c>, <c>GetStatus</c>, the
         /// tail on a timeout exception - reads that struct, and callers have been reading those fields for
         /// years. Answering the same questions in a different vocabulary would mean teaching every one of
@@ -397,7 +397,7 @@ namespace StackExchange.Redis
         /// a plausible zero: there is no socket-level byte count and no pipe, because there is no pipe.
         /// </para>
         /// </remarks>
-        internal PhysicalBridge.BridgeStatus GetStatus()
+        internal BridgeStatus GetStatus()
         {
             RespConnection? connection;
             int backlog;
@@ -410,13 +410,13 @@ namespace StackExchange.Redis
             }
 
             var live = connection is { IsClosed: false } ? connection : null;
-            return new PhysicalBridge.BridgeStatus
+            return new BridgeStatus
             {
                 IsWriterActive = writing,
                 BacklogMessagesPending = backlog,
                 BacklogMessagesPendingCounter = backlog,
-                BacklogStatus = backlog == 0 ? PhysicalBridge.BacklogStatus.Inactive : PhysicalBridge.BacklogStatus.Started,
-                Connection = new PhysicalConnection.ConnectionStatus
+                BacklogStatus = backlog == 0 ? BacklogStatus.Inactive : BacklogStatus.Started,
+                Connection = new ConnectionStatus
                 {
                     MessagesSentAwaitingResponse = live?.PendingCount ?? 0,
                     BytesAvailableOnSocket = -1,
@@ -424,8 +424,8 @@ namespace StackExchange.Redis
                     BytesInWritePipe = -1,
                     BytesLastResult = live?.BytesLastResult ?? 0,
                     BytesInBuffer = live?.BytesInBuffer ?? 0,
-                    ReadStatus = PhysicalConnection.ReadStatus.NA,
-                    WriteStatus = PhysicalConnection.WriteStatus.NA,
+                    ReadStatus = ReadStatus.NA,
+                    WriteStatus = WriteStatus.NA,
                 },
             };
         }
@@ -1435,9 +1435,9 @@ namespace StackExchange.Redis
             }
 
             if (!config.AllowAdmin
-                && Message.IsAdminCommand(
+                && AdminCommands.IsAdminCommand(
                     request.Command,
-                    RespMessageExecutor.TryGetSubCommand(in request, out var subCommand) ? subCommand : null))
+                    AdminCommands.TryGetSubCommand(in request, out var subCommand) ? subCommand : null))
             {
                 throw ExceptionFactory.AdminModeNotEnabled(config.IncludeDetailInExceptions, request.Command, null, server);
             }
@@ -2073,6 +2073,10 @@ namespace StackExchange.Redis
                 var connection = await ConnectWithinTimeoutAsync().ConfigureAwait(false);
                 Interlocked.Increment(ref _connects);
                 Volatile.Write(ref _connectRetryCount, 0); // a success starts the backoff over
+
+                // ...and clears the fault, as the shipped bridge did on establishing: LastException answers
+                // "why is this endpoint down", so a recovered endpoint must stop reporting the old reason
+                Volatile.Write(ref _lastConnectFault, null);
 
                 bool drain;
                 lock (_sync)

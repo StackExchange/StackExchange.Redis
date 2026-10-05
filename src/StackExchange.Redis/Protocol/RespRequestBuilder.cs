@@ -907,11 +907,11 @@ namespace StackExchange.Redis.Protocol
             // may never be dispatched at all (a cache lookup key, an ad-hoc composition).
             // the same four lines ThrowTooManyArguments already had, so it is the same call: this used to
             // be a second copy, and a second copy of a throw is a second thing to keep in step
-            if (_args - 1 >= MessageWriter.REDIS_MAX_ARGS) ThrowTooManyArguments();
+            if (_args - 1 >= RespWire.REDIS_MAX_ARGS) ThrowTooManyArguments();
 
             Span<byte> header = stackalloc byte[HeaderMax];
             header[0] = (byte)'*';
-            var headerLength = MessageWriter.WriteRaw(header, _args, offset: 1);
+            var headerLength = RespWire.WriteRaw(header, _args, offset: 1);
             var start = HeaderMax - headerLength;
             header.Slice(0, headerLength).CopyTo(_buffer.AsSpan(start));
 
@@ -973,14 +973,14 @@ namespace StackExchange.Redis.Protocol
             Ensure(BulkReservation(payloadLength));
             var span = _buffer.AsSpan(_offset);
             span[0] = (byte)'$';
-            payloadOffset = MessageWriter.WriteRaw(span, payloadLength, offset: 1);
+            payloadOffset = RespWire.WriteRaw(span, payloadLength, offset: 1);
             return span.Slice(payloadOffset, payloadLength);
         }
 
         /// <summary>Terminate the fragment begun by <see cref="WriteBulk"/> and advance the cursor.</summary>
         private void CommitBulk(int payloadOffset, int payloadLength)
         {
-            MessageWriter.WriteCrlf(_buffer.AsSpan(_offset), payloadOffset + payloadLength);
+            RespWire.WriteCrlf(_buffer.AsSpan(_offset), payloadOffset + payloadLength);
             _offset += payloadOffset + payloadLength + 2;
         }
 
@@ -1021,7 +1021,7 @@ namespace StackExchange.Redis.Protocol
         {
             _args += count;
             _argIndex += count;
-            if (_args > MessageWriter.REDIS_MAX_ARGS) ThrowTooManyArguments();
+            if (_args > RespWire.REDIS_MAX_ARGS) ThrowTooManyArguments();
         }
 
         // EVERY throw out of this type hands the buffer back first. Nothing else will: the handler lives

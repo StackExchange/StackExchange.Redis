@@ -23,14 +23,8 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 {
     private static RespDatabaseContext NewSurface(IConnectionMultiplexer conn, int db, RespClientCache? cache = null)
     {
-        // constructed rather than cast from GetDatabase: this helper needs the OLD database, since the
-        // shim executor targets it - and GetDatabase is exactly what stops returning one when the new
-        // surface is switched on. Casting its result made thirteen tests fail for an unrelated reason.
-        var database = TestMultiplexer.Legacy(conn, db);
-        var context = new RespContext(database.multiplexer.CommandMap, database: db)
-            .WithExecutor(new RespMessageExecutor(database, db))
-            .WithCache(cache);
-        return new RespDatabaseContext(context);
+        // a context over the core's own connections, with the cache the test asks for (or none)
+        return new RespDatabaseContext(TestMultiplexer.Unwrap(conn).NewCore.GetDatabase(db).Raw.WithCache(cache));
     }
 
     [Fact]

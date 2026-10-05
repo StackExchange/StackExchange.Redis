@@ -7,36 +7,7 @@ namespace StackExchange.Redis;
 
 public sealed partial class HotKeysResult
 {
-    internal static readonly ResultProcessor<HotKeysResult?> Processor = new HotKeysResultProcessor();
-
-    private sealed class HotKeysResultProcessor : ResultProcessor<HotKeysResult?>
-    {
-        protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
-        {
-            if (reader.IsNull)
-            {
-                SetResult(message, null);
-                return true;
-            }
-
-            // an array with a single element that *is* an array/map that is the results
-            if (reader.IsAggregate && reader.AggregateLengthIs(1))
-            {
-                var iter = reader.AggregateChildren();
-                iter.DemandNext();
-                if (iter.Value.IsAggregate && !iter.Value.IsNull)
-                {
-                    var hotKeys = new HotKeysResult(ref iter.Value);
-                    SetResult(message, hotKeys);
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    }
-
-    /// <summary>Reads <c>HOTKEYS GET</c> on the RESP context, by the same parse as <see cref="Processor"/>.</summary>
+    /// <summary>Reads <c>HOTKEYS GET</c> on the RESP context.</summary>
     internal sealed class Handler : IRespHandler<HotKeysResult?>
     {
         internal static readonly Handler Instance = new();

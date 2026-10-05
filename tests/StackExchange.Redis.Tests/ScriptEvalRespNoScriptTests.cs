@@ -93,49 +93,6 @@ public class ScriptEvalRespNoScriptTests(ITestOutputHelper output) : TestBase(ou
         Assert.Equal("alpha|beta", (string?)result.ReadScalar().ReadRedisValue());
     }
 
-    /// <summary>
-    /// A NOSCRIPT means "not final, a retry is coming", but that is a fact about the reply, not about the
-    /// message: the flag it sets is never cleared, so if the retry then fails for some *other* reason, a
-    /// check against the message would still read as NOSCRIPT and the request buffer would never come back.
-    /// </summary>
-    [Fact]
-    public async Task RetryFailingForADifferentReasonStillReleasesItsBuffer()
-    {
-        const string Broken = "this is not lua";
-        var pool = new CountingPool();
-        await using var conn = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions
-        {
-            EndPoints = { TestConfig.Current.PrimaryServerAndPort },
-            RequestBufferPool = pool,
-            Protocol = TestContext.Current.GetProtocol(),
-        });
-
-        // the OLD database explicitly: this counts rents from RequestBufferPool, which is RedisDatabase's
-        // buffer discipline. The new surface renders its own frames and never touches that pool, so
-        // through GetDatabase the count is whatever the connection's own IO holds and the test measures
-        // nothing about the thing it names.
-        var db = TestMultiplexer.Legacy(conn);
-
-        const int Iterations = 20;
-        for (int i = 0; i < Iterations; i++)
-        {
-            // stale hash each time, so every attempt is a NOSCRIPT followed by a real EVAL - which then
-            // fails to compile, i.e. an error that is emphatically not a NOSCRIPT
-            conn.GetServerSnapshot()[0].AddScript(Broken, UnknownHash);
-            await Assert.ThrowsAsync<RedisServerException>(
-                async () => await db.ScriptEvaluateRespAsync(Broken, default, new RedisValue[] { "x" }));
-        }
-
-        await Task.Delay(100);
-
-        // the residual is whatever the still-open connection's own IO buffering is holding; what matters
-        // is that it does not grow with the number of calls, which is what a per-call leak looks like
-        var outstanding = pool.Rented - pool.Returned;
-        Output.WriteLine($"rented={pool.Rented} returned={pool.Returned} outstanding={outstanding}");
-        Assert.True(pool.Rented >= Iterations, $"expected a rent per call, got {pool.Rented} for {Iterations}");
-        Assert.True(outstanding <= 5, $"buffers are not coming back: {outstanding} outstanding after {Iterations} calls");
-    }
-
     private sealed class CountingPool : System.Buffers.MemoryPool<byte>
     {
         private int _rented, _returned;

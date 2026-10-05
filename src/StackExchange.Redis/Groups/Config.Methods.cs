@@ -80,7 +80,7 @@ public static partial class Config
 
     /// <summary>Reads a <c>CONFIG GET</c> reply, interleaved or mapped.</summary>
     /// <remarks>
-    /// <b>The shipped pair reader</b>, driven directly; see <c>ResultProcessor.StringPairs</c>. Jagged is
+    /// <b>The shipped pair reader</b>, driven directly; see <c>RespParsers.StringPairs</c>. Jagged is
     /// permitted and then detected from the bytes, which covers both wire shapes: RESP3 answers a map and
     /// RESP2 a flat array, and a setting's VALUE is always a scalar, so the detection cannot misfire on
     /// one.
@@ -90,7 +90,7 @@ public static partial class Config
         internal static readonly ConfigPairsHandler Instance = new();
 
         public KeyValuePair<string, string>[] Parse(ref RespReader reader)
-            => ResultProcessor.StringPairs.ParseArray(
+            => RespParsers.StringPairs.ParseArray(
                 ref reader, allowJagged: true, allowOversized: false, out _, state: null) ?? [];
     }
 }

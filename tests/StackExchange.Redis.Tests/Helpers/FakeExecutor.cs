@@ -146,8 +146,4 @@ internal static class TestMultiplexer
         SharedConnectionFixture.NonDisposingConnection wrapper => (ConnectionMultiplexer)wrapper.UnderlyingConnection,
         _ => throw new InvalidOperationException($"cannot reach a multiplexer through {conn.GetType().Name}"),
     };
-
-    /// <summary>The shipped database, whatever <c>GetDatabase</c> is currently configured to return.</summary>
-    internal static RedisDatabase Legacy(IConnectionMultiplexer conn, int db = 0, object? asyncState = null)
-        => new(Unwrap(conn), db, asyncState);
 }

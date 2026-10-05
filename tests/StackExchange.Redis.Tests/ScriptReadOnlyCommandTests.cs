@@ -105,23 +105,23 @@ public class ScriptReadOnlyCommandTests(ITestOutputHelper output) : TestBase(out
         var unavailable = CommandMap.Create(["eval_ro", "evalsha_ro"], available: false);
 
         var flags = CommandFlags.None;
-        var command = RedisDatabase.ForReadOnlyScript(unavailable, RedisCommand.EVAL_RO, ref flags);
+        var command = Scripts.ForReadOnlyScript(unavailable, RedisCommand.EVAL_RO, ref flags);
         Assert.Equal(RedisCommand.EVAL, command); // fell back...
         Assert.Equal(CommandFlags.CommandRetryReadOnly, flags & CommandFlagsInternal.MaskRetryCategory); // ...but still read-only
 
         flags = CommandFlags.None;
-        command = RedisDatabase.ForReadOnlyScript(unavailable, RedisCommand.EVALSHA_RO, ref flags);
+        command = Scripts.ForReadOnlyScript(unavailable, RedisCommand.EVALSHA_RO, ref flags);
         Assert.Equal(RedisCommand.EVALSHA, command);
         Assert.Equal(CommandFlags.CommandRetryReadOnly, flags & CommandFlagsInternal.MaskRetryCategory);
 
         // an explicit category from the caller still wins over the fallback's
         flags = CommandFlags.CommandRetryNever;
-        RedisDatabase.ForReadOnlyScript(unavailable, RedisCommand.EVAL_RO, ref flags);
+        Scripts.ForReadOnlyScript(unavailable, RedisCommand.EVAL_RO, ref flags);
         Assert.Equal(CommandFlags.CommandRetryNever, flags & CommandFlagsInternal.MaskRetryCategory);
 
         // and where the commands are available, the read-only form is kept as-is
         flags = CommandFlags.None;
-        Assert.Equal(RedisCommand.EVAL_RO, RedisDatabase.ForReadOnlyScript(CommandMap.Default, RedisCommand.EVAL_RO, ref flags));
+        Assert.Equal(RedisCommand.EVAL_RO, Scripts.ForReadOnlyScript(CommandMap.Default, RedisCommand.EVAL_RO, ref flags));
 
         // the pin above is only worth anything because Message's own defaulting leaves an already-chosen
         // category alone; without that, EVAL's default would overwrite it right back to write-accumulating

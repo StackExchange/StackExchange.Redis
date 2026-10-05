@@ -306,7 +306,7 @@ namespace StackExchange.Redis.Protocol
         /// <typeparam name="T">The row type.</typeparam>
         /// <param name="reader">The reply, positioned on the aggregate.</param>
         /// <param name="shape">The processor that knows how to read one row.</param>
-        internal static T[] ReadPairArray<T>(ref RespReader reader, ResultProcessor.ValuePairInterleavedProcessorBase<T> shape)
+        internal static T[] ReadPairArray<T>(ref RespReader reader, RespParsers.PairParser<T> shape)
             => shape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: false, out _, state: null)
                ?? Array.Empty<T>();
 
@@ -316,7 +316,7 @@ namespace StackExchange.Redis.Protocol
         /// reports the live length separately, which is a lease wearing different clothes - so this adopts
         /// the rental rather than copying out of it.
         /// </remarks>
-        internal static ReadOnlyLease<T> ReadPairLease<T>(ref RespReader reader, ResultProcessor.ValuePairInterleavedProcessorBase<T> shape)
+        internal static ReadOnlyLease<T> ReadPairLease<T>(ref RespReader reader, RespParsers.PairParser<T> shape)
         {
             var pooled = shape.ParseArray(ref reader, RedisProtocol.Resp3, allowOversized: true, out var count, state: null);
             return pooled is null ? ReadOnlyLease<T>.Empty : ReadOnlyLease<T>.Adopt(pooled, count);
@@ -655,10 +655,10 @@ namespace StackExchange.Redis.Protocol
 
             // the array family: every one of these delegates to the parse the classic path already uses,
             // rather than carrying a second copy of it
-            private static readonly ResultProcessor.RedisArrayEntryArrayProcessor ArrayEntryShape = new();
+            private static readonly RespParsers.RedisArrayEntryPairs ArrayEntryShape = new();
 
             RedisArrayIndex IRespHandler<RedisArrayIndex>.Parse(ref RespReader reader)
-                => ResultProcessor.TryParseArrayIndex(ref reader, out var index)
+                => RespParsers.TryParseArrayIndex(ref reader, out var index)
                     ? index
                     : throw new RespException("Unexpected array-index reply.");
 
@@ -666,13 +666,13 @@ namespace StackExchange.Redis.Protocol
             RedisArrayIndex? IRespHandler<RedisArrayIndex?>.Parse(ref RespReader reader)
             {
                 if (reader.IsScalar && reader.IsNull) return null;
-                return ResultProcessor.TryParseArrayIndex(ref reader, out var index)
+                return RespParsers.TryParseArrayIndex(ref reader, out var index)
                     ? index
                     : throw new RespException("Unexpected array-index reply.");
             }
 
             ArrayInfo IRespHandler<ArrayInfo>.Parse(ref RespReader reader)
-                => ResultProcessor.TryParseArrayInfo(ref reader, out var info)
+                => RespParsers.TryParseArrayInfo(ref reader, out var info)
                     ? info
                     : throw new RespException("Unexpected ARINFO reply.");
 
@@ -872,7 +872,7 @@ namespace StackExchange.Redis.Protocol
             // already decides between them from the CONTENT rather than from the negotiated protocol, so
             // reusing it is both less code and the only way the two readers cannot disagree. Resp3 is
             // passed to enable that detection, not to assert anything about the connection.
-            private static readonly ResultProcessor.HashEntryArrayProcessor HashEntryShape = new();
+            private static readonly RespParsers.HashEntryPairs HashEntryShape = new();
 
             HashEntry[] IRespHandler<HashEntry[]>.Parse(ref RespReader reader)
                 => ReadPairArray(ref reader, HashEntryShape);
@@ -899,7 +899,7 @@ namespace StackExchange.Redis.Protocol
             }
 
             // as HashEntryHandler: interleaved in RESP2, possibly jagged in RESP3, decided from the content
-            private static readonly ResultProcessor.SortedSetEntryArrayProcessor SortedSetEntryShape = new();
+            private static readonly RespParsers.SortedSetEntryPairs SortedSetEntryShape = new();
 
             SortedSetEntry[] IRespHandler<SortedSetEntry[]>.Parse(ref RespReader reader)
                 => ReadPairArray(ref reader, SortedSetEntryShape);

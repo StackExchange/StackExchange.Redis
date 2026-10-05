@@ -127,12 +127,6 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     // writes the opaque field-set name: the id's 8 raw bytes as a bulk string. Endianness is irrelevant (the server
     // treats the name as an arbitrary byte string, and a token never leaves the process), so an unaligned blit of the
     // id is enough - and identical for this token's every PREPARE/SET/DISCARD, which is all that matters.
-    internal void WriteName(in MessageWriter writer)
-    {
-        Span<byte> name = stackalloc byte[8];
-        Unsafe.WriteUnaligned(ref name[0], _id);
-        writer.WriteBulkString(name);
-    }
 
     /// <summary>The same opaque name, written through the interpolated builder.</summary>
     /// <remarks>
@@ -154,11 +148,6 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     {
         if (_disposed) throw new ObjectDisposedException(nameof(HashImport));
     }
-
-    // creates the HIMPORT PREPARE injected (fire-and-forget) ahead of a SET on a connection that has not yet
-    // prepared this field-set; its result is never surfaced - a genuinely broken PREPARE re-appears as the SET
-    // failing with a "no such field-set" server error.
-    internal Message CreatePrepareMessage(int db) => new HashImportPrepareMessage(db, CommandFlags.FireAndForget, this);
 
     // Records (once per server) that this field-set is now prepared somewhere on the given server, so disposal can
     // target a DISCARD there.
@@ -274,127 +263,4 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
             // best-effort: a field-set the server still holds is reclaimed with its connection
         }
     }
-}
-
-// HIMPORT SET <key> <field-set> <value...>: the user-facing per-row import, composed with the PREPARE that has to
-// precede it the first time this field-set is seen on a connection.
-//
-// This used to be a hard-coded type test inside the bridge's write lock. It is an IMultiMessage now, because that IS
-// the same seam: GetMessages is called from WriteMessageInsideLock with the PhysicalConnection in hand, which is
-// exactly "once the connection is known, inside the write lock". Same mechanism as the frame surface's composed
-// pair, so there is one way to say this rather than two.
-internal sealed class HashImportSetMessage : Message.CommandKeyBase, IRenderedArgsOwner, IMultiMessage
-{
-    private readonly HashImport _fieldSet;
-
-    // rendered at construction rather than aliased: this is the per-row bulk-import API, so reusing one
-    // values buffer per row is the intended usage - and a batch defers every write to Execute(), by which
-    // point that buffer holds only the last row. Not readonly; see RenderedArgs.
-    private RenderedArgs _values;
-
-    public HashImportSetMessage(int db, CommandFlags flags, HashImport fieldSet, in RedisKey key, ReadOnlyMemory<RedisValue> values, MemoryPool<byte>? pool)
-        : base(db, flags, RedisCommand.HIMPORT, key)
-    {
-        _fieldSet = fieldSet;
-        _values = RenderedArgs.Create(default, values.Span, pool);
-    }
-
-    void IRenderedArgsOwner.ReleaseRenderedArgs() => RenderedArgs.Recycle(ref _values);
-
-    internal HashImport FieldSet => _fieldSet;
-
-    // the PREPARE defines the connection-local name this SET references; without it the server has never heard of
-    // the field-set. Refusing here is also what keeps it out of a MULTI, where an injected PREPARE would take a slot
-    // in the positional EXEC array - RedisDatabase.GetHashImportMessage refuses that earlier and with a better
-    // message, so this is the structural backstop rather than the first line of defence.
-    public bool CanWriteWithoutExpansion => false;
-
-    // Not an iterator: the claim below has to happen on every write attempt, including the usual one where the
-    // field-set is already prepared and we decline. An iterator would defer it to the first MoveNext, which never
-    // comes when the answer is null. (Same reason ScriptEvalMessage splits this in two.)
-    public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
-    {
-        // claimed at WRITE time, not when a reply confirms it. This runs inside the write lock, which is the only
-        // place where "has this connection prepared it?" and "write it" are one decision - and a burst of imports
-        // issued before the first PREPARE's reply landed would otherwise each inject their own. Measured on the
-        // frame-surface probe: confirm-on-reply injects one preamble per command, claim-on-write injects one.
-        // A claim that then fails to write dies with the connection, which starts empty.
-        if (!connection.TryAddPreparedFieldSet(_fieldSet.Id)) return null; // already prepared: write me alone
-
-        var server = connection.BridgeCouldBeNull?.ServerEndPoint;
-        if (server is not null) _fieldSet.RegisterServer(server, Db);
-        return Expand();
-    }
-
-    // the tail is `this`, not a copy: the caller's result box is on this message, and only the messages yielded here
-    // are enqueued for a reply
-    private IEnumerable<Message> Expand()
-    {
-        yield return _fieldSet.CreatePrepareMessage(Db);
-        yield return this;
-    }
-
-    protected override void WriteImpl(in MessageWriter writer)
-    {
-        writer.WriteHeader(RedisCommand.HIMPORT, ArgCount);
-        writer.WriteBulkString(RedisLiterals.SET);
-        writer.Write(Key);
-        _fieldSet.WriteName(writer);
-        _values.WriteTo(writer);
-    }
-
-    public override int ArgCount => 3 + _values.Count;
-}
-
-// HIMPORT PREPARE <field-set> <field...>: injected fire-and-forget ahead of the first SET for a field-set on a
-// connection; defines the connection-local name->fields mapping the SET references.
-internal sealed class HashImportPrepareMessage : Message
-{
-    private readonly HashImport _fieldSet;
-
-    public HashImportPrepareMessage(int db, CommandFlags flags, HashImport fieldSet)
-        : base(db, flags, RedisCommand.HIMPORT) => _fieldSet = fieldSet;
-
-    protected override void WriteImpl(in MessageWriter writer)
-    {
-        var fields = _fieldSet.Fields.Span;
-        writer.WriteHeader(RedisCommand.HIMPORT, 2 + fields.Length);
-        writer.WriteBulkString(RedisLiterals.PREPARE);
-        _fieldSet.WriteName(writer);
-        for (int i = 0; i < fields.Length; i++) writer.WriteBulkString(fields[i]);
-    }
-
-    public override int ArgCount => 2 + _fieldSet.FieldCount;
-}
-
-// HIMPORT DISCARD <field-set>: targeted cleanup of a single field-set, issued on disposal. Deliberately not
-// DISCARDALL, which would drop sibling field-sets sharing the connection.
-internal sealed class HashImportDiscardMessage : Message, IMultiMessage
-{
-    // nothing to compose - this is the one place that learns which connection a DISCARD lands on, and the
-    // connection's set of prepared ids has to drop this one so it stays bounded to live field-sets over the life of
-    // a long-lived connection. Declining the expansion (null) is "write me normally", which is all this wants.
-    public bool CanWriteWithoutExpansion => true;
-
-    public IEnumerable<Message>? GetMessages(PhysicalConnection connection)
-    {
-        connection.RemovePreparedFieldSet(FieldSetId);
-        return null;
-    }
-
-    private readonly HashImport _fieldSet;
-
-    public HashImportDiscardMessage(int db, CommandFlags flags, HashImport fieldSet)
-        : base(db, flags, RedisCommand.HIMPORT) => _fieldSet = fieldSet;
-
-    internal long FieldSetId => _fieldSet.Id;
-
-    protected override void WriteImpl(in MessageWriter writer)
-    {
-        writer.WriteHeader(RedisCommand.HIMPORT, 2);
-        writer.WriteBulkString(RedisLiterals.DISCARD);
-        _fieldSet.WriteName(writer);
-    }
-
-    public override int ArgCount => 2;
 }

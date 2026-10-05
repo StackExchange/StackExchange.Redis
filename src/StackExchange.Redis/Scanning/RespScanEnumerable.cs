@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -162,7 +162,9 @@ internal sealed class RespScanEnumerable<T> : IAsyncEnumerable<T>, IEnumerable<T
 
         int IScanningCursor.PageSize => parent._pageSize;
 
-        int IScanningCursor.PageOffset => _index < 0 ? 0 : _index;
+        // before the first page is fetched, the offset this enumeration was asked to resume from - as the
+        // enumerable reports, and as the shipped cursor did (ScanTests.ScanResume)
+        int IScanningCursor.PageOffset => !_hasPage ? parent._initialOffset : _index < 0 ? 0 : _index;
 
         public async ValueTask<bool> MoveNextAsync()
         {

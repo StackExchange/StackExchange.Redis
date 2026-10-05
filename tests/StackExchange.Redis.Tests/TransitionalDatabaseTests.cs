@@ -115,20 +115,6 @@ public class TransitionalDatabaseTests
     }
 
     [Fact]
-    public void TheRealExecutorOverridesTheRoutingQuestion()
-    {
-        // the live test in RespEndToEndTests cannot tell a routed "true" from the base class's default
-        // "true" while the server is healthy, so the override is pinned here instead: drop it and the
-        // context surface silently claims every key is reachable.
-        var method = typeof(RespMessageExecutor).GetMethod(
-            "IsReachable",
-            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-
-        Assert.NotNull(method);
-        Assert.Equal(typeof(RespMessageExecutor), method!.DeclaringType);
-    }
-
-    [Fact]
     public async Task AnExecutorWithNoEndpointsAdmitsItRatherThanGuessing()
     {
         // the default is null - "no idea" - because an executor with no notion of endpoints has no honest
@@ -136,17 +122,6 @@ public class TransitionalDatabaseTests
         var db = Target(new FakeExecutor());
         Assert.Null(await db.IdentifyEndpointAsync("user:1"));
         Assert.Null(db.IdentifyEndpoint("user:1"));
-    }
-
-    [Fact]
-    public void TheRealExecutorOverridesEndpointIdentityToo()
-    {
-        var method = typeof(RespMessageExecutor).GetMethod(
-            nameof(RespExecutorBase.IdentifyEndpointAsync),
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
-
-        Assert.NotNull(method);
-        Assert.Equal(typeof(RespMessageExecutor), method!.DeclaringType);
     }
 
     [Fact]

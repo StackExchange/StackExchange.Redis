@@ -105,7 +105,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Designed to be usable outside of the IO-processing pipeline: the buffers are standalone, etc.
         /// </summary>
-        internal static bool TryCreate(PhysicalConnection? connection, ref RespReader reader, [NotNullWhen(true)] out RedisResult? redisResult)
+        internal static bool TryCreate(ref RespReader reader, [NotNullWhen(true)] out RedisResult? redisResult)
         {
             reader.MovePastBof();
             try
@@ -138,10 +138,9 @@ namespace StackExchange.Redis
                     }
 
                     var arr = reader.ReadPastArray(
-                        ref connection,
-                        static (ref PhysicalConnection? conn, ref RespReader r) =>
+                        static (ref RespReader r) =>
                         {
-                            if (!TryCreate(conn, ref r, out var result))
+                            if (!TryCreate(ref r, out var result))
                             {
                                 return null!; // Will be caught by null check below
                             }
@@ -162,11 +161,10 @@ namespace StackExchange.Redis
                 redisResult = null;
                 return false;
             }
-            catch (Exception ex)
+            catch
             {
-                connection?.OnInternalError(ex);
                 redisResult = null;
-                return false; // will be logged as a protocol fail by the processor
+                return false; // the caller reports an unreadable reply as a protocol failure
             }
         }
 

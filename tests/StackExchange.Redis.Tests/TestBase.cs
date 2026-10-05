@@ -549,14 +549,6 @@ public abstract class TestBase : IDisposable
             }
             if (output != null)
             {
-                conn.MessageFaulted += (msg, ex, origin) =>
-                {
-                    output?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
-                    if (ex != null && ex.Data.Contains("got"))
-                    {
-                        output?.WriteLine($"Got: '{ex.Data["got"]}'");
-                    }
-                };
                 conn.Connecting += (e, t) => output?.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
                 if (logTransactionData)
                 {

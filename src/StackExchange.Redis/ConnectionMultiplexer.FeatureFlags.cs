@@ -31,50 +31,14 @@ public partial class ConnectionMultiplexer
         /// </remarks>
         DedicatedThreads = 2,
 
-        /// <summary>
-        /// Return databases built on the new RESP context surface, rather than <c>RedisDatabase</c>.
-        /// </summary>
+        /// <summary>Retired: the switch between the old and new database surface, which no longer exist as two.</summary>
         /// <remarks>
-        /// <para>
-        /// <b>The migration switch for the core replacement.</b> The transitional database implements the
-        /// whole of <see cref="IDatabase"/> over the new rendering and parsing, falling back to the shipped
-        /// database for anything that has not moved - so this changes how commands are written and replies
-        /// are read, and nothing about connections, the bridge or the pipeline.
-        /// </para>
-        /// <para>
-        /// <b>Always on from the v4 alpha, and no longer a switch.</b> It began as an opt-in so one build could be run
-        /// both ways; once the suite passed on it, it became the default, and then the off-switch was removed so
-        /// nothing - environment, <see cref="SetFeatureFlag"/> or otherwise - can put a database back on the
-        /// shipped <c>RedisDatabase</c>. The value remains in this enum only so an existing
-        /// <c>SetFeatureFlag("NewDatabaseSurface", ...)</c> call still parses; it has no effect.
-        /// </para>
-        /// <para>
-        /// Set it before taking a database: instances are cached per multiplexer, so a connection that has
-        /// already handed out database 0 will keep handing out the same one.
-        /// </para>
+        /// Kept only so an existing <c>SetFeatureFlag("NewDatabaseSurface", ...)</c> call still parses; it has no
+        /// effect. The new core is the only core from the v4 alpha - the old one has been deleted.
         /// </remarks>
         NewDatabaseSurface = 4,
 
-        /// <summary>
-        /// Run <see cref="NewDatabaseSurface"/> over the new core's own connections, rather than over the
-        /// shipped pipeline.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// <b>Two flags because these are two independent questions.</b> The surface flag decides how a
-        /// command is rendered and its reply read; this one decides what carries it. Until now the answer
-        /// was always the shipped pipeline, reached through a <c>Message</c> shim - which cannot write a
-        /// batch as one contiguous run, so every batch fell back to <c>RedisBatch : RedisDatabase</c> and
-        /// kept the whole of the old surface alive. That fallback is the last thing holding
-        /// <c>RedisDatabase</c> up, and only a real connection removes it.
-        /// </para>
-        /// <para>
-        /// <b>Always on from the v4 alpha, and no longer a switch</b>, for the reason given on
-        /// <see cref="NewDatabaseSurface"/>. It began off and a long way from green (222 failures and a hang); it
-        /// became the default once the suite passed and no library path still built a shipped bridge, and the
-        /// off-switch went so the old core cannot be reached at all ahead of its deletion.
-        /// </para>
-        /// </remarks>
+        /// <summary>Retired, as <see cref="NewDatabaseSurface"/>: the switch between the old and new connection engine.</summary>
         NewCoreEngine = 8,
     }
 
@@ -120,17 +84,6 @@ public partial class ConnectionMultiplexer
 
     internal static bool DedicatedThreads => (s_featureFlags & FeatureFlags.DedicatedThreads) != 0;
 
-    /// <summary>Always: the new surface is the only one; kept as a name only until the old core's files are deleted.</summary>
-    /// <remarks>
-    /// <b>No longer a switch</b> - neither the environment nor <see cref="SetFeatureFlag"/> can turn it off, so
-    /// nothing can put a multiplexer back on the old core. The property survives only so the branches still
-    /// testing it compile until the deletion removes them; see design/v4-alpha-plan.md, gate 3.
-    /// </remarks>
-    internal static bool NewDatabaseSurface => true;
-
-    /// <summary>Always: the new core carries every connection; see <see cref="NewDatabaseSurface"/>.</summary>
-    internal static bool NewCoreEngine => true;
-
     /// <summary>
     /// Whether the connection of this type to this endpoint is read by a thread we own; <c>null</c> if there
     /// is no such connection.
@@ -141,12 +94,9 @@ public partial class ConnectionMultiplexer
     /// asking about <see cref="ConnectionType.Subscription"/> answers about the shared one.
     /// </remarks>
     bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endpoint, ConnectionType connectionType)
-        => GetPhysical(endpoint, connectionType)?.IsSyncReader;
+        => null; // DedicatedThreads is not implemented by the new core; see design/v4-alpha-plan.md, decision 6
 
     /// <summary>As <c>IsSyncReader</c>, for the writer.</summary>
     bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endpoint, ConnectionType connectionType)
-        => GetPhysical(endpoint, connectionType)?.IsSyncWriter;
-
-    private PhysicalConnection? GetPhysical(EndPoint endpoint, ConnectionType connectionType)
-        => TryResolveServerEndPoint(endpoint)?.GetBridge(connectionType, create: false)?.Physical;
+        => null;
 }

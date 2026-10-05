@@ -7,9 +7,8 @@ namespace StackExchange.Redis;
 
 public partial class ConnectionMultiplexer
 {
-    internal event Action<string?, Exception?, string>? MessageFaulted;
     internal event Action<bool>? Closing;
-    internal event Action<string>? PreTransactionExec, TransactionLog, InfoMessage;
+    internal event Action<string>? TransactionLog, InfoMessage;
     internal event Action<EndPoint, ConnectionType>? Connecting;
     internal event Action<EndPoint, ConnectionType>? Resurrecting;
 
@@ -35,10 +34,6 @@ public partial class ConnectionMultiplexer
     }
 
     [Conditional("VERBOSE")]
-    internal void OnMessageFaulted(Message? msg, Exception? fault, [CallerMemberName] string? origin = default, [CallerFilePath] string? path = default, [CallerLineNumber] int lineNumber = default) =>
-        MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
-
-    [Conditional("VERBOSE")]
     internal void OnInfoMessage(string message) => InfoMessage?.Invoke(message);
 
     [Conditional("VERBOSE")]
@@ -49,9 +44,6 @@ public partial class ConnectionMultiplexer
 
     [Conditional("VERBOSE")]
     internal void OnResurrecting(EndPoint endpoint, ConnectionType connectionType) => Resurrecting?.Invoke(endpoint, connectionType);
-
-    [Conditional("VERBOSE")]
-    internal void OnPreTransactionExec(Message message) => PreTransactionExec?.Invoke(message.CommandAndKey);
 
     [Conditional("VERBOSE")]
     internal void OnTransactionLog(string message) => TransactionLog?.Invoke(message);

@@ -205,7 +205,7 @@ public static class RespReaderExtensions
     public static RedisResult ReadRedisResult(this in RespReader reader)
     {
         var mutable = reader.Clone();
-        if (!RedisResult.TryCreate(null, ref mutable, out var result))
+        if (!RedisResult.TryCreate(ref mutable, out var result))
         {
             throw new InvalidOperationException("Unable to interpret RESP reply as a RedisResult");
         }

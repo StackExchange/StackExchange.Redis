@@ -24,10 +24,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
                 Log($"      IsSelectable(allowDisconnected: true): {server.IsSelectable(RedisCommand.PING, true)}");
                 Log($"      IsSelectable(allowDisconnected: false): {server.IsSelectable(RedisCommand.PING, false)}");
                 Log($"      UnselectableFlags: {server.GetUnselectableFlags()}");
-                var bridge = server.GetBridge(RedisCommand.PING, create: false);
-                Log($"      GetBridge: {bridge}");
-                Log($"        IsConnected: {bridge?.IsConnected}");
-                Log($"        ConnectionState: {bridge?.ConnectionState}");
+                Log($"      ConnectionState: {server.InteractiveConnectionState}");
             }
         }
 
@@ -92,7 +89,7 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             // For debug, print out the snapshot and server states
             PrintSnapshot(conn);
 
-            Assert.NotNull(conn.SelectServer(Message.Create(-1, CommandFlags.None, RedisCommand.PING)));
+            Assert.NotNull(conn.SelectServer(RedisCommand.PING, CommandFlags.None, default(RedisKey)));
 
             // We should see none queued
             Assert.Equal(0, stats.BacklogMessagesPending);
@@ -332,23 +329,17 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             await db.PingAsync();
 
             RedisKey meKey = Me();
-            var getMsg = Message.Create(0, CommandFlags.None, RedisCommand.GET, meKey);
-
-            ServerEndPoint? server = null; // Get the server specifically for this message's hash slot
-            await UntilConditionAsync(TimeSpan.FromSeconds(10), () => (server = conn.SelectServer(getMsg)) != null);
+            ServerEndPoint? server = null; // Get the server specifically for this key's hash slot
+            await UntilConditionAsync(TimeSpan.FromSeconds(10), () => (server = conn.SelectServer(RedisCommand.GET, CommandFlags.None, meKey)) != null);
 
             Assert.NotNull(server);
             Assert.SkipUnless(server.CanSimulateConnectionFailure, "Skipping because server cannot simulate connection failure");
             var stats = server.GetBridgeStatus(ConnectionType.Interactive);
             Assert.Equal(0, stats.BacklogMessagesPending); // Everything's normal
 
+            // pinned to that server, as the backlog under test is per-endpoint
             static Task<TimeSpan> PingAsync(ServerEndPoint server, CommandFlags flags = CommandFlags.None)
-            {
-                var message = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
-
-                server.Multiplexer.CheckMessage(message);
-                return server.Multiplexer.ExecuteAsyncImpl(message, ResultProcessor.ResponseTimer, null, server);
-            }
+                => server.GetRedisServer(null).PingAsync(flags);
 
             // Fail the connection
             Log("Test: Simulating failure");

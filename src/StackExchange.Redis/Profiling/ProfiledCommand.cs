@@ -13,11 +13,11 @@ namespace StackExchange.Redis.Profiling
 
         public EndPoint EndPoint => Server.EndPoint;
 
-        public int Db => Message?.Db ?? _db;
+        public int Db => _db;
 
-        public string Command => Message?.CommandString ?? _command;
+        public string Command => _command;
 
-        public CommandFlags Flags => Message?.Flags ?? _flags;
+        public CommandFlags Flags => _flags;
 
         public DateTime CommandCreated { get; private set; }
 
@@ -43,9 +43,7 @@ namespace StackExchange.Redis.Profiling
 
         public ProfiledCommand? NextElement { get; set; }
 
-        private Message? Message;
-
-        // the second door: populated by SetOperation when there is no Message to read from
+        // populated by SetOperation, from the operation's own diagnostics
         private int _db;
         private string _command = "";
         private CommandFlags _flags;
@@ -78,21 +76,7 @@ namespace StackExchange.Redis.Profiling
             return new ProfiledCommand(resentFor.PushToWhenFinished, server, resentFor, isMoved ? RetransmissionReasonType.Moved : RetransmissionReasonType.Ask);
         }
 
-        [MemberNotNull(nameof(Message))]
-        public void SetMessage(Message msg)
-        {
-            // This method should never be called twice
-            if (Message is not null)
-            {
-                throw new InvalidOperationException($"{nameof(SetMessage)} called more than once");
-            }
-
-            Message = msg;
-            CommandCreated = msg.CreatedDateTime;
-            MessageCreatedTimeStamp = msg.CreatedTimestamp;
-        }
-
-        /// <summary>Populate from an operation on the new core, which has no <see cref="Message"/>.</summary>
+        /// <summary>Populate from an operation on the new core, which has no <c>Message</c>.</summary>
         /// <param name="command">The command that was sent.</param>
         /// <param name="flags">Its flags.</param>
         /// <param name="db">The database it ran against.</param>

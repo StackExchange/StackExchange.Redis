@@ -118,7 +118,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
 
             var server = GetServer(conn);
             conn.AllowConnect = false;
-            var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+            var msg = new FakeFault(RedisCommand.PING, "PING");
             var rawEx = ExceptionFactory.Timeout(conn.UnderlyingMultiplexer, "Test Timeout", msg, new ServerEndPoint(conn.UnderlyingMultiplexer, server.EndPoint, ServerProvenance.Configured));
             var ex = Assert.IsType<RedisTimeoutException>(rawEx);
             Log("Exception: " + ex.Message);
@@ -206,7 +206,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
                 options.IncludeDetailInExceptions = hasDetail;
                 options.IncludePerformanceCountersInExceptions = hasDetail;
 
-                var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+                var msg = new FakeFault(RedisCommand.PING, "PING");
                 var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, new ServerEndPoint(conn, server.EndPoint, ServerProvenance.Configured));
                 var ex = Assert.IsType<RedisConnectionException>(rawEx);
                 Log("Exception: " + ex.Message);
@@ -260,8 +260,8 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
     {
         await using var conn = await ConnectionMultiplexer.ConnectAsync(TestConfig.Current.ReplicaServerAndPort, Writer);
 
-        var msg = Message.Create(0, CommandFlags.None, RedisCommand.SET, (RedisKey)Me(), (RedisValue)"test");
-        Assert.True(msg.IsPrimaryOnly());
+        var msg = new FakeFault(RedisCommand.SET, "SET " + Me());
+        Assert.True(msg.Command.IsPrimaryOnly());
         var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, null);
         var ex = Assert.IsType<RedisConnectionException>(rawEx);
         Log("Exception: " + ex.Message);
@@ -270,26 +270,17 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
         Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available to service this operation: SET", ex.Message);
     }
 
-    [Theory]
-    [InlineData(true, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET myKey (StringProcessor), my annotation")]
-    [InlineData(true, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET myKey (StringProcessor), my annotation")]
-    [InlineData(false, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET (StringProcessor), my annotation")]
-    [InlineData(false, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET (StringProcessor), my annotation")]
-    public async Task MessageFail(bool includeDetail, ConnectionFailureType failType, string messageStart)
+    /// <summary>The least that describes a command to the exception factory.</summary>
+    private sealed class FakeFault(RedisCommand command, string commandAndKey) : IFaultSubject
     {
-        await using var conn = Create(shared: false);
-
-        conn.RawConfig.IncludeDetailInExceptions = includeDetail;
-
-        var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"myKey");
-        var resultBox = SimpleResultBox<string>.Create();
-        message.SetSource(ResultProcessor.String, resultBox);
-
-        message.Fail(failType, null, "my annotation", conn.UnderlyingMultiplexer);
-
-        resultBox.GetResult(out var ex);
-        Assert.NotNull(ex);
-
-        Assert.StartsWith(messageStart, ex.Message);
+        public string CommandAndKey => commandAndKey;
+        public string CommandString => command.ToString();
+        public RedisCommand Command => command;
+        public CommandFlags Flags => CommandFlags.None;
+        public CommandStatus Status => CommandStatus.WaitingToBeSent;
+        public bool IsBacklogged => false;
+        public bool IsAsync => true;
+        public bool IsForSubscriptionBridge => false;
+        public int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => ServerSelectionStrategy.NoSlot;
     }
 }

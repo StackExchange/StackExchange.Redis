@@ -173,8 +173,8 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
 
         foreach (var server in conn.GetServerSnapshot())
         {
-            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.InteractiveConnectionState);
-            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.SubscriptionConnectionState);
+            Assert.Equal(BridgeState.ConnectedEstablished, server.InteractiveConnectionState);
+            Assert.Equal(BridgeState.ConnectedEstablished, server.SubscriptionConnectionState);
         }
     }
 }

@@ -19,7 +19,7 @@ public partial class ConnectionMultiplexer
 
     /// <summary>
     /// Test seam: invoked immediately before a failed write attempts to tear the connection down.
-    /// Lets tests simulate the case that motivated <see cref="PhysicalConnection.PoisonWrite"/> - an
+    /// Lets tests simulate the case that motivated <c>PhysicalConnection.PoisonWrite</c> - an
     /// OutOfMemoryException landing in the failure path itself, so teardown never completes (#2919).
     /// </summary>
     internal volatile Action? BeforeWriteTeardown;

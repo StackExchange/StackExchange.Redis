@@ -290,12 +290,12 @@ namespace StackExchange.Redis
 
                 var span = bytes.AsSpan(offset, respLength);
                 span[0] = (byte)'$';
-                int payloadOffset = MessageWriter.WriteRaw(span, payloadLength, offset: 1);
+                int payloadOffset = RespWire.WriteRaw(span, payloadLength, offset: 1);
                 var payload = span.Slice(payloadOffset, payloadLength);
                 int written = Encoding.ASCII.GetBytes(value.AsSpan(), payload);
                 if (written != payloadLength) ThrowAsciiEncodeLengthCheckFailure();
                 AsciiHash.ToUpper(payload);
-                MessageWriter.WriteCrlf(span, payloadOffset + payloadLength);
+                RespWire.WriteCrlf(span, payloadOffset + payloadLength);
                 offset += respLength;
             }
             return new CommandMap(map, bytes);

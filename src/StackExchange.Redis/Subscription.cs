@@ -20,7 +20,6 @@ public partial class ConnectionMultiplexer
         private readonly object _handlersLock = new();
         private ChannelMessageQueue? _queues;
         public CommandFlags Flags { get; }
-        public ResultProcessor.TrackSubscriptionsProcessor Processor { get; }
 
         internal abstract bool IsConnectedAny();
         internal abstract bool IsConnectedTo(EndPoint endpoint);
@@ -78,7 +77,6 @@ public partial class ConnectionMultiplexer
         public Subscription(CommandFlags flags)
         {
             Flags = flags;
-            Processor = new ResultProcessor.TrackSubscriptionsProcessor(this);
         }
 
         /// <summary>The server a subscription command for this channel goes to - the route the shipped message took.</summary>
@@ -95,54 +93,6 @@ public partial class ConnectionMultiplexer
                 ? strategy.HashSlot(channel)
                 : ServerSelectionStrategy.NoSlot;
             return strategy.Select(slot, PubSub.SubscribeCommand(channel, action == SubscriptionAction.Subscribe), Flags | flags, allowDisconnected: false);
-        }
-
-        /// <summary>
-        /// Gets the configured (P)SUBSCRIBE or (P)UNSUBSCRIBE <see cref="Message"/> for an action.
-        /// </summary>
-        internal Message GetSubscriptionMessage(
-            in RedisChannel channel,
-            SubscriptionAction action,
-            CommandFlags flags,
-            bool internalCall)
-        {
-            const RedisChannel.RedisChannelOptions OPTIONS_MASK = ~(
-                RedisChannel.RedisChannelOptions.KeyRouted | RedisChannel.RedisChannelOptions.IgnoreChannelPrefix);
-            var command =
-                action switch // note that the Routed flag doesn't impact the message here - just the routing
-                {
-                    SubscriptionAction.Subscribe => (channel.Options & OPTIONS_MASK) switch
-                    {
-                        RedisChannel.RedisChannelOptions.None => RedisCommand.SUBSCRIBE,
-                        RedisChannel.RedisChannelOptions.MultiNode => RedisCommand.SUBSCRIBE,
-                        RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PSUBSCRIBE,
-                        RedisChannel.RedisChannelOptions.Pattern | RedisChannel.RedisChannelOptions.MultiNode =>
-                            RedisCommand.PSUBSCRIBE,
-                        RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SSUBSCRIBE,
-                        _ => Unknown(action, channel.Options),
-                    },
-                    SubscriptionAction.Unsubscribe => (channel.Options & OPTIONS_MASK) switch
-                    {
-                        RedisChannel.RedisChannelOptions.None => RedisCommand.UNSUBSCRIBE,
-                        RedisChannel.RedisChannelOptions.MultiNode => RedisCommand.UNSUBSCRIBE,
-                        RedisChannel.RedisChannelOptions.Pattern => RedisCommand.PUNSUBSCRIBE,
-                        RedisChannel.RedisChannelOptions.Pattern | RedisChannel.RedisChannelOptions.MultiNode =>
-                            RedisCommand.PUNSUBSCRIBE,
-                        RedisChannel.RedisChannelOptions.Sharded => RedisCommand.SUNSUBSCRIBE,
-                        _ => Unknown(action, channel.Options),
-                    },
-                    _ => Unknown(action, channel.Options),
-                };
-
-            // TODO: Consider flags here - we need to pass Fire and Forget, but don't want to intermingle Primary/Replica
-            var msg = Message.Create(-1, Flags | flags, command, channel);
-            msg.SetForSubscriptionBridge();
-            if (internalCall)
-            {
-                msg.SetInternalCall();
-            }
-
-            return msg;
         }
 
         private RedisCommand Unknown(SubscriptionAction action, RedisChannel.RedisChannelOptions options)

@@ -75,7 +75,7 @@ public class RespAggregateTimingTests(ITestOutputHelper log)
             {
                 var reader = new RespReader(reply);
                 reader.MoveNext();
-                var entries = ResultProcessor.ParseRedisStreamEntries(ref reader, RedisProtocol.Resp2);
+                var entries = RespParsers.ParseRedisStreamEntries(ref reader, RedisProtocol.Resp2);
                 var total = 0;
                 foreach (var entry in entries)
                 {

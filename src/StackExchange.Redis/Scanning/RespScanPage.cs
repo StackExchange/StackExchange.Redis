@@ -104,7 +104,7 @@ internal sealed class RespScanPageHandler<T>(RespReader.Projection<T> projection
 /// <c>ValuePairInterleavedProcessorBase</c> the classic path uses, which is also what handles RESP3
 /// turning some of these replies jagged.
 /// </remarks>
-internal sealed class RespScanPagePairHandler<T>(ResultProcessor.ValuePairInterleavedProcessorBase<T> shape) : IRespHandler<RespScanPage<T>>
+internal sealed class RespScanPagePairHandler<T>(RespParsers.PairParser<T> shape) : IRespHandler<RespScanPage<T>>
 {
     public RespScanPage<T> Parse(ref RespReader reader)
     {

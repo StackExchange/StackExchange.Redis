@@ -91,7 +91,7 @@ public abstract partial class VectorSetSimilaritySearchRequest
 
     private sealed partial class VectorSetSimilarityVectorSingleSearchRequest
     {
-        private bool Fp32 => UseFp32 & VectorSetAddMessage.CanUseFp32;
+        private bool Fp32 => UseFp32 & VectorSetAddRequest.CanUseFp32;
 
         private protected override int SearchTargetArgCount => Fp32 ? 2 : 2 + _vector.Length;
 

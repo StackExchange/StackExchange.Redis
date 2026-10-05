@@ -95,16 +95,6 @@ internal sealed partial class ServerEndPoint
         return ToLiteral(configured);
     }
 
-    /// <summary>
-    /// The wire value for the configured <c>moving-endpoint-type</c>, or null to send no preference.
-    /// </summary>
-    private RedisValue MaintenanceMovingEndpointTypeLiteral(PhysicalConnection connection)
-        // classify the address we actually reached, not the endpoint we dialled - the latter is usually a
-        // name, and where it resolved to is what decides whether we are inside the deployment's network
-        => MaintenanceMovingEndpointTypeLiteral(
-            (connection.VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address,
-            connection.IsEncrypted);
-
     private static RedisValue ToLiteral(MaintenanceEndpointType type) => type switch
     {
         MaintenanceEndpointType.InternalIp => RedisLiterals.internal_ip,
@@ -123,8 +113,7 @@ internal sealed partial class ServerEndPoint
     /// only the *refusal* was logged, which meant a working feature left no trace and could only be inferred
     /// from the absence of a complaint - and that is indistinguishable from never having asked.
     /// </remarks>
-    /// <param name="connection">Which connection opted in; unused, and nullable so the other core can report.</param>
-    internal void OnMaintenanceNotificationsAccepted(PhysicalConnection? connection)
+    internal void OnMaintenanceNotificationsAccepted()
     {
         _maintenanceNotificationsActive = true;
         Multiplexer.Logger?.LogInformationMaintenanceNotificationsAccepted(new(this));
@@ -134,9 +123,8 @@ internal sealed partial class ServerEndPoint
     /// The server declined our request. Recorded rather than acted on: whether that matters is a question for
     /// <see cref="ReconcileMaintenanceNotifications(RedisProtocol)"/>, which sees the negotiated protocol too.
     /// </summary>
-    /// <param name="connection">Which connection was refused; unused, and nullable so the other core can report.</param>
     /// <param name="reason">What the server said.</param>
-    internal void OnMaintenanceNotificationsRefused(PhysicalConnection? connection, string reason)
+    internal void OnMaintenanceNotificationsRefused(string reason)
     {
         _maintenanceNotificationsActive = false;
         _maintenanceNotificationsRefusal = reason;
@@ -145,22 +133,6 @@ internal sealed partial class ServerEndPoint
         // in any normal build, so for as long as it was the only report of a refusal, the reason a server
         // declined was invisible to everybody who was not debugging the parser.
         Multiplexer.Logger?.LogInformationMaintenanceNotificationsRefused(new(this), reason);
-    }
-
-    /// <summary>
-    /// Settles the feature for this connection now that the handshake is complete and the protocol is known.
-    /// </summary>
-    /// <remarks>
-    /// The opt-in reply precedes the tracer on the same pipelined connection, so by the time this runs every
-    /// fact is in: whether we asked, what the server said, and what protocol we ended up on.
-    /// </remarks>
-    private void ReconcileMaintenanceNotifications(PhysicalConnection connection)
-    {
-        if (ReconcileMaintenanceNotifications(connection.Protocol ?? RedisProtocol.Resp2) is not { } reason) return;
-
-        connection.RecordConnectionFailed(
-            ConnectionFailureType.ProtocolFailure,
-            new RedisConnectionException(ConnectionFailureType.ProtocolFailure, CommandFlags.None, reason, innerException: null));
     }
 
     /// <summary>Settle the feature now the protocol is known, and say why it cannot be honoured.</summary>
@@ -550,12 +522,8 @@ internal sealed partial class ServerEndPoint
         }
 
         var drained = !HasCallerWork();
-        // every core's connections to this endpoint, not just the bridges: the handoff exists to stop
-        // using a connection before the server closes it, and recycling only the idle ones would leave
-        // the connection actually carrying commands to be cut mid-flight
-        var recycled = (interactive?.RecycleConnection(reason) == true)
-            | (subscription?.RecycleConnection(reason) == true)
-            | (Multiplexer.NewCoreIfCreated?.RecycleConnections(EndPoint) == true);
+        // the handoff exists to stop using a connection before the server closes it
+        var recycled = Multiplexer.NewCoreIfCreated?.RecycleConnections(EndPoint) == true;
         if (recycled) Interlocked.Increment(ref _handoffRecycles);
         Multiplexer.Trace(
             $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
@@ -821,7 +789,7 @@ internal sealed partial class ServerEndPoint
     /// </summary>
     /// <remarks>
     /// Mostly belt-and-braces: a server that migrates a slot also sends an unsolicited <c>SUNSUBSCRIBE</c>,
-    /// and <see cref="PhysicalConnection.OnOutOfBand"/> already resubscribes on that. This adds two things.
+    /// and <c>PhysicalConnection.OnOutOfBand</c> already resubscribes on that. This adds two things.
     /// It is *pre-emptive* where <c>SMIGRATED</c> arrives first, and it *covers* the case where the
     /// unsolicited unsubscribe never arrives or is lost - in which case the only other signal is a message
     /// that silently stops being delivered, which nothing detects.

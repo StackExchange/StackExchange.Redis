@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -157,7 +157,7 @@ internal static class SentinelCommands
         internal static readonly PairsHandler Instance = new();
 
         public KeyValuePair<string, string>[] Parse(ref RespReader reader)
-            => ResultProcessor.StringPairs.ParseArray(
+            => RespParsers.StringPairs.ParseArray(
                 ref reader, allowJagged: true, allowOversized: false, out _, state: null) ?? [];
     }
 

@@ -763,13 +763,13 @@ namespace StackExchange.Redis
                         .ConfigureAwait(false);
                 }
 
-                server.OnMaintenanceNotificationsAccepted(null);
+                server.OnMaintenanceNotificationsAccepted();
             }
             catch (RedisServerException ex)
             {
                 // the server does not offer it, or will not right now; whether THAT is a fault is the
                 // reconcile's decision, not this one's
-                server.OnMaintenanceNotificationsRefused(null, ex.Message);
+                server.OnMaintenanceNotificationsRefused(ex.Message);
             }
 
             Reconcile(server, connected.Protocol);

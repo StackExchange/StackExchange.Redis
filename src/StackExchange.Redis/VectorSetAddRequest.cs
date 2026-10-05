@@ -55,9 +55,6 @@ public abstract partial class VectorSetAddRequest
     /// </summary>
     public int? MaxConnections { get; set; }
 
-    // snapshot the values; I don't trust people not to mutate the object behind my back
-    internal abstract VectorSetAddMessage ToMessage(RedisKey key, int db, CommandFlags flags);
-
     private sealed partial class VectorSetAddMemberRequest(
         RedisValue element,
         ReadOnlyMemory<float> values,
@@ -69,20 +66,5 @@ public abstract partial class VectorSetAddRequest
         private readonly RedisValue _element = element;
         private readonly ReadOnlyMemory<float> _values = values;
         private readonly string? _attributesJson = attributesJson;
-
-        internal override VectorSetAddMessage ToMessage(RedisKey key, int db, CommandFlags flags)
-            => new VectorSetAddMessage.VectorSetAddMemberMessage(
-                db,
-                flags,
-                key,
-                ReducedDimensions,
-                Quantization,
-                BuildExplorationFactor,
-                MaxConnections,
-                UseCheckAndSet,
-                _element,
-                _values,
-                _attributesJson,
-                UseFp32);
     }
 }

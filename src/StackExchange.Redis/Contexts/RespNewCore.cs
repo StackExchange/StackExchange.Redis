@@ -250,6 +250,7 @@ namespace StackExchange.Redis
         {
             HeartbeatDriven = true,
             Owner = _multiplexer,
+            Rebind = Rebind,
         };
 
         /// <summary>
@@ -1936,7 +1937,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <inheritdoc cref="BacklogCount" path="/remarks"/>
         /// </remarks>
-        internal PhysicalBridge.BridgeStatus? ConnectionStatus(EndPoint endpoint, ConnectionType connectionType)
+        internal BridgeStatus? ConnectionStatus(EndPoint endpoint, ConnectionType connectionType)
         {
             var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
             return endpoint is not null && map.TryGetValue(endpoint, out var executor) ? executor.GetStatus() : null;

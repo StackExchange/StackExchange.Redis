@@ -371,12 +371,10 @@ namespace StackExchange.Redis
 
         internal abstract void CheckCommands(CommandMap commandMap);
 
-        internal abstract IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox);
-
         /// <summary>The key this condition watches.</summary>
         /// <remarks>
         /// Every condition watches exactly one key, and always its own - which is why the <c>WATCH</c>
-        /// half of <see cref="CreateMessages"/> is identical in all seven implementations. Naming the key
+        /// half of <c>CreateMessages</c> is identical in all seven implementations. Naming the key
         /// rather than re-deriving the message lets the new core render it once.
         /// </remarks>
         internal abstract RedisKey WatchKey { get; }
@@ -384,7 +382,7 @@ namespace StackExchange.Redis
         /// <summary>Render the <b>check</b> command - the half whose reply <see cref="TryValidate"/> reads.</summary>
         /// <param name="context">The context to render through.</param>
         /// <remarks>
-        /// The new-core twin of <see cref="CreateMessages"/>'s second yield, and deliberately a separate
+        /// The new-core twin of <c>CreateMessages</c>'s second yield, and deliberately a separate
         /// member rather than a translation of the first: a <c>Message</c> carries a database, flags and a
         /// result box that a rendered frame has no use for, and going through one to get bytes back out
         /// would be a round trip through the very type the core replacement is removing. When
@@ -395,89 +393,6 @@ namespace StackExchange.Redis
         internal abstract int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy);
 
         internal abstract bool TryValidate(ref RespReader reader, out bool value);
-
-        internal sealed class ConditionProcessor : ResultProcessor<bool>
-        {
-            public static readonly ConditionProcessor Default = new();
-
-            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue value = default) =>
-                new ConditionMessage(condition, db, flags, command, key, value);
-
-            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1) =>
-                new ConditionMessage(condition, db, flags, command, key, value, value1);
-
-            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) =>
-                new ConditionMessage(condition, db, flags, command, key, value, value1, value2, value3, value4);
-
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
-            {
-                connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{reader.GetOverview()}'");
-                var msg = message as ConditionMessage;
-                var condition = msg?.Condition;
-                if (condition != null && condition.TryValidate(ref reader, out bool final))
-                {
-                    SetResult(message, final);
-                    return true;
-                }
-                return false;
-            }
-
-            private sealed class ConditionMessage : Message.CommandKeyBase
-            {
-                public readonly Condition Condition;
-                private readonly RedisValue value;
-                private readonly RedisValue value1;
-                private readonly RedisValue value2;
-                private readonly RedisValue value3;
-                private readonly RedisValue value4;
-
-                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value)
-                    : base(db, flags, command, key)
-                {
-                    Condition = condition;
-                    this.value = value; // note no assert here
-                }
-
-                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1)
-                    : this(condition, db, flags, command, key, value)
-                {
-                    this.value1 = value1; // note no assert here
-                }
-
-                // Message with 3 or 4 values not used, therefore not implemented
-                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4)
-                    : this(condition, db, flags, command, key, value, value1)
-                {
-                    this.value2 = value2; // note no assert here
-                    this.value3 = value3; // note no assert here
-                    this.value4 = value4; // note no assert here
-                }
-
-                protected override void WriteImpl(in MessageWriter writer)
-                {
-                    if (value.IsNull)
-                    {
-                        writer.WriteHeader(command, 1);
-                        writer.Write(Key);
-                    }
-                    else
-                    {
-                        writer.WriteHeader(command, value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6);
-                        writer.Write(Key);
-                        writer.WriteBulkString(value);
-                        if (!value1.IsNull)
-                            writer.WriteBulkString(value1);
-                        if (!value2.IsNull)
-                            writer.WriteBulkString(value2);
-                        if (!value3.IsNull)
-                            writer.WriteBulkString(value3);
-                        if (!value4.IsNull)
-                            writer.WriteBulkString(value4);
-                    }
-                }
-                public override int ArgCount => value.IsNull ? 1 : value1.IsNull ? 2 : value2.IsNull ? 3 : value3.IsNull ? 4 : value4.IsNull ? 5 : 6;
-            }
-        }
 
         internal sealed class ExistsCondition : Condition
         {
@@ -520,15 +435,6 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
-            {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
-
-                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key, expectedValue);
-                message.SetSource(ConditionProcessor.Default, resultBox);
-                yield return message;
-            }
-
             internal override RedisKey WatchKey => key;
 
             internal override RespRequestFrame RenderCheck(RespContext context) => expectedValue.IsNull
@@ -550,7 +456,7 @@ namespace StackExchange.Redis
 
                     default:
                         // EXISTS, HEXISTS, SISMEMBER return integer 0 or 1
-                        if (ResultProcessor.DemandZeroOrOneProcessor.TryGet(ref reader, out bool parsed))
+                        if (RespParsers.TryParseZeroOrOne(ref reader, out bool parsed))
                         {
                             value = parsed == expectedResult;
                             ConnectionMultiplexer.TraceWithoutContext("exists: " + parsed + "; expected: " + expectedResult + "; voting: " + value);
@@ -588,29 +494,6 @@ namespace StackExchange.Redis
                 $"{key} {nameof(RedisType.SortedSet)} > {(expectedResult ? " member starting " : " no member starting ")} {prefix} + prefix";
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZRANGEBYLEX);
-
-            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
-            {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
-
-                // prepend '[' to prefix for inclusive search
-                var startValueWithToken = SortedSets.LexBound(prefix, Exclude.None, isStart: true, Order.Ascending);
-
-                var message = ConditionProcessor.CreateMessage(
-                    this,
-                    db,
-                    CommandFlags.None,
-                    RedisCommand.ZRANGEBYLEX,
-                    key,
-                    startValueWithToken,
-                    RedisLiterals.PlusSymbol,
-                    RedisLiterals.LIMIT,
-                    0,
-                    1);
-
-                message.SetSource(ConditionProcessor.Default, resultBox);
-                yield return message;
-            }
 
             internal override RedisKey WatchKey => key;
 
@@ -683,15 +566,6 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
-            {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
-
-                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key, memberName);
-                message.SetSource(ConditionProcessor.Default, resultBox);
-                yield return message;
-            }
-
             internal override RedisKey WatchKey => key;
 
             internal override RespRequestFrame RenderCheck(RespContext context) => memberName.IsNull
@@ -761,15 +635,6 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.LINDEX);
 
-            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
-            {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
-
-                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.LINDEX, key, index);
-                message.SetSource(ConditionProcessor.Default, resultBox);
-                yield return message;
-            }
-
             internal override RedisKey WatchKey => key;
 
             internal override RespRequestFrame RenderCheck(RespContext context)
@@ -837,15 +702,6 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
-            {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
-
-                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key);
-                message.SetSource(ConditionProcessor.Default, resultBox);
-                yield return message;
-            }
-
             internal override RedisKey WatchKey => key;
 
             internal override RespRequestFrame RenderCheck(RespContext context) => context.Render($"{cmd}{key}");
@@ -894,15 +750,6 @@ namespace StackExchange.Redis
             private string GetComparisonString() => compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
-
-            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
-            {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
-
-                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.ZCOUNT, key, min, max);
-                message.SetSource(ConditionProcessor.Default, resultBox);
-                yield return message;
-            }
 
             internal override RedisKey WatchKey => key;
 
@@ -954,16 +801,6 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
 
-            internal override IEnumerable<Message> CreateMessages(int db, IResultBox? resultBox)
-            {
-                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
-
-                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.ZCOUNT, key, sortedSetScore, sortedSetScore);
-                message.SetSource(ConditionProcessor.Default, resultBox);
-
-                yield return message;
-            }
-
             internal override RedisKey WatchKey => key;
 
             internal override RespRequestFrame RenderCheck(RespContext context)
@@ -1008,8 +845,6 @@ namespace StackExchange.Redis
         /// Indicates whether the condition was satisfied.
         /// </summary>
         public bool WasSatisfied => wasSatisfied;
-
-        internal IEnumerable<Message> CreateMessages(int db) => Condition.CreateMessages(db, resultBox);
 
         internal IResultBox<bool>? GetBox() => resultBox;
 

@@ -8,8 +8,6 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class CommandTrace
     {
-        internal static readonly ResultProcessor<CommandTrace[]> Processor = new CommandTraceProcessor();
-
         internal CommandTrace(long uniqueId, long time, long duration, RedisValue[] arguments)
         {
             UniqueId = uniqueId;
@@ -102,17 +100,6 @@ namespace StackExchange.Redis
                     }
                 }
                 return result;
-            }
-        }
-
-        private sealed class CommandTraceProcessor : ResultProcessor<CommandTrace[]>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
-            {
-                if (ParseArray(ref reader) is not { } arr) return false;
-
-                SetResult(message, arr);
-                return true;
             }
         }
     }

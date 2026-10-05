@@ -55,17 +55,9 @@ namespace StackExchange.Redis
 
         IConnectionMultiplexer IRedisAsync.Multiplexer => multiplexer;
 
-        public virtual TimeSpan Ping(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetTimerMessage(flags);
-            return ExecuteSync(msg, ResultProcessor.ResponseTimer);
-        }
+        public abstract TimeSpan Ping(CommandFlags flags = CommandFlags.None);
 
-        public virtual Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetTimerMessage(flags);
-            return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
-        }
+        public abstract Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None);
 
         public override string ToString() => multiplexer.ToString();
 
@@ -80,28 +72,6 @@ namespace StackExchange.Redis
 
         public void WaitAll(params Task[] tasks) => multiplexer.WaitAll(tasks);
         #pragma warning restore SER308
-
-        internal virtual Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
-        {
-            if (message is null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
-            multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue);
-        }
-
-        internal virtual Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null)
-        {
-            if (message is null) return CompletedTask<T>.Default(asyncState);
-            multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server);
-        }
-
-        [return: NotNullIfNotNull("defaultValue")]
-        internal virtual T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default)
-        {
-            if (message is null) return defaultValue; // no-op
-            multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteSyncImpl<T>(message, processor, server, defaultValue);
-        }
 
         internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, RedisCommand command, out ServerEndPoint? server)
         {
@@ -145,21 +115,6 @@ namespace StackExchange.Redis
                 default:
                     throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always, NotExists");
             }
-        }
-
-        private ResultProcessor.TimingProcessor.TimerMessage GetTimerMessage(CommandFlags flags)
-        {
-            // do the best we can with available commands
-            var map = multiplexer.CommandMap;
-            if (map.IsAvailable(RedisCommand.PING))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
-            if (map.IsAvailable(RedisCommand.TIME))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
-            if (map.IsAvailable(RedisCommand.ECHO))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
-            // as our fallback, we'll do something odd... we'll treat a key like a value, out of sheer desperation
-            // note: this usually means: twemproxy/envoyproxy - in which case we're fine anyway, since the proxy does the routing
-            return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
         }
 
         internal static class CursorUtils

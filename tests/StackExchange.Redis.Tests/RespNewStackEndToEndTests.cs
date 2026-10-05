@@ -439,27 +439,6 @@ public class RespNewStackEndToEndTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task TheMessageShimStillRefusesACancellableToken()
-    {
-        // the capability is per-executor, and the shim's answer is still no - honestly so, because the
-        // classic pipeline cannot withdraw a request that has reached the socket
-        await using var conn = ConnectionMultiplexer.Connect(TestConfig.Current.PrimaryServerAndPort);
-        var context = conn.GetDatabase().Context;
-
-        // ...and under the engine flag the database is NOT the shim, so there is no shim here to refuse
-        // anything. Skipped rather than relaxed: the claim is about what the Message pipeline can promise,
-        // and it stays true where that pipeline is what runs the command.
-        if (context.Raw.Executor is not RespMessageExecutor)
-        {
-            Assert.Skip("requires the Message shim; with the new core as the engine, this context can cancel");
-        }
-
-        using var cts = new CancellationTokenSource();
-        await Assert.ThrowsAsync<NotImplementedException>(
-            async () => await context.Strings.GetAsync(Me(), cancellationToken: cts.Token));
-    }
-
-    [Fact]
     public async Task ATransactionRunsAtomicallyAgainstARealServer()
     {
         // the fake-transport tests prove the shape against replies I wrote; this proves it against the

@@ -1178,7 +1178,7 @@ public static partial class SortedSets
             cancellationToken);
     }
 
-    private static readonly RespScanPagePairHandler<SortedSetEntry> SortedSetScanHandler = new(ResultProcessor.SortedSetWithScores);
+    private static readonly RespScanPagePairHandler<SortedSetEntry> SortedSetScanHandler = new(new RespParsers.SortedSetEntryPairs());
 
     // Moved off RedisDatabase, where these used to sit as internal statics. They are pure functions
     // about how this family of commands is spelled - they never touched a database - so parking them

@@ -257,7 +257,7 @@ public class RespRangeReplyTests
             var frame = Encoding.UTF8.GetBytes(Wire("*2|*2|$1|f|$1|v|*2|$1|g|$1|w|"));
             var reader = new RespReader(frame);
             reader.MoveNext();
-            return ResultProcessor.ParseStreamEntryValues(ref reader, ResultProcessor.AllowJaggedStreamFields(protocol));
+            return RespParsers.ParseStreamEntryValues(ref reader, RespParsers.AllowJaggedStreamFields(protocol));
         }
 
         var permitted = Parse(RedisProtocol.Resp3);
@@ -284,7 +284,7 @@ public class RespRangeReplyTests
         var reader = new RespReader(frame);
         reader.MoveNext();
 
-        var fields = ResultProcessor.ParseStreamEntryValues(ref reader, ResultProcessor.AllowJaggedStreamFields(protocol));
+        var fields = RespParsers.ParseStreamEntryValues(ref reader, RespParsers.AllowJaggedStreamFields(protocol));
 
         Assert.Equal(2, fields.Length);
         Assert.Equal("f", fields[0].Name);

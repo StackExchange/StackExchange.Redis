@@ -1007,8 +1007,8 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         foreach (var server in conn.GetServerSnapshot())
         {
-            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.InteractiveConnectionState);
-            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.SubscriptionConnectionState);
+            Assert.Equal(BridgeState.ConnectedEstablished, server.InteractiveConnectionState);
+            Assert.Equal(BridgeState.ConnectedEstablished, server.SubscriptionConnectionState);
         }
     }
 

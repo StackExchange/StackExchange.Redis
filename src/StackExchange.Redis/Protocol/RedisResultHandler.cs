@@ -1,4 +1,4 @@
-using RESPite.Messages;
+﻿using RESPite.Messages;
 
 namespace StackExchange.Redis.Protocol;
 
@@ -24,7 +24,7 @@ internal sealed class RedisResultHandler : IRespHandler<RedisResult>
     private RedisResultHandler() { }
 
     public RedisResult Parse(ref RespReader reader)
-        => RedisResult.TryCreate(null, ref reader, out var value)
+        => RedisResult.TryCreate(ref reader, out var value)
             ? value
             : throw new System.InvalidOperationException("Unable to read the reply as a RedisResult.");
 }

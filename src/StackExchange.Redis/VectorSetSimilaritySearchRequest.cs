@@ -1,6 +1,5 @@
 ﻿using System;
 using System.ComponentModel;
-using VsimFlags = StackExchange.Redis.VectorSetSimilaritySearchMessage.VsimFlags;
 
 namespace StackExchange.Redis;
 
@@ -18,20 +17,6 @@ public abstract partial class VectorSetSimilaritySearchRequest
         // a named field rather than a captured parameter: the interpolated writer lives in the other half
         // of this type and needs to see it; see VectorSetSimilaritySearchRequest.Resp.cs
         private readonly RedisValue _member = member;
-
-        internal override VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags)
-            => new VectorSetSimilaritySearchMessage.VectorSetSimilaritySearchByMemberMessage(
-                db,
-                flags,
-                _vsimFlags,
-                key,
-                _member,
-                _count,
-                _epsilon,
-                _searchExplorationFactor,
-                _filterExpression,
-                _maxFilteringEffort,
-                UseFp32);
     }
 
     private sealed partial class VectorSetSimilarityVectorSingleSearchRequest(ReadOnlyMemory<float> vector)
@@ -39,26 +24,11 @@ public abstract partial class VectorSetSimilaritySearchRequest
     {
         /// <inheritdoc cref="VectorSetSimilarityByMemberSearchRequest._member"/>
         private readonly ReadOnlyMemory<float> _vector = vector;
-
-        internal override VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags)
-            => new VectorSetSimilaritySearchMessage.VectorSetSimilaritySearchBySingleVectorMessage(
-                db,
-                flags,
-                _vsimFlags,
-                key,
-                _vector,
-                _count,
-                _epsilon,
-                _searchExplorationFactor,
-                _filterExpression,
-                _maxFilteringEffort,
-                UseFp32);
     }
 
     internal bool UseFp32 { get; set; } = true; // for testing
 
     // snapshot the values; I don't trust people not to mutate the object behind my back
-    internal abstract VectorSetSimilaritySearchMessage ToMessage(RedisKey key, int db, CommandFlags flags);
 
     /// <summary>
     /// Create a request to search by an existing member in the index.
@@ -224,5 +194,21 @@ public abstract partial class VectorSetSimilaritySearchRequest
     {
         get => HasFlag(VsimFlags.DisableThreading);
         set => SetFlag(VsimFlags.DisableThreading, value);
+    }
+
+    /// <summary>Which optional clauses a search was given; moved here from the deleted message type that rendered them.</summary>
+    [Flags]
+    internal enum VsimFlags
+    {
+        None = 0,
+        Count = 1 << 0,
+        WithScores = 1 << 1,
+        WithAttributes = 1 << 2,
+        UseExactSearch = 1 << 3,
+        DisableThreading = 1 << 4,
+        Epsilon = 1 << 5,
+        SearchExplorationFactor = 1 << 6,
+        MaxFilteringEffort = 1 << 7,
+        FilterExpression = 1 << 8,
     }
 }

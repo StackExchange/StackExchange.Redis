@@ -8,8 +8,6 @@ namespace StackExchange.Redis;
 /// </summary>
 public readonly struct LatencyLatestEntry
 {
-    internal static readonly ResultProcessor<LatencyLatestEntry[]> ToArray = new Processor();
-
     /// <summary>One <c>LATENCY LATEST</c> element: the event, its last spike, and its worst.</summary>
     /// <param name="reader">Positioned on the element.</param>
     /// <param name="parsed">The entry.</param>
@@ -30,12 +28,6 @@ public readonly struct LatencyLatestEntry
         }
         parsed = default;
         return false;
-    }
-
-    private sealed class Processor : ArrayResultProcessor<LatencyLatestEntry>
-    {
-        protected override bool TryParse(ref RespReader reader, out LatencyLatestEntry parsed)
-            => TryParseEntry(ref reader, out parsed);
     }
 
     /// <summary>

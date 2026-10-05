@@ -661,21 +661,21 @@ public static partial class Diagnostics
         public bool Parse(ref RespReader reader)
         {
             var expected = _aof
-                ? ResultProcessor.Literals.background_aof_rewriting_started.Hash
-                : ResultProcessor.Literals.background_saving_started.Hash;
+                ? RespParsers.Literals.background_aof_rewriting_started.Hash
+                : RespParsers.Literals.background_saving_started.Hash;
 
-            return ResultProcessor.ScalarSays(ref reader, in expected, startsWith: true)
+            return RespParsers.ScalarSays(ref reader, in expected, startsWith: true)
                 ? true
                 : throw new RespException("The server did not report that a background save had started.");
         }
     }
 
-    /// <summary>Reads <c>ROLE</c>; see <see cref="ResultProcessor.ParseRole"/>.</summary>
+    /// <summary>Reads <c>ROLE</c>; see <c>ResultProcessor.ParseRole</c>.</summary>
     private sealed class RoleHandler : IRespHandler<Role?>
     {
         internal static readonly RoleHandler Instance = new();
 
-        public Role? Parse(ref RespReader reader) => ResultProcessor.ParseRole(ref reader);
+        public Role? Parse(ref RespReader reader) => RespParsers.ParseRole(ref reader);
     }
 
     /// <summary>Reads <c>CLIENT LIST</c>: one text block, one line per client.</summary>

@@ -51,7 +51,7 @@ internal partial class RedisServer
             .AsTask(asyncState, flags);
 
     /// <summary>
-    /// The arguments of <c>HOTKEYS START</c>, in the order and spelling <see cref="HotKeysStartMessage"/> writes them:
+    /// The arguments of <c>HOTKEYS START</c>, in the order and spelling <c>HotKeysStartMessage</c> writes them:
     /// <c>START METRICS n [CPU] [NET] [COUNT k] [DURATION s] [SAMPLE ratio] [SLOTS n slot...]</c>.
     /// </summary>
     private static RedisValue[] HotKeysStartArgs(HotKeysMetrics metrics, long count, TimeSpan duration, long sampleRatio, int[]? slots)

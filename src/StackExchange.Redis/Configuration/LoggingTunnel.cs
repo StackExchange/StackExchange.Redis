@@ -13,7 +13,6 @@ using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
 using RESPite.Transports;
-using static StackExchange.Redis.PhysicalConnection;
 
 namespace StackExchange.Redis.Configuration;
 
@@ -53,7 +52,7 @@ public abstract class LoggingTunnel : Tunnel
                     RedisResult? parsed;
                     if (withData)
                     {
-                        if (!RedisResult.TryCreate(null, ref reader, out parsed))
+                        if (!RedisResult.TryCreate(ref reader, out parsed))
                         {
                             ThrowInvalidReadStatus(OperationStatus.InvalidData);
                         }
@@ -87,7 +86,7 @@ public abstract class LoggingTunnel : Tunnel
                 const int MAX_TYPE_LEN = 16;
                 var span = reader.TryGetSpan(out var tmp)
                     ? tmp
-                    : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
+                    : RespParsers.StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
 
                 if (PushKindMetadata.TryParse(span, out var kind))
                 {

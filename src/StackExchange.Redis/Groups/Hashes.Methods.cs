@@ -1074,7 +1074,7 @@ public static partial class Hashes
             cancellationToken);
     }
 
-    private static readonly RespScanPagePairHandler<HashEntry> HashScanHandler = new(ResultProcessor.HashEntryArray);
+    private static readonly RespScanPagePairHandler<HashEntry> HashScanHandler = new(new RespParsers.HashEntryPairs());
 
     private static readonly RespScanPageHandler<RedisValue> ValueScanHandler
         = new(static (ref RespReader r) => r.ReadRedisValue());

@@ -215,28 +215,11 @@ public class MultiMessageInTransactionTests(ITestOutputHelper output, SharedConn
         await using var muxer = Create();
         var tran = muxer.GetDatabase().CreateTransaction();
 
-        if (ConnectionMultiplexer.NewCoreEngine)
-        {
-            // nothing is composed, so there is nothing to refuse: the script is queued like anything else
-            var script = tran.Scripts.EvaluateAsync("return 1", [], []);
-            Assert.False(script.IsCompleted, "SCRIPT-DEFERRED-OK");
-            Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
-            using var result = await script;
-            Assert.Equal("1", result.ReadScalar().ReadString());
-            return;
-        }
-
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(
-            async () => await tran.Scripts.EvaluateAsync("return 1", [], []));
-
-        Assert.Contains("not supported inside a transaction", ex.Message);
-        Assert.Contains("positional EXEC result array", ex.Message);
-
-        // and the ordinary single-frame command through the same context is unaffected - the refusal is
-        // about composing, not about the surface
-        var pending = tran.Strings.GetAsync(Me());
-        Assert.False(pending.IsCompleted, "DEFERRED-OK");
+        // nothing is composed, so there is nothing to refuse: the script is queued like anything else
+        var script = tran.Scripts.EvaluateAsync("return 1", [], []);
+        Assert.False(script.IsCompleted, "SCRIPT-DEFERRED-OK");
         Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
-        _ = await pending;
+        using var result = await script;
+        Assert.Equal("1", result.ReadScalar().ReadString());
     }
 }

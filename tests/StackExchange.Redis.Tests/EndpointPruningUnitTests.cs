@@ -180,7 +180,6 @@ public class EndpointPruningUnitTests(ITestOutputHelper log)
         var subscription = mux.GetOrAddSubscription(channel, CommandFlags.None);
         subscription.AddEndpoint(target);
 
-        Assert.Equal(0, target.GetBridge(ConnectionType.Subscription, create: false)?.SubscriptionCount ?? 0);
         Assert.False(target.IsIdle(), "a server carrying a subscription was reported idle");
 
         // and it stops protecting the server once the subscription lets go of it

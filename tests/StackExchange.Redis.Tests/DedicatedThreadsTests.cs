@@ -26,6 +26,9 @@ public class DedicatedThreadsTests(ITestOutputHelper output) : TestBase(output)
 {
     private const string Flag = "DedicatedThreads";
 
+    // a property rather than a constant, so the assertions below stay compiled for when it is
+    private static bool IsImplemented => false;
+
     /// <summary>Connect with the flag in a known state, and put it back afterwards.</summary>
     private async Task WithFlagAsync(bool enabled, Func<IInternalConnectionMultiplexer, EndPoint, Task> assert)
     {
@@ -33,7 +36,7 @@ public class DedicatedThreadsTests(ITestOutputHelper output) : TestBase(output)
         // used to pass by inspecting a shipped bridge that ISubscriber.Ping had built - and dialled - on the
         // side; with that gone there is no connection here for the flag to have applied to. A capability gap,
         // recorded in design/v4-alpha-plan.md, not something to assert around.
-        Assert.SkipWhen(ConnectionMultiplexer.NewCoreEngine, "DedicatedThreads is not yet implemented by the new core");
+        Assert.SkipUnless(IsImplemented, "DedicatedThreads is not yet implemented by the new core");
 
         var wasSet = ConnectionMultiplexer.GetFeatureFlag(Flag);
         ConnectionMultiplexer.SetFeatureFlag(Flag, enabled);
@@ -88,7 +91,7 @@ public class DedicatedThreadsTests(ITestOutputHelper output) : TestBase(output)
     public Task WithTheFlag_PubSubStaysOnTheThreadPool() => WithFlagAsync(true, (conn, endpoint) =>
     {
         var protocol = conn.GetServerEndPoint(endpoint).Protocol ?? RedisProtocol.Resp2;
-        if (protocol >= RedisProtocol.Resp3 || ConnectionMultiplexer.NewCoreEngine)
+        if (protocol >= RedisProtocol.Resp3)
         {
             // one connection carries both, so the subscription lookup is the interactive connection
             Assert.True(conn.IsSyncReader(endpoint, ConnectionType.Subscription));

@@ -40,24 +40,6 @@ public class InterpolatedWriterBenchmarks
     // ---- SET key value -----------------------------------------------------------------------------
 
     [BenchmarkCategory("KeyValue"), Benchmark(Baseline = true)]
-    public int KeyValue_Message()
-    {
-        _target.Reset();
-        var msg = Message.Create(0, CommandFlags.None, RedisCommand.SET, _key, _value);
-        msg.WriteTo(new MessageWriter(null, CommandMap.Default, _target));
-        return _target.Written;
-    }
-
-    [BenchmarkCategory("KeyValue"), Benchmark]
-    public int KeyValue_Adhoc()
-    {
-        _target.Reset();
-        var msg = new RedisDatabase.ExecuteMessage(CommandMap.Default, 0, CommandFlags.None, "SET", _adhocArgs);
-        msg.WriteTo(new MessageWriter(null, CommandMap.Default, _target));
-        return _target.Written;
-    }
-
-    [BenchmarkCategory("KeyValue"), Benchmark]
     public int KeyValue_Interpolated()
     {
         using var frame = _ctx.Render(RedisCommand.SET, $"{_key} {_value}");
@@ -69,15 +51,6 @@ public class InterpolatedWriterBenchmarks
     // ---- SET key value EX 300 (four arguments) -----------------------------------------------------
 
     [BenchmarkCategory("Expiry"), Benchmark(Baseline = true)]
-    public int Expiry_Message()
-    {
-        _target.Reset();
-        var msg = Message.Create(0, CommandFlags.None, RedisCommand.SET, _key, _multiValues);
-        msg.WriteTo(new MessageWriter(null, CommandMap.Default, _target));
-        return _target.Written;
-    }
-
-    [BenchmarkCategory("Expiry"), Benchmark]
     public int Expiry_Interpolated()
     {
         using var frame = _ctx.Render(RedisCommand.SET, $"{_key} {_value} {(RedisValue)"EX"} {(RedisValue)300}");

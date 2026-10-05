@@ -17,12 +17,7 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(output)
 {
-    private static TransitionalDatabase Transitional(IDatabase db)
-    {
-        if (db is TransitionalDatabase transitional) return transitional;
-        Assert.Skip("requires the new database surface; set SEREDIS_NEW_DATABASE_SURFACE=1");
-        return null!;
-    }
+    private static TransitionalDatabase Transitional(IDatabase db) => Assert.IsType<TransitionalDatabase>(db);
 
     [Fact]
     public async Task AnUndialledEndpointIsDeferredRatherThanDisconnected()

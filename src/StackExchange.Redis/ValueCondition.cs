@@ -324,22 +324,6 @@ public readonly struct ValueCondition : IRespArgument
         }
     }
 
-    internal void WriteTo(in MessageWriter writer)
-    {
-        var keyword = KeywordResp;
-        if (keyword.IsEmpty) return;
-
-        writer.WriteRaw(keyword);
-        if (IsValueTest)
-        {
-            writer.WriteBulkString(_value);
-        }
-        else if (IsDigestTest)
-        {
-            writer.WriteBulkString(WriteHex(_value.OverlappedValueInt64, stackalloc byte[2 * DigestBytes]));
-        }
-    }
-
     internal static Span<byte> WriteHex(long value, Span<byte> target)
     {
         Debug.Assert(target.Length >= 2 * DigestBytes);

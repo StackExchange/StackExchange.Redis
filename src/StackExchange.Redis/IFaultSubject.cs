@@ -1,4 +1,4 @@
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
     /// <summary>
     /// What a fault report needs to know about the command it is reporting on.
@@ -24,6 +24,9 @@ namespace StackExchange.Redis
     {
         /// <summary>The command, and the key it named when there is one.</summary>
         string CommandAndKey { get; }
+
+        /// <summary>The command.</summary>
+        RedisCommand Command { get; }
 
         /// <summary>The command alone, for when detail is not to be included in exceptions.</summary>
         string CommandString { get; }

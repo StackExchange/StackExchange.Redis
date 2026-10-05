@@ -1055,7 +1055,7 @@ return arr;
     [InlineData("829c3804401b0727f70f73d4415e162400cbe57bb", false)]
     public void Sha1Detection(string? candidate, bool isSha)
     {
-        Assert.Equal(isSha, ResultProcessor.ScriptLoadProcessor.IsSHA1(candidate));
+        Assert.Equal(isSha, RespParsers.IsSHA1(candidate));
     }
 
     private static void TestNullArray(RedisResult? value)

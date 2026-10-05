@@ -33,7 +33,7 @@ internal partial class TransitionalDatabase
 
         // a 40-character hex string is taken as a hash, which is the shipped rule; it is why a script
         // whose body happens to look like one cannot be sent by this overload
-        var isHash = ResultProcessor.ScriptLoadProcessor.IsSHA1(script);
+        var isHash = RespParsers.IsSHA1(script);
         return isHash
             ? _inner.Scripts.EvaluateDirectResult(script.AsRedisValue(), keys ?? [], values ?? [], isHash: true, readOnly, flags)
             : _inner.Scripts.EvaluateResult(script, keys ?? [], values ?? [], readOnly, flags);
@@ -51,7 +51,7 @@ internal partial class TransitionalDatabase
     private ValueTask<RedisResult> EvalHash(byte[] hash, RedisKey[]? keys, RedisValue[]? values, bool readOnly, CommandFlags flags)
     {
         Required(hash, nameof(hash));
-        if (hash.Length != ResultProcessor.ScriptLoadProcessor.Sha1HashLength)
+        if (hash.Length != RespParsers.Sha1HashLength)
         {
             throw new ArgumentOutOfRangeException(nameof(hash), "Invalid hash length");
         }
@@ -130,7 +130,7 @@ internal partial class TransitionalDatabase
     private ValueTask<RespResult> EvalResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, bool readOnly, CommandFlags flags)
     {
         if (script is null) throw new ArgumentNullException(nameof(script));
-        var isHash = ResultProcessor.ScriptLoadProcessor.IsSHA1(script);
+        var isHash = RespParsers.IsSHA1(script);
         if (isHash) return _inner.Scripts.EvaluateDirectResp(script.AsRedisValue(), keys.Span, values.Span, isHash: true, readOnly, flags);
 
         return readOnly

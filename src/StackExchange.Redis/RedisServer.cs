@@ -8,7 +8,9 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using RESPite;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis
 {
@@ -255,26 +257,6 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>
-        /// CLUSTER NODES only reads topology, despite CLUSTER as a whole defaulting to server-admin; it stays
-        /// node-scoped because the answer is that node's view of the cluster.
-        /// </summary>
-        /// <remarks>
-        /// The single spelling of this: the topology probes in <c>ServerEndPoint.AutoConfigureAsync</c> and
-        /// <c>ConnectionMultiplexer.GetEndpointsFromClusterNodes</c> come through here too, so the category
-        /// cannot drift between the three places we ask the same question.
-        /// </remarks>
-        internal static Message GetClusterNodesMessage(CommandFlags flags)
-            => Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.CLUSTER, RedisLiterals.NODES);
-
-        /// <summary>
-        /// As <see cref="GetClusterNodesMessage"/>, for the <c>CLUSTER SLOTS</c> view of the same topology:
-        /// likewise asked both by the public API and by the autoconfigure probe, and likewise a node-local
-        /// read - it reports what the answering node believes, so it is safe to replay against that node.
-        /// </summary>
-        internal static Message GetClusterSlotsMessage(CommandFlags flags)
-            => Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.CLUSTER, RedisLiterals.SLOTS);
-
         public KeyValuePair<string, string>[] ConfigGet(RedisValue pattern = default, CommandFlags flags = CommandFlags.None)
             => Wait(Context.Config.GetArray(pattern, flags));
 
@@ -422,26 +404,75 @@ namespace StackExchange.Redis
         IAsyncEnumerable<RedisKey> IServer.KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             => KeysAsync(database, pattern, pageSize, cursor, pageOffset, flags);
 
-        private CursorEnumerable<RedisKey> KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+        /// <summary><c>SCAN</c> over this server's keys, or <c>KEYS</c> in one reply where <c>SCAN</c> is unavailable.</summary>
+        /// <remarks>
+        /// Both shapes are one <see cref="RespScanEnumerable{T}"/>, which is also the <see cref="IScanningCursor"/> callers
+        /// can cast to: <c>KEYS</c> is simply a single page at cursor zero. The <c>SCAN</c> spelling is the one the
+        /// shipped cursor used - no <c>MATCH</c> for "everything", no <c>COUNT</c> for the server's default page size.
+        /// </remarks>
+        private RespScanEnumerable<RedisKey> KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
             database = multiplexer.ApplyDefaultDatabase(database);
             if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (CursorUtils.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
 
-            if (multiplexer.CommandMap.IsAvailable(RedisCommand.SCAN))
+            // The database is explicit: a server context carries none.
+            var context = Context.Raw.WithDatabase(database);
+            if (multiplexer.CommandMap.IsAvailable(RedisCommand.SCAN) && server.GetFeatures().Scan)
             {
-                var features = server.GetFeatures();
-
-                if (features.Scan) return new KeysScanEnumerable(this, database, pattern, pageSize, cursor, pageOffset, flags);
+                int? count = pageSize == CursorUtils.DefaultRedisPageSize ? null : pageSize;
+                return new RespScanEnumerable<RedisKey>(
+                    (position, token) =>
+                    {
+                        token.ThrowIfCancellationRequested();
+                        var frame = KeysScanFrame(context, position, pattern, count);
+                        return context.SendAsync(ref frame, flags.WithScanCursorCategory(position), KeyScanHandler, default);
+                    },
+                    position =>
+                    {
+                        var frame = KeysScanFrame(context, position, pattern, count);
+                        return context.Send(ref frame, flags.WithScanCursorCategory(position), KeyScanHandler, default);
+                    },
+                    cursor,
+                    pageSize,
+                    pageOffset,
+                    default);
             }
 
             if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.KEYS);
 
-            // KEYS is the no-SCAN fallback, so it reads every key in one reply and the enumerable just
-            // pages through what arrived. The database is explicit: a server context carries none.
-            var pending = new RespKeys(Context.Raw.WithDatabase(database)).MatchingArray(pattern, flags);
-            return CursorEnumerable<RedisKey>.From(this, server, pending.AsTask(asyncState, flags), pageOffset);
+            // KEYS is the no-SCAN fallback: every key in one reply, served as a single page at cursor zero
+            var pending = new RespKeys(context).MatchingArray(pattern, flags).AsTask(asyncState, flags);
+            return new RespScanEnumerable<RedisKey>(
+                async (_, token) =>
+                {
+                    token.ThrowIfCancellationRequested();
+                    return OnePage(await pending.ForAwait());
+                },
+                _ => OnePage(TransitionalSync.Wait(new ValueTask<RedisKey[]>(pending), multiplexer, null)),
+                0,
+                int.MaxValue,
+                pageOffset,
+                default);
+
+            static RespScanPage<RedisKey> OnePage(RedisKey[]? keys)
+            {
+                keys ??= [];
+                var lease = ReadOnlyLease<RedisKey>.Rent(keys.Length, null, out var target);
+                keys.AsSpan().CopyTo(target);
+                return new RespScanPage<RedisKey>(0, lease);
+            }
         }
+
+        /// <summary><c>SCAN cursor [MATCH pattern] [COUNT n]</c>, omitting <c>MATCH</c> for "everything".</summary>
+        private static RespRequestFrame KeysScanFrame(RespContext context, long cursor, RedisValue pattern, int? count)
+        {
+            var match = CursorUtils.IsNil(pattern) ? RedisValue.Null : pattern;
+            return context.Render(
+                $"{RedisCommand.SCAN}{cursor}{RespLiterals.Match.When(match.HasValue)}{new OptionalValue(match)}{RespLiterals.Count.When(count)}{count}");
+        }
+
+        private static readonly RespScanPageHandler<RedisKey> KeyScanHandler = new(static (ref RespReader r) => r.ReadRedisKey());
 
         public DateTime LastSave(CommandFlags flags = CommandFlags.None)
             => Wait(Context.Diagnostics.LastSaveAsync(flags));
@@ -633,12 +664,6 @@ namespace StackExchange.Redis
         public Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None)
             => Context.Diagnostics.TimeAsync(flags).AsTask(asyncState, flags);
 
-        internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint? primaryEndpoint, CommandFlags flags = CommandFlags.None)
-        {
-            GetReplicaOfArgs(primaryEndpoint, out var host, out var port);
-            return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
-        }
-
         /// <summary>The two arguments of <c>REPLICAOF</c>: a primary's host and port, or <c>NO ONE</c>.</summary>
         private static void GetReplicaOfArgs(EndPoint? primaryEndpoint, out RedisValue host, out RedisValue port)
         {
@@ -659,69 +684,6 @@ namespace StackExchange.Redis
                     throw new NotSupportedException("Unknown endpoint type: " + primaryEndpoint.GetType().Name);
                 }
             }
-        }
-
-        internal override Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
-        {
-            // inject our expected server automatically
-            server ??= this.server;
-            FixFlags(message, server);
-            if (!server.IsConnected)
-            {
-                if (message == null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
-                if (message.IsFireAndForget) return CompletedTask<T>.FromDefault(defaultValue, null); // F+F explicitly does not get async-state
-
-                // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queuing.
-                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
-                {
-                    // no need to deny exec-sync here; will be complete before they see if
-                    var tcs = TaskSource.Create<T>(asyncState);
-                    ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer, message, server));
-                    return tcs.Task;
-                }
-            }
-            return base.ExecuteAsync(message, processor, defaultValue, server);
-        }
-
-        internal override Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null) where T : default
-        {
-            // inject our expected server automatically
-            server ??= this.server;
-            FixFlags(message, server);
-            if (!server.IsConnected)
-            {
-                if (message == null) return CompletedTask<T>.Default(asyncState);
-                if (message.IsFireAndForget) return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
-
-                // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queuing.
-                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
-                {
-                    // no need to deny exec-sync here; will be complete before they see if
-                    var tcs = TaskSource.Create<T?>(asyncState);
-                    ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer, message, server));
-                    return tcs.Task;
-                }
-            }
-            return base.ExecuteAsync(message, processor, server);
-        }
-
-        [return: NotNullIfNotNull("defaultValue")]
-        internal override T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default) where T : default
-        {
-            // inject our expected server automatically
-            if (server == null) server = this.server;
-            FixFlags(message, server);
-            if (!server.IsConnected)
-            {
-                if (message == null || message.IsFireAndForget) return defaultValue;
-
-                // After the "don't care" cases above, if we can't queue then it's time to error - otherwise call through to queuing.
-                if (!multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
-                {
-                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
-                }
-            }
-            return base.ExecuteSync<T>(message, processor, server, defaultValue);
         }
 
         internal override RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, RedisCommand command, out ServerEndPoint server)
@@ -797,27 +759,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void FixFlags(Message? message, ServerEndPoint server)
-        {
-            if (message is null)
-            {
-                return;
-            }
-
-            // since the server is specified explicitly, we don't want defaults
-            // to make the "non-preferred-endpoint" counters look artificially
-            // inflated; note we only change *prefer* options
-            switch (CommandFlagsInternal.GetPrimaryReplicaFlags(message.Flags))
-            {
-                case CommandFlags.PreferMaster:
-                    if (server.IsReplica) message.SetPreferReplica();
-                    break;
-                case CommandFlags.PreferReplica:
-                    if (!server.IsReplica) message.SetPreferPrimary();
-                    break;
-            }
-        }
-
         private static class ScriptHash
         {
             public static RedisValue Encode(byte[] value)
@@ -845,87 +786,6 @@ namespace StackExchange.Redis
                 {
                     var bytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(value));
                     return Encode(bytes);
-                }
-            }
-        }
-
-        private sealed class KeysScanEnumerable : CursorEnumerable<RedisKey>
-        {
-            private readonly RedisValue pattern;
-
-            public KeysScanEnumerable(RedisServer server, int db, in RedisValue pattern, int pageSize, in RedisValue cursor, int pageOffset, CommandFlags flags)
-                : base(server, server.server, db, pageSize, cursor, pageOffset, flags)
-            {
-                this.pattern = pattern;
-            }
-
-            private protected override Message CreateMessage(in RedisValue cursor)
-            {
-                var flags = this.flags.WithScanCursorCategory(cursor);
-                if (CursorUtils.IsNil(pattern))
-                {
-                    if (pageSize == CursorUtils.DefaultRedisPageSize)
-                    {
-                        return Message.Create(db, flags, RedisCommand.SCAN, cursor);
-                    }
-                    else
-                    {
-                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.COUNT, pageSize);
-                    }
-                }
-                else
-                {
-                    if (pageSize == CursorUtils.DefaultRedisPageSize)
-                    {
-                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern);
-                    }
-                    else
-                    {
-                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize);
-                    }
-                }
-            }
-
-            private protected override ResultProcessor<ScanResult> Processor => processor;
-
-            public static readonly ResultProcessor<ScanResult> processor = new ScanResultProcessor();
-            private sealed class ScanResultProcessor : ResultProcessor<ScanResult>
-            {
-                protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
-                {
-                    if (reader.IsAggregate && reader.AggregateLengthIs(2))
-                    {
-                        // SCAN returns [cursor, [keys...]]
-                        var iter = reader.AggregateChildren();
-                        if (!iter.MoveNext()) return false;
-                        var cursor = iter.Value.ReadRedisValue();
-
-                        if (iter.MoveNext() && iter.Value.IsAggregate)
-                        {
-                            RedisKey[] keys;
-                            int count;
-                            if (iter.Value.IsNull || iter.Value.AggregateLengthIs(0))
-                            {
-                                keys = Array.Empty<RedisKey>();
-                                count = 0;
-                            }
-                            else
-                            {
-                                count = iter.Value.AggregateLength();
-                                keys = ArrayPool<RedisKey>.Shared.Rent(count);
-                                var keysIter = iter.Value.AggregateChildren();
-                                for (int i = 0; i < count; i++)
-                                {
-                                    keysIter.DemandNext();
-                                    keys[i] = keysIter.Value.ReadRedisKey();
-                                }
-                            }
-                            var keysResult = new ScanResult(cursor, keys, count, true);
-                            SetResult(message, keysResult);
-                            return true;
-                        }
-                    }
-                    return false;
                 }
             }
         }

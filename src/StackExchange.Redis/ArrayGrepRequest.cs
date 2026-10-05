@@ -240,24 +240,17 @@ public class ArrayGrepRequest
         }
     }
 
-    internal Message CreateMessage(int db, RedisKey key, CommandFlags flags)
-    {
-        Freeze();
-        return new ArrayGrepMessage(db, key, this, flags);
-    }
-
     /// <summary>
     /// Describes a predicate used by an array grep operation.
     /// </summary>
     public abstract class Predicate
     {
         internal virtual int ArgCount => 2;
-        internal abstract void WriteTo(in MessageWriter writer);
 
         /// <summary>The same predicate, written through the interpolated builder.</summary>
         /// <remarks>
         /// A second spelling rather than a shared one, because the two writers have no common interface -
-        /// <see cref="MessageWriter"/> is a class the classic pipeline owns and
+        /// <c>MessageWriter</c> is a class the classic pipeline owns and
         /// <see cref="RespRequestBuilder"/> is a <c>ref struct</c>. Two lines each, and
         /// <c>RespSurfaceArraysParityTests</c> is what keeps them agreeing.
         /// </remarks>
@@ -297,12 +290,6 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"EXACT '{value}'";
 
-            internal override void WriteTo(in MessageWriter writer)
-            {
-                writer.WriteRaw("$5\r\nEXACT\r\n"u8);
-                writer.WriteBulkString(value);
-            }
-
             internal override void WriteTo(scoped ref RespRequestBuilder handler)
             {
                 handler.AppendFormatted(RespLiterals.Exact);
@@ -313,12 +300,6 @@ public class ArrayGrepRequest
         private sealed class MatchPredicate(string pattern) : Predicate
         {
             public override string ToString() => $"MATCH '{pattern}'";
-
-            internal override void WriteTo(in MessageWriter writer)
-            {
-                writer.WriteRaw("$5\r\nMATCH\r\n"u8);
-                writer.WriteBulkString(pattern);
-            }
 
             internal override void WriteTo(scoped ref RespRequestBuilder handler)
             {
@@ -331,12 +312,6 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"GLOB '{pattern}'";
 
-            internal override void WriteTo(in MessageWriter writer)
-            {
-                writer.WriteRaw("$4\r\nGLOB\r\n"u8);
-                writer.WriteBulkString(pattern);
-            }
-
             internal override void WriteTo(scoped ref RespRequestBuilder handler)
             {
                 handler.AppendFormatted(RespLiterals.Glob);
@@ -347,12 +322,6 @@ public class ArrayGrepRequest
         private sealed class RegexPredicate(string re) : Predicate
         {
             public override string ToString() => $"RE '{re}'";
-
-            internal override void WriteTo(in MessageWriter writer)
-            {
-                writer.WriteRaw("$2\r\nRE\r\n"u8);
-                writer.WriteBulkString(re);
-            }
 
             internal override void WriteTo(scoped ref RespRequestBuilder handler)
             {
@@ -389,7 +358,7 @@ public class ArrayGrepRequest
 
     /// <summary>Write everything after the key, through the interpolated builder.</summary>
     /// <remarks>
-    /// <b>The token order is <see cref="ArrayGrepMessage.WriteImpl"/>'s, and must stay so</b>: the bounds
+    /// <b>The token order is <c>ArrayGrepMessage.WriteImpl</c>'s, and must stay so</b>: the bounds
     /// swap when the request is reversed, the predicates follow in the order they were added, and the
     /// three switches then <c>LIMIT</c> come last. <c>ArgCount</c> is shared between the two writers, so
     /// only the order can drift - which is what the parity test compares.
@@ -433,55 +402,6 @@ public class ArrayGrepRequest
             else
             {
                 handler.AppendFormatted(isStart ? RespLiterals.RangeStart : RespLiterals.RangeEnd);
-            }
-        }
-    }
-
-    private sealed class ArrayGrepMessage(int db, RedisKey key, ArrayGrepRequest request, CommandFlags flags)
-        : Message(db, flags, RedisCommand.ARGREP)
-    {
-        public override int ArgCount => request.ArgCount;
-
-        private static void AddIndex(in MessageWriter writer, RedisArrayIndex? index, ReadOnlySpan<byte> fallback)
-        {
-            if (index.HasValue)
-            {
-                writer.WriteBulkString(index.GetValueOrDefault().Value);
-            }
-            else
-            {
-                writer.WriteRaw(fallback);
-            }
-        }
-
-        protected override void WriteImpl(in MessageWriter writer)
-        {
-            writer.WriteHeader(Command, ArgCount);
-            writer.Write(key);
-            if (request.IsReversed)
-            {
-                AddIndex(writer, request.End, "$1\r\n+\r\n"u8);
-                AddIndex(writer, request.Start, "$1\r\n-\r\n"u8);
-            }
-            else
-            {
-                AddIndex(writer, request.Start, "$1\r\n-\r\n"u8);
-                AddIndex(writer, request.End, "$1\r\n+\r\n"u8);
-            }
-            var pCount = request.Count;
-            for (int i = 0; i < pCount; i++)
-            {
-                request[i].WriteTo(in writer);
-            }
-
-            if (request.IsIntersection) writer.WriteRaw("$3\r\nAND\r\n"u8);
-            if (request.IsCaseInsensitive) writer.WriteRaw("$6\r\nNOCASE\r\n"u8);
-            if (request.IncludeValues) writer.WriteRaw("$10\r\nWITHVALUES\r\n"u8);
-            var limit = request.Limit;
-            if (limit.HasValue)
-            {
-                writer.WriteRaw("$5\r\nLIMIT\r\n"u8);
-                writer.WriteBulkString(limit.GetValueOrDefault());
             }
         }
     }

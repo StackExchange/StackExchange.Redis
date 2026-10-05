@@ -248,7 +248,7 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         // be a transitional allowance here for the shipped bridge's socket sitting beside the new core's;
         // it went when the topology commands moved and the shipped bridge stopped dialling, so the server
         // now sees exactly the one-core shape, which is the shape this test is about.
-        var expectedCount = protocol is RedisProtocol.Resp3 || ConnectionMultiplexer.NewCoreEngine ? 1 : 2;
+        const int expectedCount = 1;
 
         // the STEADY shape, given a moment to settle: under the engine flag sockets are dialled
         // asynchronously, so an immediate read can catch one mid-open or mid-close - the same grace
@@ -257,7 +257,7 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         await Poll.UntilAsync(() => serverObj.ClientCount == expectedCount, timeoutMilliseconds: 2000);
         namedClients = (await server.ClientListAsync()).Where(x => x.Name == config.ClientName).ToArray();
         Assert.Equal(expectedCount, serverObj.ClientCount);
-        Assert.Equal(expectedCount, namedClients.Length);
+        Assert.Single(namedClients);
 
         await AssertCanPubSubAsync(conn, $"{nameof(AzureManagedRedisConnectsWithoutSubscriptionConnection)}:{protocol}");
     }
@@ -284,7 +284,6 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         // Two sockets under RESP2 - one carrying commands, one carrying deliveries - whichever core holds
         // them. Under the engine flag both belong to the new core; the shipped bridges no longer dial at all,
         // so the transitional extra socket this once allowed for is gone and the total is simply two.
-        var ownsSubscriptionLeg = !ConnectionMultiplexer.NewCoreEngine;
         const int expectedCount = 2;
         Assert.Equal(RedisProtocol.Resp2, server.Protocol);
 
@@ -299,7 +298,6 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         // ...and only where this core owns both legs are they distinct connections; with no subscription
         // bridge the lookup answers with the interactive one, which is the honest answer rather than a
         // missing one, so asking for two ids here would be asking the wrong question.
-        if (ownsSubscriptionLeg) Assert.NotEqual(interactiveId, subscriptionId);
 
         var interactive = Assert.Single(clients, x => x.Id == interactiveId);
         Assert.Equal(ClientType.Normal, interactive.ClientType);
@@ -312,7 +310,6 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         var subscription = Assert.Single(namedClients, x => x.ClientType == ClientType.PubSub);
         Assert.NotEqual(interactiveId, subscription.Id);
         Assert.True(subscription.SubscriptionCount > 0);
-        if (!ConnectionMultiplexer.NewCoreEngine) Assert.Equal(subscriptionId, subscription.Id);
 
         await AssertCanPubSubAsync(conn, nameof(VanillaResp2ConnectsWithSeparatePubSubConnection));
     }

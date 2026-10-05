@@ -339,18 +339,4 @@ public readonly struct Expiration : IRespArgument
         }
 #pragma warning restore SER011
     }
-
-    internal void WriteTo(in MessageWriter writer)
-    {
-        var operand = OperandResp;
-        if (operand.IsEmpty) return;
-
-        writer.WriteRaw(operand);
-        if (HasExpirationValue)
-        {
-            writer.WriteBulkString(Value);
-            var enx = ExpireIfNotExistsResp;
-            if (!enx.IsEmpty) writer.WriteRaw(enx);
-        }
-    }
 }

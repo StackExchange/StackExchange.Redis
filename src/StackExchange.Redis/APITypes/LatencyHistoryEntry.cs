@@ -8,8 +8,6 @@ namespace StackExchange.Redis;
 /// </summary>
 public readonly struct LatencyHistoryEntry
 {
-    internal static readonly ResultProcessor<LatencyHistoryEntry[]> ToArray = new Processor();
-
     /// <summary>One <c>LATENCY HISTORY</c> element: when it happened, and how long it took.</summary>
     /// <param name="reader">Positioned on the element.</param>
     /// <param name="parsed">The entry.</param>
@@ -29,12 +27,6 @@ public readonly struct LatencyHistoryEntry
         }
         parsed = default;
         return false;
-    }
-
-    private sealed class Processor : ArrayResultProcessor<LatencyHistoryEntry>
-    {
-        protected override bool TryParse(ref RespReader reader, out LatencyHistoryEntry parsed)
-            => TryParseEntry(ref reader, out parsed);
     }
 
     /// <summary>

@@ -26,7 +26,13 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
 {
     private static RespNewCore CoreFor(IConnectionMultiplexer conn) => RespNewCoreFixture.CoreFor(conn);
 
-    /// <summary>Nothing subscribes, so nothing opens a socket for subscribing.</summary>
+    /// <summary>Under RESP3 nothing opens a second socket for subscribing; under RESP2 the multiplexer opens one up front.</summary>
+    /// <remarks>
+    /// This once asserted "never, until something subscribes" - of a side core the test built for itself, which
+    /// only dialled on demand. The multiplexer's own core connects eagerly, in the shipped shape: RESP2 gets
+    /// its subscription socket at connect (see <c>DefaultOptionsTests.VanillaResp2ConnectsWithSeparatePubSubConnection</c>),
+    /// and RESP3 never needs one.
+    /// </remarks>
     [Fact]
     public async Task NoSubscriptionMeansNoSecondSocket()
     {
@@ -36,7 +42,8 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         var db = RespNewCoreFixture.Wrap(conn, -1, null);
         await db.PingAsync(); // an ordinary connection exists and has handshaken
 
-        Assert.Equal(0, core.SubscriptionConnectionCount);
+        var expected = TestContext.Current.GetProtocol() == RedisProtocol.Resp3 ? 0 : 1;
+        Assert.Equal(expected, core.SubscriptionConnectionCount);
     }
 
     /// <summary>
@@ -95,8 +102,6 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         // live nowhere the registry can see and the heartbeat subscribes it again; the server then counts
         // two subscribers and the test fails for a reason that is about neither core's delivery path.
         // It had been failing on the shipped run for exactly that reason.
-        Assert.SkipUnless(ConnectionMultiplexer.NewCoreEngine, "the subscription registry has to agree whose subscription this is");
-
         await using var conn = Create(shared: false);
         var muxer = TestMultiplexer.Unwrap(conn);
 

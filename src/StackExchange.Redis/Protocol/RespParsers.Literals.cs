@@ -2,7 +2,7 @@
 
 namespace StackExchange.Redis;
 
-internal partial class ResultProcessor
+internal static partial class RespParsers
 {
     internal partial class Literals
     {

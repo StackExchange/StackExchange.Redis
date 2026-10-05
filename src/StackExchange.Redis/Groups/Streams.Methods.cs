@@ -197,27 +197,27 @@ public static partial class Streams
         internal static IRespHandler<StreamEntry[]> Entries => Instance;
 
         StreamEntry[] IRespHandler<StreamEntry[]>.Parse(ref RespReader reader)
-            => ResultProcessor.ParseRedisStreamEntries(ref reader, allowJaggedFields: true);
+            => RespParsers.ParseRedisStreamEntries(ref reader, allowJaggedFields: true);
 
         StreamPendingInfo IRespHandler<StreamPendingInfo>.Parse(ref RespReader reader)
-            => ResultProcessor.TryParseStreamPendingInfo(ref reader, out var value) ? value : default;
+            => RespParsers.TryParseStreamPendingInfo(ref reader, out var value) ? value : default;
 
         StreamPendingMessageInfo[] IRespHandler<StreamPendingMessageInfo[]>.Parse(ref RespReader reader)
-            => ResultProcessor.ParseStreamPendingMessages(ref reader);
+            => RespParsers.ParseStreamPendingMessages(ref reader);
 
         StreamAutoClaimResult IRespHandler<StreamAutoClaimResult>.Parse(ref RespReader reader)
-            => ResultProcessor.TryParseStreamAutoClaim(ref reader, allowJaggedFields: true, out var value)
+            => RespParsers.TryParseStreamAutoClaim(ref reader, allowJaggedFields: true, out var value)
                 ? value : StreamAutoClaimResult.Null;
 
         StreamAutoClaimIdsOnlyResult IRespHandler<StreamAutoClaimIdsOnlyResult>.Parse(ref RespReader reader)
-            => ResultProcessor.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
+            => RespParsers.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
                 ? value : StreamAutoClaimIdsOnlyResult.Null;
 
         RedisStream[] IRespHandler<RedisStream[]>.Parse(ref RespReader reader)
-            => ResultProcessor.ParseRedisStreams(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
+            => RespParsers.ParseRedisStreams(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
 
         StreamInfo IRespHandler<StreamInfo>.Parse(ref RespReader reader)
-            => ResultProcessor.TryParseStreamInfo(ref reader, allowJaggedFields: true, out var value) ? value : default;
+            => RespParsers.TryParseStreamInfo(ref reader, allowJaggedFields: true, out var value) ? value : default;
     }
 
     /// <summary>
@@ -238,7 +238,7 @@ public static partial class Streams
         internal static IRespHandler<StreamGroupInfo[]> Array => Instance;
 
         private static readonly RespReader.Projection<StreamGroupInfo> Element =
-            static (ref RespReader reader) => ResultProcessor.ParseStreamGroupInfo(ref reader);
+            static (ref RespReader reader) => RespParsers.ParseStreamGroupInfo(ref reader);
 
         ReadOnlyLease<StreamGroupInfo> IRespHandler<ReadOnlyLease<StreamGroupInfo>>.Parse(ref RespReader reader)
             => RespHandlers.ReadScalarLease(ref reader, Element);
@@ -258,7 +258,7 @@ public static partial class Streams
         internal static IRespHandler<StreamConsumerInfo[]> Array => Instance;
 
         private static readonly RespReader.Projection<StreamConsumerInfo> Element =
-            static (ref RespReader reader) => ResultProcessor.ParseStreamConsumerInfo(ref reader);
+            static (ref RespReader reader) => RespParsers.ParseStreamConsumerInfo(ref reader);
 
         ReadOnlyLease<StreamConsumerInfo> IRespHandler<ReadOnlyLease<StreamConsumerInfo>>.Parse(ref RespReader reader)
             => RespHandlers.ReadScalarLease(ref reader, Element);
@@ -281,7 +281,7 @@ public static partial class Streams
 
         StreamEntry[] IRespHandler<StreamEntry[]>.Parse(ref RespReader reader)
             => reader.IsAggregate && !reader.IsNull
-                ? ResultProcessor.ParseStreamWithNameSkip(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true)
+                ? RespParsers.ParseStreamWithNameSkip(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true)
                 : [];
     }
 

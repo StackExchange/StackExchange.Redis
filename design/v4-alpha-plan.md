@@ -111,13 +111,32 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       `SEREDIS_NEW_DATABASE_SURFACE=0`. Default 0 / 2 / 0 over three net10.0 runs (two known flakes), legacy
       green. **Not verified locally: net481**, which CI runs on Windows - the new core has not been
       exercised on .NET Framework in this work, so the first CI run on this branch is the real test there.
-- [ ] Decouple the 91 + 46 above (was 137 at f7f36406, by a different count). Expect another layer
-      once these are fixed - the compiler suppresses cascades.
-- [ ] Logging - three events take nested `PhysicalBridge.State` / `BacklogStatus` /
-      `PhysicalConnection.ReadStatus`/`WriteStatus` (`ServerStatus` 214, `EndpointState` 226,
-      `OnConnectedAsyncInit` 473): move the enums out or re-type, preserving ids.
-- [ ] `SimulateConnectionFailure` runs without `AllowAdmin` under the engine flag; the shipped path demands it.
-- [ ] Delete. Build. Suite.
+- [x] Decouple the 91 + 46 above, then delete. Done: `Message*`, `ResultProcessor*`, `PhysicalBridge`,
+      `PhysicalConnection*`, `RedisDatabase*`, `RedisBatch`, `RedisTransaction`, `RespMessageExecutor`,
+      `MessageWriter`, the per-command `*Message` classes and `CursorEnumerable` are gone. What they owned
+      and something still needed moved to `Protocol/RespParsers*.cs` (reply parsing), `Protocol/RespWire.cs`
+      (raw RESP writing, also used by the toy server), `Protocol/AdminCommands.cs` and `ConnectionStatus.cs`
+      (the status enums the logging events take - ids preserved). The flags are hard-wired on and the
+      env vars ignored, so nothing can select the old core: there is no old core to select.
+- [x] Logging enums: relocated to `ConnectionStatus.cs`, ids unchanged.
+- [x] `SimulateConnectionFailure` demands `AllowAdmin` again, as shipped.
+- [x] Delete. Build. Suite: net10.0 over three runs - see Status.
+- [ ] **Parked tests** (`Compile Remove` in the test csproj, each with a comment): `ResultProcessorUnitTests/**`,
+      `RoundTripUnitTests/**`, `RespSurface*ParityTests`, `CommandRetryCategoryUnitTests`, `ResultBoxTests`,
+      `SortedSetIncrementUnitTests`, `InterpolatedOptionalArgTests` drove the deleted types directly. Retarget
+      the parsing and rendering ones at the new handlers / golden bytes; delete the parity tests (there is no
+      second implementation to be at parity with). `DedicatedThreadsUnitTests` stays parked with decision 6.
+- [ ] **Gaps the deletion exposed** - each was the old core's, and has no new-core equivalent yet:
+      the connection storm log (`ExceptionFactory` no longer writes one); the fire-and-forget counter (always
+      reported 0); `GetProfile`'s per-connection op-count history; `DedicatedThreads` (decision 6). None is a
+      correctness issue; all are diagnostics. Decide per item: port or drop (and document the drop).
+- [ ] **Windows CI never had a synced replica.** Replicas there land the sync RDB on the `/mnt` (drvfs)
+      mount and fail to load it, retrying forever - which the old core never noticed, because it read
+      replicas from `CLUSTER NODES`; the new core reads `CLUSTER SLOTS`, which rightly omits a replica that
+      has never synced, so replica routing failed on Windows only. CI now starts Windows replicas with
+      `--repl-diskless-load swapdb` and fails fast unless every replica syncs and `CLUSTER SLOTS` lists all
+      six nodes. Confirm on the next Windows run, and see whether `ARefusingNodeAccumulatesOnlyOurOwnTraffic`,
+      the cache-churn timeouts and the 33-minute net10.0 duration were the primaries' resync storm too.
 
 ### Backlog (after the alpha gates; not blocking)
 
@@ -169,6 +188,11 @@ Learned the expensive way; see `message-core-replacement.md` 9aa-9aj for the inc
 
 ## Status
 
+- **Old core deleted.** net10.0 over three runs after the deletion: 1 / 2 / 3 failures, each a one-off
+  from the known-flake list (`SubscribeToWrongServerAsync(false)`, `SweepIfDueHonoursTheInterval`, a
+  `MovedUnitTests` reconnect case). The `NewCore*Tests` re-run suites went with it - they built a second core
+  beside each multiplexer, doubling the runs and colliding with their own originals on shared databases.
+  Suite is now 8,330 tests. Multi-TFM analyzer build clean.
 - **Open flake, engine flag only so far:** occasional ~5s windows where a shared RESP3 connection to 6379
   gets no replies (outbound queued, inbound 0), timing out whatever was in flight - 52 tests once, 2 once,
   otherwise absent over ~8 runs. `AsyncTimeoutIsNoticed`'s `CLIENT PAUSE` was the first suspect, but it is

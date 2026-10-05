@@ -18,7 +18,7 @@ namespace StackExchange.Redis
     /// <para>
     /// This is the same triple <see cref="TestHarness"/> already carries (command map, channel prefix, key
     /// prefix) plus the cancellation/routing state from the <c>marc/respite</c> spike's <c>RespContext</c>.
-    /// Long term this replaces <see cref="MessageWriter"/>, whose constructor already takes
+    /// Long term this replaces <c>MessageWriter</c>, whose constructor already takes
     /// (channel prefix, command map, target).
     /// </para>
     /// <para>

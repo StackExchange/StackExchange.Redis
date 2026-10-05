@@ -45,19 +45,6 @@ public readonly partial struct BitFieldOffset : IEquatable<BitFieldOffset>
     /// <param name="bit">The bit position.</param>
     public static implicit operator BitFieldOffset(long bit) => Bit(bit);
 
-    internal void Write(in MessageWriter writer, Span<byte> scratch)
-    {
-        if (!_isElement)
-        {
-            writer.WriteBulkString(_value);
-            return;
-        }
-
-        scratch[0] = (byte)'#';
-        var len = Format.FormatInt64(_value, scratch.Slice(1)) + 1;
-        writer.WriteBulkString(scratch.Slice(0, len));
-    }
-
     /// <inheritdoc/>
     public override string ToString() => _isElement
         ? "#" + _value.ToString(CultureInfo.InvariantCulture)

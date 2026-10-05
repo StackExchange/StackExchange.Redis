@@ -257,7 +257,7 @@ public static partial class Arrays
         internal static IRespHandler<RedisArrayEntry[]> Array => Instance;
 
         private static readonly RespReader.Projection<RedisArrayEntry> Element =
-            static (ref RespReader reader) => ResultProcessor.TryParseArrayIndex(ref reader, out var index)
+            static (ref RespReader reader) => RespParsers.TryParseArrayIndex(ref reader, out var index)
                 ? new RedisArrayEntry(index)
                 : default;
 

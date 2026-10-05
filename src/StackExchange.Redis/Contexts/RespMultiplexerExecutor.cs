@@ -101,6 +101,18 @@ namespace StackExchange.Redis
             _onTopologySuspect = onTopologySuspect;
         }
 
+        /// <summary>Builds this router for another database; null where nothing can.</summary>
+        /// <remarks>
+        /// The routing callbacks close over their database, so re-pointing is the owner's job, not a field
+        /// change here. Without it <c>WithDatabase</c> on a context over this router refused outright - which
+        /// the old shim allowed, and <c>RespEndToEndTests.WithDatabaseActuallyRoutesToThatDatabase</c> asks for.
+        /// </remarks>
+        internal Func<int, RespMultiplexerExecutor>? Rebind { get; init; }
+
+        /// <inheritdoc/>
+        internal override RespExecutorBase? WithDatabase(int database)
+            => database == Database ? this : Rebind?.Invoke(database);
+
         /// <summary>Whether the endpoints this routes to have their timeout sweep driven.</summary>
         /// <remarks><inheritdoc cref="RespEndpointExecutor.HeartbeatDriven" path="/remarks"/></remarks>
         internal bool HeartbeatDriven { get; init; }

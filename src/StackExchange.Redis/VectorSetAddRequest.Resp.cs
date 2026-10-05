@@ -6,6 +6,15 @@ namespace StackExchange.Redis;
 
 public abstract partial class VectorSetAddRequest
 {
+    /// <summary>Whether this machine's floats are the little-endian IEEE754 the server reads as <c>FP32</c>.</summary>
+    internal static readonly bool CanUseFp32 = BitConverter.IsLittleEndian && CheckFp32();
+
+    private static bool CheckFp32() // check endianness with a known value
+    {
+        // ReSharper disable once CompareOfFloatsByEqualityOperator - expect exact
+        return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>("\0\0(B"u8)[0] == 42;
+    }
+
     /// <summary>How many arguments <see cref="WriteTo"/> will write, the key included.</summary>
     internal abstract int ArgCount { get; }
 
@@ -110,7 +119,7 @@ public abstract partial class VectorSetAddRequest
 
     private sealed partial class VectorSetAddMemberRequest
     {
-        private bool Fp32 => UseFp32 & VectorSetAddMessage.CanUseFp32;
+        private bool Fp32 => UseFp32 & CanUseFp32;
 
         private string? Attributes => string.IsNullOrWhiteSpace(_attributesJson) ? null : _attributesJson;
 

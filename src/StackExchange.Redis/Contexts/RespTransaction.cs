@@ -758,7 +758,7 @@ namespace StackExchange.Redis
     /// the replacement.
     /// </para>
     /// <para>
-    /// Rendering goes through <see cref="Condition.CreateMessages"/> for the same reason - it is the
+    /// Rendering goes through <c>Condition.CreateMessages</c> for the same reason - it is the
     /// one place that knows a condition's command and arguments, and a second renderer here would be a
     /// second thing to keep in step across seven types.
     /// </para>

@@ -100,7 +100,7 @@ public static partial class Streams
             // is what makes this and Entries agree - and it cannot change what a real reply reads as,
             // because a stream entry's fields are scalars and so can never look jagged. See
             // RespRangeReplyTests.ScalarFieldsAreNotJagged.
-            return ResultProcessor.ParseRedisStreamEntries(ref reader, allowJaggedFields: true);
+            return RespParsers.ParseRedisStreamEntries(ref reader, allowJaggedFields: true);
         }
 
         /// <inheritdoc/>
@@ -164,7 +164,7 @@ public static partial class Streams
         {
             var reader = GetReader();
             if (!reader.TryMoveNext() || !reader.IsAggregate || reader.IsNull) return [];
-            return ResultProcessor.ParseStreamWithNameSkip(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
+            return RespParsers.ParseStreamWithNameSkip(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
         }
 
         /// <inheritdoc/>
@@ -225,7 +225,7 @@ public static partial class Streams
         {
             var reader = GetReader();
             if (!reader.TryMoveNext()) return [];
-            return ResultProcessor.ParseRedisStreams(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
+            return RespParsers.ParseRedisStreams(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
         }
 
         /// <inheritdoc/>
@@ -354,7 +354,7 @@ public static partial class Streams
         {
             var reader = GetReader();
             reader.MoveNext();
-            return ResultProcessor.TryParseStreamAutoClaim(ref reader, allowJaggedFields: true, out var value)
+            return RespParsers.TryParseStreamAutoClaim(ref reader, allowJaggedFields: true, out var value)
                 ? value : StreamAutoClaimResult.Null;
         }
 
@@ -426,7 +426,7 @@ public static partial class Streams
         {
             var reader = GetReader();
             reader.MoveNext();
-            return ResultProcessor.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
+            return RespParsers.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
                 ? value : StreamAutoClaimIdsOnlyResult.Null;
         }
 
@@ -517,7 +517,7 @@ public static partial class Streams
         {
             var reader = GetReader();
             reader.MoveNext();
-            return ResultProcessor.TryParseStreamPendingInfo(ref reader, out var value) ? value : default;
+            return RespParsers.TryParseStreamPendingInfo(ref reader, out var value) ? value : default;
         }
 
         /// <inheritdoc/>
@@ -601,7 +601,7 @@ public static partial class Streams
         {
             var reader = GetReader();
             reader.MoveNext();
-            return ResultProcessor.ParseStreamPendingMessages(ref reader);
+            return RespParsers.ParseStreamPendingMessages(ref reader);
         }
 
         /// <inheritdoc/>
@@ -629,7 +629,7 @@ public static partial class Streams
                 if (reader.TryMoveNext()) reader.TryReadInt64(out idleMs);
                 if (reader.TryMoveNext()) reader.TryReadInt64(out deliveries);
 
-                return new RespStreamPendingMessage(id, consumer, TimeSpan.FromMilliseconds(idleMs), ResultProcessor.ParseStreamDeliveryCount(deliveries));
+                return new RespStreamPendingMessage(id, consumer, TimeSpan.FromMilliseconds(idleMs), RespParsers.ParseStreamDeliveryCount(deliveries));
             };
 
         private readonly RespValue _id, _consumer;
@@ -706,7 +706,7 @@ public static partial class Streams
                         id,
                         fields,
                         TimeSpan.FromMilliseconds(idleMs),
-                        ResultProcessor.ParseStreamDeliveryCount(deliveries));
+                        RespParsers.ParseStreamDeliveryCount(deliveries));
                 }
 
                 return new RespStreamEntry(id, fields, null, 0);

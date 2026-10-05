@@ -50,6 +50,17 @@ namespace StackExchange.Redis
             ICollection<object>? args,
             CommandFlags flags)
         {
+            var frame = Render(context, command, args);
+            return context.SendAsync(ref frame, flags, RedisResultHandler.Instance, default);
+        }
+
+        /// <summary>Render an ad-hoc command whose arguments arrived boxed, without sending it.</summary>
+        /// <param name="context">Supplies the command map and channel prefix the rendering honours.</param>
+        /// <param name="command">The command name.</param>
+        /// <param name="args">Its arguments, or null.</param>
+        /// <remarks>Shared with <see cref="TestHarness"/>, so what it validates is exactly what is sent.</remarks>
+        internal static RespRequestFrame Render(RespContext context, string command, ICollection<object>? args)
+        {
             var handler = new RespRequestBuilder(0, args?.Count ?? 0, context, command);
             try
             {
@@ -81,8 +92,7 @@ namespace StackExchange.Redis
                 throw;
             }
 
-            var frame = handler.Complete();
-            return context.SendAsync(ref frame, flags, RedisResultHandler.Instance, default);
+            return handler.Complete();
         }
     }
 }
