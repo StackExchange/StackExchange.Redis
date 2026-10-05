@@ -190,7 +190,23 @@ namespace StackExchange.Redis
         /// the timeout path where a dictionary probe per command would be pure overhead. A miss is not
         /// cached, so an endpoint that becomes modelled later is still picked up.
         /// </remarks>
-        private ServerEndPoint? Server => _serverCache ??= _server?.Invoke();
+        private ServerEndPoint? Server
+        {
+            get
+            {
+                if (_serverCache is { } cached) return cached;
+                try
+                {
+                    return _serverCache = _server?.Invoke();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // the multiplexer is closing and will not create a server now; nor should the paths that
+                    // ask for one here (logging, fault notes) be what stops a socket being closed
+                    return null;
+                }
+            }
+        }
 
         /// <summary>Count a command whose caller declined the outcome, for the multiplexer's summary.</summary>
         internal void OnFireAndForget() => Server?.Multiplexer.OnFireAndForget();
@@ -2312,8 +2328,14 @@ namespace StackExchange.Redis
             if (connection is not null)
             {
                 // a requested close is still a line in the connect log: the v3 bridge wrote one as the
-                // multiplexer is disposed, and its absence reads as a connection that simply vanished
-                if (!connection.IsClosed && Server?.Multiplexer.Logger is { } logger)
+                // multiplexer is disposed, and its absence reads as a connection that simply vanished.
+                //
+                // The CACHED server only, never `Server`: resolving it here asks the multiplexer, which by
+                // now has cleared its servers and throws ObjectDisposedException rather than create one -
+                // and that throw skipped the dispose below. An executor that had never needed its server
+                // (a RESP2 subscription socket, typically) therefore leaked its socket on every multiplexer
+                // disposal, until the server's client limit refused new connections.
+                if (!connection.IsClosed && Volatile.Read(ref _serverCache)?.Multiplexer.Logger is { } logger)
                 {
                     var closing = new RedisConnectionException(ConnectionFailureType.ConnectionDisposed, CommandFlags.None, LogName + ": closed by the client");
                     logger.LogInformationConnectionFailureRequested(closing, closing.Message);

@@ -978,222 +978,236 @@ namespace StackExchange.Redis
                     => coreRef.TryGetTarget(out var core) && core.Follow(endpoint, in redirect, operation),
                 config.IncludeDetailInExceptions,
                 config.ResponseBufferPool);
-            logger?.LogInformationStartingRead(new(endpoint)); // the connection reads from construction
-            var context = new RespDatabaseContext(
-                new RespContext(config.CommandMap, database: 0)
-                    .WithExecutor(new RespConnectionExecutor(connection, 0)));
 
-            // AUTH only when there is something to authenticate WITH, matching the v3 handshake's
-            // `!IsNullOrWhiteSpace` test. The handshake itself treats "" as a legitimate password - that is
-            // how a 'nopass' ACL login is expressed, and it is right for a caller who says so explicitly -
-            // but ConfigurationOptions carries "" to mean "none configured", so passing it straight through
-            // sent AUTH to servers that have no password and answer it with an error.
-            var credentials = !string.IsNullOrWhiteSpace(config.User) || !string.IsNullOrWhiteSpace(config.Password);
-
-            // resolved before the handshake rather than after it, so that what the handshake learns is logged
-            // against the server as it is learned - v3's "Auto-configured ..." lines
-            var server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
-
-            var result = await RespHandshake.PerformAsync(
-                context,
-                config.User,
-                credentials ? config.Password : null,
-                ServerEndPoint.SanitizeClientName(_multiplexer.ClientName),
-                database,
-                config.Protocol is null or RedisProtocol.Resp3,
-                config.TryHello(out _),
-                _topology,
-                endpoint,
-                subscription ? null : _multiplexer.ClientCache,
-                _multiplexer.GetFullLibraryName(),
-                ServerEndPoint.ClientInfoSanitize(Utils.GetLibVersion()),
-                _multiplexer.SetAuthSuspect,
-                cancellationToken,
-                server: server).ConfigureAwait(false);
-
-            // recorded BEFORE the connection is handed back, for the same reason the topology is: the
-            // endpoint executor publishes it and drains its backlog the moment this returns, and a
-            // command choosing its spelling from "we have no idea" is the case this exists to avoid
-            if (result.Version is { } version) _observed[endpoint] = new RedisFeatures(version);
-            _protocols[endpoint] = result.Protocol;
-
-            // the handshake's SELECT is where this connection's database is decided; recording it is what
-            // lets a later command for a different one know it has to say so first
-            connection.CurrentDatabase = database;
-            connection.ConnectionId = result.ConnectionId;
-            connection.RemoteAddress = connected.RemoteAddress;
-
-            // which server this reached, so a preamble gate can consult the endpoint's beliefs - a loaded
-            // script is server-wide, and ServerEndPoint already tracks that and flushes it when a server's
-            // identity changes underneath. Borrowed rather than reimplemented.
-            connection.Server = server;
-
-            // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
-            // thing marking it as one is that this connection subscribes. Set it nowhere else: on an
-            // interactive connection it would start eating replies. Read from what the handshake NEGOTIATED
-            // rather than what was configured - a server can answer RESP2 to a RESP3 request.
-            connection.DeliversArrays = subscription && result.Protocol < RedisProtocol.Resp3;
-
-            // deliveries arrive here: on the subscription connection under RESP2, and on this one under
-            // RESP3, where a push can land on any connection.
-            //
-            // WEAKLY, and that is a leak rather than a nicety. A subscription connection holds a standing
-            // read - that is what waiting for deliveries IS - so the socket is rooted by the IO system for
-            // as long as it is open, and a delegate capturing the multiplexer made the socket root the
-            // multiplexer too. A caller who abandons a multiplexer without disposing it then never gets it
-            // collected: `GarbageCollectionTests.MuxerIsCollected` is written for exactly that caller, and
-            // the v3 core passed it while holding a subscription bridge of its own. An ordinary
-            // connection hid the problem by having no standing read to be rooted by.
-            //
-            // A push that arrives after the multiplexer is gone has nowhere to go and nothing to tell, so
-            // "not recognised" is the whole of the correct behaviour.
-            var muxerRef = new WeakReference<ConnectionMultiplexer>(_multiplexer);
-            connection.OnPush = frame => muxerRef.TryGetTarget(out var muxer)
-                ? RespPushDispatch.Dispatch(frame, muxer, endpoint)
-                : RespOutOfBandResult.NotRecognized;
-
-            // BEFORE any discovery that can PROVOKE a push, which is not a detail. The maintenance opt-in
-            // below makes the server replay whatever it retained for this shard, and a push arriving
-            // before the dispatcher is wired is dropped as unrecognised - so the replay was lost and the
-            // "(catch-up)" line `MaintenanceNotificationTests+Retention` looks for never appeared. The
-            // configuration channel taught the same lesson at the other end of this method; this is the
-            // same rule applied to the other thing that asks a server to start talking.
-            // what discovery learned was logged by the handshake as it learned it; this closes the narrative
-            logger?.LogInformationOnEstablishingComplete(new(endpoint));
-
-            if (connection.Server is { } modelled)
+            // EVERYTHING from here to the hand-back can fail - a refused AUTH, a handshake timeout, a
+            // multiplexer disposed mid-dial whose server lookup now throws - and every one of those used to
+            // leave the socket open: connected, never written to, invisible to the client and counted by the
+            // server until the process exited. Measured as ~1 per second on a cluster node through a test
+            // run; on a server with a low client limit that becomes "unable to connect" for everything after.
+            try
             {
-                // ...and told what this handshake just learned. The client's beliefs about a server used to
-                // come from the v3 bridge handshaking its own socket; this handshake is now the only one, so
-                // publishing what it learned is how the modelled server learns anything at all.
-                Publish(modelled, in result);
+                logger?.LogInformationStartingRead(new(endpoint)); // the connection reads from construction
+                var context = new RespDatabaseContext(
+                    new RespContext(config.CommandMap, database: 0)
+                        .WithExecutor(new RespConnectionExecutor(connection, 0)));
 
-                // ...and the server-wide settings nothing has described yet, which is the next slice of the
-                // same move. Interactive only: a subscription connection is not where a client asks
-                // questions, and the answers are server-wide so one connection asking is enough.
-                if (!subscription)
+                // AUTH only when there is something to authenticate WITH, matching the v3 handshake's
+                // `!IsNullOrWhiteSpace` test. The handshake itself treats "" as a legitimate password - that is
+                // how a 'nopass' ACL login is expressed, and it is right for a caller who says so explicitly -
+                // but ConfigurationOptions carries "" to mean "none configured", so passing it straight through
+                // sent AUTH to servers that have no password and answer it with an error.
+                var credentials = !string.IsNullOrWhiteSpace(config.User) || !string.IsNullOrWhiteSpace(config.Password);
+
+                // resolved before the handshake rather than after it, so that what the handshake learns is logged
+                // against the server as it is learned - v3's "Auto-configured ..." lines
+                var server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
+
+                var result = await RespHandshake.PerformAsync(
+                    context,
+                    config.User,
+                    credentials ? config.Password : null,
+                    ServerEndPoint.SanitizeClientName(_multiplexer.ClientName),
+                    database,
+                    config.Protocol is null or RedisProtocol.Resp3,
+                    config.TryHello(out _),
+                    _topology,
+                    endpoint,
+                    subscription ? null : _multiplexer.ClientCache,
+                    _multiplexer.GetFullLibraryName(),
+                    ServerEndPoint.ClientInfoSanitize(Utils.GetLibVersion()),
+                    _multiplexer.SetAuthSuspect,
+                    cancellationToken,
+                    server: server).ConfigureAwait(false);
+
+                // recorded BEFORE the connection is handed back, for the same reason the topology is: the
+                // endpoint executor publishes it and drains its backlog the moment this returns, and a
+                // command choosing its spelling from "we have no idea" is the case this exists to avoid
+                if (result.Version is { } version) _observed[endpoint] = new RedisFeatures(version);
+                _protocols[endpoint] = result.Protocol;
+
+                // the handshake's SELECT is where this connection's database is decided; recording it is what
+                // lets a later command for a different one know it has to say so first
+                connection.CurrentDatabase = database;
+                connection.ConnectionId = result.ConnectionId;
+                connection.RemoteAddress = connected.RemoteAddress;
+
+                // which server this reached, so a preamble gate can consult the endpoint's beliefs - a loaded
+                // script is server-wide, and ServerEndPoint already tracks that and flushes it when a server's
+                // identity changes underneath. Borrowed rather than reimplemented.
+                connection.Server = server;
+
+                // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
+                // thing marking it as one is that this connection subscribes. Set it nowhere else: on an
+                // interactive connection it would start eating replies. Read from what the handshake NEGOTIATED
+                // rather than what was configured - a server can answer RESP2 to a RESP3 request.
+                connection.DeliversArrays = subscription && result.Protocol < RedisProtocol.Resp3;
+
+                // deliveries arrive here: on the subscription connection under RESP2, and on this one under
+                // RESP3, where a push can land on any connection.
+                //
+                // WEAKLY, and that is a leak rather than a nicety. A subscription connection holds a standing
+                // read - that is what waiting for deliveries IS - so the socket is rooted by the IO system for
+                // as long as it is open, and a delegate capturing the multiplexer made the socket root the
+                // multiplexer too. A caller who abandons a multiplexer without disposing it then never gets it
+                // collected: `GarbageCollectionTests.MuxerIsCollected` is written for exactly that caller, and
+                // the v3 core passed it while holding a subscription bridge of its own. An ordinary
+                // connection hid the problem by having no standing read to be rooted by.
+                //
+                // A push that arrives after the multiplexer is gone has nowhere to go and nothing to tell, so
+                // "not recognised" is the whole of the correct behaviour.
+                var muxerRef = new WeakReference<ConnectionMultiplexer>(_multiplexer);
+                connection.OnPush = frame => muxerRef.TryGetTarget(out var muxer)
+                    ? RespPushDispatch.Dispatch(frame, muxer, endpoint)
+                    : RespOutOfBandResult.NotRecognized;
+
+                // BEFORE any discovery that can PROVOKE a push, which is not a detail. The maintenance opt-in
+                // below makes the server replay whatever it retained for this shard, and a push arriving
+                // before the dispatcher is wired is dropped as unrecognised - so the replay was lost and the
+                // "(catch-up)" line `MaintenanceNotificationTests+Retention` looks for never appeared. The
+                // configuration channel taught the same lesson at the other end of this method; this is the
+                // same rule applied to the other thing that asks a server to start talking.
+                // what discovery learned was logged by the handshake as it learned it; this closes the narrative
+                logger?.LogInformationOnEstablishingComplete(new(endpoint));
+
+                if (connection.Server is { } modelled)
                 {
-                    await RespHandshake.DiscoverServerConfigAsync(
-                        context,
-                        modelled,
-                        new RespHandshake.ConnectedTransportFacts(
-                            result.Protocol,
-                            connected.RemoteAddress,
-                            connected.IsEncrypted,
-                            requestedResp3: config.Protocol is null or RedisProtocol.Resp3,
-                            roleKnown: result.RoleFromHello is not null))
-                        .ConfigureAwait(false);
+                    // ...and told what this handshake just learned. The client's beliefs about a server used to
+                    // come from the v3 bridge handshaking its own socket; this handshake is now the only one, so
+                    // publishing what it learned is how the modelled server learns anything at all.
+                    Publish(modelled, in result);
+
+                    // ...and the server-wide settings nothing has described yet, which is the next slice of the
+                    // same move. Interactive only: a subscription connection is not where a client asks
+                    // questions, and the answers are server-wide so one connection asking is enough.
+                    if (!subscription)
+                    {
+                        await RespHandshake.DiscoverServerConfigAsync(
+                            context,
+                            modelled,
+                            new RespHandshake.ConnectedTransportFacts(
+                                result.Protocol,
+                                connected.RemoteAddress,
+                                connected.IsEncrypted,
+                                requestedResp3: config.Protocol is null or RedisProtocol.Resp3,
+                                roleKnown: result.RoleFromHello is not null))
+                            .ConfigureAwait(false);
+                    }
                 }
-            }
 
-            // A connection that asked for RESP3 and was answered less than that needs a SUBSCRIPTION
-            // socket, and needs it now rather than when something next subscribes. The v3 core
-            // reached the same conclusion in the same place - `OnFullyEstablished`'s
-            // `else if (SupportsSubscriptions && Protocol > Resp2) Activate(Subscription)` - and for the
-            // same reason: subscriptions composed while RESP3 was expected are about to be re-placed, and
-            // a re-place that has to dial first loses the race against whatever the caller does next.
-            // `Resp3DowngradeTests` measures exactly that race, as `PUBLISH => :0` arriving before the
-            // re-subscribe.
-            //
-            // Not awaited: this is the establish path, so waiting for another connection here would wait
-            // behind the one being established.
-            //
-            // Only when this core actually HOLDS a subscription, which was not a refinement but the whole
-            // correctness of it while both cores existed: unconditionally, a socket got dialled for an
-            // endpoint whose subscriptions belonged to the v3 bridge, and then re-placed onto it - so the
-            // channel ended up subscribed twice and a publish reported two subscribers where the caller
-            // asked for one. `Resp3DowngradeTests` measures that too, from the other side, as a RESP2
-            // connection carrying both a handshake's `INFO` and a `SUBSCRIBE`.
-            //
-            // Two reasons to want one, and the second is not a caller's at all: the library's own
-            // configuration channel also lives on the subscription socket under RESP2, and nothing else
-            // will ever ask for it - a lazily-dialled socket that waits for a subscribe waits for ever
-            // when the only subscriber is the thing that rides the socket's own handshake.
-            //
-            // Still only on a DOWNGRADE (`TryResp3`), which is what this hook is for. A client that asked
-            // for RESP2 in the first place has already had its socket dialled by `ActivateServer`, which
-            // knew it would need one without having to connect to find out - so dropping that condition
-            // just dials a second time. `RespSubscriptionConnectionTests` counts the sockets and says so.
-            if (!subscription
-                && result.Protocol < RedisProtocol.Resp3
-                && config.TryResp3()
-                && _multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)
-                && (_multiplexer.NewCoreOwnsAnySubscription()
-                    || _multiplexer.ConfigurationChangedChannel is not null))
-            {
-                DialSubscriptionSocket(endpoint);
-            }
-
-            // ...and under RESP3 this connection carries the configuration-change broadcast, because there
-            // is no subscription connection to carry it. Backported alongside #3254, which fixed exactly
-            // this for the v3 core: the channel is how a client is told BY HAND that the topology moved,
-            // and left unsubscribed the broadcast reaches nobody. The v3 fix subscribed the bridge's
-            // interactive connection, and with no bridges this connection needs the same, or the fix is
-            // undone.
-            //
-            // AFTER the handshake and on the NEGOTIATED protocol, never as part of it: a connection that
-            // asked for RESP3 and was answered RESP2 must not be put into subscriber mode, which is the
-            // caution the v3 version stated too.
-            //
-            // AFTER OnPush, which is not a detail: under RESP3 a subscribe confirmation IS a push, and a
-            // push arriving before the dispatcher is wired is dropped as unrecognised - so subscribing
-            // any earlier means waiting for a reply that has already been thrown away, which presents as
-            // the connection timing out in its own backlog.
-            if (!subscription && result.Protocol >= RedisProtocol.Resp3)
-            {
-                await SubscribeToConfigurationChannelAsync(context, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (!subscription && connection.Server is { } established)
-            {
-                established.OnNewCoreConnected($"{endpoint} connected on the new core");
-            }
-
-            // A connection deliveries arrive on is useless until the subscriptions are on it again, and
-            // nothing else was going to notice: the v3 core re-subscribed when its own subscription
-            // bridge established, so a socket THIS core brought back had no equivalent trigger and the
-            // subscriptions stayed off until something unrelated happened to ask.
-            //
-            // Fire-and-forget, for the reason the v3 caller gave where it did the same thing: this
-            // is the establish path, and waiting for a reply here waits behind the connection being
-            // established.
-            if (subscription)
-            {
-                try
+                // A connection that asked for RESP3 and was answered less than that needs a SUBSCRIPTION
+                // socket, and needs it now rather than when something next subscribes. The v3 core
+                // reached the same conclusion in the same place - `OnFullyEstablished`'s
+                // `else if (SupportsSubscriptions && Protocol > Resp2) Activate(Subscription)` - and for the
+                // same reason: subscriptions composed while RESP3 was expected are about to be re-placed, and
+                // a re-place that has to dial first loses the race against whatever the caller does next.
+                // `Resp3DowngradeTests` measures exactly that race, as `PUBLISH => :0` arriving before the
+                // re-subscribe.
+                //
+                // Not awaited: this is the establish path, so waiting for another connection here would wait
+                // behind the one being established.
+                //
+                // Only when this core actually HOLDS a subscription, which was not a refinement but the whole
+                // correctness of it while both cores existed: unconditionally, a socket got dialled for an
+                // endpoint whose subscriptions belonged to the v3 bridge, and then re-placed onto it - so the
+                // channel ended up subscribed twice and a publish reported two subscribers where the caller
+                // asked for one. `Resp3DowngradeTests` measures that too, from the other side, as a RESP2
+                // connection carrying both a handshake's `INFO` and a `SUBSCRIBE`.
+                //
+                // Two reasons to want one, and the second is not a caller's at all: the library's own
+                // configuration channel also lives on the subscription socket under RESP2, and nothing else
+                // will ever ask for it - a lazily-dialled socket that waits for a subscribe waits for ever
+                // when the only subscriber is the thing that rides the socket's own handshake.
+                //
+                // Still only on a DOWNGRADE (`TryResp3`), which is what this hook is for. A client that asked
+                // for RESP2 in the first place has already had its socket dialled by `ActivateServer`, which
+                // knew it would need one without having to connect to find out - so dropping that condition
+                // just dials a second time. `RespSubscriptionConnectionTests` counts the sockets and says so.
+                if (!subscription
+                    && result.Protocol < RedisProtocol.Resp3
+                    && config.TryResp3()
+                    && _multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)
+                    && (_multiplexer.NewCoreOwnsAnySubscription()
+                        || _multiplexer.ConfigurationChangedChannel is not null))
                 {
-                    // the records FIRST: this socket is new and carries nothing, so anything still
-                    // recorded against this endpoint is stale - and left in place it reads as "already
-                    // subscribed" and the re-ensure below does nothing at all
-                    _multiplexer.ForgetSubscriptionsOn(endpoint);
-                    _multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
+                    DialSubscriptionSocket(endpoint);
+                }
 
-                    // ...and the configuration-change broadcast, which under RESP2 belongs HERE rather
-                    // than on the ordinary connection - subscribing it there would put the connection
-                    // carrying ordinary commands into subscriber mode. The v3 core did exactly this and
-                    // in exactly this position: the last step of the SUBSCRIPTION bridge's handshake
-                    // (`ServerEndPoint.WriteDirectOrQueueFireAndForget`'s connType check), with the same
-                    // note that nothing ordinary can follow it. Without the bridges, the client's only way
-                    // of hearing "the topology moved" goes with them unless this does the same thing -
-                    // `ConfigurationChannelUnitTests` reads that as "the configuration channel has no
-                    // subscriber".
-                    await SubscribeToConfigurationChannelAsync(context, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-                catch (Exception ex)
+                // ...and under RESP3 this connection carries the configuration-change broadcast, because there
+                // is no subscription connection to carry it. Backported alongside #3254, which fixed exactly
+                // this for the v3 core: the channel is how a client is told BY HAND that the topology moved,
+                // and left unsubscribed the broadcast reaches nobody. The v3 fix subscribed the bridge's
+                // interactive connection, and with no bridges this connection needs the same, or the fix is
+                // undone.
+                //
+                // AFTER the handshake and on the NEGOTIATED protocol, never as part of it: a connection that
+                // asked for RESP3 and was answered RESP2 must not be put into subscriber mode, which is the
+                // caution the v3 version stated too.
+                //
+                // AFTER OnPush, which is not a detail: under RESP3 a subscribe confirmation IS a push, and a
+                // push arriving before the dispatcher is wired is dropped as unrecognised - so subscribing
+                // any earlier means waiting for a reply that has already been thrown away, which presents as
+                // the connection timing out in its own backlog.
+                if (!subscription && result.Protocol >= RedisProtocol.Resp3)
                 {
-                    // best efforts: a subscription that cannot be re-established must not fail the dial,
-                    // or nothing on this connection works either
-                    _multiplexer.OnInternalError(ex);
+                    await SubscribeToConfigurationChannelAsync(context, cancellationToken).ConfigureAwait(false);
                 }
-                finally
+
+                if (!subscription && connection.Server is { } established)
                 {
-                    // whatever happened, this is the moment anything waiting on the re-place is waiting
-                    // for - see `SubscriptionsSettling`
-                    SubscriptionsSettled(endpoint);
+                    established.OnNewCoreConnected($"{endpoint} connected on the new core");
                 }
+
+                // A connection deliveries arrive on is useless until the subscriptions are on it again, and
+                // nothing else was going to notice: the v3 core re-subscribed when its own subscription
+                // bridge established, so a socket THIS core brought back had no equivalent trigger and the
+                // subscriptions stayed off until something unrelated happened to ask.
+                //
+                // Fire-and-forget, for the reason the v3 caller gave where it did the same thing: this
+                // is the establish path, and waiting for a reply here waits behind the connection being
+                // established.
+                if (subscription)
+                {
+                    try
+                    {
+                        // the records FIRST: this socket is new and carries nothing, so anything still
+                        // recorded against this endpoint is stale - and left in place it reads as "already
+                        // subscribed" and the re-ensure below does nothing at all
+                        _multiplexer.ForgetSubscriptionsOn(endpoint);
+                        _multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
+
+                        // ...and the configuration-change broadcast, which under RESP2 belongs HERE rather
+                        // than on the ordinary connection - subscribing it there would put the connection
+                        // carrying ordinary commands into subscriber mode. The v3 core did exactly this and
+                        // in exactly this position: the last step of the SUBSCRIPTION bridge's handshake
+                        // (`ServerEndPoint.WriteDirectOrQueueFireAndForget`'s connType check), with the same
+                        // note that nothing ordinary can follow it. Without the bridges, the client's only way
+                        // of hearing "the topology moved" goes with them unless this does the same thing -
+                        // `ConfigurationChannelUnitTests` reads that as "the configuration channel has no
+                        // subscriber".
+                        await SubscribeToConfigurationChannelAsync(context, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        // best efforts: a subscription that cannot be re-established must not fail the dial,
+                        // or nothing on this connection works either
+                        _multiplexer.OnInternalError(ex);
+                    }
+                    finally
+                    {
+                        // whatever happened, this is the moment anything waiting on the re-place is waiting
+                        // for - see `SubscriptionsSettling`
+                        SubscriptionsSettled(endpoint);
+                    }
+                }
+
+                return connection;
             }
-
-            return connection;
+            catch
+            {
+                await connection.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
         }
 
         /// <summary>Dial a subscription socket for the library's own configuration channel.</summary>
@@ -2419,15 +2433,12 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public async ValueTask DisposeAsync()
         {
-            foreach (var executor in _endpoints.Values)
-            {
-                await executor.DisposeAsync().ConfigureAwait(false);
-            }
-
-            foreach (var executor in _subscriptions.Values)
-            {
-                await executor.DisposeAsync().ConfigureAwait(false);
-            }
+            // EACH executor, whatever the others do. This awaited them in turn and let the first exception
+            // end the method - and the caller swallows it, since a close must not throw - so one interactive
+            // connection that faulted on the way down left every subscription socket after it open, for
+            // the life of the process. With a multiplexer per test, that is the server's client limit.
+            foreach (var executor in _endpoints.Values) await DisposeQuietlyAsync(executor).ConfigureAwait(false);
+            foreach (var executor in _subscriptions.Values) await DisposeQuietlyAsync(executor).ConfigureAwait(false);
 
             _subscriptions.Clear();
 
@@ -2435,6 +2446,18 @@ namespace StackExchange.Redis
             // disposing the endpoints disposes everything there is to dispose
             _views.Clear();
             _endpoints.Clear();
+
+            static async ValueTask DisposeQuietlyAsync(RespEndpointExecutor executor)
+            {
+                try
+                {
+                    await executor.DisposeAsync().ConfigureAwait(false);
+                }
+                catch
+                {
+                    // the socket is going away either way; what matters is that the next one is reached
+                }
+            }
         }
     }
 }
