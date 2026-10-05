@@ -1188,6 +1188,10 @@ namespace StackExchange.Redis
 
             await server.RetireAsync(reason, drainTimeout ?? TimeSpan.FromSeconds(5), log).ForAwait();
 
+            // ...and the new core's connection to it, which would otherwise reconnect and resurrect the
+            // server it belongs to; see RespNewCore.RetireEndpointAsync
+            if (NewCoreIfCreated is { } core) await core.RetireEndpointAsync(server.EndPoint).ForAwait();
+
             lock (servers)
             {
                 // by endpoint, not by scanning: the server is keyed on exactly one
@@ -3295,7 +3299,9 @@ namespace StackExchange.Redis
             // whichever core holds the connection: the bridge first, since it is the one with an id when
             // it is dialling, and otherwise this core's - which under the engine flag is the connection
             // actually carrying the commands, and the only one the server can name
-            => TryResolveServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId
+            // create: false, because asking must not dial: a bridge created here connects, and under the
+            // engine flag that was a whole shipped handshake on a third socket just to answer a question
+            => TryResolveServerEndPoint(endpoint)?.GetBridge(type, create: false)?.ConnectionId
                 ?? NewCoreIfCreated?.ConnectionId(endpoint, type);
 
         internal uint UpdateLatency()

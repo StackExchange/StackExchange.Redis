@@ -932,109 +932,63 @@ namespace StackExchange.Redis
             }
         }
 
+        // SENTINEL: on the context, like every other server command, so that under the engine flag a sentinel
+        // is asked over the connection this core holds to it - see SentinelCommands for the replies' shapes.
         public EndPoint? SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, serviceName.AsRedisValue());
-            return ExecuteSync(msg, ResultProcessor.SentinelPrimaryEndpoint);
-        }
+            => Wait(Context.Raw.SentinelPrimaryAddress(serviceName, flags));
 
         public Task<EndPoint?> SentinelGetMasterAddressByNameAsync(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, serviceName.AsRedisValue());
-            return ExecuteAsync(msg, ResultProcessor.SentinelPrimaryEndpoint);
-        }
+            => Context.Raw.SentinelPrimaryAddress(serviceName, flags).AsTask(asyncState, flags);
 
         public EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.SENTINELS, serviceName.AsRedisValue());
-            return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
-        }
+            => Wait(Context.Raw.SentinelSentinelAddresses(serviceName, flags)) ?? [];
 
         public Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.SENTINELS, serviceName.AsRedisValue());
-            return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
-        }
+            => Context.Raw.SentinelSentinelAddresses(serviceName, flags).AsTask(asyncState, flags);
 
         public EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, serviceName.AsRedisValue());
-            return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
-        }
+            => Wait(Context.Raw.SentinelReplicaAddresses(serviceName, Features.ReplicaCommands, flags)) ?? [];
 
         public Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, serviceName.AsRedisValue());
-            return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints, defaultValue: Array.Empty<EndPoint>());
-        }
+            => Context.Raw.SentinelReplicaAddresses(serviceName, Features.ReplicaCommands, flags).AsTask(asyncState, flags);
 
         public KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.MASTER, serviceName.AsRedisValue());
-            return ExecuteSync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
-        }
+            => Wait(Context.Raw.SentinelPrimary(serviceName, flags)) ?? [];
 
         public Task<KeyValuePair<string, string>[]> SentinelMasterAsync(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.MASTER, serviceName.AsRedisValue());
-            return ExecuteAsync(msg, ResultProcessor.StringPairInterleaved, defaultValue: Array.Empty<KeyValuePair<string, string>>());
-        }
+            => Context.Raw.SentinelPrimary(serviceName, flags).AsTask(asyncState, flags);
 
         public void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, serviceName.AsRedisValue());
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
+            => Wait(Context.Raw.SentinelFailover(serviceName, flags));
 
         public Task SentinelFailoverAsync(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.FAILOVER, serviceName.AsRedisValue());
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
+            => Context.Raw.SentinelFailover(serviceName, flags).AsTask(asyncState, flags);
 
         public KeyValuePair<string, string>[][] SentinelMasters(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
-            return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
-        }
+            => Wait(Context.Raw.SentinelPrimaries(flags)) ?? [];
 
         public Task<KeyValuePair<string, string>[][]> SentinelMastersAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
-            return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
-        }
+            => Context.Raw.SentinelPrimaries(flags).AsTask(asyncState, flags);
 
         // For previous compat only
         KeyValuePair<string, string>[][] IServer.SentinelSlaves(string serviceName, CommandFlags flags)
             => SentinelReplicas(serviceName, flags);
 
         public KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, serviceName.AsRedisValue());
-            return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
-        }
+            => Wait(Context.Raw.SentinelReplicas(serviceName, Features.ReplicaCommands, flags)) ?? [];
 
         // For previous compat only
         Task<KeyValuePair<string, string>[][]> IServer.SentinelSlavesAsync(string serviceName, CommandFlags flags)
             => SentinelReplicasAsync(serviceName, flags);
 
         public Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, Features.ReplicaCommands ? RedisLiterals.REPLICAS : RedisLiterals.SLAVES, serviceName.AsRedisValue());
-            return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
-        }
+            => Context.Raw.SentinelReplicas(serviceName, Features.ReplicaCommands, flags).AsTask(asyncState, flags);
 
         public KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.SENTINELS, serviceName.AsRedisValue());
-            return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
-        }
+            => Wait(Context.Raw.SentinelSentinels(serviceName, flags)) ?? [];
 
         public Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags.WithRetryCategory(NodeLocalRead), RedisCommand.SENTINEL, RedisLiterals.SENTINELS, serviceName.AsRedisValue());
-            return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays, defaultValue: Array.Empty<KeyValuePair<string, string>[]>());
-        }
+            => Context.Raw.SentinelSentinels(serviceName, flags).AsTask(asyncState, flags);
 
         public RedisResult Execute(string command, params object[] args) => Execute(command, args, CommandFlags.None);
 

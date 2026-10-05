@@ -1993,16 +1993,20 @@ namespace StackExchange.Redis
 
         private bool DueForConnectRetry()
         {
-            if (Volatile.Read(ref _connectRetryCount) <= 0 && _connection is null && _connects == 0)
-            {
-                return true; // never connected and never failed: this is the first attempt
-            }
+            // Nothing has failed since the last success - the first connect, or the first reconnect after
+            // a healthy connection was lost - so there is nothing to back off from. The shipped bridge
+            // reconnects on demand here without asking the policy, and a policy that delays its first
+            // answer (exponential backoff does) would otherwise hold up a reconnect that needed no retry.
+            var failures = Volatile.Read(ref _connectRetryCount);
+            if (failures <= 0) return true;
 
             var policy = _retryPolicy?.Invoke();
             if (policy is null) return true;
 
+            // the policy is asked about retries already MADE, as the shipped bridge asks it: after the first
+            // failure, none has been - so the count it sees starts at zero, not at the failure count
             var elapsed = unchecked(Environment.TickCount - Volatile.Read(ref _lastConnectTicks));
-            return policy.ShouldRetry(Volatile.Read(ref _connectRetryCount), elapsed);
+            return policy.ShouldRetry(failures - 1, elapsed);
         }
 
         /// <summary>Connect, giving up after <see cref="_connectTimeoutMilliseconds"/>.</summary>

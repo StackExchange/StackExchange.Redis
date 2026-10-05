@@ -2357,6 +2357,30 @@ namespace StackExchange.Redis
             foreach (var pair in _subscriptions) pair.Value.OnHeartbeat(timeout);
         }
 
+        /// <summary>Stop holding a connection to an endpoint the client has stopped modelling.</summary>
+        /// <param name="endpoint">The endpoint whose server was retired.</param>
+        /// <remarks>
+        /// <b>Called when the multiplexer retires a server</b>, and the reason it must be: this core keeps an
+        /// executor per endpoint, and an executor reconnects. Its connect path resolves the endpoint's server
+        /// - creating one if there is none - so a retired server whose executor lived on came straight back
+        /// on the next reconnect. <c>SentinelTests.AbortOnConnectFailFalseRecoversOnceSentinelsAppear</c>
+        /// measured it as the sentinel seed address lingering among a primary's endpoints after the switch.
+        /// The views over the endpoint go too: they would otherwise hand out a disposed executor.
+        /// </remarks>
+        internal async Task RetireEndpointAsync(EndPoint endpoint)
+        {
+            foreach (var byEndpoint in _views.Values) byEndpoint.TryRemove(endpoint, out _);
+            if (_endpoints.TryRemove(endpoint, out var interactive))
+            {
+                await interactive.DisposeAsync().ConfigureAwait(false);
+            }
+
+            if (_subscriptions.TryRemove(endpoint, out var subscription))
+            {
+                await subscription.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+
         /// <inheritdoc/>
         public async ValueTask DisposeAsync()
         {

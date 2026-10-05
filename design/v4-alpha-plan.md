@@ -44,7 +44,10 @@ In order. The first unchecked item is the next action; the order puts the larges
 - [x] **Land the coupled patch** as the committed engine-flag behaviour. "Coupled" and "flag-only" are now
       the same configuration and the patch file is retired. Landing fixes: eager connect skips inert
       cluster nodes (`RespTopology.ServesAnySlot`); the socket-count and slot-less tests re-baselined.
-- [ ] Sentinel (D2.7). Deliberately last in gate 1; may move to after the alpha.
+- [x] Sentinel (D2.7): the 14 `IServer` sentinel methods run on the context (`SentinelCommands`), so a
+      sentinel is no longer asked through a shipped bridge. Two recovery bugs found on the way: a retired
+      server's new-core executor reconnected and resurrected it (`RespNewCore.RetireEndpointAsync`), and a
+      restore-triggered primary switch that failed stopped the retry timer and never re-armed it.
 
 ### Gate 2
 
@@ -88,10 +91,15 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 
 **Every one of those removals breaks the shipped configuration while it exists**, so the order is forced:
 
-- [ ] Zero the engine-flag triage list - CI sets no flags, so after the flip it inherits whatever is left:
-      `ReconnectRetryPolicyUnitTests` (Success), `DefaultOptionsTests` x2 (decision 2), Sentinel
-      `AbortOnConnectFailFalseRecoversOnceSentinelsAppear` (D2.7), and the `MovedProfiling` / `GetClients` /
-      `SubscribeToWrongServer` flakes.
+- [ ] Zero the engine-flag triage list - CI sets no flags, so after the flip it inherits whatever is left.
+      Done: `ReconnectRetryPolicyUnitTests` (the policy was asked before anything had failed, and with a
+      failure count where it expects a retry count); `DefaultOptionsTests` x2 and `GetClients` (a real bug,
+      not decision 2's trade-off: `GetConnectionId` created - and so dialled - a shipped bridge just to read
+      an id); Sentinel (above). `MovedProfiling`: a real interval under TimeSpan's 100ns
+      resolution, asserted strictly positive; now `>=`, as the test already allows `ResponseToCompletion`.
+      Left, all load-only (0/15 each in isolation): `SubscribeToWrongServerAsync(false)` (a key-routed plain
+      subscription moved to the slot owner inside the test's 50ms window), `PubSubOrderedRouted` (conn
+      appears to receive one message twice - a possible duplicate subscription, worth a capture), and the stall.
 - [ ] **Flip the default**: the engine flags on unless `SEREDIS_NEW_CORE_ENGINE=0`. The old core is then
       present but unreachable by default - the shape the alpha can ship in.
 - [ ] Decouple the 91 + 46 above (was 137 at f7f36406, by a different count). Expect another layer
@@ -107,10 +115,8 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 Each has a default the work proceeds on; none of them blocks anything.
 
 1. ~~`LoggerTests.BasicLoggerConfig`~~ - resolved by the logging port; passes under the engine flags.
-2. **`DefaultOptionsTests` Vanilla/Azure-RESP3 still see one extra socket** under the engine flags: an
-   endpoint whose protocol is not yet known gets a dedicated subscription socket, and keeps it (the
-   documented trade-off in `SubscriptionEndpoint`). *Default:* accept it for the alpha; revisit by
-   closing the dedicated socket once RESP3 is confirmed.
+2. ~~`DefaultOptionsTests` extra socket~~ - not a trade-off after all: asking `GetConnectionId` created a
+   shipped bridge, which dialled. Fixed; no decision needed.
 3. ~~`SlotLessNodesAreKnownButNotConnected` racy~~ - resolved at landing: the test no longer activates the
    node it is asserting on, and eager connect no longer dials inert nodes.
 4. **Alpha before or after gate 3.** *Default:* proceed through gate 3; flag the moment gate 2 is done.

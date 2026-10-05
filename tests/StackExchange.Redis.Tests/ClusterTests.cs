@@ -975,7 +975,10 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         {
             Assert.True(msg.CommandCreated != default(DateTime));
             Assert.True(msg.CreationToEnqueued > TimeSpan.Zero);
-            Assert.True(msg.EnqueuedToSending > TimeSpan.Zero);
+            // can be immeasurably fast too: the new core stamps "enqueued" and then reserves the write with
+            // nothing between them, often under 100ns - and TimeSpan's resolution is 100ns, so the span is a
+            // real interval that rounds to zero, exactly as ResponseToCompletion's can below
+            Assert.True(msg.EnqueuedToSending >= TimeSpan.Zero);
             Assert.True(msg.SentToResponse > TimeSpan.Zero);
             Assert.True(msg.ResponseToCompletion >= TimeSpan.Zero); // this can be immeasurably fast
             Assert.True(msg.ElapsedTime > TimeSpan.Zero);
