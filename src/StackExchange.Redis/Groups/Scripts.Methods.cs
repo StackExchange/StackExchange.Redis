@@ -363,6 +363,52 @@ public static partial class Scripts
         return scripts.Context.SendAsync(ref cmd, flags, handler, cancellationToken);
     }
 
+    /// <summary>SCRIPT LOAD: put a script in the server's cache and learn its SHA1.</summary>
+    /// <param name="scripts">The script command group.</param>
+    /// <param name="script">The Lua source.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <returns>The SHA1 as lower-case hex, exactly as the server reported it.</returns>
+    /// <remarks>
+    /// Hex rather than bytes, because that is what every consumer of the answer keys on - the endpoint's
+    /// record of loaded scripts and <c>EVALSHA</c> both take the text. <c>IServer.ScriptLoad</c> converts.
+    /// Retried as a connection-level command: the SHA is a pure function of the script, so a replay on any
+    /// node returns the same answer.
+    /// </remarks>
+    internal static ValueTask<string?> LoadHex(
+        this in RespScripts scripts,
+        string script,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => scripts.Context.SendAsync(
+            $"{RedisCommand.SCRIPT}{RespLiterals.Load}{script.AsRedisValue()}",
+            flags.WithRetryCategory(CommandFlags.CommandRetryConnection),
+            RespHandlers.String,
+            cancellationToken);
+
+    /// <summary>The 20 bytes of a SHA1 given as 40 hex characters, or null when it is not one.</summary>
+    /// <param name="hex">The hex text.</param>
+    internal static byte[]? Sha1Bytes(string? hex)
+    {
+        if (hex is not { Length: 40 }) return null;
+        var bytes = new byte[20];
+        for (int i = 0; i < bytes.Length; i++)
+        {
+            int hi = HexValue(hex[2 * i]), lo = HexValue(hex[(2 * i) + 1]);
+            if ((hi | lo) < 0) return null;
+            bytes[i] = (byte)((hi << 4) | lo);
+        }
+        return bytes;
+
+        static int HexValue(char c) => c switch
+        {
+            >= '0' and <= '9' => c - '0',
+            >= 'a' and <= 'f' => c - 'a' + 10,
+            >= 'A' and <= 'F' => c - 'A' + 10,
+            _ => -1,
+        };
+    }
+
     /// <summary>The shipped <see cref="RedisResult"/> shape, for <c>IDatabase.ScriptEvaluate</c>.</summary>
     /// <remarks>
     /// <b>Permanent, not scaffolding</b>, and internal for the same reason the <c>*Array</c> shims are:

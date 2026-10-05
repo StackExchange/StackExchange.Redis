@@ -585,20 +585,15 @@ namespace StackExchange.Redis
             await RequestMaintenanceNotificationsAsync(context, server, connected).ConfigureAwait(false);
 
             if (!context.Raw.CommandMap.IsAvailable(RedisCommand.CONFIG)) return;
-            var log = server.Multiplexer.Logger;
 
             // the server's idle timeout sets how often the heartbeat must write to keep the connection, when
             // the caller did not choose - the shipped auto-configure reads it, and this did not, so under the
             // engine flag `WriteEverySeconds` silently kept its 60s default against a server that might drop
             // idle connections sooner. Same rule as the shipped processor: 20s spare above a minute, else 3/4.
             if (server.Multiplexer.RawConfig.KeepAlive <= 0
-                && await ReadSettingAsync(context, "timeout").ConfigureAwait(false) is { } timeout
-                && int.TryParse(timeout, NumberStyles.Integer, CultureInfo.InvariantCulture, out var timeoutSeconds)
-                && timeoutSeconds > 0)
+                && await ReadSettingAsync(context, "timeout").ConfigureAwait(false) is { } timeout)
             {
-                var targetSeconds = timeoutSeconds >= 60 ? timeoutSeconds - 20 : (timeoutSeconds * 3) / 4;
-                log?.LogInformationAutoConfiguredConfigTimeout(new(server), targetSeconds);
-                server.WriteEverySeconds = targetSeconds;
+                ApplySetting(server, "timeout", timeout);
             }
 
             if (server.Databases > 0) return;
@@ -607,18 +602,60 @@ namespace StackExchange.Redis
             // before it. The shipped handshake picks by the same predicate.
             var readOnlyKey = server.GetFeatures().ReplicaCommands ? "replica-read-only" : "slave-read-only";
 
-            if (await ReadSettingAsync(context, "databases").ConfigureAwait(false) is { } databases
-                && int.TryParse(databases, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
-                && count > 0)
+            if (await ReadSettingAsync(context, "databases").ConfigureAwait(false) is { } databases)
             {
-                log?.LogInformationAutoConfiguredConfigDatabases(new(server), count);
-                server.Databases = count;
+                ApplySetting(server, "databases", databases);
             }
 
             if (await ReadSettingAsync(context, readOnlyKey).ConfigureAwait(false) is { } readOnly)
             {
-                server.ReplicaReadOnly = !string.Equals(readOnly, "no", StringComparison.OrdinalIgnoreCase);
-                log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), server.ReplicaReadOnly);
+                ApplySetting(server, readOnlyKey, readOnly);
+            }
+        }
+
+        /// <summary>Record one server setting on the client's model of that server.</summary>
+        /// <param name="server">The server the setting was read from.</param>
+        /// <param name="name">The setting, as <c>CONFIG GET</c> names it.</param>
+        /// <param name="value">Its value.</param>
+        /// <returns>Whether the setting is one the client models.</returns>
+        /// <remarks>
+        /// <b>The one copy of the rules</b>, shared by discovery at connect and by <c>IServer.ConfigSet</c>'s
+        /// read-back, which is how a setting a caller changes stays true on the model - the job the shipped
+        /// auto-configure processor did for both. Logged under the shipped auto-configure ids.
+        /// </remarks>
+        internal static bool ApplySetting(ServerEndPoint server, string name, string value)
+        {
+            var log = server.Multiplexer.Logger;
+            switch (name.ToLowerInvariant())
+            {
+                case "timeout":
+                    // how often the heartbeat must write to keep an idle connection: 20s spare above a
+                    // minute, three quarters below it - the shipped rule. Zero means the server never drops.
+                    // Applied whenever the server says, even over a configured KeepAlive: that setting only
+                    // decides whether discovery ASKS, and a server that will drop idle connections sooner
+                    // than the configured interval wins - as it always did (HeartbeatTests measures it).
+                    if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var timeoutSeconds)
+                        && timeoutSeconds > 0)
+                    {
+                        var targetSeconds = timeoutSeconds >= 60 ? timeoutSeconds - 20 : (timeoutSeconds * 3) / 4;
+                        log?.LogInformationAutoConfiguredConfigTimeout(new(server), targetSeconds);
+                        server.WriteEverySeconds = targetSeconds;
+                    }
+                    return true;
+                case "databases":
+                    if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) && count > 0)
+                    {
+                        log?.LogInformationAutoConfiguredConfigDatabases(new(server), count);
+                        server.Databases = count;
+                    }
+                    return true;
+                case "replica-read-only":
+                case "slave-read-only":
+                    server.ReplicaReadOnly = !string.Equals(value, "no", StringComparison.OrdinalIgnoreCase);
+                    log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), server.ReplicaReadOnly);
+                    return true;
+                default:
+                    return false;
             }
         }
 

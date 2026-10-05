@@ -212,27 +212,49 @@ namespace StackExchange.Redis
             => Context.Diagnostics.ClientListArray(flags).AsTask(asyncState, flags);
 
         public ClusterConfiguration? ClusterNodes(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetClusterNodesMessage(flags);
-            return ExecuteSync(msg, ResultProcessor.ClusterNodes);
-        }
+            => Wait(ClusterNodesCore(flags));
 
         public Task<ClusterConfiguration?> ClusterNodesAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetClusterNodesMessage(flags);
-            return ExecuteAsync(msg, ResultProcessor.ClusterNodes);
-        }
+            => ClusterNodesCore(flags).AsTask(asyncState, flags);
 
         public string? ClusterNodesRaw(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetClusterNodesMessage(flags);
-            return ExecuteSync(msg, ResultProcessor.ClusterNodesRaw);
-        }
+            => Wait(ClusterNodesRawCore(flags));
 
         public Task<string?> ClusterNodesRawAsync(CommandFlags flags = CommandFlags.None)
+            => ClusterNodesRawCore(flags).AsTask(asyncState, flags);
+
+        private async ValueTask<ClusterConfiguration?> ClusterNodesCore(CommandFlags flags)
+            => ParseClusterNodes(await Context.Diagnostics.ClusterNodesRaw(flags).ConfigureAwait(false), demand: true);
+
+        private async ValueTask<string?> ClusterNodesRawCore(CommandFlags flags)
         {
-            var msg = GetClusterNodesMessage(flags);
-            return ExecuteAsync(msg, ResultProcessor.ClusterNodesRaw);
+            var nodes = await Context.Diagnostics.ClusterNodesRaw(flags).ConfigureAwait(false);
+            ParseClusterNodes(nodes, demand: false);
+            return nodes;
+        }
+
+        /// <summary>
+        /// Turn a <c>CLUSTER NODES</c> reply into the configuration, and record it against this server - the
+        /// side-effect the shipped processor had, which keeps the selector's view current whenever anyone asks.
+        /// </summary>
+        /// <param name="nodes">The reply text.</param>
+        /// <param name="demand">
+        /// Whether a reply that cannot be parsed is the caller's problem. The raw overloads return the text
+        /// whatever it says, so for them recording is best-effort, as it always was.
+        /// </param>
+        private ClusterConfiguration? ParseClusterNodes(string? nodes, bool demand)
+        {
+            if (string.IsNullOrWhiteSpace(nodes)) return null;
+            try
+            {
+                var config = new ClusterConfiguration(multiplexer.ServerSelectionStrategy, nodes!, server.EndPoint);
+                server.SetClusterConfiguration(config);
+                return config;
+            }
+            catch when (!demand)
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -276,38 +298,51 @@ namespace StackExchange.Redis
         public void ConfigSet(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             Wait(Context.Config.SetAsync(setting, value, flags));
-            RelearnSetting(setting, flags);
+            RelearnSetting(setting);
         }
 
         public Task ConfigSetAsync(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             var task = Context.Config.SetAsync(setting, value, flags).AsTask(asyncState, flags);
-            RelearnSetting(setting, flags);
+            RelearnSetting(setting);
             return task;
         }
 
         /// <summary>Read back a setting the caller just changed, so the client's model of it is current.</summary>
         /// <param name="setting">The setting that was changed.</param>
-        /// <param name="flags">The caller's flags.</param>
         /// <remarks>
         /// <para>
-        /// <b>Still on the shipped path, and that is not an oversight.</b> The point of this read is not
-        /// the reply - it is discarded - but what <c>ResultProcessor.AutoConfigure</c> does with it:
-        /// publish the setting to this <c>ServerEndPoint</c>, which is how <c>databases</c>,
-        /// <c>timeout</c> and <c>replica-read-only</c> stay true after a caller changes them. The context
-        /// surface has no equivalent yet; see design notes D2.8, where publishing what a handshake learns
-        /// is the discovery item.
+        /// <b>The reply is not the point</b>: <c>RespHandshake.ApplySetting</c> is - the same rule discovery
+        /// uses at connect, which is how <c>databases</c>, <c>timeout</c> and <c>replica-read-only</c> stay
+        /// true after a caller changes them. Fire-and-forget, as the shipped read-back was: it is sent after
+        /// the <c>SET</c> on the same path, so it observes it, and nobody waits on it.
         /// </para>
         /// <para>
-        /// Which socket carries it does not matter, which is why the split is harmless: <c>CONFIG</c> is
-        /// server-global rather than connection state, so reading it back on another connection to the
-        /// same server answers the same question.
+        /// Only for settings the model holds; anything else would be a round trip to learn nothing.
         /// </para>
         /// </remarks>
-        private void RelearnSetting(RedisValue setting, CommandFlags flags)
-            => ExecuteSync(
-                Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting),
-                ResultProcessor.AutoConfigure);
+        private void RelearnSetting(RedisValue setting)
+        {
+            var name = (string?)setting;
+            if (name is not ("timeout" or "databases" or "replica-read-only" or "slave-read-only")) return;
+            _ = RelearnSettingAsync(name);
+        }
+
+        private async Task RelearnSettingAsync(string name)
+        {
+            try
+            {
+                foreach (var pair in await Context.Config.GetArray(name, CommandFlags.None).ConfigureAwait(false))
+                {
+                    RespHandshake.ApplySetting(server, pair.Key, pair.Value);
+                }
+            }
+            catch (Exception ex)
+            {
+                // the change itself succeeded or failed on its own task; this only keeps the model current
+                System.Diagnostics.Debug.WriteLine(ex.Message);
+            }
+        }
 
         public long CommandCount(CommandFlags flags = CommandFlags.None)
             => Wait(Context.Diagnostics.CommandCountAsync(flags));
@@ -490,15 +525,28 @@ namespace StackExchange.Redis
         }
 
         public byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
-            return ExecuteSync(msg, ResultProcessor.ScriptLoad, defaultValue: Array.Empty<byte>()); // Note: default isn't used on failure - we'll throw
-        }
+            => Wait(ScriptLoadCore(script, flags));
 
         public Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None)
+            => ScriptLoadCore(script, flags).AsTask(asyncState, flags);
+
+        /// <summary>Load a script, and record it as loaded on this server - the shipped processor's side-effect.</summary>
+        /// <remarks>
+        /// The record is what lets a later <c>EVALSHA</c> skip the body here; see <c>ScriptLoadGate</c>,
+        /// which keeps the same belief, keyed the same way, for the context's own evaluate path.
+        /// </remarks>
+        private async ValueTask<byte[]> ScriptLoadCore(string script, CommandFlags flags)
         {
-            var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
-            return ExecuteAsync(msg, ResultProcessor.ScriptLoad, defaultValue: Array.Empty<byte>()); // Note: default isn't used on failure - we'll throw
+            if (script is null) throw new ArgumentNullException(nameof(script));
+            var hex = await Context.Scripts.LoadHex(script, flags).ConfigureAwait(false);
+            if (Scripts.Sha1Bytes(hex) is not { } hash)
+            {
+                if ((flags & CommandFlags.FireAndForget) != 0) return Array.Empty<byte>();
+                throw new RESPite.RespException("Unexpected SCRIPT LOAD reply.");
+            }
+
+            server.AddScript(script, System.Text.Encoding.ASCII.GetBytes(hex!));
+            return hash;
         }
 
         public LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None)
@@ -589,7 +637,13 @@ namespace StackExchange.Redis
 
         internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint? primaryEndpoint, CommandFlags flags = CommandFlags.None)
         {
-            RedisValue host, port;
+            GetReplicaOfArgs(primaryEndpoint, out var host, out var port);
+            return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
+        }
+
+        /// <summary>The two arguments of <c>REPLICAOF</c>: a primary's host and port, or <c>NO ONE</c>.</summary>
+        private static void GetReplicaOfArgs(EndPoint? primaryEndpoint, out RedisValue host, out RedisValue port)
+        {
             if (primaryEndpoint == null)
             {
                 host = RedisLiterals.NO;
@@ -607,33 +661,6 @@ namespace StackExchange.Redis
                     throw new NotSupportedException("Unknown endpoint type: " + primaryEndpoint.GetType().Name);
                 }
             }
-            return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
-        }
-
-        private Message? GetTiebreakerRemovalMessage()
-        {
-            var configuration = multiplexer.RawConfig;
-
-            if (configuration.TryGetTieBreaker(out var tieBreakerKey) && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
-            {
-                var msg = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, tieBreakerKey);
-                msg.SetInternalCall();
-                return msg;
-            }
-            return null;
-        }
-
-        private Message? GetConfigChangeMessage()
-        {
-            // attempt to broadcast a reconfigure message to anybody listening to this server
-            var channel = multiplexer.ConfigurationChangedChannel;
-            if (channel != null && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
-            {
-                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, RedisChannel.Literal(channel), RedisLiterals.Wildcard);
-                msg.SetInternalCall();
-                return msg;
-            }
-            return null;
         }
 
         internal override Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
@@ -714,54 +741,61 @@ namespace StackExchange.Redis
                 throw new ArgumentException("Cannot replicate to self");
             }
 
-#pragma warning disable CS0618 // Type or member is obsolete
-            // attempt to cease having an opinion on the master; will resume that when replication completes
-            // (note that this may fail; we aren't depending on it)
-            if (GetTiebreakerRemovalMessage() is Message tieBreakerRemoval)
-            {
-                tieBreakerRemoval.SetSource(ResultProcessor.Boolean, null);
-                server.GetBridge(tieBreakerRemoval)?.TryWriteSync(tieBreakerRemoval, server.IsReplica);
-            }
-
-            var replicaOfMsg = CreateReplicaOfMessage(server, master, flags);
-            ExecuteSync(replicaOfMsg, ResultProcessor.DemandOK);
-
-            // attempt to broadcast a reconfigure message to anybody listening to this server
-            if (GetConfigChangeMessage() is Message configChangeMessage)
-            {
-                configChangeMessage.SetSource(ResultProcessor.Int64, null);
-                server.GetBridge(configChangeMessage)?.TryWriteSync(configChangeMessage, server.IsReplica);
-            }
-#pragma warning restore CS0618
+            Wait(ReplicaOfCore(master, flags));
         }
 
         Task IServer.SlaveOfAsync(EndPoint master, CommandFlags flags) => ReplicaOfAsync(master, flags);
 
-        public async Task ReplicaOfAsync(EndPoint? master, CommandFlags flags = CommandFlags.None)
+        public Task ReplicaOfAsync(EndPoint? master, CommandFlags flags = CommandFlags.None)
         {
             if (master == server.EndPoint)
             {
                 throw new ArgumentException("Cannot replicate to self");
             }
 
-            // Attempt to cease having an opinion on the primary - will resume that when replication completes
-            // (note that this may fail - we aren't depending on it)
-            if (GetTiebreakerRemovalMessage() is Message tieBreakerRemoval && !server.IsReplica)
+            return ReplicaOfCore(master, flags).AsTask(asyncState, flags);
+        }
+
+        /// <summary>Change what this server replicates, with the bookkeeping either side of it.</summary>
+        /// <remarks>
+        /// <para>
+        /// Before: a primary gives up its tie-breaker vote, so it stops claiming the role while replication
+        /// settles - best-effort, and never on a replica, which could not accept the write anyway.
+        /// </para>
+        /// <para>
+        /// After: a broadcast on the configuration channel, so every client listening re-reads the topology
+        /// instead of discovering the change one failed write at a time. Also best-effort.
+        /// </para>
+        /// </remarks>
+        private async ValueTask ReplicaOfCore(EndPoint? primary, CommandFlags flags)
+        {
+            var raw = Context.Raw;
+            const CommandFlags Housekeeping = CommandFlags.FireAndForget | CommandFlags.NoRedirect;
+
+            if (!server.IsReplica
+                && multiplexer.RawConfig.TryGetTieBreaker(out var tieBreaker)
+                && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
             {
                 try
                 {
-                    await server.WriteDirectAsync(tieBreakerRemoval, ResultProcessor.Boolean).ForAwait();
+                    await new RespKeys(raw.WithDatabase(0)).DeleteAsync(tieBreaker, Housekeeping).ConfigureAwait(false);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(ex.Message); // we aren't depending on it
+                }
             }
 
-            var msg = CreateReplicaOfMessage(server, master, flags);
-            await ExecuteAsync(msg, ResultProcessor.DemandOK).ForAwait();
+            GetReplicaOfArgs(primary, out var host, out var port);
+            var command = server.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF;
+            await raw.SendAsync($"{command}{host}{port}", flags).ConfigureAwait(false);
 
-            // attempt to broadcast a reconfigure message to anybody listening to this server
-            if (GetConfigChangeMessage() is Message configChangeMessage)
+            if (multiplexer.ConfigurationChangedChannel is { } channel
+                && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
             {
-                await server.WriteDirectAsync(configChangeMessage, ResultProcessor.Int64).ForAwait();
+                // with the prefix the channel is SUBSCRIBED with, which the server context deliberately does not carry
+                var broadcast = new RespPubSub(raw.AppendChannelPrefix(multiplexer.RawConfig.ChannelPrefix));
+                await broadcast.PublishAsync(RedisChannel.Literal(channel), RedisLiterals.Wildcard, Housekeeping).ConfigureAwait(false);
             }
         }
 

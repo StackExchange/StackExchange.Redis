@@ -61,14 +61,20 @@ In order. The first unchecked item is the next action; the order puts the larges
       replaced by shipped ids).
 - [x] Side-effect found by the port: the new core never read `CONFIG GET timeout`, so `WriteEverySeconds`
       kept its default under the engine flag. Now read, with the shipped rule.
-- [ ] `IServer` methods still on `Message`: `ClusterNodes`, `ClusterNodesRaw`, `ConfigSet`, `Execute`,
-      `ReplicaOf`, `ScriptLoad`, `Time`. Same shape as the `CLIENT KILL` port (a103e68e).
+- [x] `IServer` methods off `Message` (non-Sentinel): `ClusterNodes`/`ClusterNodesRaw`/`ClusterSlots`
+      (keeping the `SetClusterConfiguration` side-effect), `ScriptLoad` (keeping `AddScript`), `ReplicaOf`
+      (tie-breaker removal and the prefixed config-channel broadcast), and `ConfigSet`'s read-back, now
+      through one `RespHandshake.ApplySetting` rule shared with discovery. `Execute` and `Time` were already
+      ported. Found on the way: `KeepAlive` gates whether discovery *asks* for `timeout`, never whether a
+      reply is applied (`HeartbeatTests`). The 14 Sentinel methods stay with D2.7.
 - [x] Side-effects audited: `SetLatency` was real (multi-group ranking read "never measured") - now
       sampled from the handshake's `CLIENT ID` and the keep-alive PING. `RunId` is written and never
       read. `SubscriptionCount` is covered: `IsIdle` asks the registry too. `MultiDatabasesOverride`
       (#2642, Alibaba) is covered by construction: the new core sets `ServerType` only from a declared
       mode, never from the `CLUSTER NODES` inference that override guarded.
-- [ ] Profiling: `CommandTrace` / `ProfiledCommand` are built on `Message` and are public.
+- [x] Profiling: already has its new-core door (`ProfiledCommand.SetOperation`, populated by the
+      endpoint executor, MOVED included), and `SLOWLOG GET` already parses through the context. What is
+      left is deleting the `Message` door and `CommandTrace`'s nested processor - gate 3 work.
 
 ### Gate 3
 
@@ -117,6 +123,10 @@ Learned the expensive way; see `message-core-replacement.md` 9aa-9aj for the inc
 
 ## Status
 
+- **Open flake, engine flag only so far:** occasional ~5s windows where a shared RESP3 connection to 6379
+  gets no replies (outbound queued, inbound 0), timing out whatever was in flight - 52 tests once, 2 once,
+  otherwise absent over ~8 runs. `AsyncTimeoutIsNoticed`'s `CLIENT PAUSE` was the first suspect, but it is
+  in the non-parallel collection. Needs a capture of what the connection was doing, not more guessing.
 - Engine flags only: **3** (the known retry-policy rotators and Envoy). Coupled: 7 / 13 / 9 over three runs,
   every consistent failure on the triaged list. Shipped green.
 - Fixed this session, each verified across all three configurations: `CLIENT KILL` port; topology

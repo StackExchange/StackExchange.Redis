@@ -5,8 +5,8 @@ namespace StackExchange.Redis;
 internal partial class RedisServer
 {
     public ClusterSlotsResult? ClusterSlots(CommandFlags flags = CommandFlags.None)
-        => ExecuteSync(GetClusterSlotsMessage(flags), ClusterSlotsResult.Processor);
+        => Wait(Context.Diagnostics.ClusterSlots(flags));
 
     public Task<ClusterSlotsResult?> ClusterSlotsAsync(CommandFlags flags = CommandFlags.None)
-        => ExecuteAsync(GetClusterSlotsMessage(flags), ClusterSlotsResult.Processor);
+        => Context.Diagnostics.ClusterSlots(flags).AsTask(asyncState, flags);
 }

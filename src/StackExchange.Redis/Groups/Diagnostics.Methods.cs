@@ -310,6 +310,45 @@ public static partial class Diagnostics
             RespHandlers.Int64,
             cancellationToken);
 
+    /// <summary>CLUSTER NODES: the answering node's own view of the cluster, as the text it sends.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// <b>Raw, because parsing it needs a server</b>: <c>ClusterConfiguration</c> is built against the node
+    /// that answered and the selection strategy, neither of which a context has. <c>RedisServer</c> parses it
+    /// and records it, as the handshake's caller does. Internal while the home of the cluster verbs is
+    /// undecided - this group takes them only so the port does not decide a public surface by accident.
+    /// A node-local read: the answer is that node's belief, so it is safe to replay against that node.
+    /// </remarks>
+    internal static ValueTask<string?> ClusterNodesRaw(
+        this in RespDiagnostics diagnostics,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.CLUSTER}{RespLiterals.Nodes}",
+            flags.WithRetryCategory(RespServerRetry.NodeLocalRead),
+            RespHandlers.String,
+            cancellationToken);
+
+    /// <summary>CLUSTER SLOTS: the answering node's slot map.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <remarks>
+    /// The handshake's parser, so the public call and topology discovery cannot read the same reply two
+    /// ways. Internal for the reason <see cref="ClusterNodesRaw"/> gives.
+    /// </remarks>
+    internal static ValueTask<ClusterSlotsResult?> ClusterSlots(
+        this in RespDiagnostics diagnostics,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => diagnostics.Context.SendAsync(
+            $"{RedisCommand.CLUSTER}{RespLiterals.Slots}",
+            flags.WithRetryCategory(RespServerRetry.NodeLocalRead),
+            RespHandshake.ClusterSlotsHandler.Instance,
+            cancellationToken);
+
     /// <summary>CLIENT KILL &lt;addr&gt;: close one connection by address, the original positional form.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="address">The address to close, as the server spells it.</param>
