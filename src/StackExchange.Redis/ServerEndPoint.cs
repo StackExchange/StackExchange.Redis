@@ -811,18 +811,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private int _heartBeatActive;
-        internal void OnHeartbeat()
-        {
-            // Don't overlap heartbeat operations on an endpoint
-            if (Interlocked.CompareExchange(ref _heartBeatActive, 1, 0) == 0)
-            {
-                // nothing per-endpoint left to beat: the new core's heartbeat (RespNewCore.OnHeartbeat) drives
-                // keep-alives, timeouts and reconnects for every connection it holds
-                Interlocked.Exchange(ref _heartBeatActive, 0);
-            }
-        }
-
         internal Task<bool> SendTracerAsync(ILogger? log = null)
         {
             // On the connection that carries this endpoint's commands. The tracer is how availability is
@@ -927,8 +915,6 @@ namespace StackExchange.Redis
 
             Multiplexer.NewCoreIfCreated?.SimulateConnectionFailure(EndPoint, failureType);
         }
-
-        internal bool HasPendingCallerFacingItems() => HasCallerWork();
 
         public void SetLatency(DateTime startTime)
         {

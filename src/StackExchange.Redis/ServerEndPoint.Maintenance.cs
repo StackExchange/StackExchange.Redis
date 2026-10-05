@@ -59,22 +59,11 @@ internal sealed partial class ServerEndPoint
     /// (the handshake is pipelined, and <c>HELLO</c> hasn't been answered yet), so this tests what we asked
     /// for and <see cref="ReconcileMaintenanceNotifications(RedisProtocol)"/> settles it once the reply has been processed.
     /// </remarks>
-    private bool ShouldRequestMaintenanceNotifications(bool isInteractive, bool negotiateResp3)
-        => isInteractive
-        && negotiateResp3
+    /// <param name="negotiateResp3">Whether that connection settled on RESP3.</param>
+    internal bool ShouldRequestMaintenanceNotifications(bool negotiateResp3)
+        => negotiateResp3
         && MaintenanceMode != MaintenanceNotificationMode.Disabled
         && Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT);
-
-    /// <summary>Whether the core's handshake should ask this server for maintenance notifications.</summary>
-    /// <param name="negotiateResp3">Whether that connection settled on RESP3.</param>
-    /// <remarks>
-    /// The same decision, asked by the handshake that owns the connection: the notifications arrive as
-    /// pushes, so RESP3 is not a preference here but a precondition, and a disabled feature or a
-    /// command map without <c>CLIENT</c> means there is nothing to ask for. Interactive is implied -
-    /// this is only ever called from an interactive handshake.
-    /// </remarks>
-    internal bool ShouldRequestMaintenanceNotifications(bool negotiateResp3)
-        => ShouldRequestMaintenanceNotifications(isInteractive: true, negotiateResp3);
 
     /// <summary>The wire value for <c>moving-endpoint-type</c>, classified from how we actually connected.</summary>
     /// <param name="remoteAddress">The address reached, or null when it was not an IP one.</param>

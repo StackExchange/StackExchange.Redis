@@ -135,14 +135,10 @@ public partial class ConnectionMultiplexer
         /// </remarks>
         private volatile ServerEndPoint? _sendingVia;
 
-        /// <summary>Record that the v3 path held this subscription; nothing calls it now.</summary>
-        /// <remarks><inheritdoc cref="_onNewCore" path="/remarks/para[2]"/></remarks>
-        internal void OnSubscribedViaBridge() => _onNewCore = false;
-
         /// <summary>Record that this core holds this subscription, on a server it has already placed it on.</summary>
         /// <param name="server">The server carrying it.</param>
         /// <remarks>
-        /// <b>The missing half of <see cref="OnSubscribedViaBridge"/>.</b> Ownership is otherwise only
+        /// <b>For a caller that places a subscription itself.</b> Ownership is otherwise only
         /// ever set by <see cref="SendViaNewCore"/>, which is right for every production path - but a
         /// caller that places a subscription on the core's connection ITSELF then has no way to say so,
         /// and the registry's answer to "is this live?" asks the wrong question. The heartbeat reads that
@@ -232,14 +228,6 @@ public partial class ConnectionMultiplexer
         /// <remarks><inheritdoc cref="HasSendInFlight" path="/remarks/para[2]"/></remarks>
         private int _sendingSince;
 
-        /// <summary>Whether some connection is already carrying this subscription.</summary>
-        /// <remarks>
-        /// Asked so that ownership can be STICKY: a subscription already placed kept going to the core that
-        /// placed it while there were two, because the two cores' unsubscribes did not reach each other's
-        /// sockets.
-        /// </remarks>
-        private protected abstract bool IsPlaced { get; }
-
         /// <summary>
         /// Send one (un)subscribe through the core and record what it did; a completed task when there is
         /// no server to send it to.
@@ -287,19 +275,8 @@ public partial class ConnectionMultiplexer
 
             if (server is null) return Task.CompletedTask;
 
-            // OWNERSHIP WAS STICKY while there were two cores, and that was the difference between this
-            // working and leaking a subscription. Whether this core would take a FRESH subscription changed
-            // over time - it depended on the negotiated protocol, which is unknown at first - so deciding
-            // per call let one core subscribe and the other unsubscribe, and the channel stayed subscribed
-            // on a connection nobody was tracking. `Issue1101Tests.ExecuteWithUnsubscribe*` reads that as
-            // "expected 0 subscribers, found 1" after unsubscribing everything.
-            //
-            // With one core every path below sends here; the placed/in-flight test survives from then.
             // copied out of the `in` parameter, because the local function below cannot capture one
             var target = channel;
-
-            // in-flight counted as placed, or two calls raced each other onto different cores
-            if (IsPlaced || _sendingVia is not null) return Send();
 
             // No decline for a subscription that would SHARE the ordinary connection: this core takes every
             // shape. Four pieces make that safe, and each was needed - see design notes D2.5.
@@ -529,9 +506,6 @@ public partial class ConnectionMultiplexer
 
         internal override void AddEndpoint(ServerEndPoint server) => _currentServer = server;
 
-        /// <inheritdoc/>
-        private protected override bool IsPlaced => Volatile.Read(ref _currentServer) is not null;
-
         internal override bool NamesEndpoint(EndPoint endpoint)
             => Volatile.Read(ref _currentServer) is { } server && server.EndPoint == endpoint;
 
@@ -679,9 +653,6 @@ public partial class ConnectionMultiplexer
             => _servers.TryGetValue(endpoint, out var server) && IsLiveOn(server);
 
         internal override bool NamesEndpoint(EndPoint endpoint) => _servers.ContainsKey(endpoint);
-
-        /// <inheritdoc/>
-        private protected override bool IsPlaced => !_servers.IsEmpty;
 
         internal override void AddEndpoint(ServerEndPoint server)
         {

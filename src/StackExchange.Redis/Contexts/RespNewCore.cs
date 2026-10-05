@@ -87,10 +87,6 @@ namespace StackExchange.Redis
         {
             _multiplexer = multiplexer;
 
-            // pulsed from here on, which is what makes this core's timeout claim true - see
-            // ConnectionMultiplexer.PulseCores. Registered in the constructor rather than by whoever asked
-            // for the core, because every core needs it and only one of them is the multiplexer's own.
-            multiplexer.RegisterCore(this);
             // UNKNOWN, not "whatever the strategy says right now". ServerType has no "not yet determined"
             // value, so a multiplexer that has not finished discovering reports Standalone - and taking
             // that as an answer makes this core believe, permanently, that a cluster is not one: no slots

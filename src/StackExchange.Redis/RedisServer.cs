@@ -130,15 +130,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// <b>The core's connection counts, because the caller is asking about the client.</b> While both
-        /// cores existed the socket carrying this endpoint's commands was the new core's, so answering from
-        /// the v3 bridge alone reported "not connected" about a server that had just replied. That is why
-        /// this asks the core as well as <c>ServerEndPoint.IsConnected</c>, which then meant "the bridge is
-        /// up" and now asks the core too.
+        /// The core's connection: while v3's bridge and the new core coexisted this had to ask both, because
+        /// the bridge alone reported "not connected" about a server that had just replied.
         /// </remarks>
         public bool IsConnected
-            => server.IsConnected
-                || multiplexer.NewCoreIfCreated?.IsConnected(server.EndPoint) == true;
+            => server.IsConnected;
 
         bool IServer.IsSlave => IsReplica;
         public bool IsReplica => server.IsReplica;

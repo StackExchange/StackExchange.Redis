@@ -1256,11 +1256,8 @@ namespace StackExchange.Redis
             return server;
         }
 
-        internal void Root() => pulse?.Root(this);
-
-        // note that this also acts (conditionally) as the GC root for the multiplexer
-        // when there are in-flight messages; the timer can then acts as the heartbeat
-        // to make sure that everything *eventually* completes
+        // the heartbeat timer holds only a WEAK reference to the multiplexer, so that a multiplexer the
+        // caller has dropped can be collected; the heartbeat then notices and stops the timer
         private sealed class TimerToken : IDisposable
         {
             private TimerToken(ConnectionMultiplexer muxer)
@@ -1271,10 +1268,6 @@ namespace StackExchange.Redis
             public void SetTimer(Timer timer) => _timer = timer;
 
             private readonly WeakReference<ConnectionMultiplexer> _weakRef;
-
-            private object StrongRefSyncLock => _weakRef; // private and readonly? it'll do
-            private ConnectionMultiplexer? _strongRef;
-            private int _strongRefToken;
 
             private static readonly TimerCallback Heartbeat = state =>
             {
@@ -1304,80 +1297,6 @@ namespace StackExchange.Redis
                 var tmp = _timer;
                 _timer = null;
                 if (tmp is not null) try { tmp.Dispose(); } catch { }
-
-                _strongRef = null; // note that this shouldn't be relevant since we've unrooted the TimerToken
-            }
-
-            // explanation of rooting model:
-            //
-            // the timer has a reference to the TimerToken; this *always* has a weak-ref,
-            // and *may* sometimes have a strong-ref; this is so that if a consumer
-            // drops a multiplexer, it can be garbage collected, i.e. the heartbeat timer
-            // doesn't keep the entire thing alive forever; instead, if the heartbeat detects
-            // the weak-ref has been collected, it can cancel the timer and *itself* go away;
-            // however: this leaves a problem where there is *in flight work* when the consumer
-            // drops the multiplexer; in particular, if that happens when disconnected, there
-            // could be consumer-visible pending TCS items *in the backlog queue*; we don't want
-            // to leave those incomplete, as that fails the contractual expectations of async/await;
-            // instead we need to root ourselves. The natural place to do this is by rooting the
-            // multiplexer, allowing the heartbeat to keep poking things, so that the usual
-            // message-processing and timeout rules apply. This is why we *sometimes* also keep
-            // a strong-ref to the same multiplexer.
-            //
-            // The TimerToken is rooted by the timer callback; this then roots the multiplexer,
-            // which keeps our bridges and connections in scope - until we're sure we're done
-            // with them.
-            //
-            // 1) any bridge or connection will trigger rooting by calling Root when
-            // they change from "empty" to "non-empty" i.e. whenever there
-            // in-flight items; this always changes the token; this includes both the
-            // backlog and awaiting-reply queues.
-            //
-            // 2) the heartbeat is responsible for unrooting, after processing timeouts
-            // etc; first it checks whether it is needed (IsRooted), which also gives
-            // it the current token.
-            //
-            // 3) if so, the heartbeat will (outside of the lock) query all sources to
-            // see if they still have outstanding work; if everyone reports negatively,
-            // then the heartbeat calls UnRoot passing in the old token; if this still
-            // matches (i.e. no new work came in while we were looking away), then the
-            // strong reference is removed; note that "has outstanding work" ignores
-            // internal-call messages; we are only interested in consumer-facing items
-            // (but we need to check this *here* rather than when adding, as otherwise
-            // the definition of "is empty, should root" becomes more complicated, which
-            // impacts the write path, rather than the heartbeat path.
-            //
-            // This means that the multiplexer (via the timer) lasts as long as there are
-            // outstanding messages; if the consumer has dropped the multiplexer, then
-            // there will be no new incoming messages, and after timeouts: everything
-            // should drop.
-            public void Root(ConnectionMultiplexer multiplexer)
-            {
-                lock (StrongRefSyncLock)
-                {
-                    _strongRef = multiplexer;
-                    _strongRefToken++;
-                }
-            }
-
-            public bool IsRooted(out int token)
-            {
-                lock (StrongRefSyncLock)
-                {
-                    token = _strongRefToken;
-                    return _strongRef is not null;
-                }
-            }
-
-            public void UnRoot(int token)
-            {
-                lock (StrongRefSyncLock)
-                {
-                    if (token == _strongRefToken)
-                    {
-                        _strongRef = null;
-                    }
-                }
             }
         }
 
@@ -1457,23 +1376,6 @@ namespace StackExchange.Redis
                 // at its own timeout. That turned one wedged connection into every test queued behind it:
                 // measured once at eleven failures and 143-second waits where the configured timeout was 5s.
                 PulseCores();
-                var tmp = GetServerSnapshot();
-                int token = 0;
-                bool isRooted = pulse?.IsRooted(out token) ?? false, hasPendingCallerFacingItems = false;
-
-                for (int i = 0; i < tmp.Length; i++)
-                {
-                    tmp[i].OnHeartbeat();
-                    if (isRooted && !hasPendingCallerFacingItems)
-                    {
-                        hasPendingCallerFacingItems = tmp[i].HasPendingCallerFacingItems();
-                    }
-                }
-                if (isRooted && !hasPendingCallerFacingItems)
-                {
-                    // release the GC root on the heartbeat *if* the token still matches
-                    pulse?.UnRoot(token);
-                }
             }
             catch (Exception ex)
             {
@@ -1550,35 +1452,12 @@ namespace StackExchange.Redis
 
         private RespNewCore? _newCore;
 
-        /// <summary>Every core built over this multiplexer, so the heartbeat can reach all of them.</summary>
+        /// <summary>Pulse the core, which is what makes its timeout claim (<c>HeartbeatDriven</c>) true.</summary>
         /// <remarks>
-        /// <b>Weak, because registration must not be what keeps a core alive.</b> The suites that exercised
-        /// the new surface without the engine flag built one per multiplexer and let it be collected; a
-        /// strong list here would quietly have changed that, and a leak on a type that owns sockets is the
-        /// worst kind. What the list owes is the pulse, for as long as the core exists and no longer. Only
-        /// the multiplexer's own core is constructed now.
+        /// Only one that exists: a core not yet built has nothing in flight, and the loser of a racing
+        /// construction (see <see cref="NewCore"/>) holds nothing to time out.
         /// </remarks>
-        private readonly List<WeakReference<RespNewCore>> _cores = new();
-
-        /// <summary>Register a core for this multiplexer's heartbeat.</summary>
-        /// <param name="core">The core, which pulses itself from here on.</param>
-        internal void RegisterCore(RespNewCore core)
-        {
-            lock (_cores) _cores.Add(new WeakReference<RespNewCore>(core));
-        }
-
-        /// <summary>Pulse every core that still exists, dropping the entries for those that do not.</summary>
-        private void PulseCores()
-        {
-            lock (_cores)
-            {
-                for (var i = _cores.Count - 1; i >= 0; i--)
-                {
-                    if (_cores[i].TryGetTarget(out var core)) core.OnHeartbeat();
-                    else _cores.RemoveAt(i);
-                }
-            }
-        }
+        private void PulseCores() => NewCoreIfCreated?.OnHeartbeat();
 
         /// <summary>The new core, but only if something has already built it.</summary>
         /// <remarks>

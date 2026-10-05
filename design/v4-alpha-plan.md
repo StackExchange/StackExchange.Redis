@@ -138,6 +138,25 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       six nodes. Confirm on the next Windows run, and see whether `ARefusingNodeAccumulatesOnlyOurOwnTraffic`,
       the cache-churn timeouts and the 33-minute net10.0 duration were the primaries' resync storm too.
 
+- [x] **Parked tests retargeted** (all but `DedicatedThreadsUnitTests`): the parser tests run through
+      `RespExecutor.ParseFromSpan`, the round-trip tests through a capturing executor. Bugs they found, fixed:
+      stream handlers swallowing malformed replies, nil VLINKS as null, TYPE nil as Unknown, scalar-as-array,
+      COPY REPLACE and explicit-id XREADGROUP retry categories, SINTERCARD-family `LIMIT 0`. Accepted
+      leniencies are pinned with comments in the tests (nil aggregates read as empty, sentinel/latency nils).
+- [ ] **Two-core leftovers** (from the comment sweep's report; the high-confidence dead code is removed):
+      - `Subscription._onNewCore` / `IsOwnedByNewCore` / `NewCoreOwnsAnySubscription` now only mean "something
+        subscribed this"; collapsing them changes the never-sent case, so it needs a look, not a delete.
+      - `TransitionalDatabase._fallback` and the `CanWriteRuns`/`CanWriteTransactions` gates: production always
+        passes null / true; only tests supply a fallback. Retire with those tests.
+      - ~30 `NewCoreIfCreated?.` null-tolerances, `ServerEndPoint.IsConnecting => false`, `GetProfile()`.
+      - Topology flows both ways between `RespTopology` and `ServerSelectionStrategy` - live, because the
+        selector is still the routing fallback and `IServer`'s source. Goes with "phase D".
+- [ ] **GC rooting of a dropped multiplexer.** v3 rooted the multiplexer from its heartbeat while caller work
+      was in flight, so a dropped multiplexer's pending tasks still timed out; nothing called `Root()` once the
+      bridges went, and the dead mechanism is removed. The new core is probably rooted anyway (open sockets'
+      pending reads and retry timers reach the core, and the core holds the multiplexer) - verify with a test
+      that drops a multiplexer mid-flight against a server that never answers.
+
 ### Backlog (after the alpha gates; not blocking)
 
 - [ ] **Trusted-callback completion mode - an experiment, then maybe an opt-in.** Respire, a new multiplexed
