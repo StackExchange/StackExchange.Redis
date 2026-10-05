@@ -42,6 +42,7 @@ internal enum RedisCommand
     BITOP,
     BITPOS,
     BITRANGEINTARRAY,
+    BLESS,
     BLPOP,
     BRPOP,
     BRPOPLPUSH,
@@ -485,6 +486,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.BITFIELD_RO:
             case RedisCommand.BITPOS:
             case RedisCommand.BITRANGEINTARRAY:
+            case RedisCommand.BLESS: // SET/CLEAR are raised to primary-only where we can see the subcommand
             case RedisCommand.CLIENT:
             case RedisCommand.CLUSTER:
             case RedisCommand.COMMAND:
