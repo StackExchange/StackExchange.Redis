@@ -162,11 +162,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SetCombineLength(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
-            => Wait(_inner.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit, approximate, flags));
+            => Wait(_inner.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate, flags));
 
         /// <inheritdoc/>
         public Task<long> SetCombineLengthAsync(SetOperation operation, RedisKey[] keys, long limit = 0, bool approximate = false, CommandFlags flags = CommandFlags.None)
-            => _inner.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit, approximate, flags).AsTask(AsyncState, flags);
+            => _inner.Sets.CombineLengthAsync(operation, Required(keys, nameof(keys)), limit > 0 ? limit : null, approximate, flags).AsTask(AsyncState, flags);
 
         /// <summary>
         /// The old <c>(first, second)</c> shape as a run of keys; a default <c>second</c> means one key.

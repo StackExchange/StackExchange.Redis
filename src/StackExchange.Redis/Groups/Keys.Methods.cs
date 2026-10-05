@@ -327,9 +327,11 @@ public static partial class Keys
         bool replace = false,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
+
+        // REPLACE makes it an unconditional overwrite - last wins - rather than the checked default
         => keys.Context.SendAsync<bool>(
             $"{RedisCommand.COPY}{source}{destination}{RespLiterals.Db.When(destinationDatabase)}{destinationDatabase}{RespLiterals.Replace.When(replace)}",
-            flags,
+            replace ? flags.WithRetryCategory(CommandFlags.CommandRetryWriteLastWins) : flags,
             cancellationToken: cancellationToken);
 
     /// <summary>MOVE.</summary>

@@ -768,7 +768,7 @@ public static partial class Streams
         CancellationToken cancellationToken = default)
     {
         var cmd = ReadGroupCommand(streams.Context, key, group, consumer, position, count, noAck, claimMinIdleTime);
-        return streams.Context.SendAsync(ref cmd, flags, ReadReplyHandler, cancellationToken);
+        return streams.Context.SendAsync(ref cmd, ReadGroupFlags(flags, position, claimMinIdleTime), ReadReplyHandler, cancellationToken);
     }
 
     /// <inheritdoc cref="ReadGroupAsync(in RespStreams, RedisKey, RedisValue, RedisValue, RedisValue?, int?, bool, TimeSpan?, CommandFlags, CancellationToken)"/>
@@ -786,7 +786,35 @@ public static partial class Streams
         CancellationToken cancellationToken = default)
     {
         var cmd = ReadGroupCommand(streams.Context, key, group, consumer, position, count, noAck, claimMinIdleTime);
-        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.NamedEntries, cancellationToken);
+        return streams.Context.SendAsync(ref cmd, ReadGroupFlags(flags, position, claimMinIdleTime), StreamTypesHandler.NamedEntries, cancellationToken);
+    }
+
+    /// <summary>
+    /// The retry category of an <c>XREADGROUP</c>: a read when every position is an explicit id, otherwise the
+    /// command's own (never retried).
+    /// </summary>
+    /// <remarks>
+    /// <c>&gt;</c> consumes - it moves entries into the pending list - and so does <c>CLAIM</c>, so a replay of
+    /// either is a second delivery. An explicit id only re-reads this consumer's pending list, which is safe to
+    /// repeat. Raised here because only here are the positions visible; v3 did the same in its message.
+    /// </remarks>
+    private static CommandFlags ReadGroupFlags(CommandFlags flags, RedisValue? position, TimeSpan? claimMinIdleTime)
+        => claimMinIdleTime is null && position is { } explicitPosition
+            && StreamPosition.Resolve(explicitPosition, RedisCommand.XREADGROUP) != StreamConstants.UndeliveredMessages
+            ? flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly)
+            : flags;
+
+    /// <inheritdoc cref="ReadGroupFlags(CommandFlags, RedisValue?, TimeSpan?)"/>
+    /// <remarks>For several streams, a single <c>&gt;</c> anywhere consumes, so all of them must be explicit.</remarks>
+    private static CommandFlags ReadGroupFlags(CommandFlags flags, ReadOnlySpan<StreamPosition> positions, TimeSpan? claimMinIdleTime)
+    {
+        if (claimMinIdleTime is not null || positions.IsEmpty) return flags;
+        foreach (var position in positions)
+        {
+            if (StreamPosition.Resolve(position.Position, RedisCommand.XREADGROUP) == StreamConstants.UndeliveredMessages) return flags;
+        }
+
+        return flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly);
     }
 
     /// <summary>Render the single-stream <c>XREADGROUP</c> - the one place the command is composed.</summary>
@@ -926,7 +954,7 @@ public static partial class Streams
         CancellationToken cancellationToken = default)
     {
         var cmd = MultiReadGroupCommand(streams.Context, positions, group, consumer, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize);
-        return streams.Context.SendAsync(ref cmd, flags, MultiReadReplyHandler, cancellationToken);
+        return streams.Context.SendAsync(ref cmd, ReadGroupFlags(flags, positions, claimMinIdleTime), MultiReadReplyHandler, cancellationToken);
     }
 
     /// <inheritdoc cref="ReadGroupAsync(in RespStreams, ReadOnlySpan{StreamPosition}, RedisValue, RedisValue, int?, bool, TimeSpan?, int?, int?, CommandFlags, CancellationToken)"/>
@@ -945,7 +973,7 @@ public static partial class Streams
         CancellationToken cancellationToken = default)
     {
         var cmd = MultiReadGroupCommand(streams.Context, positions, group, consumer, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize);
-        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.NamedStreams, cancellationToken);
+        return streams.Context.SendAsync(ref cmd, ReadGroupFlags(flags, positions, claimMinIdleTime), StreamTypesHandler.NamedStreams, cancellationToken);
     }
 
     /// <summary>Render the multi-stream <c>XREADGROUP</c> - the one place the command is composed.</summary>

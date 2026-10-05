@@ -203,7 +203,7 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
     }
 
     /// <summary>The demotion itself: an explicit id re-reads our own pending list, so it is a read.</summary>
-    [Fact(Skip = "New-core regression: the XREADGROUP group methods never demote explicit-id reads to CommandRetryReadOnly; every XREADGROUP keeps the command's Never default.")]
+    [Fact]
     public async Task StreamReadGroup_ExplicitIdsAreDemotedToARead()
     {
         await ReadGroupSingle("0-0", null, ReadOnly, "XREADGROUP with explicit id");
@@ -284,7 +284,7 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
         await AssertCategory(Checked, One, db => db.KeyCopyAsync("src", "dest", 3, replace: false), "COPY DB");
     }
 
-    [Fact(Skip = "New-core regression: Keys.CopyAsync does not raise the category for REPLACE, so COPY ... REPLACE keeps COPY's Checked default.")]
+    [Fact]
     public async Task Copy_ReplaceIsAnUnconditionalOverwrite()
     {
         // with REPLACE, the destination is overwritten whatever was there
