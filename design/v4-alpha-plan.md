@@ -169,12 +169,23 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       Framework the shared ArrayPool falls through to a larger bucket, so a page could be 16K/32K and never
       completed. Test now uses an exact pool. Not a writer bug.
 
-- [ ] **Sync callers still complete through the thread-pool.** Operations complete with
-      `RunContinuationsAsynchronously = true`, and the sync `IDatabase` methods block on `AsTask()` - so a blocked
-      sync caller wakes only once a pool thread runs the Task's completion. Under a saturated pool (the very case
-      `DedicatedThreads` is for, and .NET Framework, which does not inject threads for blocking waits) that
-      undoes the dedicated reader. v3 pulsed sync waiters directly from the reader; `RespMessageBase.Wait` does
-      the same and is pulsed directly, but the sync wrappers cannot reach it through a `ValueTask`. Next item.
+- [ ] **Sync callers still wake through the thread-pool - and the obvious fix deadlocks.** Operations complete
+      continuations on the pool; a sync call blocks on a task over one, so a blocked caller wakes only when a
+      pool thread finishes that task. Measured: 2 pool items per sync GET (1 with the socket hop below removed).
+      **Tried and reverted:** completing the blocked caller's operation INLINE on the reader (`SyncCall` capture
+      + an atomic per-life "complete inline" request; patch at `~/code/v4-sync-inline-attempt.patch`). It halved
+      the pool items, and then deadlocked the shared connection under load (16 RESP2 timeouts, "aw: True,
+      qs: 30, inbound 0"): the continuation chain of a composite command SENDS, a send can block on write
+      backpressure, and that clears only when the reader - now stuck in the send - reads. v3 never ran
+      continuations on its reader; it only pulsed waiters. **Design for the real fix:** hand the continuation
+      to the BLOCKED CALLER's thread instead - the sync wait pumps a per-call queue until its task completes,
+      and the operation posts to that queue rather than the pool. No pool, nothing on the reader. The capture
+      plumbing and the atomic request in the patch carry over; what changes is where the continuation runs.
+- [ ] **Linux: socket readiness still goes through the pool**, even for a dedicated reader, once the socket has
+      done any async operation (the connect, the TLS handshake). Measured: with
+      `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS=1`, 500 sync calls cost 0 pool items. A DedicatedThreads
+      connection that connected and authenticated synchronously would avoid it without the process-wide
+      switch; documented in docs/SyncOverAsync.md meanwhile. v3 had the same behaviour.
 
 ### Backlog (after the alpha gates; not blocking)
 
