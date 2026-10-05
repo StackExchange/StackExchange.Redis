@@ -65,11 +65,7 @@ public sealed class ConnectionAttemptCompletedEventArgs : EventArgs, ICompletabl
             ClientCertificateSubject = TryRead(clientCertificate, static c => c.Subject);
             ClientCertificateIssuer = TryRead(clientCertificate, static c => c.Issuer);
             ClientCertificateThumbprint = TryRead(clientCertificate, static c => c.GetCertHashString());
-            ClientCertificateThumbprintSha256 = TryRead(clientCertificate, static c =>
-            {
-                using var sha256 = SHA256.Create();
-                return ToHex(sha256.ComputeHash(c.GetRawCertData()));
-            });
+            ClientCertificateThumbprintSha256 = TryRead(clientCertificate, GetSha256Thumbprint);
         }
     }
 
@@ -85,7 +81,22 @@ public sealed class ConnectionAttemptCompletedEventArgs : EventArgs, ICompletabl
         }
     }
 
-    private static string ToHex(byte[] value) => BitConverter.ToString(value).Replace("-", "");
+    private static string GetSha256Thumbprint(X509Certificate certificate)
+    {
+#if NET8_0_OR_GREATER
+        // RawDataMemory is a view over the certificate's own (cached) encoding, unlike RawData / GetRawCertData(),
+        // which copy on every call; the span is only used for the duration of the hash, never retained
+        ReadOnlySpan<byte> raw = certificate is X509Certificate2 cert2
+            ? cert2.RawDataMemory.Span
+            : certificate.GetRawCertData(); // base type only: no non-copying accessor
+        Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(raw, hash);
+        return Convert.ToHexString(hash); // upper-case, matching Thumbprint
+#else
+        using var sha256 = SHA256.Create();
+        return BitConverter.ToString(sha256.ComputeHash(certificate.GetRawCertData())).Replace("-", "");
+#endif
+    }
 
     /// <summary>
     /// Identifies this outcome among those reported by the same multiplexer: it increases with every outcome, in the order they
