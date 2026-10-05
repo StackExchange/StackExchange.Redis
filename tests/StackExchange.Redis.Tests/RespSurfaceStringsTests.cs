@@ -70,7 +70,7 @@ public class RespSurfaceStringsTests
             exec.Sent);
 
         // both are pure reads, so both are cacheable by the flag gate
-        Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.CommandRetryReadOnly, f & Message.MaskRetryCategory));
+        Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.CommandRetryReadOnly, f & CommandFlagsInternal.MaskRetryCategory));
     }
 
     [Fact]
@@ -139,8 +139,8 @@ public class RespSurfaceStringsTests
             exec.Sent);
 
         // a bare GETEX is the read the table says it is; anything that touches the TTL is a write
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
-        Assert.All(exec.Flags.GetRange(1, 3), f => Assert.Equal(CommandFlags.CommandRetryWriteLastWins, f & Message.MaskRetryCategory));
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
+        Assert.All(exec.Flags.GetRange(1, 3), f => Assert.Equal(CommandFlags.CommandRetryWriteLastWins, f & CommandFlagsInternal.MaskRetryCategory));
     }
 
     [Fact]
@@ -474,7 +474,7 @@ public class RespSurfaceStringsTests
         // payload has to say BITFIELD_RO or a replica will refuse it - but only where it exists, which
         // is what the feature probe is for
         Assert.Equal("*5|$11|BITFIELD_RO|$1|k|$3|GET|$2|u8|$1|0|", Assert.Single(exec.Sent));
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, Assert.Single(exec.Flags) & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, Assert.Single(exec.Flags) & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]
@@ -590,7 +590,7 @@ public class RespSurfaceStringsTests
         Assert.StartsWith("*6|$8|BITFIELD|", Assert.Single(exec.Sent));
 
         // SET is positional, so a replay lands on the same value; only INCRBY compounds
-        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, Assert.Single(exec.Flags) & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, Assert.Single(exec.Flags) & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]

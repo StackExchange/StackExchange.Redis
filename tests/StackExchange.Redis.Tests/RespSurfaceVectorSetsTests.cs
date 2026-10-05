@@ -336,7 +336,7 @@ public class RespSurfaceVectorSetsTests
         await ctx.VectorSets.LengthAsync("k");
         await ctx.VectorSets.RemoveAsync("k", "m");
 
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
-        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[1] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[1] & CommandFlagsInternal.MaskRetryCategory);
     }
 }

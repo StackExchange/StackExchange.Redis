@@ -319,7 +319,7 @@ namespace StackExchange.Redis
             private readonly IRespPreambleGate? _gate;
 
             internal FramePairMessage(int database, in RespRequest preamble, in RespRequest request, IRespPreambleGate? gate = null)
-                : base(database, request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
+                : base(database, request.Flags & ~CommandFlagsInternal.MaskRetryCategory | request.Flags, request.Command)
             {
                 _database = database;
                 _preamble = preamble;
@@ -633,7 +633,7 @@ namespace StackExchange.Redis
                 // the command's identity, not just its bytes: without it the pipeline cannot tell a write
                 // from a read, so IsPrimaryOnly lets a write be routed to a replica, and a profiler
                 // reports every command in the library as UNKNOWN
-                : base(DatabaseFor(database, request.Command), request.Flags & ~Message.MaskRetryCategory | request.Flags, request.Command)
+                : base(DatabaseFor(database, request.Command), request.Flags & ~CommandFlagsInternal.MaskRetryCategory | request.Flags, request.Command)
             {
                 _request = request;
                 Gate = gate;

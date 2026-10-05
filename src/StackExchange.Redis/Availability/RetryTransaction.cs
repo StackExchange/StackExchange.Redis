@@ -199,7 +199,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
             // inject the aggregate retry category onto the EXEC flags so the resulting fault carries it, and
             // the shared RetryPolicy/FaultContext logic gates the whole transaction exactly like one command
             var category = inner is IInternalTransaction it ? it.GetAggregateRetryCategory() : CommandFlags.CommandRetryNever;
-            var effectiveFlags = (flags & ~Message.MaskRetryCategory) | category;
+            var effectiveFlags = (flags & ~CommandFlagsInternal.MaskRetryCategory) | category;
 
             try
             {

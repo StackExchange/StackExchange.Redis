@@ -214,7 +214,7 @@ public class RespSurfaceGeospatialTests
         // GEORADIUS defaults to a write category because STORE/STOREDIST exist and a raw Execute could be
         // using them; this path never emits either, so it says so - and has to say so BEFORE the table is
         // consulted, because the category is first-wins
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, Assert.Single(exec.Flags) & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, Assert.Single(exec.Flags) & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]
@@ -225,8 +225,8 @@ public class RespSurfaceGeospatialTests
         using (await ctx.Geospatial.SearchAsync("k", "a", new GeoSearchCircle(5))) { }
         await ctx.Geospatial.SearchAndStoreAsync("dst", "k", "a", new GeoSearchCircle(5));
 
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
-        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, exec.Flags[1] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, exec.Flags[1] & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]

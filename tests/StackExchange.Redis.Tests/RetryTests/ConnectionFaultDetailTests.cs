@@ -1,4 +1,4 @@
-using StackExchange.Redis.Availability;
+﻿using StackExchange.Redis.Availability;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.RetryTests;
@@ -45,7 +45,7 @@ public class ConnectionFaultDetailTests
         Assert.NotSame(shared, per);
         Assert.Equal(ConnectionFailureType.SocketClosed, per.FailureType);
         Assert.Equal(CommandStatus.Sent, per.CommandStatus);
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, per.Flags & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, per.Flags & CommandFlagsInternal.MaskRetryCategory);
 
         var ctx = new FaultContext(per);
         Assert.False(ctx.NotApplied); // it was on the wire; we cannot know whether the server ran it
@@ -65,7 +65,7 @@ public class ConnectionFaultDetailTests
         message.SetRequestSent();
 
         var per = Assert.IsType<RedisConnectionException>(ExceptionFactory.PerMessage(SharedConnectionFault(), message));
-        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, per.Flags & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, per.Flags & CommandFlagsInternal.MaskRetryCategory);
 
         var ctx = new FaultContext(per);
         Assert.False(ctx.NotApplied);

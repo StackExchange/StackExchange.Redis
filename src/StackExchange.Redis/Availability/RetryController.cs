@@ -126,7 +126,7 @@ internal sealed class RetryController
     {
         if ((flags & CommandFlags.FireAndForget) != 0) return true;
 
-        var category = flags & Message.MaskRetryCategory;
+        var category = flags & CommandFlagsInternal.MaskRetryCategory;
         return category is 0 or CommandFlags.CommandRetryNever;
     }
 

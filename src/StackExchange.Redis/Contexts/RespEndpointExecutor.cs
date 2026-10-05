@@ -1413,7 +1413,7 @@ namespace StackExchange.Redis
             if (database < 0
                 && request.Command != RedisCommand.NONE
                 && request.Command != RedisCommand.UNKNOWN
-                && Message.RequiresDatabase(request.Command))
+                && CommandFlagsInternal.RequiresDatabase(request.Command))
             {
                 throw ExceptionFactory.DatabaseRequired(
                     Server?.Multiplexer.RawConfig.IncludeDetailInExceptions ?? false, request.Command);
@@ -1510,7 +1510,7 @@ namespace StackExchange.Redis
                     operation,
                     request.Command,
                     request.Flags,
-                    Message.RequiresDatabase(request.Command) ? database : -1,
+                    CommandFlagsInternal.RequiresDatabase(request.Command) ? database : -1,
                     _endpoint);
             }
 

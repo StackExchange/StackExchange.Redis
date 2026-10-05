@@ -231,7 +231,7 @@ namespace StackExchange.Redis
                         // We might be wanting a REPLICA, so we'll check
                         ServerEndPoint? resendVia = null;
                         var command = message.Command;
-                        switch (Message.GetPrimaryReplicaFlags(message.Flags))
+                        switch (CommandFlagsInternal.GetPrimaryReplicaFlags(message.Flags))
                         {
                             case CommandFlags.DemandMaster:
                                 resendVia = server.IsSelectable(command, isMoved) ? server : null;
@@ -397,7 +397,7 @@ namespace StackExchange.Redis
         internal ServerEndPoint? Select(int slot, RedisCommand command, CommandFlags flags, bool allowDisconnected)
         {
             // Only interested in primary/replica preferences
-            flags = Message.GetPrimaryReplicaFlags(flags);
+            flags = CommandFlagsInternal.GetPrimaryReplicaFlags(flags);
 
             ServerEndPoint[]? arr;
             if (slot == NoSlot || (arr = map) == null) return Any(command, flags, allowDisconnected);

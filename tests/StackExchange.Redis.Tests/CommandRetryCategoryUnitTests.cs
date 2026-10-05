@@ -36,7 +36,7 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
 
     private void AssertCategory(CommandFlags expected, Message message, string because)
     {
-        var actual = Message.GetRetryCategory(message.Flags);
+        var actual = CommandFlagsInternal.GetRetryCategory(message.Flags);
         log.WriteLine("{0}: {1} (expected {2}) - {3}", message.CommandAndKey, actual, expected, because);
         Assert.Equal(expected, actual);
     }
@@ -339,12 +339,12 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
     {
         var msg = new RedisDatabase.ScriptLoadMessage(CommandFlags.None, "return 1");
         AssertCategory(CommandFlags.CommandRetryConnection, msg, "SCRIPT LOAD");
-        Assert.False((msg.Flags & Message.CommandServerSpecific) != 0, "SCRIPT LOAD returns the same SHA from any node");
+        Assert.False((msg.Flags & CommandFlagsInternal.CommandServerSpecific) != 0, "SCRIPT LOAD returns the same SHA from any node");
 
         // the control: the whole-command default it is departing from differs on *both* axes
         var fallback = CommandFlags.None.WithDefaultCategory(RedisCommand.SCRIPT);
-        Assert.Equal(CommandFlags.CommandRetryServerAdmin, Message.GetRetryCategory(fallback));
-        Assert.True((fallback & Message.CommandServerSpecific) != 0, "bare SCRIPT stays node-scoped");
+        Assert.Equal(CommandFlags.CommandRetryServerAdmin, CommandFlagsInternal.GetRetryCategory(fallback));
+        Assert.True((fallback & CommandFlagsInternal.CommandServerSpecific) != 0, "bare SCRIPT stays node-scoped");
     }
 
     /// <summary>
@@ -372,7 +372,7 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
             RedisServer.GetClusterNodesMessage(CommandFlags.None),
         })
         {
-            Assert.True((msg.Flags & Message.CommandServerSpecific) != 0, $"{msg.CommandAndKey} should be node-scoped");
+            Assert.True((msg.Flags & CommandFlagsInternal.CommandServerSpecific) != 0, $"{msg.CommandAndKey} should be node-scoped");
         }
     }
 
@@ -381,17 +381,17 @@ public class CommandRetryCategoryUnitTests(ITestOutputHelper log)
     {
         // a fresh iteration can start on any node...
         var fresh = CommandFlags.None.WithScanCursorCategory(0);
-        Assert.Equal(ReadOnly, Message.GetRetryCategory(fresh));
-        Assert.False((fresh & Message.CommandServerSpecific) != 0, "cursor 0 should not be server-specific");
+        Assert.Equal(ReadOnly, CommandFlagsInternal.GetRetryCategory(fresh));
+        Assert.False((fresh & CommandFlagsInternal.CommandServerSpecific) != 0, "cursor 0 should not be server-specific");
 
         // ...but a resumed cursor only means something on the node that issued it
         var resumed = CommandFlags.None.WithScanCursorCategory(12341234);
-        Assert.Equal(ReadOnly, Message.GetRetryCategory(resumed));
-        Assert.True((resumed & Message.CommandServerSpecific) != 0, "a resumed cursor should be server-specific");
+        Assert.Equal(ReadOnly, CommandFlagsInternal.GetRetryCategory(resumed));
+        Assert.True((resumed & CommandFlagsInternal.CommandServerSpecific) != 0, "a resumed cursor should be server-specific");
 
         // the server-specific bit is orthogonal to the ladder, so a caller category must not suppress it
         var overridden = CallerOverride.WithScanCursorCategory(12341234);
-        Assert.Equal(CallerOverride, Message.GetRetryCategory(overridden));
-        Assert.True((overridden & Message.CommandServerSpecific) != 0, "caller category must not clear server-specific");
+        Assert.Equal(CallerOverride, CommandFlagsInternal.GetRetryCategory(overridden));
+        Assert.True((overridden & CommandFlagsInternal.CommandServerSpecific) != 0, "caller category must not clear server-specific");
     }
 }

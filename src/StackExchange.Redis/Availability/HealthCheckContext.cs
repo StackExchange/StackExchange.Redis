@@ -37,5 +37,5 @@ public readonly struct HealthCheckContext(IServer server, TimeSpan probeTimeout)
     /// then never gets retired. The built-in probes pass this; a custom probe should too, and passing it
     /// changes nothing else about how the command is routed or queued.
     /// </remarks>
-    public CommandFlags ProbeFlags => Message.ProbeFlag;
+    public CommandFlags ProbeFlags => CommandFlagsInternal.ProbeFlag;
 }

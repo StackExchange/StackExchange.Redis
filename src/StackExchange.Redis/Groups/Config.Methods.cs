@@ -74,7 +74,7 @@ public static partial class Config
         CancellationToken cancellationToken = default)
         => config.Context.SendAsync(
             $"{RedisCommand.CONFIG}{RespLiterals.Get}{(pattern.IsNullOrEmpty ? RedisLiterals.Wildcard : pattern)}",
-            flags.WithRetryCategory(CommandFlags.CommandRetryConnection | Message.CommandServerSpecific),
+            flags.WithRetryCategory(CommandFlags.CommandRetryConnection | CommandFlagsInternal.CommandServerSpecific),
             ConfigPairsHandler.Instance,
             cancellationToken);
 

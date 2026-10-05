@@ -87,7 +87,7 @@ public class RespSurfaceHyperLogLogTests
         await Server(bare, 2, 8, 0).HyperLogLog.LengthAsync("k", CommandFlags.PreferReplica);
         await Server(bare, 2, 8, 0).HyperLogLog.LengthAsync(["a", "b"], CommandFlags.PreferReplica);
 
-        Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.DemandMaster, Message.GetPrimaryReplicaFlags(f)));
+        Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.DemandMaster, CommandFlagsInternal.GetPrimaryReplicaFlags(f)));
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class RespSurfaceHyperLogLogTests
         // actually selected a server, so "not sure" has to leave this alone rather than guess
         await bare.HyperLogLog.LengthAsync("k", CommandFlags.PreferReplica);
 
-        Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.PreferReplica, Message.GetPrimaryReplicaFlags(f)));
+        Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.PreferReplica, CommandFlagsInternal.GetPrimaryReplicaFlags(f)));
     }
 
     [Fact]
@@ -129,10 +129,10 @@ public class RespSurfaceHyperLogLogTests
 
         // PFADD sits with SADD and HDEL: a replay adds the same elements again, and the set of observed
         // elements is unchanged - only the "did this alter the estimate" answer can differ
-        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[0] & Message.MaskRetryCategory);
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[1] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[1] & CommandFlagsInternal.MaskRetryCategory);
 
         // PFMERGE folds the destination into the union too, so each call accumulates
-        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[2] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[2] & CommandFlagsInternal.MaskRetryCategory);
     }
 }

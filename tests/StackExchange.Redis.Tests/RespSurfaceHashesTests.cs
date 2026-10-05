@@ -154,7 +154,7 @@ public class RespSurfaceHashesTests
         Assert.Equal("*7|$7|HEXPIRE|$1|k|$2|60|$2|GT|$6|FIELDS|$1|1|$2|f1|", Assert.Single(exec.Sent));
 
         // NX/XX/GT/LT make it a conditional write, exactly as for the key-level EXPIRE
-        Assert.Equal(CommandFlags.CommandRetryWriteChecked, Assert.Single(exec.Flags) & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteChecked, Assert.Single(exec.Flags) & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]
@@ -207,8 +207,8 @@ public class RespSurfaceHashesTests
             exec.Sent);
 
         // a bare HGETEX is a read; anything that touches the TTL is a write
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
-        Assert.All(exec.Flags.GetRange(1, 2), f => Assert.Equal(CommandFlags.CommandRetryWriteLastWins, f & Message.MaskRetryCategory));
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
+        Assert.All(exec.Flags.GetRange(1, 2), f => Assert.Equal(CommandFlags.CommandRetryWriteLastWins, f & CommandFlagsInternal.MaskRetryCategory));
     }
 
     [Fact]

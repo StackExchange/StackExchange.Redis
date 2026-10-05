@@ -87,7 +87,7 @@ public static partial class HyperLogLog
         // caller's routing, and the worst case is the one the caller asked for.
         return context.TryGetFeatures(RedisCommand.PFCOUNT, in key, flags, out var features)
             && !features.HyperLogLogCountReplicaSafe
-            ? Message.DemandPrimary(flags, RedisCommand.PFCOUNT)
+            ? CommandFlagsInternal.DemandPrimary(flags, RedisCommand.PFCOUNT)
             : flags;
     }
 }

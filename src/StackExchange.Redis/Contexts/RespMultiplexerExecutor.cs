@@ -297,10 +297,10 @@ namespace StackExchange.Redis
         {
             // A write demanded on a replica is refused rather than routed. The rule about WHICH commands
             // are primary-only already exists and is shared with the interpolated writer
-            // (Message.DemandPrimary), which is why this only has to ask rather than decide: a caller who
+            // (CommandFlagsInternal.DemandPrimary), which is why this only has to ask rather than decide: a caller who
             // DEMANDED a replica for a write asked for something that cannot be honoured, as opposed to
             // expressing a preference that routing may override.
-            if (Message.GetPrimaryReplicaFlags(request.Flags) == CommandFlags.DemandReplica
+            if (CommandFlagsInternal.GetPrimaryReplicaFlags(request.Flags) == CommandFlags.DemandReplica
                 && request.Command.IsPrimaryOnly())
             {
                 ThrowPrimaryOnly(request.Command);

@@ -150,7 +150,7 @@ public class RetryPolicy
     /// </remarks>
     public virtual RetryResult CanRetry(in FaultContext fault)
     {
-        var actual = fault.Flags & Message.MaskRetryCategory;
+        var actual = fault.Flags & CommandFlagsInternal.MaskRetryCategory;
 
         // note the veto above this - an unset or CommandRetryNever category never reaches here through
         // RetryController - is repeated rather than assumed, because this is public and virtual: a caller
@@ -176,7 +176,7 @@ public class RetryPolicy
         {
             // assume we can send it everywhere
             var result = RetryResult.SameServer | RetryResult.FailoverServer;
-            if ((fault.Flags & Message.CommandServerSpecific) != 0)
+            if ((fault.Flags & CommandFlagsInternal.CommandServerSpecific) != 0)
                 result &= ~RetryResult.FailoverServer;
             return result;
         }
@@ -208,7 +208,7 @@ public class RetryPolicy
         if (!IsExpressibleAsMilliseconds(builder.FailoverDelay)) throw new ArgumentOutOfRangeException(nameof(builder.FailoverDelay), builder.FailoverDelay, "The failover delay is too large.");
 
         var category = builder.MaxCommandRetryCategory;
-        if ((category & Message.MaskRetryCategory) is 0 | (category & ~Message.MaskRetryCategory) is not 0)
+        if ((category & CommandFlagsInternal.MaskRetryCategory) is 0 | (category & ~CommandFlagsInternal.MaskRetryCategory) is not 0)
         {
             throw new ArgumentException("A single valid CommandRetry* flag should be specified.", nameof(builder.MaxCommandRetryCategory));
         }

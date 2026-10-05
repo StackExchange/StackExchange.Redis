@@ -40,19 +40,19 @@ namespace StackExchange.Redis
             if (reader.AggregateLength() < 2) return RespOutOfBandResult.NotRecognized;
             if (!(reader.SafeTryMoveNext() & reader.IsInlineScalar & !reader.IsError)) return RespOutOfBandResult.NotRecognized;
 
-            PhysicalConnection.PushKind kind;
+            PushKind kind;
             unsafe
             {
-                if (!reader.TryParseScalar(&PhysicalConnection.PushKindMetadata.TryParse, out kind)) kind = PhysicalConnection.PushKind.None;
+                if (!reader.TryParseScalar(&PushKindMetadata.TryParse, out kind)) kind = PushKind.None;
             }
 
             // BEFORE the pub/sub switch, exactly as the shipped reader does it: a maintenance notification's
             // second element is not a channel name, so anything that reads it as one rejects the frame.
-            if (kind is >= PhysicalConnection.PushKind.Moving and <= PhysicalConnection.PushKind.SlotMigrated)
+            if (kind is >= PushKind.Moving and <= PushKind.SlotMigrated)
             {
                 if (endpoint is null) return RespOutOfBandResult.NotRecognized;
 
-                PhysicalConnection.ReadMaintenanceNotification(
+                MaintenanceNotificationReader.ReadMaintenanceNotification(
                     multiplexer,
                     multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false),
                     isConnected: multiplexer.NewCoreIfCreated?.IsConnected(endpoint) == true,
@@ -65,28 +65,28 @@ namespace StackExchange.Redis
 
             switch (kind)
             {
-                case PhysicalConnection.PushKind.Message:
-                case PhysicalConnection.PushKind.SMessage:
+                case PushKind.Message:
+                case PushKind.SMessage:
                     // [kind, channel, payload] - the channel is both what was subscribed and what matched
-                    var options = kind == PhysicalConnection.PushKind.SMessage
+                    var options = kind == PushKind.SMessage
                         ? RedisChannel.RedisChannelOptions.Sharded
                         : RedisChannel.RedisChannelOptions.None;
                     return Deliver(ref reader, multiplexer, options, patterned: false);
 
-                case PhysicalConnection.PushKind.PMessage:
+                case PushKind.PMessage:
                     // [kind, pattern, channel, payload] - two channels, and they are not interchangeable:
                     // handlers are registered against the PATTERN, while the caller is told which channel
                     // actually matched
                     return Deliver(ref reader, multiplexer, RedisChannel.RedisChannelOptions.Pattern, patterned: true);
 
-                case PhysicalConnection.PushKind.Subscribe:
-                case PhysicalConnection.PushKind.PSubscribe:
-                case PhysicalConnection.PushKind.SSubscribe:
+                case PushKind.Subscribe:
+                case PushKind.PSubscribe:
+                case PushKind.SSubscribe:
                     // these ANSWER a command we sent - in RESP3 a confirmation is a push - so ordinary
                     // matching has to complete it. Consuming it here would strand the subscribe call.
                     return RespOutOfBandResult.MatchToCommand;
 
-                case PhysicalConnection.PushKind.SUnsubscribe
+                case PushKind.SUnsubscribe
                     when TryResubscribeStranded(reader, multiplexer, endpoint):
                     // ...and so does a sharded unsubscribe we ASKED for. This is the other one: a slot
                     // migrating away makes the node drop its shard channels and say so unprompted, and
@@ -99,12 +99,12 @@ namespace StackExchange.Redis
                     // which is the only one we know has the new route.
                     return RespOutOfBandResult.Handled;
 
-                case PhysicalConnection.PushKind.Unsubscribe:
-                case PhysicalConnection.PushKind.PUnsubscribe:
-                case PhysicalConnection.PushKind.SUnsubscribe:
+                case PushKind.Unsubscribe:
+                case PushKind.PUnsubscribe:
+                case PushKind.SUnsubscribe:
                     return RespOutOfBandResult.MatchToCommand;
 
-                case PhysicalConnection.PushKind.Invalidate:
+                case PushKind.Invalidate:
                     // not pub/sub either: the second element is an array of keys, or a null meaning "all of
                     // them" - so it is dispatched before anything tries to read a channel name
                     ApplyInvalidation(multiplexer.ClientCache, ref reader);

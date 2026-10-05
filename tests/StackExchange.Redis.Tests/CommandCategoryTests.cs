@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Xunit;
@@ -67,7 +67,7 @@ public class CommandCategoryTests
             if (CommandFlagsExtensions.GetDefaultCategory(command) is not { } category) continue;
 
             // the orthogonal flags ride alongside the ladder and are not part of it
-            var rung = category & Message.MaskRetryCategory;
+            var rung = category & CommandFlagsInternal.MaskRetryCategory;
             if (!ladder.Contains(rung)) offenders.Add($"{command}={category}");
         }
 
@@ -88,7 +88,7 @@ public class CommandCategoryTests
         // UNKNOWN is in the table deliberately; this pins what the coalesce does, using it as the stand-in
         Assert.Equal(
             CommandFlags.CommandRetryNever,
-            CommandFlags.None.WithDefaultCategory(RedisCommand.UNKNOWN) & Message.MaskRetryCategory);
+            CommandFlags.None.WithDefaultCategory(RedisCommand.UNKNOWN) & CommandFlagsInternal.MaskRetryCategory);
     }
 
     /// <summary>The caller's own category always wins over the table's.</summary>
@@ -101,6 +101,6 @@ public class CommandCategoryTests
     public void TheCallersCategoryWins()
     {
         var flags = CommandFlags.CommandRetryNever.WithDefaultCategory(RedisCommand.GET);
-        Assert.Equal(CommandFlags.CommandRetryNever, flags & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryNever, flags & CommandFlagsInternal.MaskRetryCategory);
     }
 }

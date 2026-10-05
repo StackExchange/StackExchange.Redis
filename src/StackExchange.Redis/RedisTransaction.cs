@@ -33,7 +33,7 @@ namespace StackExchange.Redis
                 {
                     foreach (var q in list)
                     {
-                        var cat = q.Wrapped.Flags & Message.MaskRetryCategory;
+                        var cat = q.Wrapped.Flags & CommandFlagsInternal.MaskRetryCategory;
                         if (cat > result) result = cat;
                     }
                 }

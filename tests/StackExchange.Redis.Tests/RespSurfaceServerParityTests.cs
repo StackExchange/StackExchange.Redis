@@ -203,8 +203,8 @@ public class RespSurfaceServerParityTests
 
             var flags = Assert.Single(executor.Flags);
             var sent = Assert.Single(executor.Sent);
-            Assert.Equal(CommandFlags.CommandRetryReadOnly, Message.GetRetryCategory(flags));
-            Assert.True((flags & Message.CommandServerSpecific) != 0, sent);
+            Assert.Equal(CommandFlags.CommandRetryReadOnly, CommandFlagsInternal.GetRetryCategory(flags));
+            Assert.True((flags & CommandFlagsInternal.CommandServerSpecific) != 0, sent);
         }
     }
 
@@ -414,8 +414,8 @@ public class RespSurfaceServerParityTests
         await new RespServerContext(new RespContext().WithExecutor(executor)).Diagnostics.MemoryPurgeAsync();
 
         var flags = Assert.Single(executor.Flags);
-        Assert.Equal(CommandFlags.CommandRetryServerAdmin, Message.GetRetryCategory(flags));
-        Assert.True((flags & Message.CommandServerSpecific) != 0, "the effect belongs to the node asked");
+        Assert.Equal(CommandFlags.CommandRetryServerAdmin, CommandFlagsInternal.GetRetryCategory(flags));
+        Assert.True((flags & CommandFlagsInternal.CommandServerSpecific) != 0, "the effect belongs to the node asked");
     }
 
     /// <summary>And a caller's own category still wins, without losing the node-scoped bit.</summary>
@@ -427,8 +427,8 @@ public class RespSurfaceServerParityTests
             .Diagnostics.MemoryPurgeAsync(CommandFlags.CommandRetryAlways);
 
         var flags = Assert.Single(executor.Flags);
-        Assert.Equal(CommandFlags.CommandRetryAlways, Message.GetRetryCategory(flags));
-        Assert.True((flags & Message.CommandServerSpecific) != 0, "override must not clear server-specific");
+        Assert.Equal(CommandFlags.CommandRetryAlways, CommandFlagsInternal.GetRetryCategory(flags));
+        Assert.True((flags & CommandFlagsInternal.CommandServerSpecific) != 0, "override must not clear server-specific");
     }
 
     [Fact]
@@ -531,8 +531,8 @@ public class RespSurfaceServerParityTests
         await Discard(new RespServerContext(new RespContext().WithExecutor(executor)).Config.GetArray());
 
         var flags = Assert.Single(executor.Flags);
-        Assert.Equal(CommandFlags.CommandRetryConnection, Message.GetRetryCategory(flags));
-        Assert.True((flags & Message.CommandServerSpecific) != 0, "the answer belongs to the node asked");
+        Assert.Equal(CommandFlags.CommandRetryConnection, CommandFlagsInternal.GetRetryCategory(flags));
+        Assert.True((flags & CommandFlagsInternal.CommandServerSpecific) != 0, "the answer belongs to the node asked");
     }
 
     /// <summary>Both wire shapes of a <c>CONFIG GET</c> reply read the same.</summary>

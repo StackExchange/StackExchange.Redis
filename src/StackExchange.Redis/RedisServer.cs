@@ -23,8 +23,8 @@ namespace StackExchange.Redis
         // CONFIG, SCRIPT, SLOWLOG, LATENCY, MEMORY), so the whole-command default has to assume the most
         // side-effecting subcommand. Where we know the subcommand we can be accurate instead. Everything here
         // is inherently node-scoped: the answer (or the effect) belongs to the server we asked.
-        private const CommandFlags NodeLocalRead = CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific,
-                                   NodeLocalAdmin = CommandFlags.CommandRetryServerAdmin | Message.CommandServerSpecific;
+        private const CommandFlags NodeLocalRead = CommandFlags.CommandRetryReadOnly | CommandFlagsInternal.CommandServerSpecific,
+                                   NodeLocalAdmin = CommandFlags.CommandRetryServerAdmin | CommandFlagsInternal.CommandServerSpecific;
 
         private readonly ServerEndPoint server;
 
@@ -809,7 +809,7 @@ namespace StackExchange.Redis
             // since the server is specified explicitly, we don't want defaults
             // to make the "non-preferred-endpoint" counters look artificially
             // inflated; note we only change *prefer* options
-            switch (Message.GetPrimaryReplicaFlags(message.Flags))
+            switch (CommandFlagsInternal.GetPrimaryReplicaFlags(message.Flags))
             {
                 case CommandFlags.PreferMaster:
                     if (server.IsReplica) message.SetPreferReplica();
@@ -1021,7 +1021,7 @@ namespace StackExchange.Redis
         private int DatabaseForAdHoc(string command)
             => RedisCommandMetadata.TryParseCI(command, out var known)
                 && known is not RedisCommand.UNKNOWN
-                && Message.RequiresDatabase(known)
+                && CommandFlagsInternal.RequiresDatabase(known)
                     ? multiplexer.ApplyDefaultDatabase(-1)
                     : -1;
 

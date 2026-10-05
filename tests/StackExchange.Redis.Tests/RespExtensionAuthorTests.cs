@@ -99,10 +99,10 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
         var db = new RespDatabaseContext(new RespContext().WithExecutor(executor));
 
         await db.Contoso().SubstringAsync("k", 0, 4);
-        Assert.Equal(CommandFlags.CommandRetryNever, executor.Flags[0] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryNever, executor.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
 
         await db.Contoso().SubstringAsync("k", 0, 4, CommandFlags.CommandRetryReadOnly);
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, executor.Flags[1] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, executor.Flags[1] & CommandFlagsInternal.MaskRetryCategory);
     }
 }
 

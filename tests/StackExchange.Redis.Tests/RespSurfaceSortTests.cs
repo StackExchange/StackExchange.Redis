@@ -115,11 +115,11 @@ public class RespSurfaceSortTests
         using (await Server(bare, 7).Keys.SortAsync("k")) { }
         await Server(bare, 7).Keys.SortAndStoreAsync("dst", "k");
 
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
 
         // SORT is categorised read-only because that is the common case; the STORE variant has to be
         // raised, or a replay of it would look harmless
-        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, exec.Flags[1] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, exec.Flags[1] & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class RespSurfaceSortTests
         // writable replica may serve - so asking for a replica is honoured rather than overridden
         var pending = Server(bare, 6).Keys.SortAsync("k", flags: CommandFlags.DemandReplica);
 
-        Assert.Equal(CommandFlags.DemandReplica, Message.GetPrimaryReplicaFlags(Assert.Single(exec.Flags)));
+        Assert.Equal(CommandFlags.DemandReplica, CommandFlagsInternal.GetPrimaryReplicaFlags(Assert.Single(exec.Flags)));
         pending.GetAwaiter().GetResult().Dispose();
     }
 

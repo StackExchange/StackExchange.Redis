@@ -1133,53 +1133,6 @@ namespace StackExchange.Redis
             };
         }
 
-        internal static RemoteCertificateValidationCallback? GetAmbientIssuerCertificateCallback()
-        {
-            try
-            {
-                var issuerPath = Environment.GetEnvironmentVariable("SERedis_IssuerCertPath");
-                if (!string.IsNullOrEmpty(issuerPath)) return ConfigurationOptions.TrustIssuerCallback(issuerPath);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.Message);
-            }
-            return null;
-        }
-        internal static LocalCertificateSelectionCallback? GetAmbientClientCertificateCallback()
-        {
-            try
-            {
-                var certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath");
-                if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
-                {
-                    var password = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
-                    var pfxStorageFlags = Environment.GetEnvironmentVariable("SERedis_ClientCertStorageFlags");
-                    X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet;
-                    if (!string.IsNullOrEmpty(pfxStorageFlags) && Enum.TryParse<X509KeyStorageFlags>(pfxStorageFlags, true, out var typedFlags))
-                    {
-                        storageFlags = typedFlags;
-                    }
-
-                    return ConfigurationOptions.CreatePfxUserCertificateCallback(certificatePath, password, storageFlags);
-                }
-
-#if NET
-                certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPemPath");
-                if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
-                {
-                    var passwordPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPasswordPath");
-                    return ConfigurationOptions.CreatePemUserCertificateCallback(certificatePath, passwordPath);
-                }
-#endif
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.Message);
-            }
-            return null;
-        }
-
         internal async ValueTask<bool> ConnectedAsync(Socket? socket, ILogger? log)
         {
             var bridge = BridgeCouldBeNull;

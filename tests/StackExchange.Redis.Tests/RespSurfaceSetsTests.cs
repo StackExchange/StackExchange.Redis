@@ -190,12 +190,12 @@ public class RespSurfaceSetsTests
         await ctx.Sets.AddAsync("k", "a");
         await ctx.Sets.PopAsync("k");
 
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
 
         // SADD is idempotent - adding a member twice converges - so it is checked, not accumulating
-        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[1] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[1] & CommandFlagsInternal.MaskRetryCategory);
 
         // SPOP takes something away on every call, and a replay takes a DIFFERENT member
-        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[2] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[2] & CommandFlagsInternal.MaskRetryCategory);
     }
 }

@@ -214,7 +214,7 @@ public class RespSurfaceListsTests
 
         // the substitution must not change the retry category: both spellings pop and push, so a retry
         // after an unknown outcome could move a second element
-        Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, f & Message.MaskRetryCategory));
+        Assert.All(exec.Flags, f => Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, f & CommandFlagsInternal.MaskRetryCategory));
     }
 
     [Fact]
@@ -317,12 +317,12 @@ public class RespSurfaceListsTests
         await ctx.Lists.LeftPushAsync("k", "a");
         await ctx.Lists.LeftPopAsync("k");
 
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, exec.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
 
         // a push compounds - two attempts leave two entries
-        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[1] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[1] & CommandFlagsInternal.MaskRetryCategory);
 
         // and so does a pop, in the other direction
-        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[2] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[2] & CommandFlagsInternal.MaskRetryCategory);
     }
 }

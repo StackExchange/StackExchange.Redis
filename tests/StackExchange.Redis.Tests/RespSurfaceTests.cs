@@ -218,7 +218,7 @@ public class RespSurfaceTests
 
         var sent = Assert.Single(executor.Flags);
         Assert.Equal(CommandFlags.FireAndForget, sent & CommandFlags.FireAndForget);
-        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, sent & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, sent & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public class RespSurfaceTests
 
         // WithRetryCategory is first-wins, so a caller who names one keeps it
         await target.Strings.SetAsync("k", "v", flags: CommandFlags.CommandRetryNever);
-        Assert.Equal(CommandFlags.CommandRetryNever, Assert.Single(executor.Flags) & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryNever, Assert.Single(executor.Flags) & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]

@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -188,6 +190,56 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>The issuer to trust from <c>SERedis_IssuerCertPath</c>, when the environment names one.</summary>
+        internal static RemoteCertificateValidationCallback? GetAmbientIssuerCertificateCallback()
+        {
+            try
+            {
+                var issuerPath = Environment.GetEnvironmentVariable("SERedis_IssuerCertPath");
+                if (!string.IsNullOrEmpty(issuerPath)) return ConfigurationOptions.TrustIssuerCallback(issuerPath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+            return null;
+        }
+
+        /// <summary>The client certificate from <c>SERedis_ClientCertPfxPath</c>, when the environment names one.</summary>
+        internal static LocalCertificateSelectionCallback? GetAmbientClientCertificateCallback()
+        {
+            try
+            {
+                var certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath");
+                if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
+                {
+                    var password = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
+                    var pfxStorageFlags = Environment.GetEnvironmentVariable("SERedis_ClientCertStorageFlags");
+                    X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet;
+                    if (!string.IsNullOrEmpty(pfxStorageFlags) && Enum.TryParse<X509KeyStorageFlags>(pfxStorageFlags, true, out var typedFlags))
+                    {
+                        storageFlags = typedFlags;
+                    }
+
+                    return ConfigurationOptions.CreatePfxUserCertificateCallback(certificatePath, password, storageFlags);
+                }
+
+#if NET
+                certificatePath = Environment.GetEnvironmentVariable("SERedis_ClientCertPemPath");
+                if (!string.IsNullOrEmpty(certificatePath) && File.Exists(certificatePath))
+                {
+                    var passwordPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPasswordPath");
+                    return ConfigurationOptions.CreatePemUserCertificateCallback(certificatePath, passwordPath);
+                }
+#endif
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+            return null;
+        }
+
         /// <summary>Wrap a stream in TLS: construct the <see cref="SslStream"/> and complete the handshake.</summary>
         /// <param name="stream">The stream to encrypt.</param>
         /// <param name="endpoint">Stands in for the host to verify against when none is configured.</param>
@@ -219,8 +271,8 @@ namespace StackExchange.Redis
             // validation. Two copies of a security decision is the drift this boundary exists to avoid.
             var host = config.ResolveTlsHostName(endpoint);
 
-            var validate = config.CertificateValidationCallback ?? PhysicalConnection.GetAmbientIssuerCertificateCallback();
-            var select = config.CertificateSelectionCallback ?? PhysicalConnection.GetAmbientClientCertificateCallback();
+            var validate = config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback();
+            var select = config.CertificateSelectionCallback ?? GetAmbientClientCertificateCallback();
             var ssl = new SslStream(stream, false, validate, select, EncryptionPolicy.RequireEncryption);
 
             try

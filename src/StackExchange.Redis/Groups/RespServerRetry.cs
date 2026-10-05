@@ -1,4 +1,4 @@
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
     /// <summary>
     /// The retry categories the server commands are issued under.
@@ -13,9 +13,9 @@ namespace StackExchange.Redis
     internal static class RespServerRetry
     {
         /// <summary>A read whose answer belongs to the node that was asked.</summary>
-        internal const CommandFlags NodeLocalRead = CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific;
+        internal const CommandFlags NodeLocalRead = CommandFlags.CommandRetryReadOnly | CommandFlagsInternal.CommandServerSpecific;
 
         /// <summary>An administrative action on the node that was asked.</summary>
-        internal const CommandFlags NodeLocalAdmin = CommandFlags.CommandRetryServerAdmin | Message.CommandServerSpecific;
+        internal const CommandFlags NodeLocalAdmin = CommandFlags.CommandRetryServerAdmin | CommandFlagsInternal.CommandServerSpecific;
     }
 }

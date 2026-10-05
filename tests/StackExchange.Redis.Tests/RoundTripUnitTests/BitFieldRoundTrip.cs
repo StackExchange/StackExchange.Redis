@@ -182,7 +182,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Equal(expectedCommand, Bitmaps.SelectBitFieldCommand(allGet, anyIncrement, readOnlyAvailable, ref flags).ToString());
 
         // CommandFlags.None here means "no opinion", leaving BITFIELD's own accumulating default in place
-        Assert.Equal(expectedCategory, flags & Message.MaskRetryCategory);
+        Assert.Equal(expectedCategory, flags & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
     {
         var flags = CommandFlags.CommandRetryNever;
         Assert.Equal(RedisCommand.BITFIELD_RO, Bitmaps.SelectBitFieldCommand(allGet: true, anyIncrement: false, readOnlyAvailable: true, ref flags));
-        Assert.Equal(CommandFlags.CommandRetryNever, flags & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryNever, flags & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]

@@ -251,16 +251,16 @@ namespace StackExchange.Redis
             if (!(reader.SafeTryMoveNext() & reader.IsAggregate & !reader.IsStreaming)) return null;
             if (reader.AggregateLength() < 2) return null;
             if (!(reader.SafeTryMoveNext() & reader.IsInlineScalar & !reader.IsError)) return null;
-            if (!reader.TryParseScalar(&PhysicalConnection.PushKindMetadata.TryParse, out PhysicalConnection.PushKind kind)) return null;
+            if (!reader.TryParseScalar(&PushKindMetadata.TryParse, out PushKind kind)) return null;
 
             return kind switch
             {
-                PhysicalConnection.PushKind.Subscribe => RedisCommand.SUBSCRIBE,
-                PhysicalConnection.PushKind.PSubscribe => RedisCommand.PSUBSCRIBE,
-                PhysicalConnection.PushKind.SSubscribe => RedisCommand.SSUBSCRIBE,
-                PhysicalConnection.PushKind.Unsubscribe => RedisCommand.UNSUBSCRIBE,
-                PhysicalConnection.PushKind.PUnsubscribe => RedisCommand.PUNSUBSCRIBE,
-                PhysicalConnection.PushKind.SUnsubscribe => RedisCommand.SUNSUBSCRIBE,
+                PushKind.Subscribe => RedisCommand.SUBSCRIBE,
+                PushKind.PSubscribe => RedisCommand.PSUBSCRIBE,
+                PushKind.SSubscribe => RedisCommand.SSUBSCRIBE,
+                PushKind.Unsubscribe => RedisCommand.UNSUBSCRIBE,
+                PushKind.PUnsubscribe => RedisCommand.PUNSUBSCRIBE,
+                PushKind.SUnsubscribe => RedisCommand.SUNSUBSCRIBE,
                 _ => null,
             };
         }

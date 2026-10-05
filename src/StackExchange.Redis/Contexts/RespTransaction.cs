@@ -172,7 +172,7 @@ namespace StackExchange.Redis
                     {
                         foreach (var operation in queue)
                         {
-                            var category = operation.Flags & Message.MaskRetryCategory;
+                            var category = operation.Flags & CommandFlagsInternal.MaskRetryCategory;
                             if (category > result) result = category;
                         }
                     }
@@ -753,7 +753,7 @@ namespace StackExchange.Redis
     /// takes a <c>ref RespReader</c> and answers a bool - it was written for
     /// <c>Condition.ConditionProcessor</c>, and it happens to be exactly the shape this core's
     /// <c>ParseFrame</c> wants. Seven condition types carried over without a line changed, which is
-    /// the same story as <c>Message.GetPrimaryReplicaFlags</c> and <c>ServerSelectionStrategy</c>:
+    /// the same story as <c>CommandFlagsInternal.GetPrimaryReplicaFlags</c> and <c>ServerSelectionStrategy</c>:
     /// the parts of the old core that were about <i>Redis</i> rather than about <c>Message</c> survive
     /// the replacement.
     /// </para>

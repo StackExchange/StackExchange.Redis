@@ -73,10 +73,10 @@ public class RespSurfaceSortedSetsTests
 
         // a bare ZADD overwrites, so last-wins; NX/XX/GT/LT make a replay converge, so checked; INCR
         // compounds - unless NX, where a replay can only find the member present and no-op
-        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, exec.Flags[0] & Message.MaskRetryCategory);
-        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[1] & Message.MaskRetryCategory);
-        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[2] & Message.MaskRetryCategory);
-        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[3] & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteLastWins, exec.Flags[0] & CommandFlagsInternal.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[1] & CommandFlagsInternal.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteAccumulating, exec.Flags[2] & CommandFlagsInternal.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryWriteChecked, exec.Flags[3] & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]

@@ -806,7 +806,7 @@ namespace StackExchange.Redis
         /// </remarks>
         private static bool Mutates(CommandFlags flags)
         {
-            var category = flags & Message.MaskRetryCategory;
+            var category = flags & CommandFlagsInternal.MaskRetryCategory;
             return category == 0 || category > CommandFlags.CommandRetryReadOnly;
         }
 

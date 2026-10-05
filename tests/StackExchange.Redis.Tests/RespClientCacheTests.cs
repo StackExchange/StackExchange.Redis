@@ -555,7 +555,7 @@ public class RespClientCacheTests
         // pinning the arithmetic directly, because this is the one that fails open if written naively
         Assert.True(RespClientCache.IsCacheable(CommandFlags.CommandRetryReadOnly));
         Assert.False(RespClientCache.IsCacheable(CommandFlags.None));
-        Assert.True((CommandFlags.None & Message.MaskRetryCategory) < CommandFlags.CommandRetryReadOnly);
+        Assert.True((CommandFlags.None & CommandFlagsInternal.MaskRetryCategory) < CommandFlags.CommandRetryReadOnly);
 
         // flags unrelated to the category must not accidentally satisfy the gate
         Assert.False(RespClientCache.IsCacheable(CommandFlags.PreferReplica | CommandFlags.FireAndForget));
@@ -634,7 +634,7 @@ public class RespClientCacheTests
         // for exactly the callers who need it
         Assert.Equal(
             CommandFlags.NoClientCache,
-            Message.UserSelectableFlags & CommandFlags.NoClientCache);
+            CommandFlagsInternal.UserSelectableFlags & CommandFlags.NoClientCache);
     }
 
     [Fact]

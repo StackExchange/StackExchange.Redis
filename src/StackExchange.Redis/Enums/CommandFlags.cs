@@ -232,7 +232,7 @@ namespace StackExchange.Redis
 
         // 262144 (bit 18): "server specific" - the command is tied to a specific endpoint and must never be
         // retried on a different endpoint (for example cursor-based operations); orthogonal to the retry-category
-        // region. Internal-only (see Message.CommandServerSpecific): the wrapper database cannot yet express
+        // region. Internal-only (see CommandFlagsInternal.CommandServerSpecific): the wrapper database cannot yet express
         // endpoint-stickiness over a *range* of operations, so this is not (currently) on the public API.
     }
 }

@@ -821,11 +821,11 @@ namespace StackExchange.Redis
             {
                 if (Multiplexer.RawConfig.KeepAlive <= 0)
                 {
-                    msg = Message.Create(-1, flags | Message.NoFlushFlag, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.timeout);
+                    msg = Message.Create(-1, flags | CommandFlagsInternal.NoFlushFlag, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.timeout);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 }
-                msg = Message.Create(-1, flags | Message.NoFlushFlag, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
+                msg = Message.Create(-1, flags | CommandFlagsInternal.NoFlushFlag, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
                 msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.databases);
@@ -835,7 +835,7 @@ namespace StackExchange.Redis
             if (commandMap.IsAvailable(RedisCommand.SENTINEL))
             {
                 // SENTINEL MASTERS only reads the sentinel's view, despite SENTINEL defaulting to server-admin
-                msg = Message.Create(-1, flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
+                msg = Message.Create(-1, flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly | CommandFlagsInternal.CommandServerSpecific), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
             }
@@ -1004,7 +1004,7 @@ namespace StackExchange.Redis
                 args[index++] = prefix.AsRedisValue();
             }
 
-            var tracking = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, args);
+            var tracking = Message.Create(-1, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag, RedisCommand.CLIENT, args);
             tracking.SetInternalCall();
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracking, ResultProcessor.DemandOK).ForAwait();
         }
@@ -1677,7 +1677,7 @@ namespace StackExchange.Redis
         /// that happens when the reply is processed (and as a last resort, when the tracer completes).</remarks>
         private async Task WriteHelloAsync(PhysicalConnection connection, ILogger? log, int protocolVersion, string? user, string? password, string? clientName)
         {
-            var hello = Message.CreateHello(protocolVersion, user, password, clientName, CommandFlags.FireAndForget | Message.NoFlushFlag);
+            var hello = Message.CreateHello(protocolVersion, user, password, clientName, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag);
             hello.SetInternalCall();
             await WriteDirectOrQueueFireAndForgetAsync(connection, hello, ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
         }
@@ -1775,14 +1775,14 @@ namespace StackExchange.Redis
             if (!string.IsNullOrWhiteSpace(user) && canAuthDirectly)
             {
                 log?.LogInformationAuthenticatingUserPassword(new(this));
-                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, user.AsRedisValue(), password.AsRedisValue());
+                msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag, RedisCommand.AUTH, user.AsRedisValue(), password.AsRedisValue());
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
             else if (!string.IsNullOrWhiteSpace(password) && canAuthDirectly)
             {
                 log?.LogInformationAuthenticatingPassword(new(this));
-                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, password.AsRedisValue());
+                msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag, RedisCommand.AUTH, password.AsRedisValue());
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
             }
@@ -1800,7 +1800,7 @@ namespace StackExchange.Redis
                 if (!string.IsNullOrWhiteSpace(clientName))
                 {
                     log?.LogInformationSettingClientName(new(this), clientName);
-                    msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETNAME, clientName.AsRedisValue());
+                    msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETNAME, clientName.AsRedisValue());
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                 }
@@ -1814,7 +1814,7 @@ namespace StackExchange.Redis
                     var libName = Multiplexer.GetFullLibraryName();
                     if (!string.IsNullOrWhiteSpace(libName))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_name, libName.AsRedisValue());
+                        msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_name, libName.AsRedisValue());
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
@@ -1822,13 +1822,13 @@ namespace StackExchange.Redis
                     var version = ClientInfoSanitize(Utils.GetLibVersion());
                     if (!string.IsNullOrWhiteSpace(version))
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_ver, version.AsRedisValue());
+                        msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_ver, version.AsRedisValue());
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
                     }
                 }
 
-                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.ID);
+                msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.ID);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
 
@@ -1855,8 +1855,8 @@ namespace StackExchange.Redis
                     // carried no address at all - so when a caller asks for a specific form, say so.
                     var endpointType = MaintenanceMovingEndpointTypeLiteral(connection);
                     msg = endpointType.IsNull
-                        ? Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON)
-                        : Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, [RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON, RedisLiterals.moving_endpoint_type, endpointType]);
+                        ? Message.Create(-1, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON)
+                        : Message.Create(-1, CommandFlags.FireAndForget | CommandFlagsInternal.NoFlushFlag, RedisCommand.CLIENT, [RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON, RedisLiterals.moving_endpoint_type, endpointType]);
                     msg.SetInternalCall();
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.MaintenanceNotifications).ForAwait();
                 }
@@ -1873,10 +1873,10 @@ namespace StackExchange.Redis
             var connType = bridge.ConnectionType;
             if (connType == ConnectionType.Interactive && !ConnectionMultiplexer.NewCoreEngine)
             {
-                await AutoConfigureAsync(connection, log, extraFlags: Message.NoFlushFlag, helloPending: helloAvailable).ForAwait();
+                await AutoConfigureAsync(connection, log, extraFlags: CommandFlagsInternal.NoFlushFlag, helloPending: helloAvailable).ForAwait();
             }
 
-            // note that the final messages *are* flushed (no Message.NoFlushFlag)
+            // note that the final messages *are* flushed (no CommandFlagsInternal.NoFlushFlag)
             var tracer = GetTracerMessage(true);
             tracer.SetHandshakeCompletion();
             tracer = LoggingMessage.Create(log, tracer);

@@ -412,8 +412,8 @@ public abstract class LoggingTunnel : Tunnel
         var ssl = new SslStream(
             innerStream: stream,
             leaveInnerStreamOpen: false,
-            userCertificateValidationCallback: _options.CertificateValidationCallback ?? PhysicalConnection.GetAmbientIssuerCertificateCallback(),
-            userCertificateSelectionCallback: _options.CertificateSelectionCallback ?? PhysicalConnection.GetAmbientClientCertificateCallback(),
+            userCertificateValidationCallback: _options.CertificateValidationCallback ?? RespTransportFactory.GetAmbientIssuerCertificateCallback(),
+            userCertificateSelectionCallback: _options.CertificateSelectionCallback ?? RespTransportFactory.GetAmbientClientCertificateCallback(),
             encryptionPolicy: EncryptionPolicy.RequireEncryption);
 
 #if NET

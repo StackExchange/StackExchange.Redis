@@ -22,10 +22,10 @@ public static class CommandFlagsExtensions
         // CommandServerSpecific is an orthogonal flag rather than part of the severity ladder, so it
         // is always additive - the caller choosing a retry category doesn't make a cursor-bearing
         // command any less node-affine.
-        flags |= category & Message.CommandServerSpecific;
+        flags |= category & CommandFlagsInternal.CommandServerSpecific;
 
         // ...but for the ladder itself: if the user has already specified a category, that wins.
-        return ((flags & Message.MaskRetryCategory) is 0) ? flags | (category & Message.MaskRetryCategory) : flags;
+        return ((flags & CommandFlagsInternal.MaskRetryCategory) is 0) ? flags | (category & CommandFlagsInternal.MaskRetryCategory) : flags;
     }
 
     /// <summary>
@@ -48,7 +48,7 @@ public static class CommandFlagsExtensions
     internal static CommandFlags WithScanCursorCategory(this CommandFlags flags, in RedisValue cursor)
         => flags.WithRetryCategory(cursor == RedisBase.CursorUtils.Origin
             ? CommandFlags.CommandRetryReadOnly
-            : CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific);
+            : CommandFlags.CommandRetryReadOnly | CommandFlagsInternal.CommandServerSpecific);
 
     /// <inheritdoc cref="AsRetryCategory(When)"/>
     internal static CommandFlags AsRetryCategory(this ExpireWhen when) => when switch
@@ -85,7 +85,7 @@ public static class CommandFlagsExtensions
 
     internal static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
     {
-        if ((flags & Message.MaskRetryCategory) is 0)
+        if ((flags & CommandFlagsInternal.MaskRetryCategory) is 0)
         {
             // Get the suggested flags; note that the user might have included CommandServerSpecific,
             // but we *also* suggest that below - we'll live with it, additively.
@@ -161,7 +161,7 @@ public static class CommandFlagsExtensions
                 // CLIENT etc often use server-specific IDs. This is the *safest* subcommand's category;
                 // RedisServer raises CLIENT KILL to server-admin, since it can't be inferred from the name.
                 case RedisCommand.CLIENT:
-                    return CommandFlags.CommandRetryConnection | Message.CommandServerSpecific;
+                    return CommandFlags.CommandRetryConnection | CommandFlagsInternal.CommandServerSpecific;
 
                 // ==========================================================================
                 // READ-ONLY — no mutation, always safe to retry.
@@ -257,7 +257,7 @@ public static class CommandFlagsExtensions
                 case RedisCommand.ZSCAN:
                 case RedisCommand.SSCAN:
                 case RedisCommand.HSCAN:
-                    return CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific;
+                    return CommandFlags.CommandRetryReadOnly | CommandFlagsInternal.CommandServerSpecific;
 
                 // ==========================================================================
                 // WRITE - CHECKED — inherently conditional/idempotent; a retry either
@@ -386,7 +386,7 @@ public static class CommandFlagsExtensions
                 case RedisCommand.LATENCY: // note LATENCY DOCTOR/HISTORY/LATEST likewise
                 case RedisCommand.SCRIPT: // note SCRIPT EXISTS/LOAD are demoted in RedisServer/RedisDatabase
                 case RedisCommand.CLUSTER: // note CLUSTER NODES is demoted to read-only where we know the subcommand
-                    return CommandFlags.CommandRetryServerAdmin | Message.CommandServerSpecific;
+                    return CommandFlags.CommandRetryServerAdmin | CommandFlagsInternal.CommandServerSpecific;
 
                 // ==========================================================================
                 // NEVER — transactions, arbitrary scripts, and blocking/destructive or
@@ -475,7 +475,7 @@ public static class CommandFlagsExtensions
                 case RedisCommand.HOTKEYS: // diagnostic/introspection, node-local
                 case RedisCommand.SENTINEL: // only because of FAILOVER; the introspection verbs are demoted in RedisServer
                 case RedisCommand.SYNC: // replication stream handshake
-                    return CommandFlags.CommandRetryServerAdmin | Message.CommandServerSpecific;
+                    return CommandFlags.CommandRetryServerAdmin | CommandFlagsInternal.CommandServerSpecific;
 
                 // if we don't recognize it: default to the most pessimistic
                 case RedisCommand.NONE:

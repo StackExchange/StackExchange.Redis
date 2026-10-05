@@ -1,4 +1,4 @@
-using System.Threading;
+﻿using System.Threading;
 using StackExchange.Redis.Availability;
 using StackExchange.Redis.Interfaces;
 using Xunit;
@@ -115,7 +115,7 @@ public class CommandRetryPolicyUnitTests
     // "server specific" (sticky) command must not move endpoints, so only the same-server option remains.
     [Theory]
     [InlineData(CommandFlags.None, RetryResult.SameServer | RetryResult.FailoverServer)]
-    [InlineData(Message.CommandServerSpecific, RetryResult.SameServer)]
+    [InlineData(CommandFlagsInternal.CommandServerSpecific, RetryResult.SameServer)]
     public void CanRetry_ServerSpecificRestrictsToSameServer(CommandFlags extra, RetryResult expected)
     {
         // in-range category (== default max) + transient error => a retry is offered; the sticky flag
@@ -133,7 +133,7 @@ public class CommandRetryPolicyUnitTests
     public void CanRetry_ServerSpecificDoesNotAffectRange(CommandFlags category, bool expectRetry)
     {
         var withoutFlag = CanRetryAmbiguous(category);
-        var withFlag = CanRetryAmbiguous(category | Message.CommandServerSpecific);
+        var withFlag = CanRetryAmbiguous(category | CommandFlagsInternal.CommandServerSpecific);
 
         Assert.Equal(expectRetry, withoutFlag != RetryResult.None);
         Assert.Equal(expectRetry, withFlag != RetryResult.None);
@@ -221,7 +221,7 @@ public class CommandRetryPolicyUnitTests
         using var cts = new CancellationTokenSource();
         var token = cts.Token;
         var failover = token;
-        const CommandFlags flags = CommandFlags.CommandRetryWriteLastWins | Message.CommandServerSpecific;
+        const CommandFlags flags = CommandFlags.CommandRetryWriteLastWins | CommandFlagsInternal.CommandServerSpecific;
         var fault = new RedisServerException(RedisErrorKind.Loading, flags, "LOADING");
 
         // attempt 1: same-server retry; failover token untouched

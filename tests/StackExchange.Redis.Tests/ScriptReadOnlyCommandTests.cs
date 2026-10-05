@@ -107,17 +107,17 @@ public class ScriptReadOnlyCommandTests(ITestOutputHelper output) : TestBase(out
         var flags = CommandFlags.None;
         var command = RedisDatabase.ForReadOnlyScript(unavailable, RedisCommand.EVAL_RO, ref flags);
         Assert.Equal(RedisCommand.EVAL, command); // fell back...
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, flags & Message.MaskRetryCategory); // ...but still read-only
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, flags & CommandFlagsInternal.MaskRetryCategory); // ...but still read-only
 
         flags = CommandFlags.None;
         command = RedisDatabase.ForReadOnlyScript(unavailable, RedisCommand.EVALSHA_RO, ref flags);
         Assert.Equal(RedisCommand.EVALSHA, command);
-        Assert.Equal(CommandFlags.CommandRetryReadOnly, flags & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly, flags & CommandFlagsInternal.MaskRetryCategory);
 
         // an explicit category from the caller still wins over the fallback's
         flags = CommandFlags.CommandRetryNever;
         RedisDatabase.ForReadOnlyScript(unavailable, RedisCommand.EVAL_RO, ref flags);
-        Assert.Equal(CommandFlags.CommandRetryNever, flags & Message.MaskRetryCategory);
+        Assert.Equal(CommandFlags.CommandRetryNever, flags & CommandFlagsInternal.MaskRetryCategory);
 
         // and where the commands are available, the read-only form is kept as-is
         flags = CommandFlags.None;
@@ -127,10 +127,10 @@ public class ScriptReadOnlyCommandTests(ITestOutputHelper output) : TestBase(out
         // category alone; without that, EVAL's default would overwrite it right back to write-accumulating
         Assert.Equal(
             CommandFlags.CommandRetryReadOnly,
-            CommandFlags.CommandRetryReadOnly.WithDefaultCategory(RedisCommand.EVAL) & Message.MaskRetryCategory);
+            CommandFlags.CommandRetryReadOnly.WithDefaultCategory(RedisCommand.EVAL) & CommandFlagsInternal.MaskRetryCategory);
         Assert.Equal(
             CommandFlags.CommandRetryWriteAccumulating,
-            CommandFlags.None.WithDefaultCategory(RedisCommand.EVAL) & Message.MaskRetryCategory);
+            CommandFlags.None.WithDefaultCategory(RedisCommand.EVAL) & CommandFlagsInternal.MaskRetryCategory);
     }
 
     [Fact]

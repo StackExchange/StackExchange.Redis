@@ -604,7 +604,7 @@ namespace StackExchange.Redis.Caching
         /// zero compares below <see cref="CommandFlags.CommandRetryReadOnly"/> on the severity ladder - so a
         /// naive <c>&lt;=</c> test would treat "nobody said" as "safe to cache", which is precisely backwards
         /// for commands this library does not know. External surfaces such as NRedisStack reach the server
-        /// through <c>Execute</c>, and <c>Message.UserSelectableFlags</c> already lets them declare a
+        /// through <c>Execute</c>, and <c>CommandFlagsInternal.UserSelectableFlags</c> already lets them declare a
         /// category; declaring nothing must mean no caching.
         /// </para>
         /// <para>
@@ -1222,7 +1222,7 @@ namespace StackExchange.Redis.Caching
         {
             if ((flags & (CommandFlags.NoClientCache | CommandFlags.FireAndForget)) != 0) return false;
 
-            var category = flags & Message.MaskRetryCategory;
+            var category = flags & CommandFlagsInternal.MaskRetryCategory;
             return category != 0 && category <= CommandFlags.CommandRetryReadOnly;
         }
 

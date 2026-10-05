@@ -340,7 +340,7 @@ namespace StackExchange.Redis
 
             if (command.IsPrimaryOnly()) return Usable(owners.Primary);
 
-            switch (Message.GetPrimaryReplicaFlags(flags))
+            switch (CommandFlagsInternal.GetPrimaryReplicaFlags(flags))
             {
                 case CommandFlags.DemandReplica:
                     return Usable(PickReplica(owners.Replicas));
@@ -466,7 +466,7 @@ namespace StackExchange.Redis
         {
             // A replica read, answered from our own roles WHERE WE HAVE THEM.
             var wantsReplica = !command.IsPrimaryOnly()
-                && Message.GetPrimaryReplicaFlags(flags) is CommandFlags.DemandReplica or CommandFlags.PreferReplica;
+                && CommandFlagsInternal.GetPrimaryReplicaFlags(flags) is CommandFlags.DemandReplica or CommandFlags.PreferReplica;
 
             if (wantsReplica && PickReplica(_topology.Replicas) is { } replica) return replica;
 
