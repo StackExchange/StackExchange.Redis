@@ -121,11 +121,6 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 - [x] Logging enums: relocated to `ConnectionStatus.cs`, ids unchanged.
 - [x] `SimulateConnectionFailure` demands `AllowAdmin` again, as shipped.
 - [x] Delete. Build. Suite: net10.0 over three runs - see Status.
-- [ ] **Parked tests** (`Compile Remove` in the test csproj, each with a comment): `ResultProcessorUnitTests/**`,
-      `RoundTripUnitTests/**`, `RespSurface*ParityTests`, `CommandRetryCategoryUnitTests`, `ResultBoxTests`,
-      `SortedSetIncrementUnitTests`, `InterpolatedOptionalArgTests` drove the deleted types directly. Retarget
-      the parsing and rendering ones at the new handlers / golden bytes; delete the parity tests (there is no
-      second implementation to be at parity with). `DedicatedThreadsUnitTests` stays parked with decision 6.
 - [ ] **Gaps the deletion exposed** - each was the old core's, and has no new-core equivalent yet:
       the connection storm log (`ExceptionFactory` no longer writes one); the fire-and-forget counter (always
       reported 0); `GetProfile`'s per-connection op-count history; `DedicatedThreads` (decision 6). None is a
@@ -151,11 +146,11 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       - ~30 `NewCoreIfCreated?.` null-tolerances, `ServerEndPoint.IsConnecting => false`, `GetProfile()`.
       - Topology flows both ways between `RespTopology` and `ServerSelectionStrategy` - live, because the
         selector is still the routing fallback and `IServer`'s source. Goes with "phase D".
-- [ ] **GC rooting of a dropped multiplexer.** v3 rooted the multiplexer from its heartbeat while caller work
-      was in flight, so a dropped multiplexer's pending tasks still timed out; nothing called `Root()` once the
-      bridges went, and the dead mechanism is removed. The new core is probably rooted anyway (open sockets'
-      pending reads and retry timers reach the core, and the core holds the multiplexer) - verify with a test
-      that drops a multiplexer mid-flight against a server that never answers.
+- [x] **GC rooting of a dropped multiplexer.** v3 rooted the multiplexer from its heartbeat while caller work
+      was in flight; nothing called `Root()` once the bridges went, and the dead mechanism is removed. Not
+      needed: `DroppedMultiplexerTests` drops a multiplexer mid-command against a server holding every reply,
+      and the multiplexer stays reachable (the connection roots it), so the heartbeat runs and the command
+      times out at its own 500ms.
 
 ### Backlog (after the alpha gates; not blocking)
 
