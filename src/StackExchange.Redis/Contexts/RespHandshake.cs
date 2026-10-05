@@ -139,6 +139,10 @@ namespace StackExchange.Redis
         /// Told when the server refused <c>AUTH</c>, which does not fail the handshake; see the catch.
         /// </param>
         /// <param name="cancellationToken">Cancels the handshake.</param>
+        /// <param name="server">
+        /// The server this connection reached: what was learned is logged against it, and the round-trip
+        /// time is recorded on it. Null to do neither.
+        /// </param>
         /// <returns>What the connection ended up speaking, and what it turned out to be.</returns>
         internal static async Task<RespHandshakeResult> PerformAsync(
             RespDatabaseContext context,
@@ -154,8 +158,14 @@ namespace StackExchange.Redis
             string? libraryName = null,
             string? libraryVersion = null,
             Action<Exception>? onAuthSuspect = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            ServerEndPoint? server = null)
         {
+            // the shipped "Auto-configured (SOURCE) ..." events, by the same ids, each written where the fact
+            // is learned and naming the command that taught it - which is what makes them worth reading
+            var log = server?.Multiplexer.Logger;
+            log?.LogInformationServerHandshake(new(server!));
+
             // WHO AUTHENTICATES depends on whether AUTH is available at all. A command map that disables it
             // is not a map without credentials - a proxy can require them and refuse the command - and in
             // that case HELLO is the only thing that can authenticate the connection, so the credentials
@@ -274,6 +284,17 @@ namespace StackExchange.Redis
 
                     version = hello.Version;
                     roleFromHello = hello.IsReplica;
+
+                    if (log is not null)
+                    {
+                        log.LogInformationAutoConfiguredHelloProtocol(new(server!), protocol);
+                        if (version is not null) log.LogInformationAutoConfiguredHelloServerVersion(new(server!), version);
+                        if (hello.Mode is { } helloMode) log.LogInformationAutoConfiguredHelloServerType(new(server!), helloMode);
+                        if (roleFromHello is { } helloReplica)
+                        {
+                            log.LogInformationAutoConfiguredHelloRole(new(server!), helloReplica ? "replica" : "primary");
+                        }
+                    }
                 }
                 catch (RedisServerException)
                 {
@@ -470,6 +491,7 @@ namespace StackExchange.Redis
                     version = await context.SendAsync(
                         $"{RedisCommand.INFO}{RespLiterals.Server}",
                         handler: ServerVersionHandler.Instance).ConfigureAwait(false);
+                    if (version is not null) log?.LogInformationAutoConfiguredInfoVersion(new(server!), version);
                 }
                 catch (RedisServerException)
                 {
@@ -480,6 +502,12 @@ namespace StackExchange.Redis
             long? connectionId = null;
             if (context.Raw.CommandMap.IsAvailable(RedisCommand.CLIENT))
             {
+                if (log is not null)
+                {
+                    if (clientName is { Length: > 0 }) log.LogInformationSettingClientName(new(server!), clientName);
+                    if (libraryName is { Length: > 0 } || libraryVersion is { Length: > 0 }) log.LogInformationSettingClientLibVer(new(server!));
+                }
+
                 await IdentifyAsync(context, clientName, libraryName, libraryVersion).ConfigureAwait(false);
 
                 // ...and what the server calls this connection, which is the only handle on it from
@@ -487,8 +515,14 @@ namespace StackExchange.Redis
                 // same breath as the rest of the CLIENT work.
                 try
                 {
+                    // one plain round trip, so it doubles as the latency sample the shipped handshake took
+                    // from its tracer - `MultiGroupMultiplexer` ranks groups by it, and without a sample
+                    // every server reads as "not yet measured"
+                    var started = DateTime.UtcNow;
                     connectionId = await context.SendAsync<long>(
                         $"{RedisCommand.CLIENT}{RespLiterals.Id}").ConfigureAwait(false);
+                    server?.SetLatency(started);
+                    log?.LogInformationAutoConfiguredClientConnectionId(new(server!), connectionId.GetValueOrDefault());
                 }
                 catch (RedisServerException)
                 {
@@ -542,6 +576,7 @@ namespace StackExchange.Redis
             ServerEndPoint server,
             ConnectedTransportFacts connected = default)
         {
+            server.Multiplexer.Logger?.LogInformationAutoConfiguring(new(server));
             // FIRST, and outside the gate below, because the two beliefs are independent: a server whose
             // database count somebody has already established can still have no product recorded.
             await DiscoverProductAsync(context, server).ConfigureAwait(false);
@@ -549,8 +584,24 @@ namespace StackExchange.Redis
             await DiscoverTieBreakerAsync(context, server).ConfigureAwait(false);
             await RequestMaintenanceNotificationsAsync(context, server, connected).ConfigureAwait(false);
 
-            if (server.Databases > 0) return;
             if (!context.Raw.CommandMap.IsAvailable(RedisCommand.CONFIG)) return;
+            var log = server.Multiplexer.Logger;
+
+            // the server's idle timeout sets how often the heartbeat must write to keep the connection, when
+            // the caller did not choose - the shipped auto-configure reads it, and this did not, so under the
+            // engine flag `WriteEverySeconds` silently kept its 60s default against a server that might drop
+            // idle connections sooner. Same rule as the shipped processor: 20s spare above a minute, else 3/4.
+            if (server.Multiplexer.RawConfig.KeepAlive <= 0
+                && await ReadSettingAsync(context, "timeout").ConfigureAwait(false) is { } timeout
+                && int.TryParse(timeout, NumberStyles.Integer, CultureInfo.InvariantCulture, out var timeoutSeconds)
+                && timeoutSeconds > 0)
+            {
+                var targetSeconds = timeoutSeconds >= 60 ? timeoutSeconds - 20 : (timeoutSeconds * 3) / 4;
+                log?.LogInformationAutoConfiguredConfigTimeout(new(server), targetSeconds);
+                server.WriteEverySeconds = targetSeconds;
+            }
+
+            if (server.Databases > 0) return;
 
             // the spelling follows the server's own vocabulary, which changed: "replica" from 5.0, "slave"
             // before it. The shipped handshake picks by the same predicate.
@@ -560,12 +611,14 @@ namespace StackExchange.Redis
                 && int.TryParse(databases, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
                 && count > 0)
             {
+                log?.LogInformationAutoConfiguredConfigDatabases(new(server), count);
                 server.Databases = count;
             }
 
             if (await ReadSettingAsync(context, readOnlyKey).ConfigureAwait(false) is { } readOnly)
             {
                 server.ReplicaReadOnly = !string.Equals(readOnly, "no", StringComparison.OrdinalIgnoreCase);
+                log?.LogInformationAutoConfiguredConfigReadOnlyReplica(new(server), server.ReplicaReadOnly);
             }
         }
 
@@ -745,7 +798,11 @@ namespace StackExchange.Redis
                     $"{RedisCommand.INFO}{RespLiterals.Replication}",
                     handler: ReplicationHandler.Instance).ConfigureAwait(false);
 
-                if (replication.IsReplica is { } isReplica) server.IsReplica = isReplica;
+                if (replication.IsReplica is { } isReplica)
+                {
+                    server.IsReplica = isReplica;
+                    server.Multiplexer.Logger?.LogInformationAutoConfiguredInfoRole(new(server), isReplica ? "replica" : "primary");
+                }
                 if (replication.Primary is { } primary) server.PrimaryEndPoint = primary;
             }
             catch (RedisServerException)
@@ -797,6 +854,7 @@ namespace StackExchange.Redis
             catch (RedisServerException ex) when (ex.Kind == RedisErrorKind.ReadOnly)
             {
                 // the refusal IS the answer
+                server.Multiplexer.Logger?.LogInformationAutoConfiguredRoleReplica(new(server));
                 server.IsReplica = true;
             }
             catch (RedisServerException)
@@ -897,6 +955,7 @@ namespace StackExchange.Redis
             if (!server.Multiplexer.RawConfig.TryGetTieBreaker(out var key)) return;
             if (!context.Raw.CommandMap.IsAvailable(RedisCommand.GET)) return;
 
+            server.Multiplexer.Logger?.LogInformationRequestingTieBreak(new(server.EndPoint), key);
             try
             {
                 // DATABASE ZERO explicitly, because a tie-breaker is a key and the context asking may

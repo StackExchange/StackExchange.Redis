@@ -5,6 +5,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using RESPite.Transports;
 using StackExchange.Redis.Configuration;
 
@@ -60,12 +61,14 @@ namespace StackExchange.Redis
         /// <param name="config">The configuration carrying the tunnel and TLS intent.</param>
         /// <param name="connectionType">Which connection this is; tunnels are told.</param>
         /// <param name="onAuthSuspect">Told when a TLS failure looks like an authentication problem.</param>
+        /// <param name="log">The connect log, told about TLS: when it starts, what it negotiated, and why it failed.</param>
         /// <param name="cancellationToken">Cancels the connect attempt.</param>
         internal static async Task<ConnectedTransport> ConnectAsync(
             EndPoint endpoint,
             ConfigurationOptions config,
             ConnectionType connectionType,
             Action<Exception>? onAuthSuspect = null,
+            ILogger? log = null,
             CancellationToken cancellationToken = default)
         {
             var tunnel = config.Tunnel;
@@ -153,7 +156,24 @@ namespace StackExchange.Redis
                 var encrypted = config.Ssl;
                 if (encrypted)
                 {
-                    stream = await AuthenticateAsync(stream, endpoint, config, onAuthSuspect).ConfigureAwait(false);
+                    // the same events, under the same ids, as the shipped connection: a TLS problem is the
+                    // commonest thing a connect log is pasted into an issue to diagnose
+                    log?.LogInformationConfiguringTLS();
+                    var ssl = await AuthenticateAsync(
+                        stream,
+                        endpoint,
+                        config,
+                        ex =>
+                        {
+                            onAuthSuspect?.Invoke(ex);
+                            log?.LogErrorConnectionIssue(ex, ex.Message);
+                        }).ConfigureAwait(false);
+#if NET
+                    log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol, ssl.NegotiatedCipherSuite);
+#else
+                    log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol);
+#endif
+                    stream = ssl;
                 }
 
                 return new ConnectedTransport(

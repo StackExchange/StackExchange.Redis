@@ -724,7 +724,7 @@ namespace StackExchange.Redis
                             // Increment count here, so that we don't re-enter in Connecting case up top - we don't want to re-enter and log there.
                             Interlocked.Increment(ref connectTimeoutRetryCount);
 
-                            Multiplexer.Logger?.LogInformationResurrecting(this, connectTimeoutRetryCount);
+                            Multiplexer.Logger?.LogInformationResurrecting(ToString(), connectTimeoutRetryCount);
                             Multiplexer.OnResurrecting(ServerEndPoint.EndPoint, ConnectionType);
                             TryConnect(null);
                         }

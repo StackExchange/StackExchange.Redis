@@ -945,7 +945,11 @@ namespace StackExchange.Redis
             // the bridges stopped dialling.
             var logger = _multiplexer.Logger;
             var connectionType = subscription ? ConnectionType.Subscription : ConnectionType.Interactive;
-            logger?.LogDebug($"{Format.ToString(endpoint)}: connecting ({connectionType})");
+            // the shipped bridge's events and ids, and its name for the connection (`host:port/Type`): a
+            // log filter or dashboard built against the shipped core keeps working against this one
+            var logName = Format.ToString(endpoint) + "/" + connectionType;
+            logger?.LogInformationConnecting(logName);
+            logger?.LogInformationBeginConnectAsync(new(endpoint));
 
             // the shared chain: tunnel, proxy, socket, TLS. This used to be a bare socket here, which
             // silently ignored every one of those - and the TLS I added to it first was a second copy of
@@ -956,10 +960,11 @@ namespace StackExchange.Redis
                 config,
                 connectionType,
                 _multiplexer.SetAuthSuspect,
+                logger,
                 cancellationToken).ConfigureAwait(false);
 
-            logger?.LogDebug(
-                $"{Format.ToString(endpoint)}: transport established ({(connected.IsEncrypted ? "encrypted" : "plaintext")})");
+            logger?.LogInformationTransportConnected(logName, connected.IsEncrypted);
+            logger?.LogInformationConnected(logName);
 
             // the configured response pool goes to the connection, not just to the shipped core's reader:
             // every reply this core reads lands in an inbound buffer, and a caller who supplied a pool
@@ -975,6 +980,7 @@ namespace StackExchange.Redis
                     => coreRef.TryGetTarget(out var core) && core.Follow(endpoint, in redirect, operation),
                 config.IncludeDetailInExceptions,
                 config.ResponseBufferPool);
+            logger?.LogInformationStartingRead(new(endpoint)); // the connection reads from construction
             var context = new RespDatabaseContext(
                 new RespContext(config.CommandMap, database: 0)
                     .WithExecutor(new RespConnectionExecutor(connection, 0)));
@@ -985,6 +991,10 @@ namespace StackExchange.Redis
             // but ConfigurationOptions carries "" to mean "none configured", so passing it straight through
             // sent AUTH to servers that have no password and answer it with an error.
             var credentials = !string.IsNullOrWhiteSpace(config.User) || !string.IsNullOrWhiteSpace(config.Password);
+
+            // resolved before the handshake rather than after it, so that what the handshake learns is logged
+            // against the server as it is learned - the shipped "Auto-configured ..." lines
+            var server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
 
             var result = await RespHandshake.PerformAsync(
                 context,
@@ -1000,7 +1010,8 @@ namespace StackExchange.Redis
                 _multiplexer.GetFullLibraryName(),
                 ServerEndPoint.ClientInfoSanitize(Utils.GetLibVersion()),
                 _multiplexer.SetAuthSuspect,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                server: server).ConfigureAwait(false);
 
             // recorded BEFORE the connection is handed back, for the same reason the topology is: the
             // endpoint executor publishes it and drains its backlog the moment this returns, and a
@@ -1017,7 +1028,7 @@ namespace StackExchange.Redis
             // which server this reached, so a preamble gate can consult the endpoint's beliefs - a loaded
             // script is server-wide, and ServerEndPoint already tracks that and flushes it when a server's
             // identity changes underneath. Borrowed rather than reimplemented while both cores exist.
-            connection.Server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
+            connection.Server = server;
 
             // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
             // thing marking it as one is that this connection subscribes. Set it nowhere else: on an
@@ -1054,17 +1065,8 @@ namespace StackExchange.Redis
             // socket; this core handshakes one too and learns the same facts from it. Publishing them is
             // what lets that other handshake eventually not happen - and in the meantime it corrects the
             // case where this core knows something first, because it dialled first.
-            logger?.LogInformation(
-                $"{Format.ToString(endpoint)}: handshake complete ({result.Protocol}, {result.ServerType}"
-                + $"{(result.ConnectionId is { } id ? $", connection {id}" : "")})");
-
-            // what discovery actually learned, which is the other half of a useful connect log: the shipped
-            // path narrates the server's version, role and slot coverage, and those are the facts a reader
-            // needs to tell "connected to the wrong thing" from "connected and mis-routed"
-            logger?.LogDebug(
-                $"{Format.ToString(endpoint)}: discovered version {result.Version?.ToString() ?? "unknown"}"
-                + $", role {(connection.Server?.IsReplica == true ? "replica" : "primary")}"
-                + $", slot map {(_topology.HasSlotMap ? "present" : "absent")}");
+            // what discovery learned was logged by the handshake as it learned it; this closes the narrative
+            logger?.LogInformationOnEstablishingComplete(new(endpoint));
 
             if (connection.Server is { } modelled)
             {
@@ -2170,14 +2172,13 @@ namespace StackExchange.Redis
                         if (slots is not { Assignments.Count: > 0 }) continue; // answered, told us nothing
 
                         ApplySlots(pair.Key, slots);
-                        log?.LogInformation(
-                            $"Refreshed the slot map from {Format.ToString(pair.Key)}: {slots.Assignments.Count} range(s)");
+                        log?.LogInformationSlotMapRefreshed(new(pair.Key), slots.Assignments.Count);
 
                         return; // one SLOTS answer is the whole deployment
                     }
                     catch (Exception ex)
                     {
-                        log?.LogInformation($"{Format.ToString(pair.Key)} could not refresh the slot map: {ex.Message}");
+                        log?.LogInformationSlotMapRefreshFailed(ex, new(pair.Key), ex.Message);
                     }
                 }
 
@@ -2203,7 +2204,7 @@ namespace StackExchange.Redis
                 }
                 catch (Exception ex)
                 {
-                    log?.LogInformation($"{Format.ToString(pair.Key)} could not refresh its role: {ex.Message}");
+                    log?.LogInformationRoleRefreshFailed(ex, new(pair.Key), ex.Message);
                 }
             }
 

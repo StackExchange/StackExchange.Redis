@@ -346,6 +346,9 @@ namespace StackExchange.Redis
         /// </remarks>
         internal bool IsSubscriptionEndpoint { get; init; }
 
+        /// <summary>What the connect log calls this endpoint: the shipped bridge's name, <c>host:port/Type</c>.</summary>
+        private string LogName => Format.ToString(_endpoint) + "/" + (IsSubscriptionEndpoint ? ConnectionType.Subscription : ConnectionType.Interactive);
+
         /// <summary>
         /// Hands a subscriber-mode command to the connection it belongs on, when this is not it; null when
         /// there is nowhere to hand it.
@@ -1158,8 +1161,18 @@ namespace StackExchange.Redis
 
             // ...in the connect log too, not only as an event. A connection going away is the single most
             // useful line in a support log, and this core was closing sockets without writing one.
-            Server?.Multiplexer.Logger?.LogDebug(
-                $"{Format.ToString(_endpoint)}: connection {(wasRequested ? "closed" : "lost")} - {fault.Message}");
+            // under the shipped ids, so a filter written against the shipped bridge still sees this
+            if (Server?.Multiplexer.Logger is { } logger)
+            {
+                if (wasRequested)
+                {
+                    logger.LogInformationConnectionFailureRequested(fault, fault.Message);
+                }
+                else
+                {
+                    logger.LogErrorConnectionIssue(fault, fault.Message);
+                }
+            }
 
             // ...and SAY so, which this core did not. ConnectionFailed is a documented public event and the
             // thing callers wire up to notice a deployment moving underneath them; the shipped bridge
@@ -1267,10 +1280,14 @@ namespace StackExchange.Redis
         {
             try
             {
+                var started = DateTime.UtcNow;
                 await new RespDatabaseContext(
                         new RespContext(Server!.Multiplexer.RawConfig.CommandMap, database: -1).WithExecutor(this))
                     .PingAsync(CommandFlags.NoRedirect)
                     .ConfigureAwait(false);
+
+                // ...and keeps the latency sample current, as the shipped heartbeat's tracer does
+                Server.SetLatency(started);
             }
             catch (Exception ex)
             {
@@ -1885,6 +1902,13 @@ namespace StackExchange.Redis
                 return;
             }
 
+            if (Volatile.Read(ref _connectRetryCount) is var retries and > 0)
+            {
+                Server?.Multiplexer.Logger?.LogInformationResurrecting(
+                    (IsSubscriptionEndpoint ? ConnectionType.Subscription : ConnectionType.Interactive) + "/" + Format.ToString(_endpoint),
+                    retries);
+            }
+
             _connecting = Task.Run(ConnectAsync);
         }
 
@@ -2074,6 +2098,7 @@ namespace StackExchange.Redis
                 var failures = Interlocked.Increment(ref _connectRetryCount);
                 var fault = AsConnectionFault(ex);
                 Volatile.Write(ref _lastConnectFault, fault);
+                Server?.Multiplexer.Logger?.LogErrorConnectFailed(fault, LogName, fault.Message);
 
                 // An endpoint that only ever refuses has nobody to tell the client it has moved: every
                 // other path that re-reads the topology needs somebody ELSE to notice first - a
@@ -2205,7 +2230,18 @@ namespace StackExchange.Redis
                 while (stranded.Count != 0) Fail(stranded.Dequeue(), ex);
             }
 
-            if (connection is not null) await connection.DisposeAsync().ConfigureAwait(false);
+            if (connection is not null)
+            {
+                // a requested close is still a line in the connect log: the shipped bridge writes one as the
+                // multiplexer is disposed, and its absence reads as a connection that simply vanished
+                if (!connection.IsClosed && Server?.Multiplexer.Logger is { } logger)
+                {
+                    var closing = new RedisConnectionException(ConnectionFailureType.ConnectionDisposed, CommandFlags.None, LogName + ": closed by the client");
+                    logger.LogInformationConnectionFailureRequested(closing, closing.Message);
+                }
+
+                await connection.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 }

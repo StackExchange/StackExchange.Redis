@@ -658,7 +658,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 91,
         Message = "Resurrecting {Bridge} (retry: {RetryCount})")]
-    internal static partial void LogInformationResurrecting(this ILogger logger, PhysicalBridge bridge, long retryCount);
+    internal static partial void LogInformationResurrecting(this ILogger logger, string bridge, long retryCount);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -826,4 +826,22 @@ internal static partial class LoggerExtensions
         EventId = 120,
         Message = "{Server}: Re-reading topology after {Failures} consecutive connect failures")]
     internal static partial void LogInformationRefreshingAfterConnectFailures(this ILogger logger, ServerEndPointLogValue server, int failures);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 124,
+        Message = "Refreshed the slot map from {EndPoint}: {RangeCount} range(s)")]
+    internal static partial void LogInformationSlotMapRefreshed(this ILogger logger, EndPointLogValue endPoint, int rangeCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 125,
+        Message = "{EndPoint} could not refresh the slot map: {ErrorMessage}")]
+    internal static partial void LogInformationSlotMapRefreshFailed(this ILogger logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 126,
+        Message = "{EndPoint} could not refresh its role: {ErrorMessage}")]
+    internal static partial void LogInformationRoleRefreshFailed(this ILogger logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
 }

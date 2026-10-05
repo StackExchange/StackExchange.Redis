@@ -48,16 +48,26 @@ In order. The first unchecked item is the next action; the order puts the larges
 
 ### Gate 2
 
-- [ ] **Logging - measure first.** Capture which event ids fire on a shipped connect, a reconnect, a
-      failover and a maintenance window, then the same under the engine flag; the diff is the list.
-- [ ] Logging - port the ~33 events whose only callers are in deleted files (`ResultProcessor` 15,
-      `PhysicalConnection` 11, `PhysicalBridge` 7), using the same generated methods.
-- [ ] Logging - convert the interpolated `LogInformation($"...")` calls added in 94d6fdb3 to generated events.
-- [ ] Logging - re-type events whose signatures take `PhysicalBridge`/`Message`, preserving event ids.
+- [x] **Logging - measured** with a connect + simulated failure + reconnect, event ids counted per core,
+      stable over two pairs. Before the port the engine path was missing 31 shipped ids; after it, 9, each
+      a deliberate difference: 35 (reconfigure after a plain socket loss - the engine flag does not),
+      57/58/69/70 (bridge-pipeline mechanics), 75/76/84 (INFO/HELLO facts the new core learns from a
+      different command, logged under that command's id), and 71 (see decisions).
+- [x] Logging - ported under the shipped ids: connect lifecycle (92/95/110/100/96/87), TLS (98/99) in the
+      shared transport factory, connect failed / lost / requested close (93/89/88), resurrecting (91,
+      re-typed from `PhysicalBridge` to its name), and the auto-configure facts (61/62/63/67/68/72-86)
+      logged in the handshake where each is learned. `LoggerTests` now passes under the engine flags.
+- [x] Logging - the interpolated calls are generated events (124-126 for topology refresh; the rest
+      replaced by shipped ids).
+- [x] Side-effect found by the port: the new core never read `CONFIG GET timeout`, so `WriteEverySeconds`
+      kept its default under the engine flag. Now read, with the shipped rule.
 - [ ] `IServer` methods still on `Message`: `ClusterNodes`, `ClusterNodesRaw`, `ConfigSet`, `Execute`,
       `ReplicaOf`, `ScriptLoad`, `Time`. Same shape as the `CLIENT KILL` port (a103e68e).
-- [ ] Side-effects not yet written by the new core: `RunId`, `MultiDatabasesOverride`, `SetLatency`,
-      `SubscriptionCount`. Confirm the 16 "ported" ones are writes, not just name matches.
+- [x] Side-effects audited: `SetLatency` was real (multi-group ranking read "never measured") - now
+      sampled from the handshake's `CLIENT ID` and the keep-alive PING. `RunId` is written and never
+      read. `SubscriptionCount` is covered: `IsIdle` asks the registry too. `MultiDatabasesOverride`
+      (#2642, Alibaba) is covered by construction: the new core sets `ServerType` only from a declared
+      mode, never from the `CLUSTER NODES` inference that override guarded.
 - [ ] Profiling: `CommandTrace` / `ProfiledCommand` are built on `Message` and are public.
 
 ### Gate 3
@@ -65,15 +75,17 @@ In order. The first unchecked item is the next action; the order puts the larges
 - [ ] Decouple the 137 first-layer errors in surviving files: `ServerEndPoint` 34, `RedisServer` 20,
       `ConnectionMultiplexer` 19, `LoggerExtensions` 10, `ExceptionFactory` 9, `RedisBase` 7, profiling,
       the rest. Expect another layer of roughly half that once these are fixed.
+- [ ] Logging - three events take nested `PhysicalBridge.State` / `BacklogStatus` /
+      `PhysicalConnection.ReadStatus`/`WriteStatus` (`ServerStatus` 214, `EndpointState` 226,
+      `OnConnectedAsyncInit` 473): move the enums out or re-type, preserving ids.
+- [ ] `SimulateConnectionFailure` runs without `AllowAdmin` under the engine flag; the shipped path demands it.
 - [ ] Delete. Build. Suite.
 
 ## Decisions that need the user
 
 Each has a default the work proceeds on; none of them blocks anything.
 
-1. **`LoggerTests.BasicLoggerConfig`** asserts more than 30 log lines during connect, calibrated against two
-   bridges per endpoint. *Default:* left failing until the logging work in gate 2 lands, then re-measured -
-   the generated events may close the gap honestly.
+1. ~~`LoggerTests.BasicLoggerConfig`~~ - resolved by the logging port; passes under the engine flags.
 2. **`DefaultOptionsTests` Vanilla/Azure-RESP3 still see one extra socket** under the engine flags: an
    endpoint whose protocol is not yet known gets a dedicated subscription socket, and keeps it (the
    documented trade-off in `SubscriptionEndpoint`). *Default:* accept it for the alpha; revisit by
@@ -81,6 +93,9 @@ Each has a default the work proceeds on; none of them blocks anything.
 3. ~~`SlotLessNodesAreKnownButNotConnected` racy~~ - resolved at landing: the test no longer activates the
    node it is asserting on, and eager connect no longer dials inert nodes.
 4. **Alpha before or after gate 3.** *Default:* proceed through gate 3; flag the moment gate 2 is done.
+5. **Event 71, `Response from {Bridge} / {Command}: {Result}`** - the shipped path dumps every
+   handshake reply at Information. *Default:* not ported; each fact those replies carry has its own
+   auto-configure event, and a raw reply dump belongs at Debug if anywhere.
 
 ## Operating rules
 
