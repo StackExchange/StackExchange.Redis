@@ -844,4 +844,12 @@ internal static partial class LoggerExtensions
         EventId = 126,
         Message = "{EndPoint} could not refresh its role: {ErrorMessage}")]
     internal static partial void LogInformationRoleRefreshFailed(this ILogger logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
+
+    // Debug, not a warning: a message landing just after its unsubscribe is an ordinary race. It exists for the
+    // case that is not - a subscription the server is delivering to that the registry cannot match.
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        EventId = 127,
+        Message = "A pub/sub delivery for {Channel} (subscription {Subscription}) matched no subscription and was dropped")]
+    internal static partial void LogDebugDeliveryUnmatched(this ILogger logger, string? channel, string? subscription);
 }

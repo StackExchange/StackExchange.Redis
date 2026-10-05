@@ -168,6 +168,11 @@ namespace StackExchange.Redis
             {
                 completable = sub.ForInvoke(channel, payload, out queues);
             }
+            else
+            {
+                Logger?.LogDebugDeliveryUnmatched(channel.ToString(), subscription.ToString());
+            }
+
             if (queues != null)
             {
                 ChannelMessageQueue.WriteAll(ref queues, channel, payload);

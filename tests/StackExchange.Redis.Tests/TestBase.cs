@@ -510,6 +510,9 @@ public abstract class TestBase : IDisposable
             if (defaultDatabase is not null) config.DefaultDatabase = defaultDatabase.Value;
             if (backlogPolicy is not null) config.BacklogPolicy = backlogPolicy;
             if (protocol is not null) config.Protocol = protocol;
+
+            // event 127: a pub/sub delivery that matched no subscription - see design/v4-alpha-plan.md
+            if (output is not null) config.LoggerFactory ??= new DiagnosticEventLogger(output, 127);
             if (highIntegrity) config.HighIntegrity = highIntegrity;
             if (allowSimulateConnectionFailure) config.AllowSimulateConnectionFailure = allowSimulateConnectionFailure;
 
