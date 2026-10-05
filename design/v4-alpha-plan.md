@@ -91,7 +91,7 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 
 **Every one of those removals breaks the shipped configuration while it exists**, so the order is forced:
 
-- [ ] Zero the engine-flag triage list - CI sets no flags, so after the flip it inherits whatever is left.
+- [x] Zero the engine-flag triage list - CI sets no flags, so after the flip it inherits whatever is left.
       Done: `ReconnectRetryPolicyUnitTests` (the policy was asked before anything had failed, and with a
       failure count where it expects a retry count); `DefaultOptionsTests` x2 and `GetClients` (a real bug,
       not decision 2's trade-off: `GetConnectionId` created - and so dialled - a shipped bridge just to read
@@ -107,8 +107,10 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       `GetEndpointsFromClusterNodes` (3), `MakePrimaryAsync` (1); the rest are tests driving `RedisDatabase`
       or bridges on purpose. The probe (log a stack from `ServerEndPoint.CreateBridge` when the engine flag
       is on) is the acceptance test: zero from library code.
-- [ ] **Flip the default**: the engine flags on unless `SEREDIS_NEW_CORE_ENGINE=0`. The old core is then
-      present but unreachable by default - the shape the alpha can ship in.
+- [x] **Flip the default**: the engine flags are on unless `SEREDIS_NEW_CORE_ENGINE=0` /
+      `SEREDIS_NEW_DATABASE_SURFACE=0`. Default 0 / 2 / 0 over three net10.0 runs (two known flakes), legacy
+      green. **Not verified locally: net481**, which CI runs on Windows - the new core has not been
+      exercised on .NET Framework in this work, so the first CI run on this branch is the real test there.
 - [ ] Decouple the 91 + 46 above (was 137 at f7f36406, by a different count). Expect another layer
       once these are fixed - the compiler suppresses cascades.
 - [ ] Logging - three events take nested `PhysicalBridge.State` / `BacklogStatus` /

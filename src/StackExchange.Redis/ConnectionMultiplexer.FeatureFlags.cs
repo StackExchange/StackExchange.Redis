@@ -42,10 +42,10 @@ public partial class ConnectionMultiplexer
         /// are read, and nothing about connections, the bridge or the pipeline.
         /// </para>
         /// <para>
-        /// <b>Off by default, and deliberately a flag rather than a branch.</b> The remaining failures are
-        /// a known, shrinking list, and a flag lets the suite be run both ways from one build: the default
-        /// stays green while the new surface is worked down, instead of the work living on a red tree or a
-        /// long-lived branch that drifts.
+        /// <b>On by default from the v4 alpha</b>, together with <see cref="NewCoreEngine"/>. Turning it off -
+        /// <c>SEREDIS_NEW_DATABASE_SURFACE=0</c>, or <c>SetFeatureFlag</c> - returns the shipped
+        /// <c>RedisDatabase</c>, which remains only as a way back while the alpha is proven, and is scheduled
+        /// for deletion with the rest of the old core.
         /// </para>
         /// <para>
         /// Set it before taking a database: instances are cached per multiplexer, so a connection that has
@@ -68,11 +68,10 @@ public partial class ConnectionMultiplexer
         /// <c>RedisDatabase</c> up, and only a real connection removes it.
         /// </para>
         /// <para>
-        /// <b>Off by default, and a long way from green.</b> Measured at the time of writing: 222 failures
-        /// and then a hang, concentrated in handshake (<c>Resp3HandshakeTests</c>), retry and redirect
-        /// tests - the areas where the core owns the connection rather than borrowing one. The point of a
-        /// second flag is the same as the first: one build can be run both ways, so the surface work stays
-        /// green while the engine work is driven down, instead of living on a red tree.
+        /// <b>On by default from the v4 alpha.</b> It began off and a long way from green (222 failures and
+        /// a hang); it was made the default once the full suite passed on it and no library path still
+        /// built a shipped bridge. <c>SEREDIS_NEW_CORE_ENGINE=0</c>, or <c>SetFeatureFlag</c>, returns to the
+        /// shipped core - kept only as a way back while the alpha is proven; see design/v4-alpha-plan.md.
         /// </para>
         /// </remarks>
         NewCoreEngine = 8,
@@ -90,22 +89,27 @@ public partial class ConnectionMultiplexer
         catch { }
         SetFeatureFlag(nameof(FeatureFlags.PreventThreadTheft), value);
 
-        // The migration switch is settable from the environment so one build can be run both ways - the
-        // default suite green, and a second pass on the new surface - rather than the work living on a red
-        // tree. Guarded because reading the environment is not permitted in every host.
+        // The new core is the DEFAULT from the v4 alpha; the environment can still turn either half off, so
+        // the shipped core stays one variable away while the alpha is proven - and so the suite can still be
+        // run both ways from one build. Guarded because reading the environment is not permitted in every
+        // host, and a host that cannot read it gets the default.
+        SetFeatureFlag(nameof(FeatureFlags.NewDatabaseSurface), true);
+        SetFeatureFlag(nameof(FeatureFlags.NewCoreEngine), true);
         try
         {
-            if (Environment.GetEnvironmentVariable("SEREDIS_NEW_DATABASE_SURFACE") is "1" or "true" or "TRUE")
+            if (IsOff(Environment.GetEnvironmentVariable("SEREDIS_NEW_DATABASE_SURFACE")))
             {
-                SetFeatureFlag(nameof(FeatureFlags.NewDatabaseSurface), true);
+                SetFeatureFlag(nameof(FeatureFlags.NewDatabaseSurface), false);
             }
 
-            if (Environment.GetEnvironmentVariable("SEREDIS_NEW_CORE_ENGINE") is "1" or "true" or "TRUE")
+            if (IsOff(Environment.GetEnvironmentVariable("SEREDIS_NEW_CORE_ENGINE")))
             {
-                SetFeatureFlag(nameof(FeatureFlags.NewCoreEngine), true);
+                SetFeatureFlag(nameof(FeatureFlags.NewCoreEngine), false);
             }
         }
         catch { }
+
+        static bool IsOff(string? value) => value is "0" or "false" or "FALSE" or "False";
     }
 
     /// <summary>
