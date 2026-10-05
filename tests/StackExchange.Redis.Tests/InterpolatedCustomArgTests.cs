@@ -132,7 +132,13 @@ public class InterpolatedCustomArgTests
         }
 
         Measure(); // discard the first pass: buffer rental warms the pool
-        Assert.Equal(0, Measure());
+
+        // the BEST of several passes: boxing costs at least 24 bytes on every one of the 64 renders in every
+        // pass, whereas the pool can still miss now and then (on net481 another thread draining this thread's
+        // bucket cost 280 bytes once) - so one clean pass proves the dispatch does not box
+        var best = long.MaxValue;
+        for (var pass = 0; pass < 5 && best != 0; pass++) best = Math.Min(best, Measure());
+        Assert.Equal(0, best);
     }
 
     [Fact]

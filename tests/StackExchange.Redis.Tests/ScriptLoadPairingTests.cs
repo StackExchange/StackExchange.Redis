@@ -44,7 +44,7 @@ public class ScriptLoadPairingTests(ITestOutputHelper output) : TestBase(output)
         await muxer.GetDatabase().ScriptEvaluateAsync(Script, flags: CommandFlags.None);
 
         Assert.True(
-            server.IsScriptLoaded(Script),
+            await Poll.UntilAsync(() => server.IsScriptLoaded(Script), timeoutMilliseconds: 2000), // see ASecondEvaluationNeedsNoPreamble
             "the SCRIPT LOAD preamble was not paired with the EVALSHA - the body will now be re-sent on every call");
     }
 
@@ -62,7 +62,11 @@ public class ScriptLoadPairingTests(ITestOutputHelper output) : TestBase(output)
 
         server.FlushScriptCache();
         await muxer.GetDatabase().ScriptEvaluateAsync(Script, flags: CommandFlags.None);
-        Assert.True(server.IsScriptLoaded(Script));
+
+        // polled: the belief is recorded by the SCRIPT LOAD's own completion, which runs asynchronously beside
+        // the EVALSHA's - so the caller can resume a moment before it lands (seen once on CI). Late costs only
+        // a redundant load; never recording it is what this asserts against.
+        Assert.True(await Poll.UntilAsync(() => server.IsScriptLoaded(Script), timeoutMilliseconds: 2000));
 
         // the second call must still work, and must not disturb the belief it is relying on
         var result = await muxer.GetDatabase().ScriptEvaluateAsync(Script, flags: CommandFlags.None);
@@ -92,7 +96,7 @@ public class ScriptLoadPairingTests(ITestOutputHelper output) : TestBase(output)
         await muxer.GetDatabase().ScriptEvaluateRespAsync(Script, default, default, CommandFlags.None);
 
         Assert.True(
-            server.IsScriptLoaded(Script),
+            await Poll.UntilAsync(() => server.IsScriptLoaded(Script), timeoutMilliseconds: 2000), // see ASecondEvaluationNeedsNoPreamble
             "the RespResult script path did not pair its SCRIPT LOAD - it has its own copy of this logic");
     }
 
