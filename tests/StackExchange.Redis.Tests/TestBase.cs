@@ -570,6 +570,22 @@ public abstract class TestBase : IDisposable
         }
     }
 
+    /// <summary>Wait until a <c>CLIENT PAUSE</c> this test issued has run its course.</summary>
+    /// <param name="sincePause">Started when the pause was issued.</param>
+    /// <param name="pauseMilliseconds">The pause's duration.</param>
+    /// <remarks>
+    /// A pause is server-wide and runs its whole duration whatever the test does: <c>CLIENT PAUSE</c> returns
+    /// immediately, and <c>CLIENT UNPAUSE</c> is itself held until the pause ends (measured: 4s), so neither
+    /// awaiting the one nor sending the other ends it. A test that finished early left the rest of its pause
+    /// to whatever ran next - parallel tests stalled for seconds at once and, on a slow run, timed out
+    /// together. These tests run in the non-parallel collection, alone, so waiting here costs only time.
+    /// </remarks>
+    protected static async Task WaitOutPauseAsync(Stopwatch sincePause, int pauseMilliseconds)
+    {
+        var remaining = pauseMilliseconds + 100 - (int)sincePause.ElapsedMilliseconds;
+        if (remaining > 0) await Task.Delay(remaining).ConfigureAwait(false);
+    }
+
     public virtual string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>
         Environment.Version.ToString() + "-" + GetType().Name + "-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller + TestContext.Current.KeySuffix();
 

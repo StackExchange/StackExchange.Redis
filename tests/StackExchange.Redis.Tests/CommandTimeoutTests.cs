@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -19,6 +20,7 @@ public class CommandTimeoutTests(ITestOutputHelper output) : TestBase(output)
         await using var conn = ConnectionMultiplexer.Connect(options);
 
         var pauseServer = GetServer(pauseConn);
+        var sincePause = Stopwatch.StartNew();
         var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 5000);
 
         var key = Me();
@@ -29,8 +31,9 @@ public class CommandTimeoutTests(ITestOutputHelper output) : TestBase(output)
         var duration = sw.GetElapsedTime();
         Assert.True(duration < TimeSpan.FromSeconds(4000), $"Duration ({duration.Milliseconds} ms) should be less than 4000ms");
 
-        // Await as to not bias the next test
+        // NOT just "await pauseTask": CLIENT PAUSE returns at once, so that never waited the pause out
         await pauseTask;
+        await WaitOutPauseAsync(sincePause, 5000);
     }
 
 #if DEBUG
@@ -46,6 +49,7 @@ public class CommandTimeoutTests(ITestOutputHelper output) : TestBase(output)
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         var pauseServer = GetServer(pauseConn);
+        var sincePause = Stopwatch.StartNew();
         var pauseTask = pauseServer.ExecuteAsync("CLIENT", "PAUSE", 2000);
 
         var key = Me();
@@ -56,8 +60,9 @@ public class CommandTimeoutTests(ITestOutputHelper output) : TestBase(output)
         var duration = sw.GetElapsedTime();
         Assert.True(duration < TimeSpan.FromSeconds(250), $"Duration ({duration.Milliseconds} ms) should be less than 250ms");
 
-        // Await as to not bias the next test
+        // NOT just "await pauseTask": CLIENT PAUSE returns at once, so that never waited the pause out
         await pauseTask;
+        await WaitOutPauseAsync(sincePause, 2000);
     }
 #endif
 }
