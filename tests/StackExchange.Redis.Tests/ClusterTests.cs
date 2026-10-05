@@ -1058,7 +1058,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         List<(RedisChannel, RedisValue)> received = [];
         var queue = await pubsub.SubscribeAsync(channel, CommandFlags.NoRedirect);
-        _ = Task.Run(async () =>
+        var consumer = Task.Run(async () =>
         {
             // use queue API to have control over order
             await foreach (var item in queue)
@@ -1090,9 +1090,15 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             Assert.Equal(1, receivers);
         }
 
-        await Task.Delay(250); // let the sub settle (this isn't needed on RESP3, note)
+        // WAIT FOR THE CONSUMER, not a fixed delay: the messages are read by the Task.Run above, which under
+        // a starved thread pool can lag the deliveries by seconds. Once on net481 the server confirmed all ten
+        // receivers and the snapshot below still read 0 - the consumer simply had not run yet when the
+        // unsubscribe and the snapshot happened (both took ~3s that run). Count what was delivered, then
+        // unsubscribe, then let the consumer finish draining before reading what it collected.
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => { lock (received) { return received.Count >= 10; } });
         await db.PingAsync();
         await pubsub.UnsubscribeAsync(channel);
+        await Task.WhenAny(consumer, Task.Delay(5000));
 
         (RedisChannel Channel, RedisValue Value)[] snap;
         lock (received)

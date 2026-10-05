@@ -159,14 +159,12 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       refusal. Improving it means re-aiming while the first send may still land, i.e. de-duplicating a
       subscription that ends up on two nodes - worth doing carefully, not urgent.
 
-- [ ] **HIGH: a RESP2 subscription that the server delivers to, but the client never dispatches.** Windows
-      net481, run 37365906241, `ClusterPubSub(sharded: false, withKeyRouting: true)`: subscribed to 7001,
-      every PUBLISH reported 1 receiver, the handler got 0 of 10. The server-side receiver count rules out a
-      missing subscription, so the frames reached a socket of ours and were dropped. Leading hypothesis: the
-      SUBSCRIBE went out on the INTERACTIVE connection (protocol not yet known at compose time - the #3154
-      window `RerouteSubscription` exists for), which does not treat arrays as deliveries. Not reproduced
-      locally (10/10 in isolation); needs load or net481 timing. Next: log, per delivery-shaped frame that
-      reaches a non-delivering connection, which connection and why - that turns the next CI hit into a cause.
+- [x] **"A RESP2 subscription the server delivered to but the client never dispatched" - a test race, not a
+      delivery bug.** `ClusterPubSub` reads messages through a `Task.Run` consumer of the queue, and snapshot
+      what it had collected after a fixed 250ms - without waiting for the consumer. On a starved net481 pool
+      the consumer had not run (the ping and unsubscribe took ~3s that run). Reproduced exactly by delaying the
+      consumer by 1.5s ("items received: 0" with the server confirming every receiver); the test now waits for
+      the messages and for the consumer. Event 127 (unmatched delivery) stays as a diagnostic.
 - [x] **net481 `BufferedStreamWriterTests` page-boundary failures**: the test assumed an 8K page; on .NET
       Framework the shared ArrayPool falls through to a larger bucket, so a page could be 16K/32K and never
       completed. Test now uses an exact pool. Not a writer bug.
