@@ -111,6 +111,8 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<PersistResult[]> PersistResultArray = new PersistResultArrayProcessor();
 
+        public static readonly ResultProcessor<BlessFlags> BlessFlags = new BlessFlagsProcessor();
+
         public static readonly ResultProcessor<RedisChannel[]>
             RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.RedisChannelOptions.None);
 
@@ -1742,6 +1744,27 @@ namespace StackExchange.Redis
                         },
                         scalar: true);
                     SetResult(message, arr!);
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        // BLESS GET: an array of active flag names; empty (not nil) for an unblessed key
+        private sealed class BlessFlagsProcessor : ResultProcessor<BlessFlags>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+            {
+                if (reader.IsAggregate && !reader.IsNull)
+                {
+                    var result = StackExchange.Redis.BlessFlags.None;
+                    var iter = reader.AggregateChildren();
+                    while (iter.MoveNext())
+                    {
+                        // tokens from a newer server that we don't model are ignored, not fatal
+                        if (iter.Value.Is("NO-EVICT"u8)) result |= StackExchange.Redis.BlessFlags.NoEvict;
+                    }
+                    SetResult(message, result);
                     return true;
                 }
                 return false;

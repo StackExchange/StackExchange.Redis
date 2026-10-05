@@ -370,6 +370,27 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void KeyBless()
+    {
+        prefixed.KeyBless("key", BlessFlags.NoEvict, CommandFlags.None);
+        mock.Received().KeyBless("prefix:key", BlessFlags.NoEvict, CommandFlags.None);
+    }
+
+    [Fact]
+    public void KeyUnbless()
+    {
+        prefixed.KeyUnbless("key", BlessFlags.NoEvict, CommandFlags.None);
+        mock.Received().KeyUnbless("prefix:key", BlessFlags.NoEvict, CommandFlags.None);
+    }
+
+    [Fact]
+    public void KeyBlessFlags()
+    {
+        prefixed.KeyBlessFlags("key", CommandFlags.None);
+        mock.Received().KeyBlessFlags("prefix:key", CommandFlags.None);
+    }
+
+    [Fact]
     public void KeyRandom()
     {
         Assert.Throws<NotSupportedException>(() => prefixed.KeyRandom());

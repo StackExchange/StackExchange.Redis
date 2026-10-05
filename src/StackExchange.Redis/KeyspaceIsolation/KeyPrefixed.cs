@@ -293,6 +293,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> KeyPersistAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyPersistAsync(ToInner(key), flags);
 
+        public Task<bool> KeyBlessAsync(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyBlessAsync(ToInner(key), bless, flags);
+
+        public Task<bool> KeyUnblessAsync(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyUnblessAsync(ToInner(key), bless, flags);
+
+        public Task<BlessFlags> KeyBlessFlagsAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyBlessFlagsAsync(ToInner(key), flags);
+
         public Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None) =>
             throw new NotSupportedException("RANDOMKEY is not supported when a key-prefix is specified");
 

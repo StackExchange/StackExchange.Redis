@@ -120,6 +120,10 @@ public enum KeyNotificationType
     ArDelRange = 52,
     [AsciiHash("arset")]
     ArSet = 53,
+    [AsciiHash("bless")]
+    Bless = 54,
+    [AsciiHash("unbless")]
+    Unbless = 55,
 
     // side-effect notifications
     [AsciiHash("expired")]
