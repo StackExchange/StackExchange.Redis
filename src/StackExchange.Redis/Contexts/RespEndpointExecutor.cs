@@ -327,6 +327,9 @@ namespace StackExchange.Redis
         internal override bool EnforcesTimeouts => HeartbeatDriven;
 
         /// <inheritdoc/>
+        internal override ConnectionMultiplexer? Multiplexer => Server?.Multiplexer;
+
+        /// <inheritdoc/>
         /// <remarks>
         /// <b>A view over this connection, which is the whole point of <see cref="RespDatabaseExecutor"/>.</b>
         /// One endpoint has one socket whatever database a command names, and the <c>SELECT</c> that makes

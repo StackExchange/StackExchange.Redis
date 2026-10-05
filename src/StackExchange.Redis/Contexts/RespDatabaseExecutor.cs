@@ -48,6 +48,9 @@ namespace StackExchange.Redis
         public override bool CanCancel => _inner.CanCancel;
 
         /// <inheritdoc/>
+        internal override ConnectionMultiplexer? Multiplexer => _inner.Multiplexer;
+
+        /// <inheritdoc/>
         /// <remarks>Re-pointed by asking the connection's owner for another view, not by stacking one.</remarks>
         internal override RespExecutorBase WithDatabase(int database)
             => database == Database ? this : _inner.WithDatabase(database);

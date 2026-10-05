@@ -52,6 +52,14 @@ namespace StackExchange.Redis
         /// <summary>The database requests run against; part of a cached entry's identity.</summary>
         public abstract int Database { get; }
 
+        /// <summary>The multiplexer this executor belongs to, where it belongs to one.</summary>
+        /// <remarks>
+        /// <b>Only for reporting a fault that is about the client rather than the command.</b> An executor
+        /// built directly over a transport - as the tests do - has no multiplexer, and nothing here may
+        /// depend on having one.
+        /// </remarks>
+        internal virtual ConnectionMultiplexer? Multiplexer => null;
+
         /// <summary>Issue the request and return the reply, with one reference held by the caller.</summary>
         /// <param name="request">The rendered request; retain it if it must outlive this call.</param>
         public abstract RespPayload Send(in RespRequest request);
@@ -864,6 +872,43 @@ namespace StackExchange.Redis
         /// The buffer is rented in the CALLER's frame, before this method is entered - the same reason the
         /// context's old cancellation check disposed the handler rather than simply throwing.
         /// </remarks>
+        /// <summary>Turn a reply that says we are not authenticated into the connection failure it is.</summary>
+        /// <param name="executor">The executor that carried the command, for somewhere to report to.</param>
+        /// <param name="ex">The server's error.</param>
+        /// <returns>The exception to throw instead, or null to let the server's error stand.</returns>
+        /// <remarks>
+        /// <b><c>NOAUTH</c> is a statement about the connection, not about the command.</b> A caller who
+        /// gets "NOAUTH Authentication required" back from a <c>PING</c> has not written a bad <c>PING</c>;
+        /// their credentials are wrong, and the useful error says so and says which knob to turn. Shipped
+        /// does this in <c>ResultProcessor</c>'s common error handling, recording the suspicion against the
+        /// multiplexer so that <c>ExceptionFactory.UnableToConnect</c> can explain it - and this core passed
+        /// the server's words through untouched, so the diagnosis was left to the reader.
+        /// <para>
+        /// The synthesised wording for <c>NOAUTH</c> is shipped's, deliberately: it is what
+        /// <c>SecureTests.ConnectWithWrongPassword</c> reads, and more to the point it is better than the
+        /// server's own - "connection has not yet authenticated" names the cause where "authentication
+        /// required" only names the symptom. A <c>WRONGPASS</c> keeps the server's message, which already
+        /// says precisely what is wrong.
+        /// </para>
+        /// <para>
+        /// <c>SetAuthSuspect</c> keeps the FIRST report, so a refusal already recorded during the handshake
+        /// wins over this one - which is what makes the wrong-password case read as <c>WRONGPASS</c> rather
+        /// than as the <c>NOAUTH</c> that followed it.
+        /// </para>
+        /// </remarks>
+        private static Exception? AuthFault(RespExecutorBase executor, RedisServerException ex)
+        {
+            if (ex.Kind is not (RedisErrorKind.NoAuth or RedisErrorKind.WrongPass)) return null;
+            if (executor.Multiplexer is not { } muxer) return null;
+
+            muxer.SetAuthSuspect(ex.Kind == RedisErrorKind.NoAuth
+                ? new RedisServerException(
+                    ex.Kind, CommandFlags.None, "NOAUTH Returned - connection has not yet authenticated")
+                : ex);
+
+            return ExceptionFactory.UnableToConnect(muxer);
+        }
+
         private static void DemandCancellable(RespContext context, ref RespRequestBuilder request, CancellationToken cancellationToken)
         {
             // already cancelled is the half we CAN honour - refusing to start costs nothing - so it gets the
@@ -1511,6 +1556,10 @@ namespace StackExchange.Redis
                 {
                     response?.Release();
                 }
+            }
+            catch (RedisServerException ex) when (AuthFault(executor, ex) is { } authFault)
+            {
+                throw authFault;
             }
             finally
             {

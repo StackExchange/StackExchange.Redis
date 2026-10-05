@@ -48,6 +48,18 @@ namespace StackExchange.Redis
         private readonly Action<int, EndPoint>? _onSlotMoved;
         private readonly Action? _onTopologySuspect;
 
+        /// <summary>The multiplexer this router belongs to; see <see cref="RespExecutorBase.Multiplexer"/>.</summary>
+        /// <remarks>
+        /// This type is built from delegates and deliberately knows nothing else about the client, so the
+        /// one thing it is told is where to report a fault that is about the connection rather than the
+        /// command - which is how a <c>NOAUTH</c> reply becomes a connection failure rather than a
+        /// puzzling error on an innocent <c>PING</c>.
+        /// </remarks>
+        internal ConnectionMultiplexer? Owner { get; init; }
+
+        /// <inheritdoc/>
+        internal override ConnectionMultiplexer? Multiplexer => Owner;
+
         /// <summary>Create a routing executor over a set of endpoints.</summary>
         /// <param name="topology">The cell that says whether slots mean anything yet.</param>
         /// <param name="forSlot">Resolves a hash slot to the endpoint that serves it.</param>

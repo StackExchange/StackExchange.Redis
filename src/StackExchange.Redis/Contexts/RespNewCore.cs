@@ -249,6 +249,7 @@ namespace StackExchange.Redis
             SubscriptionEndpoint)
         {
             HeartbeatDriven = true,
+            Owner = _multiplexer,
         };
 
         /// <summary>
