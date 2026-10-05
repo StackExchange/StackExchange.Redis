@@ -416,6 +416,20 @@ namespace StackExchange.Redis
             return CursorEnumerable<RedisKey>.From(this, server, ExecuteAsync(msg, ResultProcessor.RedisKeyArray, defaultValue: Array.Empty<RedisKey>()), pageOffset);
         }
 
+        IEnumerable<RedisKey> IServer.BlessedKeys(BlessFlags bless, int database, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => BlessedKeysAsync(bless, database, pageSize, cursor, pageOffset, flags);
+
+        IAsyncEnumerable<RedisKey> IServer.BlessedKeysAsync(BlessFlags bless, int database, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => BlessedKeysAsync(bless, database, pageSize, cursor, pageOffset, flags);
+
+        private CursorEnumerable<RedisKey> BlessedKeysAsync(BlessFlags bless, int database, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+        {
+            database = multiplexer.ApplyDefaultDatabase(database);
+            if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
+            RedisDatabase.BlessTokenCount(bless, nameof(bless)); // validate eagerly, not on first MoveNext
+            return new BlessScanEnumerable(this, database, bless, pageSize, cursor, pageOffset, flags);
+        }
+
         public DateTime LastSave(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.LASTSAVE);
@@ -976,6 +990,53 @@ namespace StackExchange.Redis
                     return false;
                 }
             }
+        }
+
+        private sealed class BlessScanEnumerable : CursorEnumerable<RedisKey>
+        {
+            private readonly BlessFlags bless;
+
+            public BlessScanEnumerable(RedisServer server, int db, BlessFlags bless, int pageSize, in RedisValue cursor, int pageOffset, CommandFlags flags)
+                : base(server, server.server, db, pageSize, cursor, pageOffset, flags)
+            {
+                this.bless = bless;
+            }
+
+            // the server's own default COUNT (1024) differs from SCAN's, so always send ours
+            private protected override Message CreateMessage(in RedisValue cursor)
+                => new BlessScanMessage(db, flags.WithScanCursorCategory(cursor), cursor, bless, pageSize);
+
+            // same [cursor, [keys...]] shape as SCAN
+            private protected override ResultProcessor<ScanResult> Processor => KeysScanEnumerable.processor;
+        }
+
+        // BLESS SCAN cursor flag [flag ...] COUNT count
+        internal sealed class BlessScanMessage : Message
+        {
+            private readonly RedisValue cursor;
+            private readonly BlessFlags bless;
+            private readonly int tokenCount, count;
+
+            public BlessScanMessage(int db, CommandFlags flags, in RedisValue cursor, BlessFlags bless, int count)
+                : base(db, flags, RedisCommand.BLESS)
+            {
+                tokenCount = RedisDatabase.BlessTokenCount(bless, nameof(bless));
+                this.cursor = cursor;
+                this.bless = bless;
+                this.count = count;
+            }
+
+            protected override void WriteImpl(in MessageWriter writer)
+            {
+                writer.WriteHeader(Command, ArgCount);
+                writer.WriteBulkString(RedisLiterals.SCAN);
+                writer.WriteBulkString(cursor);
+                RedisDatabase.WriteBlessTokens(writer, bless);
+                writer.WriteBulkString(RedisLiterals.COUNT);
+                writer.WriteBulkString(count);
+            }
+
+            public override int ArgCount => 4 + tokenCount;
         }
 
         public EndPoint? SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None)

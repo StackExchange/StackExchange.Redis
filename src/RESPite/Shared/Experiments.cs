@@ -23,6 +23,7 @@
         public const string UnitTesting = "SER005";
         public const string Transport = "SER009";
         public const string MaintenanceNotifications = "SER010";
+        public const string Server_8_12 = "SER011";
 
         // ReSharper restore InconsistentNaming
 

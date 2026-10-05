@@ -195,6 +195,7 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.DEL:
                 case RedisCommand.UNLINK:
                 case RedisCommand.PERSIST:
+                case RedisCommand.BLESS: // SET/CLEAR converge on a flag state; GET/SCAN are lowered to reads where we can see the subcommand
                 case RedisCommand.RENAMENX:
                 case RedisCommand.COPY: // default behavior fails if dest exists; REPLACE is raised where we can see the args
                 case RedisCommand.MOVE:

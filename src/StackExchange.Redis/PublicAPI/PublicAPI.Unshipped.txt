@@ -1,1 +1,15 @@
 ﻿#nullable enable
+[SER011]StackExchange.Redis.BlessFlags
+[SER011]StackExchange.Redis.BlessFlags.NoEvict = 1 -> StackExchange.Redis.BlessFlags
+[SER011]StackExchange.Redis.BlessFlags.None = 0 -> StackExchange.Redis.BlessFlags
+[SER011]StackExchange.Redis.IDatabaseAsync.KeyBlessAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BlessFlags bless, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+[SER011]StackExchange.Redis.IDatabaseAsync.KeyBlessFlagsAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.BlessFlags>!
+[SER011]StackExchange.Redis.IDatabaseAsync.KeyUnblessAsync(StackExchange.Redis.RedisKey key, StackExchange.Redis.BlessFlags bless, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<bool>!
+[SER011]StackExchange.Redis.IDatabase.KeyBlessFlags(StackExchange.Redis.RedisKey key, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.BlessFlags
+[SER011]StackExchange.Redis.IDatabase.KeyBless(StackExchange.Redis.RedisKey key, StackExchange.Redis.BlessFlags bless, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+[SER011]StackExchange.Redis.IDatabase.KeyUnbless(StackExchange.Redis.RedisKey key, StackExchange.Redis.BlessFlags bless, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> bool
+[SER011]StackExchange.Redis.IServer.BlessedKeysAsync(StackExchange.Redis.BlessFlags bless, int database = -1, int pageSize = 250, long cursor = 0, int pageOffset = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Collections.Generic.IAsyncEnumerable<StackExchange.Redis.RedisKey>!
+[SER011]StackExchange.Redis.IServer.BlessedKeys(StackExchange.Redis.BlessFlags bless, int database = -1, int pageSize = 250, long cursor = 0, int pageOffset = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Collections.Generic.IEnumerable<StackExchange.Redis.RedisKey>!
+StackExchange.Redis.KeyNotificationType.Bless = 54 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.Unbless = 55 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.RedisFeatures.Bless.get -> bool

@@ -275,6 +275,18 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.KeyMove(RedisKey, int, CommandFlags)"/>
         Task<bool> KeyMoveAsync(RedisKey key, int database, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.KeyBless(RedisKey, BlessFlags, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<bool> KeyBlessAsync(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.KeyUnbless(RedisKey, BlessFlags, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<bool> KeyUnblessAsync(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.KeyBlessFlags(RedisKey, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<BlessFlags> KeyBlessFlagsAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.KeyPersist(RedisKey, CommandFlags)"/>
         Task<bool> KeyPersistAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 

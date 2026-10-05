@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using RESPite;
 
 namespace StackExchange.Redis
 {
@@ -386,6 +388,31 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="Keys(int, RedisValue, int, long, int, CommandFlags)"/>
         IAsyncEnumerable<RedisKey> KeysAsync(int database = -1, RedisValue pattern = default, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns all keys on this server that have the specified protection flags set, using <c>BLESS SCAN</c>.
+        /// Note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <see cref="IScanningCursor"/>.
+        /// </summary>
+        /// <param name="bless">The flag to filter by.</param>
+        /// <param name="database">The database ID.</param>
+        /// <param name="pageSize">The page size to iterate by.</param>
+        /// <param name="cursor">The cursor position to resume at.</param>
+        /// <param name="pageOffset">The page offset to start at.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>An enumeration of blessed redis keys; the order is unspecified, and a key may be reported more than once.</returns>
+        /// <remarks>
+        /// <para>
+        /// Like <see cref="Keys(int, RedisValue, int, long, int, CommandFlags)"/>, this only covers the keys held by this server;
+        /// in a cluster, enumerate each primary. The instance-wide count is reported as <c>blessed_keys</c> by <c>INFO stats</c>.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/bless-scan"/></para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        IEnumerable<RedisKey> BlessedKeys(BlessFlags bless, int database = -1, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="BlessedKeys(BlessFlags, int, int, long, int, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        IAsyncEnumerable<RedisKey> BlessedKeysAsync(BlessFlags bless, int database = -1, int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the time of the last DB save executed with success.
