@@ -42,10 +42,11 @@ public partial class ConnectionMultiplexer
         /// are read, and nothing about connections, the bridge or the pipeline.
         /// </para>
         /// <para>
-        /// <b>On by default from the v4 alpha</b>, together with <see cref="NewCoreEngine"/>. Turning it off -
-        /// <c>SEREDIS_NEW_DATABASE_SURFACE=0</c>, or <c>SetFeatureFlag</c> - returns the shipped
-        /// <c>RedisDatabase</c>, which remains only as a way back while the alpha is proven, and is scheduled
-        /// for deletion with the rest of the old core.
+        /// <b>Always on from the v4 alpha, and no longer a switch.</b> It began as an opt-in so one build could be run
+        /// both ways; once the suite passed on it, it became the default, and then the off-switch was removed so
+        /// nothing - environment, <see cref="SetFeatureFlag"/> or otherwise - can put a database back on the
+        /// shipped <c>RedisDatabase</c>. The value remains in this enum only so an existing
+        /// <c>SetFeatureFlag("NewDatabaseSurface", ...)</c> call still parses; it has no effect.
         /// </para>
         /// <para>
         /// Set it before taking a database: instances are cached per multiplexer, so a connection that has
@@ -68,10 +69,10 @@ public partial class ConnectionMultiplexer
         /// <c>RedisDatabase</c> up, and only a real connection removes it.
         /// </para>
         /// <para>
-        /// <b>On by default from the v4 alpha.</b> It began off and a long way from green (222 failures and
-        /// a hang); it was made the default once the full suite passed on it and no library path still
-        /// built a shipped bridge. <c>SEREDIS_NEW_CORE_ENGINE=0</c>, or <c>SetFeatureFlag</c>, returns to the
-        /// shipped core - kept only as a way back while the alpha is proven; see design/v4-alpha-plan.md.
+        /// <b>Always on from the v4 alpha, and no longer a switch</b>, for the reason given on
+        /// <see cref="NewDatabaseSurface"/>. It began off and a long way from green (222 failures and a hang); it
+        /// became the default once the suite passed and no library path still built a shipped bridge, and the
+        /// off-switch went so the old core cannot be reached at all ahead of its deletion.
         /// </para>
         /// </remarks>
         NewCoreEngine = 8,
@@ -88,28 +89,6 @@ public partial class ConnectionMultiplexer
         }
         catch { }
         SetFeatureFlag(nameof(FeatureFlags.PreventThreadTheft), value);
-
-        // The new core is the DEFAULT from the v4 alpha; the environment can still turn either half off, so
-        // the shipped core stays one variable away while the alpha is proven - and so the suite can still be
-        // run both ways from one build. Guarded because reading the environment is not permitted in every
-        // host, and a host that cannot read it gets the default.
-        SetFeatureFlag(nameof(FeatureFlags.NewDatabaseSurface), true);
-        SetFeatureFlag(nameof(FeatureFlags.NewCoreEngine), true);
-        try
-        {
-            if (IsOff(Environment.GetEnvironmentVariable("SEREDIS_NEW_DATABASE_SURFACE")))
-            {
-                SetFeatureFlag(nameof(FeatureFlags.NewDatabaseSurface), false);
-            }
-
-            if (IsOff(Environment.GetEnvironmentVariable("SEREDIS_NEW_CORE_ENGINE")))
-            {
-                SetFeatureFlag(nameof(FeatureFlags.NewCoreEngine), false);
-            }
-        }
-        catch { }
-
-        static bool IsOff(string? value) => value is "0" or "false" or "FALSE" or "False";
     }
 
     /// <summary>
@@ -141,11 +120,16 @@ public partial class ConnectionMultiplexer
 
     internal static bool DedicatedThreads => (s_featureFlags & FeatureFlags.DedicatedThreads) != 0;
 
-    /// <inheritdoc cref="FeatureFlags.NewDatabaseSurface"/>
-    internal static bool NewDatabaseSurface => (s_featureFlags & FeatureFlags.NewDatabaseSurface) != 0;
+    /// <summary>Always: the new surface is the only one; kept as a name only until the old core's files are deleted.</summary>
+    /// <remarks>
+    /// <b>No longer a switch</b> - neither the environment nor <see cref="SetFeatureFlag"/> can turn it off, so
+    /// nothing can put a multiplexer back on the old core. The property survives only so the branches still
+    /// testing it compile until the deletion removes them; see design/v4-alpha-plan.md, gate 3.
+    /// </remarks>
+    internal static bool NewDatabaseSurface => true;
 
-    /// <inheritdoc cref="FeatureFlags.NewCoreEngine"/>
-    internal static bool NewCoreEngine => (s_featureFlags & FeatureFlags.NewCoreEngine) != 0;
+    /// <summary>Always: the new core carries every connection; see <see cref="NewDatabaseSurface"/>.</summary>
+    internal static bool NewCoreEngine => true;
 
     /// <summary>
     /// Whether the connection of this type to this endpoint is read by a thread we own; <c>null</c> if there
