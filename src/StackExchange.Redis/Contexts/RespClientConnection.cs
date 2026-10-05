@@ -278,6 +278,9 @@ namespace StackExchange.Redis
         /// before; only a head that is positively some OTHER command refuses the frame.
         /// </para>
         /// </remarks>
+        /// <summary>The oldest command still waiting for its reply, for diagnostics; null when none is.</summary>
+        internal IRespMessage? PendingHead => TryPeekPending(out var head) ? head : null;
+
         private bool HeadIsKnownNotSubscription()
             => TryPeekPending(out var head)
                 && head is RespPayloadOperation { Command: not RedisCommand.NONE } operation

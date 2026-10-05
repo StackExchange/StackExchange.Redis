@@ -100,6 +100,13 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       Left, all load-only (0/15 each in isolation): `SubscribeToWrongServerAsync(false)` (a key-routed plain
       subscription moved to the slot owner inside the test's 50ms window), `PubSubOrderedRouted` (conn
       appears to receive one message twice - a possible duplicate subscription, worth a capture), and the stall.
+- [ ] **Make the old core unreachable under the engine flag.** A probe on bridge construction across one
+      full engine run counted 179 shipped bridges still created - each one dials - from: `ISubscriber.Ping`
+      (71), `ServerEndPoint.OnConnectedAsync`'s activation path and its `AutoConfigureAsync` (41+42),
+      `IServer.HotKeysStop` (24), `HashImport.SafeDiscardAsync` (16), `AddLibraryNameSuffix` (3),
+      `GetEndpointsFromClusterNodes` (3), `MakePrimaryAsync` (1); the rest are tests driving `RedisDatabase`
+      or bridges on purpose. The probe (log a stack from `ServerEndPoint.CreateBridge` when the engine flag
+      is on) is the acceptance test: zero from library code.
 - [ ] **Flip the default**: the engine flags on unless `SEREDIS_NEW_CORE_ENGINE=0`. The old core is then
       present but unreachable by default - the shape the alpha can ship in.
 - [ ] Decouple the 91 + 46 above (was 137 at f7f36406, by a different count). Expect another layer

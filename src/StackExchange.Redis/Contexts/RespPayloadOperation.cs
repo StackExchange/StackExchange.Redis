@@ -279,12 +279,27 @@ namespace StackExchange.Redis
                 if (sent >= 0 && received >= 0)
                 {
                     return $"Timeout awaiting response (outbound={sent >> 10}KiB, inbound={received >> 10}KiB, "
-                        + $"{elapsed}ms elapsed, timeout is {timeout}ms)";
+                        + $"{elapsed}ms elapsed, timeout is {timeout}ms{DescribeHeadOfLine(connection)})";
                 }
             }
 
             return $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)";
         }
+
+        /// <summary>What the connection is actually waiting on, when that is not this command.</summary>
+        /// <remarks>
+        /// <b>Replies arrive in order, so a timeout with nothing inbound is usually somebody else's fault</b>:
+        /// whatever sits at the head of the pending queue is what every later reply is queued behind - a
+        /// blocking command on a shared connection, say. Naming it, with its age, is the difference between
+        /// "this connection stalled" and "this connection is waiting for that". Empty when the head is this
+        /// command, or unknown.
+        /// </remarks>
+        private string DescribeHeadOfLine(RespConnection connection)
+            => connection is RespClientConnection client
+                && client.PendingHead is RespPayloadOperation head
+                && !ReferenceEquals(head, this)
+                    ? $", head-of-line={head.CommandAndKey} ({(int)head.Diagnostics.Age.TotalMilliseconds}ms)"
+                    : "";
 
         /// <summary>Which announced disruption, if any, a fault on this command should be blamed on.</summary>
         /// <remarks>
