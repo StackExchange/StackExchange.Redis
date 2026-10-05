@@ -199,9 +199,9 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <b>This core's own map, and the point of it is that it is its own.</b> Routing used to resolve a
         /// slot through <c>ServerSelectionStrategy</c>, whose map is a <c>ServerEndPoint[]</c> filled from a
-        /// <c>CLUSTER NODES</c> that the SHIPPED core issued during its auto-configure - so this core could
-        /// not route until the other one had connected, and both had to stay up for every command. That one
-        /// fact is behind every symptom in section 9a.
+        /// <c>CLUSTER NODES</c> that the v3 core issued during its auto-configure - so while both cores
+        /// existed this one could not route until the other had connected, and both had to stay up for every
+        /// command. That one fact is behind every symptom in section 9a.
         /// <para>
         /// Endpoints rather than executors: an executor is created on demand and may be retired, while the
         /// answer "slot 42 lives at 127.0.0.1:7001" outlives both. Allocated on first write, because a
@@ -232,8 +232,8 @@ namespace StackExchange.Redis
 
         /// <summary>Whether this core has a slot map of its own yet.</summary>
         /// <remarks>
-        /// The caller falls back to the shipped selector while this is false, which is what lets the map be
-        /// adopted before it is complete: an empty map routes exactly as before rather than routing wrongly.
+        /// The caller falls back to the selector while this is false, which is what let the map be adopted
+        /// before it was complete: an empty map routes as the selector does rather than routing wrongly.
         /// </remarks>
         internal bool HasSlotMap => Volatile.Read(ref _slots) is not null;
 
@@ -394,9 +394,9 @@ namespace StackExchange.Redis
         /// <para>
         /// <b>Pushed rather than polled.</b> These are decisions the client makes about a server - during
         /// reconfiguration, retirement, a maintenance notification - rather than facts read from it, so
-        /// there is nothing to discover on a handshake. While both cores exist the decisions are still
-        /// <c>ServerEndPoint</c>'s and arrive here as they are made; when only this core remains they are
-        /// made here, and nothing about the reading side changes.
+        /// there is nothing to discover on a handshake. The decisions are still <c>ServerEndPoint</c>'s,
+        /// made during reconfiguration, and arrive here as they are made; if they move here, nothing about
+        /// the reading side changes.
         /// </para>
         /// </remarks>
         private readonly ConcurrentDictionary<EndPoint, bool> _unselectable = new();
@@ -430,7 +430,7 @@ namespace StackExchange.Redis
         /// <b>The other half of the push <c>RespNewCore.OnRole</c> makes inbound.</b> Roles arrive here from
         /// three places - a <c>ROLE</c> reply, the owners in a <c>CLUSTER SLOTS</c> reply, and the primary a
         /// <c>-MOVED</c> names - and every one of them is news the rest of the client cannot get any other
-        /// way once the shipped <c>INFO replication</c> sweep is gone.
+        /// way now the v3 <c>INFO replication</c> sweep is gone.
         /// <para>
         /// It matters most after a failover, which is the case that has no second chance: the slot map
         /// follows, but <c>ServerEndPoint.IsReplica</c> is what refuses a write client-side, so a stale flag
@@ -472,7 +472,7 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>The slot count a cluster deployment uses; mirrors the shipped constant.</summary>
+        /// <summary>The slot count a cluster deployment uses; mirrors <c>ServerSelectionStrategy</c>'s constant.</summary>
         private const int RedisClusterSlotCount = 16384;
     }
 }

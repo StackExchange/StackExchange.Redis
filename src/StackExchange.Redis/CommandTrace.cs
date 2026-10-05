@@ -71,10 +71,10 @@ namespace StackExchange.Redis
         /// <summary>Read a <c>SLOWLOG GET</c> reply; null when any element did not parse.</summary>
         /// <param name="reader">Positioned on the reply.</param>
         /// <remarks>
-        /// <b>Internal and static so both cores read it the same way</b>, as the latency entries are:
-        /// the shipped processor below and the context surface's handler are two callers of this one
-        /// walk. Null rather than throwing for a bad element, because that is what the shipped processor
-        /// needed in order to report an unexpected response for the whole reply rather than for one entry.
+        /// <b>Internal and static so every caller reads it the same way</b>, as the latency entries are:
+        /// it was shared by the v3 processor and the context surface's handler. Null rather than throwing
+        /// for a bad element, because that is what the v3 processor needed in order to report an
+        /// unexpected response for the whole reply rather than for one entry.
         /// </remarks>
         internal static CommandTrace[]? ParseArray(ref RespReader reader)
         {

@@ -7,8 +7,8 @@ namespace StackExchange.Redis;
 
 internal partial class RedisServer
 {
-    // HOTKEYS: on the RESP context, so under the engine flag these travel on the connection the new core holds
-    // to this server rather than on a shipped bridge built (and dialled) to carry them.
+    // HOTKEYS: on the RESP context, so these travel on the connection the core holds to this server - while
+    // both cores existed, the alternative was a v3 bridge built (and dialled) to carry them.
     public void HotKeysStart(
         HotKeysMetrics metrics = (HotKeysMetrics)~0,
         long count = 0,

@@ -4,8 +4,8 @@
 /// The library's own <see cref="CommandFlags"/> bits, masks and routing rules - the ones that are not public members.
 /// </summary>
 /// <remarks>
-/// Moved out of <c>Message</c>, unchanged, because both cores read them and <c>Message</c> is being deleted: the bit
-/// values are a wire of their own between the surfaces and the executors, so there must stay exactly one copy.
+/// Moved out of <c>Message</c>, unchanged, when <c>Message</c> was deleted: the bit values are a wire of their own
+/// between the surfaces and the executors, so there must stay exactly one copy.
 /// </remarks>
 internal static class CommandFlagsInternal
 {

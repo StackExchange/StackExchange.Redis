@@ -707,14 +707,14 @@ namespace StackExchange.Redis
 
         /// <summary>Open whatever the configured <see cref="ConnectMode"/> says to open, before returning.</summary>
         /// <remarks>
-        /// <b>Governs this core only, which is why the default is <see cref="ConnectMode.Lazy"/> and not the
-        /// historical <see cref="ConnectMode.Eager"/>.</b> The shipped core still dials every endpoint of
-        /// its own, so anything opened here is a socket IN ADDITION to that rather than instead of it -
-        /// which is exactly what the connection-counting tests noticed. The default moves when the other
-        /// core stops dialling and the count means what it says again; see design notes 9d, D2.1/D2.8.
+        /// <b>The core's sockets are the only ones the client opens</b>, so this is what decides how many
+        /// exist after connecting. While the v3 core still dialled every endpoint of its own, anything
+        /// opened here was a socket IN ADDITION to that, which is why the default was
+        /// <see cref="ConnectMode.Lazy"/> until the v3 core stopped dialling; see design notes 9d, D2.1/D2.8
+        /// and <c>ConfigurationOptions.ConnectMode</c> for the default now.
         /// <para>
-        /// Never allowed to fail the connect: the shipped core has already decided whether this multiplexer
-        /// connected, against the same servers, and a second opinion could only disagree with it.
+        /// Never allowed to fail the connect: <c>ReconfigureAsync</c> has already decided whether this
+        /// multiplexer connected, against the same servers, and a second opinion could only disagree with it.
         /// </para>
         /// </remarks>
         private Task ConnectNewCoreAsync()
@@ -1038,7 +1038,7 @@ namespace StackExchange.Redis
             if (servers[endpoint] is ServerEndPoint exact) return exact;
 
             // a retired server may still be referenced by an alias for a moment; never hand one back, or the
-            // caller receives something whose bridges are gone
+            // caller receives something whose connections are gone
             return _serverIdentities.TryGetValue(endpoint, out var byIdentity) && !byIdentity.IsDisposed
                 ? byIdentity : null;
         }
@@ -1447,15 +1447,15 @@ namespace StackExchange.Redis
 
                 CheckTopologyRefreshDue(now);
 
-                // the other core's endpoints, for the same reason the snapshot below is pulsed: a late
-                // reply announces itself to nobody, so noticing one is work that happens on a clock.
+                // the core's endpoints, for the same reason the snapshot below is pulsed: a late reply
+                // announces itself to nobody, so noticing one is work that happens on a clock.
                 //
-                // EVERY core over this multiplexer, not just the one it built for itself. The suites that
-                // exercise the new surface without the engine flag construct their own beside it, and an
-                // unpulsed core is one that claims to enforce timeouts (`HeartbeatDriven`) and does not - so
-                // a stalled command waits out the two-minute operation backstop instead of failing at its
-                // own timeout. That turns one wedged connection into every test queued behind it: measured
-                // once at eleven failures and 143-second waits where the configured timeout was 5s.
+                // EVERY core over this multiplexer, not just the one it built for itself. Suites that
+                // exercised the new surface without the engine flag used to construct their own beside it,
+                // and an unpulsed core is one that claims to enforce timeouts (`HeartbeatDriven`) and does
+                // not - so a stalled command waits out the two-minute operation backstop instead of failing
+                // at its own timeout. That turned one wedged connection into every test queued behind it:
+                // measured once at eleven failures and 143-second waits where the configured timeout was 5s.
                 PulseCores();
                 var tmp = GetServerSnapshot();
                 int token = 0;
@@ -1552,10 +1552,11 @@ namespace StackExchange.Redis
 
         /// <summary>Every core built over this multiplexer, so the heartbeat can reach all of them.</summary>
         /// <remarks>
-        /// <b>Weak, because registration must not be what keeps a core alive.</b> The suites that exercise
-        /// the new surface without the engine flag build one per multiplexer and let it be collected; a
-        /// strong list here would quietly change that, and a leak on a type that owns sockets is the worst
-        /// kind. What the list owes is the pulse, for as long as the core exists and no longer.
+        /// <b>Weak, because registration must not be what keeps a core alive.</b> The suites that exercised
+        /// the new surface without the engine flag built one per multiplexer and let it be collected; a
+        /// strong list here would quietly have changed that, and a leak on a type that owns sockets is the
+        /// worst kind. What the list owes is the pulse, for as long as the core exists and no longer. Only
+        /// the multiplexer's own core is constructed now.
         /// </remarks>
         private readonly List<WeakReference<RespNewCore>> _cores = new();
 
@@ -1854,25 +1855,24 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Starts establishing the connections for a server, creating the bridges if they do not exist yet.
+        /// Starts establishing the connections for a server, as far as <c>ConnectMode</c> asks.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Idempotent: a server that is already active keeps the bridges it has, so this is safe to call on
+        /// Idempotent: a server that already has connections keeps them, so this is safe to call on
         /// anything we are about to depend on being connected.
         /// </para>
         /// <para>
-        /// Both legs, where the subscription connection is a separate one: under RESP2 the waiters registered
-        /// by <see cref="ServerEndPoint.OnConnectedAsync"/> are only completed once that second connection is
-        /// up, so activating the interactive bridge alone leaves such a wait hanging.
+        /// Both legs, where the subscription connection is a separate one: under RESP2 the library's own
+        /// configuration channel lives on that second connection, and nothing else will ever dial it.
         /// </para>
         /// </remarks>
         internal static void ActivateServer(ServerEndPoint server, ILogger? log)
         {
             // bool hasSubscriptions = GetSubscriptionsCount() != 0;
-            // the shipped core stops dialling under the flag, and the other core dials
-            // in its place - HERE, because "activate this server" is what this method means, and a caller
-            // that says it expects the server to come up. Doing it only in ReconfigureAsync's loop left an
+            // the core dials - HERE, because "activate this server" is what this method means, and a
+            // caller that says it expects the server to come up. When the v3 bridges stopped dialling
+            // this had to take their place. Doing it only in ReconfigureAsync's loop left an
             // explicit ActivateServer dialling nothing at all, so a waiter on an undialled server could
             // never be completed (InertClusterNodeUnitTests.WaitingOnAnUndialledServerCannotComplete).
             //
@@ -2011,7 +2011,7 @@ namespace StackExchange.Redis
 
                             // never wait on a server without making sure something is dialling it: GetServerEndPoint
                             // only activates what it *creates*, so a server already held *inert* - addressable but
-                            // deliberately never dialled - arrives here with no bridge, and the wait below then has
+                            // deliberately never dialled - arrives here with nothing dialling it, and the wait below then has
                             // nothing that can ever complete it. The whole connect burns its ConnectTimeout and then
                             // reports the node as unresponsive, which is how #3232 presented.
                             //
@@ -2020,17 +2020,15 @@ namespace StackExchange.Redis
                             // GetEndpointsFromClusterNodes, and no test here fails without this line. Kept because
                             // the cost is one idempotent call and the failure mode is a silent stall.
                             //
-                            // ...which is also why it says when it fires. A guard that repairs the state in silence
-                            // hides any *new* route into it behind a connect that simply works; this way the log
-                            // names the endpoint, and the question "does anything still reach here?" has an answer
-                            // ...and only where the shipped core is the one dialling. The
-                            // guard asks "did something reach here with no bridge?", which is a question
-                            // about shipped activation; under the flag a null shipped bridge is the normal
-                            // state for every endpoint, so the warning would fire for all of them and mean
-                            // nothing (InertClusterNodeUnitTests asserts the absence of exactly this line).
+                            // It used to say when it fired, since a guard that repairs the state in silence hides
+                            // any *new* route into it behind a connect that simply works. But the question it
+                            // asked - "did something reach here with no bridge?" - was about v3 activation; once
+                            // the bridges stopped dialling, a missing bridge was the normal state for every
+                            // endpoint, so the warning fired for all of them and meant nothing, and it went
+                            // (InertClusterNodeUnitTests asserts the absence of exactly this line).
                             ActivateServer(server, log);
 
-                            // ...and the other core's connection for this endpoint, which is the one that
+                            // ...and the core's connection for this endpoint, which is the one that
                             // will carry the commands. It has to be kicked HERE and nowhere earlier: the
                             // multiplexer has no endpoints until this method has resolved them, so an
                             // eager dial before this point iterates an empty list and silently does
@@ -2086,14 +2084,14 @@ namespace StackExchange.Redis
                         log?.LogInformationTaskSummary();
 
                         // One topology read per pass, by the core that owns the connections - replacing the
-                        // shipped AutoConfigureAsync sweep rather than joining it, which is why it is not
+                        // v3 AutoConfigureAsync sweep rather than joining it, which is why it is not
                         // per endpoint. Before the loop below, deliberately: that loop reads IsReplica to
                         // decide which servers are primaries, so a role repaired afterwards would be a
                         // reconfiguration that disagrees with itself.
                         //
-                        // Ownership is tested rather than assumed. Under the flag alone this core dials
-                        // lazily, so a deployment nobody has sent a command to has nothing open here and the
-                        // shipped sweep is the only thing that can answer; "refreshing" from a core with no
+                        // Ownership is tested rather than assumed. This core can dial lazily, so a deployment
+                        // nobody has sent a command to may have nothing open here, and then the per-server
+                        // reads below are the only thing that can answer; "refreshing" from a core with no
                         // connections sends nothing and reports success, which is how
                         // MaintenanceTopologyRefreshTests and PeriodicTopologyRefreshTests came to count
                         // zero CLUSTER commands for a pass that was supposed to re-read the topology.
@@ -2325,7 +2323,7 @@ namespace StackExchange.Redis
                 ? EndPoints.ToArray()
                 : _serverSnapshot.GetEndPoints();
 
-        /// <summary>One server's <c>CLUSTER SLOTS</c> view, on the RESP context, recorded on it as the shipped processor did.</summary>
+        /// <summary>One server's <c>CLUSTER SLOTS</c> view, on the RESP context, recorded on it as the v3 processor did.</summary>
         /// <remarks>
         /// Read alongside <c>ClusterNodesAsync</c>, which records the configuration itself. The SLOTS view is
         /// recorded here, as <c>ClusterSlotsResult.AutoConfigureProcessor</c> recorded it - the public
@@ -2346,22 +2344,22 @@ namespace StackExchange.Redis
                 ClusterConfiguration? clusterConfig;
                 ClusterTopology? topology;
 
-                // The other core's handshake has already asked both of these - NODES per connection, SLOTS
-                // once for the deployment - so asking again would be a second answer to a settled question,
-                // and a costly one: a shipped Message write calls GetBridge with `create` defaulted to
-                // true, so these two commands alone were what dialled the shipped interactive bridge at all.
-                // Every endpoint therefore held two sockets where one was doing the work, which
-                // ClusterTests.ConnectUsesSingleSocket reads directly off the counters.
+                // The core's handshake has already asked both of these - NODES per connection, SLOTS once
+                // for the deployment - so asking again would be a second answer to a settled question. It
+                // was a costly one while both cores existed: a v3 Message write called GetBridge with
+                // `create` defaulted to true, so these two commands alone were what dialled the v3
+                // interactive bridge at all, and every endpoint held two sockets where one was doing the
+                // work - which ClusterTests.ConnectUsesSingleSocket reads directly off the counters.
                 if (NewCoreIfCreated is { } core
                     && core.IsInteractiveConnected(server.EndPoint)
                     && server.ClusterConfiguration is not null)
                 {
                     // RE-ASKED, not read from the cache: the refresh above renews SLOTS and roles, but not this
-                    // node's NODES view - that used to be renewed as a side-effect of the shipped auto-configure,
-                    // which this pass also ran, and which the engine flag no longer runs because it wrote to a
-                    // shipped bridge. Trusting the cache kept a node that had left the cluster in the endpoint
-                    // list (MaintenanceTopologyRefreshTests.NodeThatLeavesTheClusterIsRetired). One NODES read
-                    // per pass, on the new core, is what the shipped path paid; the cache stands in if it fails.
+                    // node's NODES view - that used to be renewed as a side-effect of the v3 auto-configure,
+                    // which this pass also ran, and which went with the v3 core because it wrote to a bridge.
+                    // Trusting the cache kept a node that had left the cluster in the endpoint list
+                    // (MaintenanceTopologyRefreshTests.NodeThatLeavesTheClusterIsRetired). One NODES read per
+                    // pass, on the core, is what the v3 path paid; the cache stands in if it fails.
                     try
                     {
                         clusterConfig = await new RedisServer(server, null).ClusterNodesAsync().ForAwait()
@@ -2435,7 +2433,7 @@ namespace StackExchange.Redis
 
                 // ...and NODES contributes the remainder - nodes serving no slots do not appear in SLOTS at
                 // all. Registered *inert*: known and addressable via GetServer, but not dialled, since
-                // there is nothing to route to them. First use creates the bridge, so nothing is lost
+                // there is nothing to route to them. First use dials them, so nothing is lost
                 foreach (var node in clusterConfig.Nodes)
                 {
                     if (node.EndPoint is null || node.IgnoreFromClient) continue;
@@ -2749,8 +2747,8 @@ namespace StackExchange.Redis
 
         /// <summary>Count a command that timed out while its caller was blocked on it.</summary>
         /// <remarks>
-        /// The shipped core counts this inline in <c>ExecuteSyncImpl</c>, where the blocking wait itself
-        /// gives up. A core whose sync wait has no deadline of its own - because a sweep ends every command,
+        /// The v3 core counted this inline in <c>ExecuteSyncImpl</c>, where the blocking wait itself
+        /// gave up. A core whose sync wait has no deadline of its own - because a sweep ends every command,
         /// awaited or not - has to count from wherever the sweep lands, which is the command's completion.
         /// </remarks>
         internal void OnSyncTimeout() => Interlocked.Increment(ref syncTimeouts);
@@ -2913,11 +2911,10 @@ namespace StackExchange.Redis
         }
 
         long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
-            // whichever core holds the connection: the bridge first, since it is the one with an id when
-            // it is dialling, and otherwise this core's - which under the engine flag is the connection
-            // actually carrying the commands, and the only one the server can name
-            // create: false, because asking must not dial: a bridge created here connects, and under the
-            // engine flag that was a whole shipped handshake on a third socket just to answer a question
+            // the core's connection, which is the one actually carrying the commands and the only one the
+            // server can name. Asking must not dial: while both cores existed this asked a v3 bridge first,
+            // and creating one here connected it - a whole v3 handshake on a third socket just to answer a
+            // question
             => NewCoreIfCreated?.ConnectionId(endpoint, type);
 
         internal uint UpdateLatency()

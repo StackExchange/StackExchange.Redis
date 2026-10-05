@@ -216,12 +216,12 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <b>Asked before building one, because the failure is otherwise silent until execution.</b> The
         /// new batch and transaction write their commands as a contiguous run, which needs a connection to
-        /// write to - and the <c>Message</c> shim has none, reaching the server through the old pipeline
+        /// write to - and the <c>Message</c> shim had none, reaching the server through the old pipeline
         /// instead. Composed over that, every batch failed with "cannot write a batch as one contiguous
-        /// run", which is true but unhelpful when a perfectly good shipped implementation is available.
+        /// run", which was true but unhelpful while a perfectly good v3 implementation was available.
         /// <para>
-        /// This is what a transitional type is for: the executor decides which era can serve the request,
-        /// and the caller gets a working batch either way.
+        /// The shim went with the old core, so a production executor can always write a run; the question
+        /// remains for executors that cannot (and for a test harness's fallback, which then serves it).
         /// </para>
         /// </remarks>
         private bool CanWriteRuns => _inner.Raw.Executor is { CanWriteRuns: true };
@@ -231,7 +231,7 @@ namespace StackExchange.Redis
         {
             if (this is IBatch) throw new NotSupportedException("Nested transactions are not supported");
             // CanWriteTransactions, not CanWriteRuns: an executor can write a batch without being able to
-            // hold a connection across MULTI/EXEC, and the Message shim is exactly that
+            // hold a connection across MULTI/EXEC, and the old Message shim was exactly that
             return _inner.Raw.Executor is { CanWriteTransactions: true }
                 ? TransitionalTransaction.CreateTransaction(_inner, multiplexer, asyncState ?? AsyncState)
                 : Fallback<ITransaction>().CreateTransaction(asyncState);

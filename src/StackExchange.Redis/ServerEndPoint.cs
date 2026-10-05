@@ -135,8 +135,8 @@ namespace StackExchange.Redis
 
         public bool IsConnecting => false; // the new core dials on demand and reports only whether it is connected
         public bool IsConnected => Multiplexer.NewCoreIfCreated?.IsConnected(EndPoint) == true;
-        // ...and where there is no second bridge, SupportsSubscriptions is the term that would otherwise
-        // go missing: a bridge for a disabled SUBSCRIBE never connects, so the shipped answer is no by
+        // ...and where there is no second socket, SupportsSubscriptions is the term that would otherwise
+        // go missing: in v3 a bridge for a disabled SUBSCRIBE never connected, so the answer was no by
         // construction, where sharing one connection has to say no on purpose.
         public bool IsSubscriberConnected => IsConnected && (KnowOrAssumeResp3() || SupportsSubscriptions);
 
@@ -217,9 +217,9 @@ namespace StackExchange.Redis
                 var changed = isReplica != value;
                 SetConfig(ref isReplica, value);
 
-                // ...and tell the other core, which learns roles only from its own handshakes and dials
-                // lazily: without this the replica of an ordinary standalone pair is never dialled, so its
-                // role is never learned, so a DemandReplica read has no replica to choose and goes to the
+                // ...and tell the core's own topology, which learns roles only from its handshakes and
+                // dials lazily: without this the replica of an ordinary standalone pair is never dialled, so
+                // its role is never learned, so a DemandReplica read has no replica to choose and goes to the
                 // primary. See RespNewCore.OnRole.
                 if (changed) PublishRole();
             }
@@ -247,16 +247,13 @@ namespace StackExchange.Redis
             set => SetConfig(ref version, value);
         }
 
-        /// <summary>
-        /// If we have a connection (interactive), report the protocol being used.
-        /// </summary>
         /// <summary>What this server is being spoken to in, as far as any connection to it has settled.</summary>
         /// <remarks>
-        /// <b>Either core's connection answers.</b> The shipped bridge is asked first because its answer is
-        /// the one every existing caller has been reading; under the engine flag it may never have
-        /// handshaken at all, and then the question is about a connection this core owns. Reporting
-        /// <c>null</c> for a server that has been answering RESP3 since the first command is a diagnostic
-        /// that is wrong exactly when somebody is trying to find out what the protocol is.
+        /// <b>Asked of the core, which records what each endpoint's handshake actually agreed.</b> In v3 this
+        /// read the interactive bridge; here <c>null</c> means nothing has handshaken this endpoint yet, not
+        /// that the answer is unknowable. Reporting <c>null</c> for a server that has been answering RESP3
+        /// since the first command would be a diagnostic that is wrong exactly when somebody is trying to
+        /// find out what the protocol is.
         /// </remarks>
         public RedisProtocol? Protocol
             => Multiplexer?.NewCoreIfCreated?.ObservedProtocol(EndPoint);
@@ -307,8 +304,8 @@ namespace StackExchange.Redis
         /// <remarks>
         /// The design notes proposed also resetting this whenever the server had been *used* since the last
         /// absence, on the grounds that "recently useful" is stronger evidence than "not listed". That is not
-        /// implementable as stated and turns out to be unnecessary: the only usage counter available
-        /// (<c>PhysicalBridge.IncrementOpCount</c>) is incremented by our own heartbeat pings as well as by
+        /// implementable as stated and turned out to be unnecessary: the only usage counter v3 had
+        /// (<c>PhysicalBridge.IncrementOpCount</c>) was incremented by our own heartbeat pings as well as by
         /// callers, so an idle-but-connected server never looks unused - and every case it was meant to
         /// protect is already covered by <see cref="IsIdle"/>, since a server actually carrying traffic owns
         /// slots in the map. What remains uncovered is a server used only via <c>GetServer</c> by hand while
@@ -330,10 +327,10 @@ namespace StackExchange.Redis
         /// work it still owes.
         /// </summary>
         /// <remarks>
-        /// Subscriptions are asked of the registry <i>as well as</i> of the bridges. The bridge counters are
-        /// the record of what those bridges subscribed, so they are silent about a subscription carried any
-        /// other way - and a server whose only work is one of those would look idle and be pruned while
-        /// still delivering. The registry entry is the fact that does not depend on who carried it.
+        /// Subscriptions are asked of the registry. In v3 they were asked of the bridges too, whose counters
+        /// were the record of what those bridges subscribed and so were silent about a subscription carried
+        /// any other way - a server whose only work was one of those looked idle and was pruned while still
+        /// delivering. The registry entry is the fact that does not depend on who carried it.
         /// </remarks>
         internal bool IsIdle()
             => !Multiplexer.ServerSelectionStrategy.OwnsAnySlot(this)
@@ -523,20 +520,20 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>Tell the other core what this one has just decided about this server.</summary>
+        /// <summary>Tell the core's topology what reconfiguration has just decided about this server.</summary>
         /// <remarks>
         /// <b>A decision, not an observation</b>: whether a server is retiring or redundant is something the
-        /// client concludes during reconfiguration, so there is nothing for the other core to discover on a
+        /// client concludes during reconfiguration, so there is nothing for the topology to discover on a
         /// connection - it has to be told. Pushed only when the answer CHANGES, which is rare.
         /// <para>
         /// <b><c>DidNotRespond</c> is excluded, and that reversed an earlier decision.</b> It was left in on
-        /// the reasoning that agreeing about a server which did not respond costs nothing - but it is set
-        /// until THIS core's bridge has connected at least once, and under the engine flag this core's
-        /// bridges largely do not connect at all, because the other one carries the commands. So every
-        /// endpoint it had not dialled was published as unselectable, permanently: a replica that the other
-        /// core would happily have used was barred from ever being chosen, and a <c>DemandReplica</c> read
-        /// went to the primary instead. Connectivity is the one thing that core does track for itself, and
-        /// it distinguishes "nobody has dialled this yet" from "this is down" - which this flag cannot.
+        /// the reasoning that agreeing about a server which did not respond costs nothing - but it was set
+        /// until the v3 bridge had connected at least once, and while both cores coexisted those bridges
+        /// largely did not connect at all. So every endpoint they had not dialled was published as
+        /// unselectable, permanently: a replica the new core would happily have used was barred from ever
+        /// being chosen, and a <c>DemandReplica</c> read went to the primary instead. Connectivity is the one
+        /// thing the core tracks for itself, and it distinguishes "nobody has dialled this yet" from "this is
+        /// down" - which this flag cannot.
         /// </para>
         /// </remarks>
         private void PublishSelectable()
@@ -544,9 +541,9 @@ namespace StackExchange.Redis
                 EndPoint,
                 (unselectableReasons & ~UnselectableFlags.DidNotRespond) == UnselectableFlags.None);
 
-        /// <summary>Tell the other core what this server turned out to be.</summary>
+        /// <summary>Tell the core's topology what this server turned out to be.</summary>
         /// <remarks>
-        /// This core learns roles from its own handshakes and dials lazily, so an endpoint it has not needed
+        /// The core learns roles from its own handshakes and dials lazily, so an endpoint it has not needed
         /// has no role - and a <c>DemandReplica</c> read then has no replica to choose. See
         /// <c>RespNewCore.OnRole</c>, which says the rest.
         /// </remarks>
@@ -622,9 +619,8 @@ namespace StackExchange.Redis
         internal ServerCounters GetCounters()
         {
             var counters = new ServerCounters(EndPoint);
-            // and whatever the other core is doing, which under the engine flag is where the commands
-            // actually are - see RespNewCore.BacklogCount. Added rather than substituted: both cores'
-            // queues, sockets and op counts are real for as long as both cores exist.
+            // filled from the core, which is where the queues, sockets and op counts are - see
+            // RespNewCore.BacklogCount
             if (Multiplexer.NewCoreIfCreated is { } core)
             {
                 core.AddCounters(EndPoint, ConnectionType.Interactive, counters.Interactive);
@@ -829,23 +825,21 @@ namespace StackExchange.Redis
 
         internal Task<bool> SendTracerAsync(ILogger? log = null)
         {
-            // On the core that carries this endpoint's commands. The tracer is how availability is PROVED
-            // - `ReconfigureAsync` sends it down the "already connected, show me" path of
-            // `OnConnectedAsync` - and `WriteDirectAsync` puts it on the shipped bridge, so under the
-            // engine flag it proves the wrong connection. Measured against the step that stops that bridge
-            // dialling: with the tracer still on the bridge it is written to a connection that will never
-            // carry it, never completes, and the endpoint runs out the whole connect timeout
-            // (`ConnectFailTimeoutTests.NoticesConnectFail`). See design notes 9n.
-            // nothing to prove on a connection this core does not hold: not available, rather than a guess
+            // On the connection that carries this endpoint's commands. The tracer is how availability is
+            // PROVED - `ReconfigureAsync` sends it down the "already connected, show me" path of
+            // `OnConnectedAsync`. v3 wrote it to the bridge via `WriteDirectAsync`; while both cores
+            // coexisted that proved the wrong connection, and once the bridge stopped dialling the tracer was
+            // written to a connection that would never carry it, never completed, and the endpoint ran out
+            // the whole connect timeout (`ConnectFailTimeoutTests.NoticesConnectFail`). See design notes 9n.
+            // Nothing to prove on a connection the core does not hold: not available, rather than a guess
             return TryTraceViaNewCore() ?? Task.FromResult(false);
         }
 
-        /// <summary>Prove this endpoint answers, on the other core's connection.</summary>
-        /// <returns>The pending proof, or null when this core should send it itself.</returns>
+        /// <summary>Prove this endpoint answers, on the core's connection.</summary>
+        /// <returns>The pending proof, or null when the core has no connection to this endpoint.</returns>
         /// <remarks>
-        /// Declines unless that core actually HAS this endpoint connected: a tracer is a question about a
-        /// connection, and asking it of a core that has not dialled would answer "unreachable" about a
-        /// server the shipped bridge may be talking to perfectly well.
+        /// Declines unless the core actually HAS this endpoint connected: a tracer is a question about a
+        /// connection, and sending it on one that has not been dialled would turn the question into a dial.
         /// </remarks>
         private Task<bool>? TryTraceViaNewCore()
         {
@@ -864,7 +858,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                // the shipped tracer answers false rather than throwing, and callers branch on that
+                // the v3 tracer answered false rather than throwing, and callers branch on that
                 Debug.WriteLine(ex.Message);
                 return false;
             }

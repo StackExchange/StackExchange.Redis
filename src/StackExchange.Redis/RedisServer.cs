@@ -68,16 +68,15 @@ namespace StackExchange.Redis
 
         /// <summary>What finally writes this server's commands.</summary>
         /// <remarks>
-        /// <b>This core's socket for this endpoint under the engine flag</b>, so that a server command and
-        /// the database commands it is meant to describe are ordered by one connection rather than racing
-        /// two - see design notes D2.4, and 9b-xi for what that was costing.
+        /// <b>The core's socket for this endpoint</b>, the same one the database commands use, so that a
+        /// server command and the database commands it is meant to describe are ordered by one connection
+        /// rather than racing two - see design notes D2.4, and 9b-xi for what that was costing.
         /// <para>
         /// <c>NewCore</c> rather than <c>NewCoreIfCreated</c>, and the difference is load-bearing because
         /// the context this feeds is MEMOISED. Asking "if created" meant an <c>IServer</c> touched before
-        /// anything else - which <c>GetServer(...).Ping()</c> is, in test after test - got the shipped
+        /// anything else - which <c>GetServer(...).Ping()</c> is, in test after test - got the v3
         /// executor and kept it for the life of the object, so half the point of D2.4 came and went
-        /// according to call order. The flag check is what keeps the shipped path from creating a core it
-        /// does not want.
+        /// according to call order.
         /// </para>
         /// </remarks>
         private RespExecutorBase ServerExecutor()
@@ -85,11 +84,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// <b>Overridden so that a server's PING goes where the server's other commands go.</b>
-        /// <see cref="RedisBase.Ping"/> builds a <c>Message</c> and sends it down the shipped pipeline,
-        /// which under the engine flag is a different socket from the one this <c>IServer</c> is otherwise
-        /// on - so "ping the server to bring it up", which is what half the suite opens with, brought up
-        /// the wrong connection and left the interesting one still un-dialled. That is visible as a
+        /// <b>Overridden so that a server's PING goes where the server's other commands go.</b> The v3
+        /// <see cref="RedisBase.Ping"/> built a <c>Message</c> and sent it down the v3 pipeline, which while
+        /// both cores existed was a different socket from the one this <c>IServer</c> was otherwise on - so
+        /// "ping the server to bring it up", which is what half the suite opens with, brought up the wrong
+        /// connection and left the interesting one still un-dialled. That is visible as a
         /// connection count: <c>MovedUnitTests</c> counts sockets before and after a redirect.
         /// </remarks>
         public override TimeSpan Ping(CommandFlags flags = CommandFlags.None) => Wait(Context.PingMeasureAsync(flags));
@@ -102,7 +101,7 @@ namespace StackExchange.Redis
         /// <summary>The non-null spelling these members promise.</summary>
         /// <param name="pending">The reply, which the server may omit.</param>
         /// <remarks>
-        /// The shipped members pass <c>defaultValue: string.Empty</c> for exactly this: a server with
+        /// The v3 members passed <c>defaultValue: string.Empty</c> for exactly this: a server with
         /// nothing to say answers null, and <c>IServer</c> declares a non-null string. Kept rather than
         /// tightened, because callers have been reading <c>.Length</c> on it for years.
         /// </remarks>
@@ -131,11 +130,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// <b>Either core's connection counts, because the caller is asking about the client.</b> Under the
-        /// engine flag the socket carrying this endpoint's commands is the new core's, so answering from the
-        /// shipped bridge alone reported "not connected" about a server that had just replied. Deliberately
-        /// only on this public surface: <c>ServerEndPoint.IsConnected</c> is also what the shipped selector
-        /// routes by, and that has to keep meaning "this bridge is up".
+        /// <b>The core's connection counts, because the caller is asking about the client.</b> While both
+        /// cores existed the socket carrying this endpoint's commands was the new core's, so answering from
+        /// the v3 bridge alone reported "not connected" about a server that had just replied. That is why
+        /// this asks the core as well as <c>ServerEndPoint.IsConnected</c>, which then meant "the bridge is
+        /// up" and now asks the core too.
         /// </remarks>
         public bool IsConnected
             => server.IsConnected
@@ -235,7 +234,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Turn a <c>CLUSTER NODES</c> reply into the configuration, and record it against this server - the
-        /// side-effect the shipped processor had, which keeps the selector's view current whenever anyone asks.
+        /// side-effect the v3 processor had, which keeps the selector's view current whenever anyone asks.
         /// </summary>
         /// <param name="nodes">The reply text.</param>
         /// <param name="demand">
@@ -294,7 +293,7 @@ namespace StackExchange.Redis
         /// <para>
         /// <b>The reply is not the point</b>: <c>RespHandshake.ApplySetting</c> is - the same rule discovery
         /// uses at connect, which is how <c>databases</c>, <c>timeout</c> and <c>replica-read-only</c> stay
-        /// true after a caller changes them. Fire-and-forget, as the shipped read-back was: it is sent after
+        /// true after a caller changes them. Fire-and-forget, as the v3 read-back was: it is sent after
         /// the <c>SET</c> on the same path, so it observes it, and nobody waits on it.
         /// </para>
         /// <para>
@@ -408,7 +407,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// Both shapes are one <see cref="RespScanEnumerable{T}"/>, which is also the <see cref="IScanningCursor"/> callers
         /// can cast to: <c>KEYS</c> is simply a single page at cursor zero. The <c>SCAN</c> spelling is the one the
-        /// shipped cursor used - no <c>MATCH</c> for "everything", no <c>COUNT</c> for the server's default page size.
+        /// v3 cursor used - no <c>MATCH</c> for "everything", no <c>COUNT</c> for the server's default page size.
         /// </remarks>
         private RespScanEnumerable<RedisKey> KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
@@ -494,9 +493,9 @@ namespace StackExchange.Redis
         /// <summary>ROLE, per <see cref="IServer.Role(CommandFlags)"/>.</summary>
         /// <param name="flags">Command flags.</param>
         /// <remarks>
-        /// <b>The null-suppression preserves shipped behaviour rather than hiding a change.</b> The
-        /// declared return is non-nullable and always could be null in practice: the shipped processor
-        /// answers <c>null</c> for a reply it cannot read - <c>SetResult(message, null!)</c> - and callers
+        /// <b>The null-suppression preserves v3 behaviour rather than hiding a change.</b> The
+        /// declared return is non-nullable and always could be null in practice: the v3 processor
+        /// answered <c>null</c> for a reply it could not read - <c>SetResult(message, null!)</c> - and callers
         /// know it, <c>SentinelBase</c> reaching for <c>Role()?.Value</c>. Substituting
         /// <c>Role.Null</c> here would honour the signature and change the answer, which is a decision for
         /// whoever owns the signature, not for a port.
@@ -559,7 +558,7 @@ namespace StackExchange.Redis
         public Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None)
             => ScriptLoadCore(script, flags).AsTask(asyncState, flags);
 
-        /// <summary>Load a script, and record it as loaded on this server - the shipped processor's side-effect.</summary>
+        /// <summary>Load a script, and record it as loaded on this server - the v3 processor's side-effect.</summary>
         /// <remarks>
         /// The record is what lets a later <c>EVALSHA</c> skip the body here; see <c>ScriptLoadGate</c>,
         /// which keeps the same belief, keyed the same way, for the context's own evaluate path.
@@ -790,8 +789,8 @@ namespace StackExchange.Redis
             }
         }
 
-        // SENTINEL: on the context, like every other server command, so that under the engine flag a sentinel
-        // is asked over the connection this core holds to it - see SentinelCommands for the replies' shapes.
+        // SENTINEL: on the context, like every other server command, so that a sentinel is asked over the
+        // connection the core holds to it - see SentinelCommands for the replies' shapes.
         public EndPoint? SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None)
             => Wait(Context.Raw.SentinelPrimaryAddress(serviceName, flags));
 
@@ -920,7 +919,7 @@ namespace StackExchange.Redis
         /// <param name="eventNames">The caller's names; null or empty means every event.</param>
         /// <remarks>
         /// One allocation on an administrative command that resets a server's latency history, which is
-        /// not a path anybody pipelines. The shipped spelling built a <c>RedisValue[]</c> here too, with
+        /// not a path anybody pipelines. The v3 spelling built a <c>RedisValue[]</c> here too, with
         /// the subcommand prepended into it; the group owns the subcommand now.
         /// </remarks>
         private static RedisValue[] LatencyEventNames(string[]? eventNames)

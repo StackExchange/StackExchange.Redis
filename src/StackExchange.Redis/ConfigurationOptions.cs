@@ -1821,13 +1821,13 @@ namespace StackExchange.Redis
         /// How eagerly connections to the configured endpoints are opened.
         /// </summary>
         /// <remarks>
-        /// <b>Internal while it would be a promise the client cannot keep.</b> It governs the new core, and
-        /// the shipped one still dials every endpoint regardless - so a caller asking for
-        /// <see cref="ConnectMode.Lazy"/> today would still get every socket opened, by the other half.
-        /// It goes public with the step that stops that happening; see design notes 9d.
+        /// <b>Internal, for now.</b> It was kept internal while it was a promise the client could not keep:
+        /// it governs the core's connections, and the v3 core dialled every endpoint regardless, so a
+        /// caller asking for <see cref="ConnectMode.Lazy"/> still got every socket opened. With that core
+        /// gone the promise can be kept, and making it public is a separate decision; see design notes 9d.
         /// </remarks>
         internal ConnectMode ConnectMode { get; set; }
-            // Eager, not Discover - the shipped core activates EVERY endpoint at connect,
+            // Eager, not Discover - the v3 core activated EVERY endpoint at connect,
             // and the move is meant to preserve behaviour rather than improve on it. Discover is a real
             // mode worth offering, but as a default it silently changes what a caller sees: with one
             // socket open, a non-routed pub/sub probe lands on the same endpoint ten times out of ten,

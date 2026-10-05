@@ -46,9 +46,9 @@ namespace StackExchange.Redis
         /// <b>Without this a stalled connect hangs the endpoint permanently.</b> One attempt is in flight at
         /// a time and everything that arrives meanwhile goes to the backlog behind it, so a connect that
         /// never completes is not one slow command - it is every command on this endpoint, for ever. The
-        /// shipped core bounds the same step with <c>ConnectTimeout</c> (see <c>PhysicalConnection</c>);
-        /// this had no bound at all, which is what left <c>ReconnectRetryPolicyUnitTests</c> hanging under
-        /// the new core rather than failing its ping.
+        /// v3 core bounded the same step with <c>ConnectTimeout</c> (in <c>PhysicalConnection</c>); this
+        /// had no bound at all, which is what left <c>ReconnectRetryPolicyUnitTests</c> hanging under the
+        /// new core rather than failing its ping.
         /// </remarks>
         private readonly int _connectTimeoutMilliseconds;
 
@@ -77,9 +77,9 @@ namespace StackExchange.Redis
         /// <b>An ordered write slot, and every part of that matters.</b> Two callers need the write side
         /// to themselves for longer than a single <c>Send</c>: a contiguous run, which must not be
         /// interleaved, and a conditional transaction, which has a real pause between its watches and its
-        /// <c>MULTI</c> and must not let anything be written into it. The shipped surface gets the second
-        /// by holding the connection's write lock across the pause, which is why
-        /// <c>TransactionMessage</c> pauses an enumerator with <c>Monitor</c> handshakes on result boxes:
+        /// <c>MULTI</c> and must not let anything be written into it. The v3 surface got the second by
+        /// holding the connection's write lock across the pause, which is why its
+        /// <c>TransactionMessage</c> paused an enumerator with <c>Monitor</c> handshakes on result boxes:
         /// the reader must still make progress to deliver the replies being waited for.
         /// </para>
         /// <para>
@@ -132,7 +132,7 @@ namespace StackExchange.Redis
         /// can outlive any particular <c>ServerEndPoint</c>, and null when nobody models this endpoint.
         /// </param>
         /// <param name="noConnection">
-        /// Describes "no connection was available" the way the shipped core describes it - which endpoints
+        /// Describes "no connection was available" the way the v3 core described it - which endpoints
         /// were tried, what each last failed with, how far connecting had got. Null falls back to a bare
         /// statement that a connection was not available.
         /// </param>
@@ -235,8 +235,8 @@ namespace StackExchange.Redis
 
         /// <summary>Commands this executor has dispatched, for the life of the executor.</summary>
         /// <remarks>
-        /// <b>Counted so that the client's own counters are not wrong about it.</b> Under the engine flag
-        /// the commands are on this core's socket and the shipped bridge counts nothing, so
+        /// <b>Counted so that the client's own counters are not wrong about it.</b> The commands are on this
+        /// core's socket, and while both cores existed the v3 bridge counted nothing, so
         /// <c>GetCounters().Interactive.OperationCount</c> did not move no matter what the caller did -
         /// which is a counter reporting that the client is idle while it is busy.
         /// </remarks>
@@ -291,11 +291,11 @@ namespace StackExchange.Redis
         /// <summary>Connections this executor has opened, including reconnects.</summary>
         internal long SocketCount => Volatile.Read(ref _socketCount);
 
-        /// <summary>Fold this endpoint's counters into a snapshot the shipped surface reports.</summary>
+        /// <summary>Fold this endpoint's counters into a snapshot the public surface reports.</summary>
         /// <param name="counters">The snapshot to add to.</param>
         /// <remarks>
-        /// <b>Added rather than substituted</b>, as the backlog already was: both cores' queues and sockets
-        /// are real for as long as both cores exist, so every one of these is a sum.
+        /// <b>Added rather than substituted</b>, as the backlog already was - a holdover from when the v3
+        /// bridges' counts shared the snapshot and every one of these was a sum.
         /// </remarks>
         internal void AddCounters(ConnectionCounters counters)
         {
@@ -346,7 +346,7 @@ namespace StackExchange.Redis
         /// </remarks>
         internal bool IsSubscriptionEndpoint { get; init; }
 
-        /// <summary>What the connect log calls this endpoint: the shipped bridge's name, <c>host:port/Type</c>.</summary>
+        /// <summary>What the connect log calls this endpoint: the v3 bridge's name, <c>host:port/Type</c>.</summary>
         private string LogName => Format.ToString(_endpoint) + "/" + (IsSubscriptionEndpoint ? ConnectionType.Subscription : ConnectionType.Interactive);
 
         /// <summary>
@@ -359,8 +359,8 @@ namespace StackExchange.Redis
         /// subscription shares the ordinary connection depends on the NEGOTIATED protocol, and a command
         /// can be composed while RESP3 is expected and written after a reconnect has settled on RESP2 -
         /// at which point writing it here puts this connection into subscriber mode, and it refuses every
-        /// ordinary command from then on. The shipped core asks the same question in the same place,
-        /// inside the write lock: see <c>PhysicalBridge.WriteMessageInsideLock</c> and
+        /// ordinary command from then on. The v3 core asked the same question in the same place, inside
+        /// the write lock: <c>PhysicalBridge.WriteMessageInsideLock</c> and
         /// <c>ServerEndPoint.TryRerouteToSubscriptionBridge</c>, both added for issue #3154.
         /// </para>
         /// <para>
@@ -886,7 +886,7 @@ namespace StackExchange.Redis
         /// <para>
         /// The old record is finished first, because it IS finished: the reply that ended it was the
         /// redirect. Its timings are complete and nothing more will be added to it. <c>ProfiledCommand</c>
-        /// has carried <c>NewAttachedToSameContext</c> for exactly this since the shipped core started
+        /// has carried <c>NewAttachedToSameContext</c> for exactly this since the v3 core started
         /// re-issuing, so the shape is borrowed rather than invented.
         /// </para>
         /// </remarks>
@@ -974,7 +974,7 @@ namespace StackExchange.Redis
         /// <summary>Where this endpoint's outcomes are counted; null when nobody is counting.</summary>
         /// <remarks>
         /// Replaced when a trip is actuated, so each connection's lifetime gets its own counters - which is
-        /// what the shipped core gets structurally, by building an accumulator per <c>PhysicalConnection</c>.
+        /// what the v3 core got structurally, by building an accumulator per <c>PhysicalConnection</c>.
         /// </remarks>
         private Availability.CircuitBreaker.Accumulator? _circuitBreaker;
 
@@ -990,8 +990,8 @@ namespace StackExchange.Redis
         /// <b>Runs per completed command, on the completion thread</b>, so it does as little as it can: the
         /// accumulator decides what counts as a failure and a null fault is a success. If it trips, the
         /// teardown is handed to the pool rather than done here - failing a backlog and building a detailed
-        /// exception is not work to put on the thread that just finished somebody's GET. The shipped core
-        /// makes the same split, in <c>PhysicalConnection.ObserveMessageResult</c>.
+        /// exception is not work to put on the thread that just finished somebody's GET. The v3 core
+        /// made the same split, in <c>PhysicalConnection.ObserveMessageResult</c>.
         /// </remarks>
         void IRespOutcomeObserver.ObserveOutcome(Exception? fault)
         {
@@ -1161,7 +1161,7 @@ namespace StackExchange.Redis
 
             // ...in the connect log too, not only as an event. A connection going away is the single most
             // useful line in a support log, and this core was closing sockets without writing one.
-            // under the shipped ids, so a filter written against the shipped bridge still sees this
+            // under the v3 ids, so a filter written against the v3 bridge still sees this
             if (Server?.Multiplexer.Logger is { } logger)
             {
                 if (wasRequested)
@@ -1175,10 +1175,10 @@ namespace StackExchange.Redis
             }
 
             // ...and SAY so, which this core did not. ConnectionFailed is a documented public event and the
-            // thing callers wire up to notice a deployment moving underneath them; the shipped bridge
-            // raises it from RecordConnectionFailed whenever a socket dies, while this core raised it only
-            // for a tripped circuit breaker and a maintenance handoff. So under the engine flag an
-            // ordinary dead connection was silent - measured by MaintenanceRelaxationTests, which breaks a
+            // thing callers wire up to notice a deployment moving underneath them; the v3 bridge raised
+            // it from RecordConnectionFailed whenever a socket died, while this core raised it only for a
+            // tripped circuit breaker and a maintenance handoff. So on this core an ordinary dead
+            // connection was silent - measured by MaintenanceRelaxationTests, which breaks a
             // connection during a relaxed window and waits for somebody to notice.
             //
             // reconfigure: false, because the caller decides. A connection going away is not by itself a
@@ -1186,8 +1186,8 @@ namespace StackExchange.Redis
             // restraint that question needs - and asking for one per dropped socket is the stampede the
             // rate limit exists to prevent.
             //
-            // ...and NOT when the close was asked for, which is the same distinction the shipped bridge
-            // makes with `wasRequested`. A retirement, a maintenance recycle or a dispose is not a failure,
+            // ...and NOT when the close was asked for, which is the same distinction the v3 bridge
+            // made with `wasRequested`. A retirement, a maintenance recycle or a dispose is not a failure,
             // and announcing one is actively misleading: MaintenanceNotificationTests watches a graceful
             // recycle and asserts that no failure is reported for it.
             if (!wasRequested && _endpoint is { } reportAt && Server is { } server && !server.Multiplexer.IsDisposed)
@@ -1205,7 +1205,7 @@ namespace StackExchange.Redis
         /// <summary>Periodic upkeep: time out whatever has waited too long, queued or in flight.</summary>
         /// <param name="timeoutMilliseconds">The configured command timeout.</param>
         /// <remarks>
-        /// <b>Driven by the multiplexer heartbeat, which is where the shipped core does this too.</b> A
+        /// <b>Driven by the multiplexer heartbeat, which is where the v3 core did this too.</b> A
         /// command that has been WRITTEN has nothing else bounding it: the caller's wait had no deadline
         /// and the operation backstop is two minutes away, so a server that stops answering - paused,
         /// wedged, gone quiet - left commands hanging rather than timing out.
@@ -1237,15 +1237,15 @@ namespace StackExchange.Redis
         /// <para>
         /// <b>An idle connection is a connection being timed out.</b> Servers close one after their own
         /// <c>timeout</c> - the very setting this core reads during discovery - and the network between
-        /// will do it sooner. The shipped bridge has sent a keep-alive on this schedule for as long as it
-        /// has existed; this core sent nothing at all, so a connection carrying no traffic was simply
+        /// will do it sooner. The v3 bridge sent a keep-alive on this schedule for as long as it existed;
+        /// this core sent nothing at all, so a connection carrying no traffic was simply
         /// waiting to be dropped. The tests that notice are the ones that measure the heartbeat doing
         /// something: <c>ConfigTests.TestManualHeartbeat</c> and
         /// <c>ConnectCustomConfigTests.HeartbeatConsistencyCheckPingsAsync</c>, both as an operation count
         /// that never moves.
         /// </para>
         /// <para>
-        /// Two schedules, as the shipped bridge has: every heartbeat when consistency checks are on -
+        /// Two schedules, as the v3 bridge had: every heartbeat when consistency checks are on -
         /// their whole purpose is to notice a dropped stream promptly, so skipping one because the
         /// connection is busy would defeat them - and otherwise only once the connection has been quiet
         /// for <c>WriteEverySeconds</c>.
@@ -1286,7 +1286,7 @@ namespace StackExchange.Redis
                     .PingAsync(CommandFlags.NoRedirect)
                     .ConfigureAwait(false);
 
-                // ...and keeps the latency sample current, as the shipped heartbeat's tracer does
+                // ...and keeps the latency sample current, as the v3 heartbeat's tracer did
                 Server.SetLatency(started);
             }
             catch (Exception ex)
@@ -1342,9 +1342,9 @@ namespace StackExchange.Redis
 
             if (expired is null) return;
 
-            // built rather than borrowed: ExceptionFactory.Timeout needs a Message, which this core does
-            // not have - so the wording is matched here, including the inner exception the shipped text
-            // quotes, because that is what callers read and what tests assert
+            // built rather than borrowed: v3's ExceptionFactory.Timeout needed a Message, which this core
+            // does not have - so the wording is matched here, including the inner exception the v3 text
+            // quoted, because that is what callers read and what tests assert
             var last = Volatile.Read(ref _lastConnectFault);
             var text = last is null
                 ? $"The message timed out in the backlog attempting to send because no connection became available ({timeout}ms)"
@@ -1352,7 +1352,7 @@ namespace StackExchange.Redis
 
             foreach (var operation in expired)
             {
-                // the type follows the shipped rule, which is not cosmetic: a connection exception is
+                // the type follows the v3 rule, which is not cosmetic: a connection exception is
                 // reported only when connecting has actually been FAILING, because then the timeout is a
                 // symptom and the connection fault is the cause. A command merely waiting behind a connect
                 // that is slow rather than broken timed out, and callers catch RedisTimeoutException for
@@ -1387,8 +1387,8 @@ namespace StackExchange.Redis
         /// <param name="request">The rendered request.</param>
         /// <param name="database">The database the command will run against, or -1 for none.</param>
         /// <remarks>
-        /// <b>The checks the shipped pipeline makes once a server has been named</b>, which is what this
-        /// executor is: <c>ConnectionMultiplexer.ExecuteAsyncImpl</c> refuses an admin command with
+        /// <b>The checks the v3 pipeline made once a server had been named</b>, which is what this
+        /// executor is: <c>ConnectionMultiplexer.ExecuteAsyncImpl</c> refused an admin command with
         /// <c>AllowAdmin</c> off, and a primary-only command aimed at a replica, in the branch where the
         /// caller chose the server. Both have to be answered by whoever holds that choice, and here that is
         /// this type.
@@ -1408,8 +1408,8 @@ namespace StackExchange.Redis
         {
             // "no database" is a real answer for a server-scoped context, and a command that needs one has
             // to say so rather than quietly run against whatever the connection last selected. Message's
-            // constructor makes the same refusal for the shipped pipeline; a core without Message has to
-            // make it somewhere, and this is where the database is finally known.
+            // constructor made the same refusal for the v3 pipeline; a core without Message has to make
+            // it somewhere, and this is where the database is finally known.
             if (database < 0
                 && request.Command != RedisCommand.NONE
                 && request.Command != RedisCommand.UNKNOWN
@@ -1424,8 +1424,8 @@ namespace StackExchange.Redis
             var config = server.Multiplexer.RawConfig;
 
             // A command the map has disabled is refused BEFORE anything else judges it, because "you have
-            // turned this off" outranks every other reason it might not run. The shipped pipeline makes
-            // this refusal while rendering - MessageWriter throws when the mapped name is empty - and a
+            // turned this off" outranks every other reason it might not run. The v3 pipeline made this
+            // refusal while rendering - MessageWriter threw when the mapped name was empty - and a
             // core that renders its own frames has to make it somewhere; found by porting SUBSCRIBE, which
             // is what ConfigTests.ConnectWithSubscribeDisabled asks about.
             if (request.Command is not (RedisCommand.NONE or RedisCommand.UNKNOWN)
@@ -1475,7 +1475,7 @@ namespace StackExchange.Redis
         /// <param name="cancellationToken">Cancels the request before it is sent.</param>
         /// <param name="profile">
         /// Whether this command belongs in a profiling session. False for a PREAMBLE, which is the client's
-        /// own machinery rather than a command the caller issued: the shipped core does not report a
+        /// own machinery rather than a command the caller issued: the v3 core did not report a
         /// <c>SCRIPT LOAD</c> it inserted either, and a session that listed one would be reporting work
         /// nobody asked for, in a sequence the caller cannot reproduce.
         /// </param>
@@ -1502,7 +1502,7 @@ namespace StackExchange.Redis
             // database 0 for every command in it.
             //
             // And -1 for a command that names no database at all: PING, ECHO, the CLIENT family. The
-            // shipped core reports those as db-free, from this same predicate, and a profile that claimed
+            // v3 core reported those as db-free, from this same predicate, and a profile that claimed
             // they ran "in database 0" would be inventing a fact about them.
             if (profile && _startProfile is { } start)
             {
@@ -1844,8 +1844,8 @@ namespace StackExchange.Redis
             // A SERVER THAT HAS ONLY ONE DATABASE CANNOT BE ASKED FOR ANOTHER, and this said nothing: the
             // SELECT was injected regardless, so a command addressed to database 1 on a cluster - or
             // through a proxy whose command map has no SELECT - went out as though it had worked. The
-            // shipped core refuses at exactly this point, when it decides whether a SELECT is needed, and
-            // says which database it could not switch to.
+            // v3 core refused at exactly this point, when it decided whether a SELECT was needed, and
+            // said which database it could not switch to.
             if (operation.Database != 0
                 && connection is IRespPreambleTarget { Server: { SupportsDatabases: false } })
             {
@@ -1895,8 +1895,8 @@ namespace StackExchange.Redis
                 // endpoint simply stayed down - and anything already in the backlog waited for the
                 // operation backstop to time it out, two minutes later, rather than for a reconnect.
                 //
-                // The shipped core does not have this problem because its bridge heartbeat retries on a
-                // timer whether or not anybody asks. This is that timer: a poll that defers to the policy
+                // The v3 core did not have this problem because its bridge heartbeat retried on a
+                // timer whether or not anybody asked. This is that timer: a poll that defers to the policy
                 // rather than a second opinion about when to retry.
                 ArmConnectRetry();
                 return;
@@ -1915,7 +1915,7 @@ namespace StackExchange.Redis
         /// <summary>Come back later and ask the policy again, since nobody else will.</summary>
         /// <remarks>
         /// Single-flight, and it stops of its own accord: a successful connect ends the loop, and so does
-        /// disposal. While a server stays down it keeps asking, which is what the shipped bridge does too.
+        /// disposal. While a server stays down it keeps asking, which is what the v3 bridge did too.
         /// </remarks>
         private void ArmConnectRetry()
         {
@@ -1956,7 +1956,7 @@ namespace StackExchange.Redis
         /// <summary>Whether the configured backoff permits another attempt now.</summary>
         /// <remarks>
         /// <para>
-        /// <b>The first attempt is never asked about</b>, matching the shipped core: a policy describes how
+        /// <b>The first attempt is never asked about</b>, matching the v3 core: a policy describes how
         /// to back off from a FAILURE, and there has not been one yet. So the count passed is zero for the
         /// first retry, one for the second, and it resets on a successful connect - which is the sequence
         /// <c>ReconnectRetryPolicyUnitTests</c> asserts, and which the new core did not produce at all
@@ -1994,8 +1994,8 @@ namespace StackExchange.Redis
         private bool DueForConnectRetry()
         {
             // Nothing has failed since the last success - the first connect, or the first reconnect after
-            // a healthy connection was lost - so there is nothing to back off from. The shipped bridge
-            // reconnects on demand here without asking the policy, and a policy that delays its first
+            // a healthy connection was lost - so there is nothing to back off from. The v3 bridge
+            // reconnected on demand here without asking the policy, and a policy that delays its first
             // answer (exponential backoff does) would otherwise hold up a reconnect that needed no retry.
             var failures = Volatile.Read(ref _connectRetryCount);
             if (failures <= 0) return true;
@@ -2003,7 +2003,7 @@ namespace StackExchange.Redis
             var policy = _retryPolicy?.Invoke();
             if (policy is null) return true;
 
-            // the policy is asked about retries already MADE, as the shipped bridge asks it: after the first
+            // the policy is asked about retries already MADE, as the v3 bridge asked it: after the first
             // failure, none has been - so the count it sees starts at zero, not at the failure count
             var elapsed = unchecked(Environment.TickCount - Volatile.Read(ref _lastConnectTicks));
             return policy.ShouldRetry(failures - 1, elapsed);
@@ -2074,7 +2074,7 @@ namespace StackExchange.Redis
                 Interlocked.Increment(ref _connects);
                 Volatile.Write(ref _connectRetryCount, 0); // a success starts the backoff over
 
-                // ...and clears the fault, as the shipped bridge did on establishing: LastException answers
+                // ...and clears the fault, as the v3 bridge did on establishing: LastException answers
                 // "why is this endpoint down", so a recovered endpoint must stop reporting the old reason
                 Volatile.Write(ref _lastConnectFault, null);
 
@@ -2110,9 +2110,9 @@ namespace StackExchange.Redis
 
                 // An endpoint that only ever refuses has nobody to tell the client it has moved: every
                 // other path that re-reads the topology needs somebody ELSE to notice first - a
-                // notification, a MOVED from a reachable node, a peer's broadcast. The shipped bridge
-                // closes that gap from its own retry loop; this core had no equivalent, so under the
-                // engine flag a dead address was dialled indefinitely. ServerEndPoint owns the restraint
+                // notification, a MOVED from a reachable node, a peer's broadcast. The v3 bridge closed
+                // that gap from its own retry loop; this core had no equivalent, so a dead address was
+                // dialled indefinitely. ServerEndPoint owns the restraint
                 // (ConfigCheckSeconds, and only above a threshold), so this just reports the count.
                 if (!IsSubscriptionEndpoint && Server is { } repeatedly)
                 {
@@ -2143,7 +2143,7 @@ namespace StackExchange.Redis
                     if (abandon)
                     {
                         // each told in terms of ITS OWN command, since that is what the caller asked for
-                        // and what the shipped diagnosis names; they are only in one queue by accident of
+                        // and what the v3 diagnosis named; they are only in one queue by accident of
                         // timing
                         while (stranded.Count != 0)
                         {
@@ -2174,8 +2174,8 @@ namespace StackExchange.Redis
         /// the platform throws - a <c>SocketException</c>, an <c>AuthenticationException</c> from the TLS
         /// handshake, an <c>IOException</c> - and those were reaching callers unwrapped, so code catching
         /// <see cref="RedisConnectionException"/> (which is every caller that has ever handled this) caught
-        /// nothing and code catching <see cref="RedisException"/> caught nothing either. The shipped core
-        /// has always presented this as a connection failure with the platform error as the inner
+        /// nothing and code catching <see cref="RedisException"/> caught nothing either. The v3 core
+        /// always presented this as a connection failure with the platform error as the inner
         /// exception, and that is the contract being kept here.
         /// <para>
         /// A <see cref="RedisException"/> passes through untouched: it is already the vocabulary, and
@@ -2240,7 +2240,7 @@ namespace StackExchange.Redis
 
             if (connection is not null)
             {
-                // a requested close is still a line in the connect log: the shipped bridge writes one as the
+                // a requested close is still a line in the connect log: the v3 bridge wrote one as the
                 // multiplexer is disposed, and its absence reads as a connection that simply vanished
                 if (!connection.IsClosed && Server?.Multiplexer.Logger is { } logger)
                 {

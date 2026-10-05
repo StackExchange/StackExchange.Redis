@@ -2,7 +2,7 @@
 {
     /// <summary>
     /// What a <see cref="IRespPreambleGate"/> needs to know about the connection a pair is being written
-    /// on, in terms both cores can answer.
+    /// on, in terms any connection can answer.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -51,7 +51,7 @@
         /// pair-send does.
         /// </para>
         /// <para>
-        /// A target that manages its own database - the old core does, inside its bridge - answers
+        /// A target that manages its own database - as the v3 bridge did - answers
         /// <see langword="false"/>: nothing for this mechanism to inject.
         /// </para>
         /// </remarks>

@@ -12,9 +12,9 @@ namespace StackExchange.Redis
     /// <para>
     /// <b>The whole type is the executor swap.</b> Every command member is inherited - a batch is a
     /// <see cref="TransitionalDatabase"/> over a context whose executor queues instead of sending, and
-    /// nothing on the command path knows or cares which it is. Compare <c>RedisBatch</c>, where batching
-    /// lives in overrides of the message-writing internals and the type therefore has to inherit
-    /// <c>RedisDatabase</c>'s ~6,000 lines to reach them. That inheritance is what pins the old core in
+    /// nothing on the command path knows or cares which it is. Compare v3's <c>RedisBatch</c>, where batching
+    /// lived in overrides of the message-writing internals and the type therefore had to inherit
+    /// <c>RedisDatabase</c>'s ~6,000 lines to reach them. That inheritance is what pinned the old core in
     /// place; this one costs nothing, because <see cref="TransitionalDatabase"/> is a funnel rather than
     /// an implementation.
     /// </para>

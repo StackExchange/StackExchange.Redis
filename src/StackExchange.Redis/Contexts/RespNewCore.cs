@@ -40,7 +40,7 @@ namespace StackExchange.Redis
 
         /// <summary>The deployment's <c>CLUSTER SLOTS</c> view, as last answered by any of its nodes.</summary>
         /// <remarks>
-        /// <b>Here rather than per-server because that is what it describes.</b> The shipped core kept it on
+        /// <b>Here rather than per-server because that is what it describes.</b> The v3 core kept it on
         /// each <see cref="ServerEndPoint"/> because its autoconfigure asked every connection; this core asks
         /// once, so one node holds the answer and every other node needs to be given it - otherwise a
         /// server publishing its own <c>CLUSTER NODES</c> has no SLOTS view beside it and
@@ -195,8 +195,8 @@ namespace StackExchange.Redis
                 .WithTopology(_topology)
 
                 // the multiplexer's, not one of this core's own: a loaded script is a fact about the
-                // SERVER, so both cores must consult the same record or each will reload what the other
-                // already sent. Without it the registry is null, which also meant no NOSCRIPT repair -
+                // SERVER, so every context - database and IServer alike - must consult the same record or
+                // each will reload what another already sent. Without it the registry is null, which also meant no NOSCRIPT repair -
                 // see the null-registry branch in Scripts.Methods
                 .WithScriptCache(_multiplexer.ScriptCache)
 
@@ -205,7 +205,7 @@ namespace StackExchange.Redis
                 // multiplexer.ClientCache, so a context holding any other instance would fill one cache and
                 // have a different one invalidated. Without this the new core had NO cache at all - not a
                 // cold one, an absent one - so every counter read zero and the client-side cache silently
-                // did nothing whenever the engine flag was on.
+                // did nothing on this core.
                 .WithCache(_multiplexer.ClientCache)
                 .AppendChannelPrefix(_multiplexer.RawConfig.ChannelPrefix)
                 .WithServices(_features)
@@ -214,10 +214,10 @@ namespace StackExchange.Redis
 
         /// <summary>A router whose endpoints are the ones connected to <paramref name="database"/>.</summary>
         /// <remarks>
-        /// <b>A connection per (endpoint, database), which is not what the shipped core does.</b> There,
-        /// one connection serves every database and a <c>SELECT</c> is injected immediately before any
-        /// command for a different one - cheaper in sockets, and the reason the shipped path needs a
-        /// preamble mechanism at all.
+        /// <b>A connection per (endpoint, database), which is not what the v3 core did.</b> There, one
+        /// connection served every database and a <c>SELECT</c> was injected immediately before any
+        /// command for a different one - cheaper in sockets, and the reason the v3 path needed a preamble
+        /// mechanism at all.
         /// <para>
         /// This is the honest trade for now: <c>SELECT</c> is sticky connection state, so multiplexing
         /// databases over one connection means every such command must be written as a contiguous pair,
@@ -269,11 +269,12 @@ namespace StackExchange.Redis
         /// </remarks>
         /// <summary>The executor for a keyed command, from this core's own slot map where it has one.</summary>
         /// <remarks>
-        /// <b>Our map first, the shipped selector only as a fallback.</b> That selector's map is a
-        /// <c>ServerEndPoint[]</c> filled from a <c>CLUSTER NODES</c> the SHIPPED core issued during its
-        /// auto-configure, so consulting it is what made this core unable to route until the other one had
-        /// connected - the single fact behind every two-core symptom in section 9a. The handshake now fills
-        /// a map of our own from <c>CLUSTER SLOTS</c> on the connection it just brought up.
+        /// <b>Our map first, the selector only as a fallback.</b> That selector's map is a
+        /// <c>ServerEndPoint[]</c>, and while both cores existed it was filled from a <c>CLUSTER NODES</c>
+        /// the v3 core issued during its auto-configure - so consulting it is what made this core unable to
+        /// route until the other one had connected, the single fact behind every two-core symptom in
+        /// section 9a. The handshake fills a map of our own from <c>CLUSTER SLOTS</c> on the connection it
+        /// just brought up, and publishes the same reply into the selector's (see <c>Publish</c>).
         /// <para>
         /// Falling back while the map is empty is what makes this safe to adopt before it is finished: a
         /// deployment whose server will not answer <c>CLUSTER SLOTS</c>, or one still mid-discovery, routes
@@ -356,7 +357,7 @@ namespace StackExchange.Redis
         /// <param name="endpoint">The endpoint a slot's roles chose, or null if there was none.</param>
         /// <remarks>
         /// <para>
-        /// <b>The one selection question this core has to answer for itself.</b> The shipped selector asks
+        /// <b>The one selection question this core has to answer for itself.</b> The selector asks
         /// it in its signature - <c>Select(slot, command, flags, allowDisconnected: false)</c> - so a slot
         /// whose owner has gone away routes to something reachable instead of being aimed at a socket that
         /// can never write. Nothing here asked, so a downed owner kept being chosen and recorded;
@@ -535,9 +536,9 @@ namespace StackExchange.Redis
         /// <param name="endpoint">The endpoint in question.</param>
         /// <remarks>
         /// <b>Know, or assume - and the difference matters.</b> Once a handshake has completed this is a
-        /// fact; before that it is a guess from configuration, because the answer does not exist yet. The
-        /// shipped core draws exactly this distinction in <c>ServerEndPoint.KnowOrAssumeResp3</c>, and it
-        /// has to: callers ask whether the subscriber is connected long before anything has connected.
+        /// fact; before that it is a guess from configuration, because the answer does not exist yet.
+        /// <c>ServerEndPoint.KnowOrAssumeResp3</c> draws exactly this distinction, as v3 did, and it has
+        /// to: callers ask whether the subscriber is connected long before anything has connected.
         /// <para>
         /// Under RESP3 a delivery is a push frame on the same connection, so there is no second socket at
         /// all. Only RESP2 needs one, which is why nothing here creates one speculatively.
@@ -551,8 +552,8 @@ namespace StackExchange.Redis
         private void OnSlotMoved(int slot, EndPoint endpoint)
         {
             // our own map learns directly from the redirect - the server just told us where the slot went,
-            // which is more current than anything a rediscovery would find - and the shipped core is still
-            // asked to reconfigure, because its map is what everything else reads until phase D
+            // which is more current than anything a rediscovery would find - and the multiplexer is still
+            // asked to reconfigure, because the selector's map is what the fallback routes and IServer read
             _topology.OnSlotMoved(slot, endpoint);
 
             // ...EXCEPT when the redirect points at a node we already know we cannot reach, because there
@@ -575,7 +576,7 @@ namespace StackExchange.Redis
 
         /// <summary>The server redirected somewhere it could not name, so our map is wrong somewhere.</summary>
         /// <remarks>
-        /// Marks the map suspect as well as asking the other core to reconfigure: an unroutable redirect is
+        /// Marks the map suspect as well as asking the multiplexer to reconfigure: an unroutable redirect is
         /// the server saying it does not know where a slot went either, which is as strong a statement that
         /// our copy is stale as a <c>MOVED</c> is - and the next connection is what acts on it.
         /// </remarks>
@@ -674,12 +675,10 @@ namespace StackExchange.Redis
         /// <summary>How many sockets this core currently holds to one endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
-        /// <b>For the tests that count what a SERVER can see.</b> While both cores exist, a command that
-        /// travels on this core goes out on a socket the shipped bridges know nothing about, so a test
-        /// asserting "this server has N clients" has to add this core's. The shipped answer and the
-        /// one-engine answer are the same number; only the transitional state has the extra socket, and
-        /// asserting the shipped number through it would be asserting something untrue of the process as
-        /// it is actually running.
+        /// <b>For the tests that count what a SERVER can see.</b> This core's sockets are the only ones the
+        /// client holds, so this is the number a test asserting "this server has N clients" wants. While
+        /// both cores existed it was added to the bridges' count, because a command travelling on this
+        /// core went out on a socket the bridges knew nothing about.
         /// </remarks>
         internal int ConnectionCount(EndPoint endpoint)
         {
@@ -800,8 +799,8 @@ namespace StackExchange.Redis
 
         /// <summary>The executor for one database on one endpoint, over that endpoint's single connection.</summary>
         /// <remarks>
-        /// <b>One connection per endpoint, and a view per database over it</b> - which is what the shipped
-        /// core does, and what this could not do until <c>SELECT</c> could be injected as a preamble. It
+        /// <b>One connection per endpoint, and a view per database over it</b> - which is what the v3 core
+        /// did, and what this could not do until <c>SELECT</c> could be injected as a preamble. It
         /// replaces a connection per (endpoint, database): correct either way, but a socket per database
         /// actually used, and a <c>SELECT</c> that could never move once the handshake had chosen.
         /// <para>
@@ -879,11 +878,12 @@ namespace StackExchange.Redis
 
         /// <summary>The <see cref="ServerEndPoint"/> this client models for an endpoint, if it models one.</summary>
         /// <remarks>
-        /// <b>Shared with the shipped core on purpose.</b> Beliefs about a server that are not facts about a
-        /// socket - whether a maintenance window is open, what it announced, when it closed - are recorded
-        /// once, by whichever core saw the notification, and both read the same record. Duplicating them
-        /// would make the two cores disagree about the same server, which is the failure mode design notes
-        /// section 9 is trying to remove rather than reproduce.
+        /// <b>Kept on the multiplexer's model on purpose.</b> Beliefs about a server that are not facts about
+        /// a socket - whether a maintenance window is open, what it announced, when it closed - are recorded
+        /// once, on the <c>ServerEndPoint</c> that <c>IServer</c>, the events and every connection to that
+        /// server already read. While both cores existed that record was what kept them agreeing; a second
+        /// copy here would let two parts of the client disagree about the same server, which is the failure
+        /// mode design notes section 9 set out to remove rather than reproduce.
         /// </remarks>
         private ServerEndPoint? ModelledServer(EndPoint endpoint)
             => _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
@@ -893,7 +893,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// Raised as an ordinary connection failure, which is what it is from everybody else's point of
         /// view - and specifically what a connection group listens for when it reroutes away from a member.
-        /// The shipped core arrives at the same event by a longer road, through
+        /// The v3 core arrived at the same event by a longer road, through
         /// <c>PhysicalBridge.RecordConnectionFailed</c>.
         /// </remarks>
         private void OnCircuitBroken(EndPoint endpoint)
@@ -927,7 +927,7 @@ namespace StackExchange.Redis
 
             // the test-only gate, honoured here for the same reason SimulateConnectionFailure is: it names
             // a state of the whole client, and a client that reconnects on a socket the test believes it
-            // has forbidden is not testing what the test says. The shipped path checks it in
+            // has forbidden is not testing what the test says. The v3 path checked it in
             // PhysicalConnection.BeginConnectAsync; this is the same check for this core's dial.
             if (!_multiplexer.AllowConnect)
             {
@@ -940,21 +940,21 @@ namespace StackExchange.Redis
             }
 
             // SAY WHAT WE ARE DOING, which this core did not. A connect log is the artifact users paste
-            // into issues, and the shipped bridge narrates its whole lifecycle into it; a core that opens
+            // into issues, and the v3 bridge narrated its whole lifecycle into it; a core that opens
             // the sockets silently turns that log into a record of everything EXCEPT the connections.
             // LoggerTests.BasicLoggerConfig measures it bluntly, as a line count that fell by a third once
             // the bridges stopped dialling.
             var logger = _multiplexer.Logger;
             var connectionType = subscription ? ConnectionType.Subscription : ConnectionType.Interactive;
-            // the shipped bridge's events and ids, and its name for the connection (`host:port/Type`): a
-            // log filter or dashboard built against the shipped core keeps working against this one
+            // the v3 bridge's events and ids, and its name for the connection (`host:port/Type`): a
+            // log filter or dashboard built against v3 keeps working against this one
             var logName = Format.ToString(endpoint) + "/" + connectionType;
             logger?.LogInformationConnecting(logName);
             logger?.LogInformationBeginConnectAsync(new(endpoint));
 
             // the shared chain: tunnel, proxy, socket, TLS. This used to be a bare socket here, which
             // silently ignored every one of those - and the TLS I added to it first was a second copy of
-            // the shipped logic, which is worse than none: two versions of a security decision, free to
+            // the v3 logic, which is worse than none: two versions of a security decision, free to
             // drift. DuplexTransport is the boundary; everything below it belongs to the factory.
             var connected = await RespTransportFactory.ConnectAsync(
                 endpoint,
@@ -967,7 +967,7 @@ namespace StackExchange.Redis
             logger?.LogInformationTransportConnected(logName, connected.IsEncrypted);
             logger?.LogInformationConnected(logName);
 
-            // the configured response pool goes to the connection, not just to the shipped core's reader:
+            // the configured response pool goes to the connection, as it went to the v3 core's reader:
             // every reply this core reads lands in an inbound buffer, and a caller who supplied a pool
             // asked to own the memory the replies live in
             // WEAKLY again, and for the reason `RespClientConnection.Server` spells out: `Follow` is an
@@ -986,7 +986,7 @@ namespace StackExchange.Redis
                 new RespContext(config.CommandMap, database: 0)
                     .WithExecutor(new RespConnectionExecutor(connection, 0)));
 
-            // AUTH only when there is something to authenticate WITH, matching the shipped handshake's
+            // AUTH only when there is something to authenticate WITH, matching the v3 handshake's
             // `!IsNullOrWhiteSpace` test. The handshake itself treats "" as a legitimate password - that is
             // how a 'nopass' ACL login is expressed, and it is right for a caller who says so explicitly -
             // but ConfigurationOptions carries "" to mean "none configured", so passing it straight through
@@ -994,7 +994,7 @@ namespace StackExchange.Redis
             var credentials = !string.IsNullOrWhiteSpace(config.User) || !string.IsNullOrWhiteSpace(config.Password);
 
             // resolved before the handshake rather than after it, so that what the handshake learns is logged
-            // against the server as it is learned - the shipped "Auto-configured ..." lines
+            // against the server as it is learned - v3's "Auto-configured ..." lines
             var server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
 
             var result = await RespHandshake.PerformAsync(
@@ -1028,7 +1028,7 @@ namespace StackExchange.Redis
 
             // which server this reached, so a preamble gate can consult the endpoint's beliefs - a loaded
             // script is server-wide, and ServerEndPoint already tracks that and flushes it when a server's
-            // identity changes underneath. Borrowed rather than reimplemented while both cores exist.
+            // identity changes underneath. Borrowed rather than reimplemented.
             connection.Server = server;
 
             // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
@@ -1045,7 +1045,7 @@ namespace StackExchange.Redis
             // as long as it is open, and a delegate capturing the multiplexer made the socket root the
             // multiplexer too. A caller who abandons a multiplexer without disposing it then never gets it
             // collected: `GarbageCollectionTests.MuxerIsCollected` is written for exactly that caller, and
-            // the shipped core passes it while holding a subscription bridge of its own. An ordinary
+            // the v3 core passed it while holding a subscription bridge of its own. An ordinary
             // connection hid the problem by having no standing read to be rooted by.
             //
             // A push that arrives after the multiplexer is gone has nowhere to go and nothing to tell, so
@@ -1061,16 +1061,14 @@ namespace StackExchange.Redis
             // "(catch-up)" line `MaintenanceNotificationTests+Retention` looks for never appeared. The
             // configuration channel taught the same lesson at the other end of this method; this is the
             // same rule applied to the other thing that asks a server to start talking.
-            // ...and told what this handshake just learned, which is the direction of travel for D2.8.
-            // Today the client's beliefs about a server come from the SHIPPED bridge handshaking its own
-            // socket; this core handshakes one too and learns the same facts from it. Publishing them is
-            // what lets that other handshake eventually not happen - and in the meantime it corrects the
-            // case where this core knows something first, because it dialled first.
             // what discovery learned was logged by the handshake as it learned it; this closes the narrative
             logger?.LogInformationOnEstablishingComplete(new(endpoint));
 
             if (connection.Server is { } modelled)
             {
+                // ...and told what this handshake just learned. The client's beliefs about a server used to
+                // come from the v3 bridge handshaking its own socket; this handshake is now the only one, so
+                // publishing what it learned is how the modelled server learns anything at all.
                 Publish(modelled, in result);
 
                 // ...and the server-wide settings nothing has described yet, which is the next slice of the
@@ -1092,8 +1090,8 @@ namespace StackExchange.Redis
             }
 
             // A connection that asked for RESP3 and was answered less than that needs a SUBSCRIPTION
-            // socket, and needs it now rather than when something next subscribes. The shipped core
-            // reaches the same conclusion in the same place - `OnFullyEstablished`'s
+            // socket, and needs it now rather than when something next subscribes. The v3 core
+            // reached the same conclusion in the same place - `OnFullyEstablished`'s
             // `else if (SupportsSubscriptions && Protocol > Resp2) Activate(Subscription)` - and for the
             // same reason: subscriptions composed while RESP3 was expected are about to be re-placed, and
             // a re-place that has to dial first loses the race against whatever the caller does next.
@@ -1103,10 +1101,10 @@ namespace StackExchange.Redis
             // Not awaited: this is the establish path, so waiting for another connection here would wait
             // behind the one being established.
             //
-            // Only when this core actually HOLDS a subscription for the endpoint, which is not a
-            // refinement but the whole correctness of it: unconditionally, a socket gets dialled for an
-            // endpoint whose subscriptions belong to the shipped bridge, and then re-placed onto it - so
-            // the channel ends up subscribed twice and a publish reports two subscribers where the caller
+            // Only when this core actually HOLDS a subscription, which was not a refinement but the whole
+            // correctness of it while both cores existed: unconditionally, a socket got dialled for an
+            // endpoint whose subscriptions belonged to the v3 bridge, and then re-placed onto it - so the
+            // channel ended up subscribed twice and a publish reported two subscribers where the caller
             // asked for one. `Resp3DowngradeTests` measures that too, from the other side, as a RESP2
             // connection carrying both a handshake's `INFO` and a `SUBSCRIBE`.
             //
@@ -1131,15 +1129,14 @@ namespace StackExchange.Redis
 
             // ...and under RESP3 this connection carries the configuration-change broadcast, because there
             // is no subscription connection to carry it. Backported alongside #3254, which fixed exactly
-            // this for the shipped core: the channel is how a client is told BY HAND that the topology
-            // moved, and left unsubscribed the broadcast reaches nobody. The shipped fix subscribes the
-            // bridge's interactive connection; while both cores exist that is enough to act on, but it is
-            // the bridge's socket - so this core's own connection needs the same, or the fix comes undone
-            // the moment bridges stop being constructed.
+            // this for the v3 core: the channel is how a client is told BY HAND that the topology moved,
+            // and left unsubscribed the broadcast reaches nobody. The v3 fix subscribed the bridge's
+            // interactive connection, and with no bridges this connection needs the same, or the fix is
+            // undone.
             //
             // AFTER the handshake and on the NEGOTIATED protocol, never as part of it: a connection that
             // asked for RESP3 and was answered RESP2 must not be put into subscriber mode, which is the
-            // caution the shipped version states too.
+            // caution the v3 version stated too.
             //
             // AFTER OnPush, which is not a detail: under RESP3 a subscribe confirmation IS a push, and a
             // push arriving before the dispatcher is wired is dropped as unrecognised - so subscribing
@@ -1156,11 +1153,11 @@ namespace StackExchange.Redis
             }
 
             // A connection deliveries arrive on is useless until the subscriptions are on it again, and
-            // nothing else was going to notice: the shipped core re-subscribes when its own subscription
-            // bridge establishes, so a socket THIS core brought back had no equivalent trigger and the
+            // nothing else was going to notice: the v3 core re-subscribed when its own subscription
+            // bridge established, so a socket THIS core brought back had no equivalent trigger and the
             // subscriptions stayed off until something unrelated happened to ask.
             //
-            // Fire-and-forget, for the reason the shipped caller gives where it does the same thing: this
+            // Fire-and-forget, for the reason the v3 caller gave where it did the same thing: this
             // is the establish path, and waiting for a reply here waits behind the connection being
             // established.
             if (subscription)
@@ -1175,13 +1172,13 @@ namespace StackExchange.Redis
 
                     // ...and the configuration-change broadcast, which under RESP2 belongs HERE rather
                     // than on the ordinary connection - subscribing it there would put the connection
-                    // carrying ordinary commands into subscriber mode. The shipped core does exactly this
-                    // and in exactly this position: the last step of the SUBSCRIPTION bridge's handshake
+                    // carrying ordinary commands into subscriber mode. The v3 core did exactly this and
+                    // in exactly this position: the last step of the SUBSCRIPTION bridge's handshake
                     // (`ServerEndPoint.WriteDirectOrQueueFireAndForget`'s connType check), with the same
-                    // note that nothing ordinary can follow it. So a bridge that stops being constructed
-                    // takes the client's only way of hearing "the topology moved" with it unless this
-                    // does the same thing - `ConfigurationChannelUnitTests` reads that as "the
-                    // configuration channel has no subscriber".
+                    // note that nothing ordinary can follow it. Without the bridges, the client's only way
+                    // of hearing "the topology moved" goes with them unless this does the same thing -
+                    // `ConfigurationChannelUnitTests` reads that as "the configuration channel has no
+                    // subscriber".
                     await SubscribeToConfigurationChannelAsync(context, cancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -1215,14 +1212,14 @@ namespace StackExchange.Redis
         /// </para>
         /// <para>
         /// <c>ConfigurationChannelUnitTests.TheLibrarysOwnBroadcastIsHeard</c> is exactly that client: it
-        /// only ever calls <c>ReplicaOfAsync</c>, which is still a shipped <c>Message</c> on the
-        /// interactive bridge, so this core had no reason to connect and the broadcast reached nobody.
+        /// only ever calls <c>ReplicaOfAsync</c>, which was a v3 <c>Message</c> on the interactive bridge
+        /// when this was written, so this core had no reason to connect and the broadcast reached nobody.
         /// </para>
         /// <para>
-        /// Conditioned on <c>KnowOrAssumeResp3</c> by its caller, which is the same question the shipped
-        /// core asks in the same place before activating its subscription bridge - so an endpoint that
-        /// turns out to speak RESP3 after all is left holding a spare subscription socket, exactly as the
-        /// shipped core would have been left holding a spare bridge.
+        /// Conditioned on <c>KnowOrAssumeResp3</c> by its caller, which is the same question the v3 core
+        /// asked in the same place before activating its subscription bridge - so an endpoint that turns
+        /// out to speak RESP3 after all is left holding a spare subscription socket, exactly as the v3
+        /// core would have been left holding a spare bridge.
         /// </para>
         /// <para>
         /// <b>This has a known cost, recorded in design notes 9g rather than hidden:</b> the socket it
@@ -1278,8 +1275,8 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <b>Fire-and-forget on the pool, never inline.</b> This runs while another connection is being
         /// established, and dialling one connection from inside another's establish path would wait
-        /// behind it - which is the same reason the shipped core's re-subscribe is fire-and-forget where
-        /// it sits. Failure is ordinary: the socket will be dialled by the next subscribe if it is still
+        /// behind it - which is the same reason the v3 core's re-subscribe was fire-and-forget where it
+        /// sat. Failure is ordinary: the socket will be dialled by the next subscribe if it is still
         /// wanted.
         /// </remarks>
         private void DialSubscriptionSocket(EndPoint endpoint, bool holdPublishes = true)
@@ -1360,10 +1357,10 @@ namespace StackExchange.Redis
         /// <summary>Subscription re-placements still in flight, which a publish must not overtake.</summary>
         /// <remarks>
         /// <para>
-        /// <b>The shipped core gets this ordering by accident and this one has to arrange it.</b> There,
-        /// a connection failure drops the interactive and subscription bridges together and both
-        /// reconnect on the same heartbeat, so by the time ordinary commands flow again the subscription
-        /// bridge has had the same wall-clock to come back. Here the subscription socket is dialled
+        /// <b>The v3 core got this ordering by accident and this one has to arrange it.</b> There, a
+        /// connection failure dropped the interactive and subscription bridges together and both
+        /// reconnected on the same heartbeat, so by the time ordinary commands flowed again the
+        /// subscription bridge had had the same wall-clock to come back. Here the subscription socket is dialled
         /// lazily, and the need for one is only known once the handshake reports a protocol below the
         /// one asked for - which is strictly AFTER the ordinary connection is already warm. A publish
         /// then goes out immediately on the warm socket while the subscription socket is still shaking
@@ -1377,7 +1374,7 @@ namespace StackExchange.Redis
         /// <b>Only the downgrade re-place records one</b>, and that scoping is not tidiness. The dial for
         /// the library's own configuration channel runs at ACTIVATION, once per node - so in a cluster
         /// every publish waited on six of them, and any one that was slow to establish held the lot.
-        /// Measured as a five-second publish against the shipped path's eight hundred milliseconds, and
+        /// Measured as a five-second publish against the v3 path's eight hundred milliseconds, and
         /// as `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` running out its own timeout.
         /// A caller's publish has no reason to wait for the library's channel: nothing it does depends
         /// on that subscription being in place.
@@ -1403,7 +1400,7 @@ namespace StackExchange.Redis
         /// <para>
         /// <b>The library's own subscription, not a caller's</b>, so it deliberately does not go through
         /// the subscription registry - there are no handlers to register and nothing should be able to
-        /// unsubscribe it. The shipped core writes it straight to the bridge for the same reason; the
+        /// unsubscribe it. The v3 core wrote it straight to the bridge for the same reason; the
         /// delivery is recognised by <c>RespPushDispatch</c>, which checks for the configuration channel
         /// before handing anything to pub/sub handlers.
         /// </para>
@@ -1461,11 +1458,11 @@ namespace StackExchange.Redis
             //
             // This is the right moment rather than a convenient one: routing has resolved, so the endpoint
             // is known - which is why the profile is started here at all - and the operation is about to be
-            // handed to a connection. The shipped core stamps it at the equivalent point, as the message
-            // goes to a bridge.
+            // handed to a connection. The v3 core stamped it at the equivalent point, as the message
+            // went to a bridge.
             //
             // Null connection type: this core does not yet distinguish interactive from subscription at
-            // this point, and the shipped core also passes null where it does not know (PhysicalBridge).
+            // this point, and the v3 core also passed null where it did not know (PhysicalBridge).
             // Claiming "interactive" would be right most of the time, which is not the same as right.
             profile.SetEnqueued(null);
 
@@ -1484,7 +1481,7 @@ namespace StackExchange.Redis
         /// on the same socket gets the same answer forever, which is exactly how it presented: the second
         /// <c>MOVED</c> surfaced to the caller as an error, because a command is only allowed to follow one.
         /// <para>
-        /// The shipped core marks the bridge for reconnect and lets its reader loop act on it. This drops
+        /// The v3 core marked the bridge for reconnect and let its reader loop act on it. This drops
         /// the connection and re-queues the command, which then goes out on the replacement.
         /// </para>
         /// </remarks>
@@ -1593,15 +1590,15 @@ namespace StackExchange.Redis
         /// nothing except a reference to a type that is being deleted.
         /// </para>
         /// <para>
-        /// <b>It then read the version off the SHIPPED core's <c>ServerEndPoint</c>, which is the coupling
-        /// section 9 exists to remove</b> - the third of the three, after routing and roles. The version
+        /// <b>It then read the version off the <c>ServerEndPoint</c> the v3 core maintained, which is the
+        /// coupling section 9 existed to remove</b> - the third of the three, after routing and roles. The version
         /// this core needs is one its own handshake already learns, from <c>HELLO</c> where the connection
         /// speaks RESP3 and from <c>INFO SERVER</c> where it does not, and recorded per endpoint before the
         /// connection is handed back.
         /// </para>
         /// <para>
         /// The selector remains the fallback for the same reason it does in routing: while nothing has been
-        /// dialled there is nothing to have observed, and answering from the other core's knowledge is
+        /// dialled there is nothing to have observed, and answering from what reconfiguration learned is
         /// better than answering from the configured default. It goes with the rest of the fallbacks in
         /// phase D.
         /// </para>
@@ -1651,9 +1648,9 @@ namespace StackExchange.Redis
         /// </para>
         /// <para>
         /// Endpoints are tried in order and the first success wins, because a configured endpoint that is
-        /// down is ordinary. Failure is reported rather than thrown: the shipped core's own verdict still
-        /// decides whether the multiplexer connected, and disagreeing with it here would be a second
-        /// opinion nobody asked for.
+        /// down is ordinary. Failure is reported rather than thrown: the multiplexer's own connect
+        /// verdict decides whether it connected - as the v3 core's did - and disagreeing with it here would
+        /// be a second opinion nobody asked for.
         /// </para>
         /// </remarks>
         internal async Task<bool> ConnectEagerlyAsync(
@@ -1709,9 +1706,9 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <b>Reported so the client's own diagnostics are not wrong about it.</b> A backlog exists to be
         /// visible - it is what <c>GetCounters</c>, <c>GetStatus</c> and the timeout exception text are for
-        /// - and under the engine flag the commands queue HERE while the shipped bridge, which is what
-        /// those surfaces read, queues nothing and reports zero. A client waiting on a backlog it is told
-        /// is empty is the diagnostic failing exactly when it is needed.
+        /// - and the commands queue HERE. While both cores existed those surfaces read the v3 bridge, which
+        /// queued nothing and reported zero; a client waiting on a backlog it is told is empty is the
+        /// diagnostic failing exactly when it is needed.
         /// </remarks>
         internal int BacklogCount(EndPoint endpoint, ConnectionType connectionType)
         {
@@ -1723,10 +1720,10 @@ namespace StackExchange.Redis
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
         /// <b>Asked by <c>IServer.IsConnected</c>, which is a question about the client and not about a
-        /// bridge.</b> Under the engine flag the connection carrying this endpoint's commands is this core's,
-        /// so a surface that reported only the shipped bridge answered "not connected" about a server it was
-        /// actively talking to - which <c>ClusterTopologyUnitTests</c> reads immediately after a successful
-        /// ping.
+        /// bridge.</b> The connection carrying this endpoint's commands is this core's; while both cores
+        /// existed, a surface that reported only the v3 bridge answered "not connected" about a server it
+        /// was actively talking to - which <c>ClusterTopologyUnitTests</c> reads immediately after a
+        /// successful ping.
         /// </remarks>
         internal bool IsConnected(EndPoint endpoint)
             => endpoint is not null
@@ -1739,7 +1736,7 @@ namespace StackExchange.Redis
         /// <returns>True or false where the map has a view of that slot; null where it has none.</returns>
         /// <remarks>
         /// <b>The question <c>Subscription.RemoveIncorrectRouting</c> asks, answered from the map that is
-        /// actually current.</b> It asked the shipped selector, whose map is only refreshed by a full
+        /// actually current.</b> It asked the selector, whose map is only refreshed by a full
         /// reconfiguration - so in the window after a slot migration it still named the OLD owner, called
         /// the subscription on the NEW owner incorrect, and unsubscribed it. This core's map is corrected
         /// by the very <c>-MOVED</c> that announced the migration (see <see cref="OnSlotMoved"/>), so it has
@@ -1752,7 +1749,7 @@ namespace StackExchange.Redis
         /// </para>
         /// <para>
         /// A replica of the slot counts as serving it, since a replica-routed subscription is legitimately
-        /// placed there - which is the shipped check's "suitable" rather than "correct" as well.
+        /// placed there - which is the selector check's "suitable" rather than "correct" as well.
         /// </para>
         /// </remarks>
         internal bool? CanServe(EndPoint endpoint, in RedisChannel channel)
@@ -1774,8 +1771,8 @@ namespace StackExchange.Redis
         /// <summary>Whether this core holds any live ordinary connection at all.</summary>
         /// <remarks>
         /// The question a reconfiguration asks before refreshing the topology: this core can only re-read a
-        /// deployment over a connection it has, and under the flag alone it dials lazily - so a deployment
-        /// nobody has sent a command to has nothing open here, and the shipped sweep is what answers.
+        /// deployment over a connection it has, and it dials lazily - so a deployment nobody has sent a
+        /// command to may have nothing open here, and then the reconfiguration's own pass is what answers.
         /// </remarks>
         internal bool HasAnyInteractiveConnection
         {
@@ -1843,9 +1840,9 @@ namespace StackExchange.Redis
         /// <returns>Whether there was anything to replace.</returns>
         /// <remarks>
         /// <b>The point of a handoff is to stop using a connection before the server closes it</b>, and
-        /// under the engine flag the connection in question is this core's - so a handoff that recycled
-        /// only the shipped bridges replaced the sockets nobody was using and left the ones carrying
-        /// commands to be cut mid-flight, which is the whole failure mode the feature exists to avoid.
+        /// the connection in question is this core's - while both cores existed, a handoff that recycled
+        /// only the v3 bridges replaced the sockets nobody was using and left the ones carrying commands
+        /// to be cut mid-flight, which is the whole failure mode the feature exists to avoid.
         /// <para>
         /// Reconnecting immediately rather than lazily: the endpoint is still the one we route to until
         /// the topology says otherwise, so the next command should find a connection rather than pay the
@@ -1903,12 +1900,12 @@ namespace StackExchange.Redis
         /// <summary>How many operations this core has run against an endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
-        /// <b>Asked by <c>ServerEndPoint.OperationCount</c>, which sums bridges and so reported zero for a
+        /// <b>Asked by <c>ServerEndPoint.OperationCount</c>, which summed bridges and so reported zero for a
         /// server this core had been talking to all along.</b> It is the quick path beside
         /// <see cref="AddCounters"/>, and it needed the same treatment for the same reason - most visibly
         /// where a test asks whether the heartbeat is doing anything at all
-        /// (<c>ConfigTests.TestManualHeartbeat</c>), since under the flag the only thing keeping a
-        /// connection alive is this core's own keep-alive.
+        /// (<c>ConfigTests.TestManualHeartbeat</c>), since the only thing keeping a connection alive is
+        /// this core's own keep-alive.
         /// </remarks>
         internal long OperationCount(EndPoint endpoint)
         {
@@ -1920,7 +1917,7 @@ namespace StackExchange.Redis
             return count;
         }
 
-        /// <summary>Fold an endpoint's counters into a snapshot the shipped surface reports.</summary>
+        /// <summary>Fold an endpoint's counters into a snapshot the public surface reports.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <param name="connectionType">Which of its connections to count.</param>
         /// <param name="counters">The snapshot to add to.</param>
@@ -1956,9 +1953,10 @@ namespace StackExchange.Redis
         /// <param name="libraryName">The name to report, suffixes included.</param>
         /// <remarks>
         /// <b>The other half of <c>ConnectionMultiplexer.AddLibraryNameSuffix</c>.</b> A suffix added after
-        /// connecting has to reach the connections that are already up, and that retro-fix goes through
-        /// <c>IServer.Execute</c> - which reaches whichever core <c>IServer</c> is on and no other. While
-        /// both cores exist one of them is always missed, so this is asked directly.
+        /// connecting has to reach the connections that are already up, and the v3 retro-fix went through
+        /// <c>IServer.Execute</c> - which reached whichever core <c>IServer</c> was on and no other. While
+        /// both cores existed one of them was always missed, so this is asked directly, and it also reaches
+        /// the subscription sockets <c>IServer</c> never sends on.
         /// <para>
         /// Fire-and-forget, and every failure swallowed: the name is a diagnostic, and a connection is not
         /// worth losing over one. The subscription connections are included because <c>CLIENT LIST</c> shows
@@ -1986,7 +1984,7 @@ namespace StackExchange.Redis
                 }
                 catch
                 {
-                    // best efforts, as the shipped retro-fix is; see the remarks
+                    // best efforts, as the v3 retro-fix was; see the remarks
                 }
             }
         }
@@ -2019,7 +2017,7 @@ namespace StackExchange.Redis
             if (result.RoleFromHello is { } isReplica) server.IsReplica = isReplica;
 
             // The SLOTS view first, and this ordering is load-bearing: SetClusterConfiguration below reads
-            // ServerEndPoint.ClusterTopology to decide which reply drives the shipped slot map, and falls
+            // ServerEndPoint.ClusterTopology to decide which reply drives the selector's slot map, and falls
             // back to the NODES view when there is none. A node that reports a slot as migrated in SLOTS
             // only - which ClusterTopologyUnitTests.SlotMapIsDrivenByTheSlotsView builds on purpose - then
             // has that migration overwritten by the staler reply.
@@ -2041,7 +2039,7 @@ namespace StackExchange.Redis
             // this node's own view of the cluster, which only it can give: see
             // RespHandshakeResult.ClusterNodes for why it arrives here as text. One call sets the
             // per-server view AND feeds UpdateClusterRange, ApplyClusterRoles and UpdateNodeRelations, so
-            // the shipped selector's slot map and the primary/replica genealogy come with it.
+            // the selector's slot map and the primary/replica genealogy come with it.
             if (result.ClusterNodes is { Length: > 0 } nodes)
             {
                 server.SetClusterConfiguration(new ClusterConfiguration(
@@ -2058,9 +2056,9 @@ namespace StackExchange.Redis
         /// <summary>What protocol this core's connection to an endpoint settled on, if it has one.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
-        /// Asked by <c>ServerEndPoint.Protocol</c>, which otherwise answers from the shipped bridge alone -
-        /// and under the engine flag that bridge may never have handshaken, so it reports nothing about a
-        /// server this core has been talking RESP3 to all along.
+        /// Asked by <c>ServerEndPoint.Protocol</c>, which in v3 answered from the bridge alone - and while
+        /// both cores existed that bridge might never have handshaken, so it reported nothing about a
+        /// server this core had been talking RESP3 to all along.
         /// </remarks>
         internal RedisProtocol? ObservedProtocol(EndPoint endpoint)
             => endpoint is not null && _protocols.TryGetValue(endpoint, out var protocol) ? protocol : null;
@@ -2089,12 +2087,12 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <b>Roles are discovered here and enforced there.</b> <c>RespEndpointExecutor</c> refuses a
         /// primary-only command against a replica by reading <c>ServerEndPoint.IsReplica</c>, and so does
-        /// the shipped selector - so a role learned from a <c>CLUSTER SLOTS</c> reply or a <c>-MOVED</c>
+        /// the selector - so a role learned from a <c>CLUSTER SLOTS</c> reply or a <c>-MOVED</c>
         /// that stays inside <see cref="RespTopology"/> leaves the flag stale, and a write to a just-promoted
         /// node is refused client-side rather than sent. Nothing corrects that: the refusal happens before
         /// any byte goes out, so there is no redirect to follow.
         /// <para>
-        /// This is what <c>ApplyClusterRoles</c> did from the shipped <c>CLUSTER NODES</c> sweep, moved to
+        /// This is what <c>ApplyClusterRoles</c> did from the v3 <c>CLUSTER NODES</c> sweep, moved to
         /// where this core already reads the same facts. Never creates a server - a node nobody holds has no
         /// flag to be stale - and leaves a sentinel alone, which answers neither role.
         /// </para>
@@ -2115,7 +2113,7 @@ namespace StackExchange.Redis
         /// <para>
         /// <b>Discovery happens at handshake, and a reconfiguration has no handshake.</b> The slot map and
         /// the roles are read once per deployment - deliberately, since they describe the deployment and not
-        /// the socket - so every later change to them arrived via the shipped <c>INFO replication</c> and
+        /// the socket - so every later change to them arrived via the v3 <c>INFO replication</c> and
         /// <c>CLUSTER NODES</c> sweep that <c>AutoConfigureAsync</c> ran. Take that away and a core with
         /// live connections has no way at all to learn that the deployment moved underneath it: nothing
         /// re-asks, because nothing reconnects.
@@ -2212,9 +2210,9 @@ namespace StackExchange.Redis
             RespDatabaseContext Context(RespEndpointExecutor executor)
                 => new(new RespContext(_multiplexer.RawConfig.CommandMap, database: -1).WithExecutor(executor));
 
-            // this core's map AND the shipped one, for the same reason the handshake does both: the shipped
-            // selector still answers for IServer and for the fallback write path, and a refresh that
-            // corrected only one of them would leave the two disagreeing about where a slot lives
+            // this core's map AND the selector's, for the same reason the handshake does both: the selector
+            // still answers for IServer and for the routing fallbacks, and a refresh that corrected only one
+            // of them would leave the two disagreeing about where a slot lives
             void ApplySlots(EndPoint answeredBy, ClusterSlotsResult slots)
             {
                 foreach (var assignment in slots.Assignments)
@@ -2274,12 +2272,12 @@ namespace StackExchange.Redis
         /// <param name="failureType">Which of its connections to drop.</param>
         /// <returns>Whether anything was dropped.</returns>
         /// <remarks>
-        /// <b>The simulation has to reach BOTH cores or it tests nothing.</b> It was reaching only the
-        /// shipped bridge, so under the engine flag the socket actually carrying commands stayed up and
-        /// every test built on "now break the connection" quietly observed a command succeeding - which is
-        /// why that family reads as "no exception was thrown" rather than as a wrong exception.
+        /// <b>The simulation has to reach the socket carrying commands or it tests nothing.</b> While both
+        /// cores existed it reached only the v3 bridge, so the socket actually carrying commands stayed up
+        /// and every test built on "now break the connection" quietly observed a command succeeding - which
+        /// is why that family reads as "no exception was thrown" rather than as a wrong exception.
         /// <para>
-        /// Coarser than the shipped simulation, which breaks one direction of the socket to reproduce a
+        /// Coarser than the v3 simulation, which broke one direction of the socket to reproduce a
         /// specific fault. This drops the connection outright, which is the part those tests are actually
         /// about: the connection went away, and what happens next.
         /// </para>
@@ -2347,7 +2345,7 @@ namespace StackExchange.Redis
 
         /// <summary>Periodic upkeep, driven by the multiplexer's heartbeat.</summary>
         /// <remarks>
-        /// The shipped core pulses every <c>ServerEndPoint</c> from the same timer; this is the equivalent
+        /// The v3 core pulsed every <c>ServerEndPoint</c> from the same timer; this is the equivalent
         /// for the endpoints this core owns. Timeouts are the work that has to happen on a clock rather
         /// than in response to something: nothing arrives to tell you a reply is late.
         /// </remarks>

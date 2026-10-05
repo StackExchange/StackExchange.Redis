@@ -29,9 +29,9 @@ public partial class ConnectionMultiplexer
         /// </summary>
         /// <remarks>
         /// Deliberately distinct from <see cref="IsConnectedTo"/>, which asks whether the subscription is
-        /// <i>live</i> there and answers out of the bridge. Retiring a server this names would abandon the
-        /// subscription either way: one whose server is momentarily disconnected still intends to live on
-        /// it, and a core that drives no bridge has no connected state here to report at all.
+        /// <i>live</i> there and answers out of the connection. Retiring a server this names would abandon
+        /// the subscription either way: one whose server is momentarily disconnected still intends to live
+        /// on it, and a socket that has not been dialled yet has no connected state to report at all.
         /// </remarks>
         internal abstract bool NamesEndpoint(EndPoint endpoint);
 
@@ -79,9 +79,9 @@ public partial class ConnectionMultiplexer
             Flags = flags;
         }
 
-        /// <summary>The server a subscription command for this channel goes to - the route the shipped message took.</summary>
+        /// <summary>The server a subscription command for this channel goes to - the route the v3 message took.</summary>
         /// <remarks>
-        /// <b>The same three inputs <c>Select(Message)</c> read</b>, now without building a message to read them
+        /// <b>The same three inputs v3's <c>Select(Message)</c> read</b>, without building a message to read them
         /// from: the subscribe/unsubscribe command for the channel's kind, a slot only for a KEY-ROUTED channel (a
         /// plain channel is not slot-bound, and hashing it anyway would pin it to an arbitrary node), and this
         /// subscription's primary/replica preference.
@@ -99,20 +99,20 @@ public partial class ConnectionMultiplexer
             => throw new ArgumentException(
                 $"Unable to determine pub/sub operation for '{action}' against '{options}'");
 
-        /// <summary>Whether the NEW core's connection is the one holding this subscription.</summary>
+        /// <summary>Whether the core's connection is the one holding this subscription.</summary>
         /// <remarks>
         /// <para>
-        /// <b>Whether a subscription is live is a question about ONE connection</b>, and while both cores
-        /// exist the two give different answers: <see cref="ServerEndPoint.IsSubscriberConnected"/>
-        /// describes the shipped bridge's socket, <c>RespNewCore.IsSubscriptionConnected</c> this core's.
-        /// Ask the wrong one and a subscription reads as live because a connection it is not on happens to
-        /// be up - after which nothing ever re-subscribes it, which is a silently dead subscription rather
-        /// than an error.
+        /// <b>Whether a subscription is live is a question about ONE connection</b>, and while v3's core
+        /// coexisted with this one the two gave different answers: <see cref="ServerEndPoint.IsSubscriberConnected"/>
+        /// described the bridge's socket, <c>RespNewCore.IsSubscriptionConnected</c> the core's. Ask the
+        /// wrong one and a subscription reads as live because a connection it is not on happens to be up -
+        /// after which nothing ever re-subscribes it, which is a silently dead subscription rather than an
+        /// error.
         /// </para>
         /// <para>
-        /// Recorded by whoever actually sent the (un)subscribe, in both directions: a subscription can
-        /// MOVE between cores - a protocol downgrade re-homes one - so the shipped processor clears it
-        /// again when a bridge establishes one. See design notes D2.5.
+        /// Recorded by whoever actually sent the (un)subscribe. It was cleared again when a v3 bridge
+        /// established one, because a subscription could MOVE between cores; nothing clears it now, so it
+        /// reads as "something has subscribed this". See design notes D2.5.
         /// </para>
         /// </remarks>
         private volatile bool _onNewCore;
@@ -135,7 +135,7 @@ public partial class ConnectionMultiplexer
         /// </remarks>
         private volatile ServerEndPoint? _sendingVia;
 
-        /// <summary>Record that the shipped path holds this subscription.</summary>
+        /// <summary>Record that the v3 path held this subscription; nothing calls it now.</summary>
         /// <remarks><inheritdoc cref="_onNewCore" path="/remarks/para[2]"/></remarks>
         internal void OnSubscribedViaBridge() => _onNewCore = false;
 
@@ -144,8 +144,8 @@ public partial class ConnectionMultiplexer
         /// <remarks>
         /// <b>The missing half of <see cref="OnSubscribedViaBridge"/>.</b> Ownership is otherwise only
         /// ever set by <see cref="SendViaNewCore"/>, which is right for every production path - but a
-        /// caller that places a subscription on this core's connection ITSELF then has no way to say so,
-        /// and the registry's answer to "is this live?" goes to the wrong core. The heartbeat reads that
+        /// caller that places a subscription on the core's connection ITSELF then has no way to say so,
+        /// and the registry's answer to "is this live?" asks the wrong question. The heartbeat reads that
         /// as a subscription nobody is connected for and helpfully subscribes it again, which the server
         /// reports as two subscribers to one channel.
         /// </remarks>
@@ -167,7 +167,7 @@ public partial class ConnectionMultiplexer
                 : server.IsSubscriberConnected;
         }
 
-        /// <summary>Whether this subscription is held by the new core on one endpoint.</summary>
+        /// <summary>Whether this subscription is held by the core on one endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
         /// Asked by the subscriber's <c>Ping</c>, which needs the connection that holds THIS CLIENT's
@@ -178,7 +178,7 @@ public partial class ConnectionMultiplexer
         internal bool IsHeldByNewCoreOn(EndPoint endpoint)
             => _onNewCore && (NamesEndpoint(endpoint) || Equals(_sendingVia?.EndPoint, endpoint));
 
-        /// <summary>Whether this core owns this subscription, wherever it is or is not currently placed.</summary>
+        /// <summary>Whether the core owns this subscription, wherever it is or is not currently placed.</summary>
         /// <remarks>
         /// <b>Ownership, not placement, and the difference is the whole use.</b>
         /// <see cref="IsHeldByNewCoreOn"/> asks where a subscription IS, which is what the subscriber's
@@ -234,14 +234,15 @@ public partial class ConnectionMultiplexer
 
         /// <summary>Whether some connection is already carrying this subscription.</summary>
         /// <remarks>
-        /// Asked so that ownership can be STICKY: a subscription already placed keeps going to the core
-        /// that placed it, because the two cores' unsubscribes do not reach each other's sockets.
+        /// Asked so that ownership can be STICKY: a subscription already placed kept going to the core that
+        /// placed it while there were two, because the two cores' unsubscribes did not reach each other's
+        /// sockets.
         /// </remarks>
         private protected abstract bool IsPlaced { get; }
 
         /// <summary>
-        /// Send one (un)subscribe through the new core and record what it did; null when this core is not
-        /// taking it, in which case the caller falls through to the shipped path.
+        /// Send one (un)subscribe through the core and record what it did; a completed task when there is
+        /// no server to send it to.
         /// </summary>
         /// <param name="subscriber">Owns the multiplexer, and so the core.</param>
         /// <param name="channel">The channel or pattern.</param>
@@ -250,24 +251,25 @@ public partial class ConnectionMultiplexer
         /// <param name="server">The server to send to.</param>
         /// <remarks>
         /// <para>
-        /// <b>Two declines, each one a lesson from a failing test rather than caution.</b> A channel
-        /// that can be REDIRECTED stays on the shipped path: a sharded or key-routed subscribe sent to the
-        /// wrong node answers <c>-MOVED</c> and then lives on the node it was redirected TO, so the server
-        /// chosen before the send is the wrong answer and recording it is worse than not knowing
-        /// (<c>ClusterShardedTests.SubscribeToWrongServerAsync</c>). And no server selected is "ours,
-        /// nothing to do yet" rather than "not ours": falling through there let the BRIDGE subscribe and
-        /// then this core subscribe as well, which the server reports as two subscribers and which
-        /// delivers everything twice (<c>Resp3HandshakeTests</c>, as <c>PUBLISH => :2</c>).
+        /// <b>There used to be declines, each one a lesson from a failing test rather than caution</b>,
+        /// handing the command back to the v3 path. A channel that can be REDIRECTED was one: a sharded or
+        /// key-routed subscribe sent to the wrong node answers <c>-MOVED</c> and then lives on the node it
+        /// was redirected TO, so the server chosen before the send is the wrong answer - which is why the
+        /// settle below re-resolves a sharded subscribe rather than recording the server it aimed at
+        /// (<c>ClusterShardedTests.SubscribeToWrongServerAsync</c>). No server selected is "nothing to do
+        /// yet" rather than "not ours": falling through there let the BRIDGE subscribe and then this core
+        /// subscribe as well, which the server reports as two subscribers and which delivers everything
+        /// twice (<c>Resp3HandshakeTests</c>, as <c>PUBLISH => :2</c>).
         /// </para>
         /// <para>
-        /// There was a third - a subscription that would SHARE the ordinary connection - and what it
-        /// cost to retire it is written out at the point it used to sit.
+        /// A third - a subscription that would SHARE the ordinary connection - and what it cost to retire
+        /// it is written out at the point it used to sit.
         /// </para>
         /// <para>
-        /// <b>The bookkeeping is the caller's rather than inferred from the reply.</b> The shipped path
-        /// reads the server off the connection its confirmation arrived on; here the server was chosen
-        /// before the send, so for the channels this accepts it is simply known - which is also why the
-        /// redirect case had to be declined rather than guessed at.
+        /// <b>The bookkeeping is the caller's rather than inferred from the reply.</b> The v3 path read the
+        /// server off the connection its confirmation arrived on; here the server was chosen before the
+        /// send, so it is simply known - except where a redirect can move it, which is re-resolved on
+        /// settling rather than guessed at.
         /// </para>
         /// </remarks>
         internal Task SendViaNewCore(
@@ -285,20 +287,18 @@ public partial class ConnectionMultiplexer
 
             if (server is null) return Task.CompletedTask;
 
-            // OWNERSHIP IS STICKY, and that is the difference between this working and leaking a
-            // subscription. Whether this core would take a FRESH subscription changes over time - it
-            // depends on the negotiated protocol, which is unknown at first - so deciding per call let one
-            // core subscribe and the other unsubscribe, and the channel stayed subscribed on a connection
-            // nobody was tracking. `Issue1101Tests.ExecuteWithUnsubscribe*` reads that as
+            // OWNERSHIP WAS STICKY while there were two cores, and that was the difference between this
+            // working and leaking a subscription. Whether this core would take a FRESH subscription changed
+            // over time - it depended on the negotiated protocol, which is unknown at first - so deciding
+            // per call let one core subscribe and the other unsubscribe, and the channel stayed subscribed
+            // on a connection nobody was tracking. `Issue1101Tests.ExecuteWithUnsubscribe*` reads that as
             // "expected 0 subscribers, found 1" after unsubscribing everything.
             //
-            // So: something already holding this subscription decides where the next command for it goes,
-            // in either direction. Only a subscription nothing holds is free to be placed, and then it is
-            // placed where the socket choice cannot change underneath it.
+            // With one core every path below sends here; the placed/in-flight test survives from then.
             // copied out of the `in` parameter, because the local function below cannot capture one
             var target = channel;
 
-            // in-flight counts as placed, or two calls race each other onto different cores
+            // in-flight counted as placed, or two calls raced each other onto different cores
             if (IsPlaced || _sendingVia is not null) return Send();
 
             // No decline for a subscription that would SHARE the ordinary connection: this core takes every
@@ -323,7 +323,7 @@ public partial class ConnectionMultiplexer
                 // Recorded at SEND time for a subscribe, not on completion, and that is the
                 // fire-and-forget case taken seriously rather than an optimisation: a caller who declines
                 // the outcome then immediately pings the subscriber to flush it, and the ping has to find
-                // this core holding the subscription or it goes out on the other one's socket and flushes
+                // the subscription held or it goes out on a socket that does not carry it and flushes
                 // nothing - PubSubTests.TestBasicPubSubFireAndForget. Where it turns out wrong, the next
                 // EnsureSubscriptions corrects it, because IsLiveOn then answers false.
                 if (action == SubscriptionAction.Subscribe)
@@ -422,8 +422,9 @@ public partial class ConnectionMultiplexer
         /// <param name="flags">The caller's flags.</param>
         /// <remarks>
         /// <b>Fire-and-forget must not block here, and that is a deadlock rather than a slowdown.</b>
-        /// <c>EnsureSubscriptions</c> is called fire-and-forget from inside a <c>SetResultCore</c> - the
-        /// shipped code says so where it calls it - so a synchronous wait on that path waits for a reply
+        /// <c>EnsureSubscriptions</c> is called fire-and-forget from paths that are themselves reading
+        /// replies - in v3 a <c>SetResultCore</c>, which said so where it called it; now a connection's
+        /// establish path - so a synchronous wait on that path waits for a reply
         /// that cannot be read until the reader it is blocking returns. The send has already been issued
         /// by the time this is reached.
         /// </remarks>
@@ -617,8 +618,8 @@ public partial class ConnectionMultiplexer
             {
                 // if we consider replicas, there can be multiple valid target servers; we can't ask
                 // "is this the correct server?", but we can ask "is it suitable?", based on the slot
-                // the other core's map where it has one, since the MOVED that announced a migration corrects
-                // it directly and the shipped selector's waits for a reconfiguration; see RespNewCore.CanServe
+                // the core's own map where it has one, since the MOVED that announced a migration corrects
+                // it directly and the selector's waits for a reconfiguration; see RespNewCore.CanServe
                 var canServe = subscriber.multiplexer.NewCoreIfCreated?.CanServe(current.EndPoint, channel) is { } byCore
                     ? byCore
                     : subscriber.multiplexer.ServerSelectionStrategy.CanServeSlot(_currentServer, channel);

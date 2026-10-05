@@ -58,16 +58,16 @@ namespace StackExchange.Redis
             return false;
         }
 
-        /// <summary>Whether the new core holds any of this client's subscriptions on an endpoint.</summary>
+        /// <summary>Whether the core holds any of this client's subscriptions on an endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
         /// <b>What the subscriber's <c>Ping</c> needs to know, and the reason it is a different question
-        /// from "does that core have a subscription socket".</b> A server that will not answer <c>PING</c>
+        /// from "does the core have a subscription socket".</b> A server that will not answer <c>PING</c>
         /// in subscriber mode is pinged by unsubscribing from something nobody subscribed to - which is a
         /// round trip only where a subscription already exists, because an unsubscribe against a
         /// connection holding none has nothing to confirm. So the ping has to go on the connection that
-        /// holds THIS CLIENT's subscriptions, and <c>Subscription</c> is the only thing that knows which
-        /// core that is. See design notes D2.5.
+        /// holds THIS CLIENT's subscriptions, and <c>Subscription</c> is the only thing that knows where
+        /// those are. See design notes D2.5.
         /// </remarks>
         internal bool NewCoreHoldsSubscriptionsOn(EndPoint endpoint)
         {
@@ -79,7 +79,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-        /// <summary>Whether this core owns any subscription at all, placed or not.</summary>
+        /// <summary>Whether the core owns any subscription at all, placed or not.</summary>
         /// <remarks><inheritdoc cref="Subscription.IsOwnedByNewCore" path="/remarks"/></remarks>
         internal bool NewCoreOwnsAnySubscription()
         {
@@ -98,9 +98,8 @@ namespace StackExchange.Redis
         /// and nothing else notices, which is the gap this closes. Liveness for this core is
         /// "is there a connected subscription socket for that endpoint", which a REPLACEMENT socket
         /// satisfies while carrying nothing; the re-ensure that should follow a reconnect then reads
-        /// "already subscribed" and does nothing. The shipped core gets this for free, because its
-        /// liveness is the bridge connection's own state and a disconnect clears the records on the way
-        /// through.
+        /// "already subscribed" and does nothing. The v3 core got this for free, because its liveness was
+        /// the bridge connection's own state and a disconnect cleared the records on the way through.
         /// </remarks>
         internal void ForgetSubscriptionsOn(EndPoint endpoint)
         {
@@ -143,10 +142,11 @@ namespace StackExchange.Redis
         /// Whether any subscription names this endpoint, whether or not it is connected there.
         /// </summary>
         /// <remarks>
-        /// <b>The registry is asked, not the bridge.</b> A bridge's subscription counter only knows about
-        /// subscriptions that bridge itself carried, so a core that does not drive one leaves it at zero -
-        /// and a server whose only work is a subscription would then look idle, and be retired out from
-        /// under the deliveries it is still receiving. What is true for both cores is the registry entry.
+        /// <b>The registry is asked, not a connection.</b> v3 asked the bridge, whose subscription counter
+        /// only knew about subscriptions that bridge itself carried - so while a second core carried them
+        /// it stayed at zero, and a server whose only work was a subscription looked idle and was retired
+        /// out from under the deliveries it was still receiving. The registry entry is true whoever
+        /// carries the subscription.
         /// </remarks>
         internal bool AnySubscriptionNames(EndPoint endpoint)
         {
@@ -247,29 +247,28 @@ namespace StackExchange.Redis
             => IdentifyViaNewCore(channel, flags);
 
         /// <summary>
-        /// Ask a server about a channel and answer which server that was; null when this core is not
-        /// carrying it.
+        /// Ask a server about a channel and answer which server that was.
         /// </summary>
         /// <param name="channel">The channel to ask about.</param>
         /// <param name="flags">The caller's flags.</param>
         /// <remarks>
         /// <para>
-        /// <b>The answer is the server that was ASKED, which is the same thing the shipped path reports
-        /// by a longer route.</b> <c>ResultProcessor.ConnectionIdentity</c> ignores the payload entirely
-        /// and reads the endpoint off the connection the reply arrived on - and that connection is
+        /// <b>The answer is the server that was ASKED, which is the same thing the v3 path reported by a
+        /// longer route.</b> Its <c>ResultProcessor.ConnectionIdentity</c> ignored the payload entirely
+        /// and read the endpoint off the connection the reply arrived on - and that connection was
         /// whichever one routing chose. Here the choice is made before the send, so it is already known;
         /// the round trip is what makes it an observation rather than a guess, and it still happens.
         /// </para>
         /// <para>
         /// <b>Safe to answer from the pre-chosen server because <c>PUBSUB NUMSUB</c> cannot be
         /// redirected</b>, being keyless and node-local - which is exactly what made the SUBSCRIBE case
-        /// hard and this one easy. A sharded channel does not change that: the shipped path asks
+        /// hard and this one easy. A sharded channel does not change that: the v3 path asked
         /// <c>NUMSUB</c> regardless of the channel's kind, so this does too.
         /// </para>
         /// </remarks>
         private Task<EndPoint?> IdentifyViaNewCore(in RedisChannel channel, CommandFlags flags)
         {
-            // routed as the shipped PUBSUB NUMSUB was: a slot only for a KEY-ROUTED channel - a plain channel is
+            // routed as the v3 PUBSUB NUMSUB was: a slot only for a KEY-ROUTED channel - a plain channel is
             // not slot-bound, so it goes to any node, which is what ClusterTests.ClusterPubSub expects to see vary
             var strategy = multiplexer.ServerSelectionStrategy;
             var slot = channel.IsKeyRouted && strategy.ServerType is ServerType.Cluster or ServerType.Twemproxy
@@ -322,7 +321,7 @@ namespace StackExchange.Redis
         /// arrive.
         /// </para>
         /// <para>
-        /// <b>And only when this core holds subscriptions there</b>, not merely when it has a subscription
+        /// <b>And only when the core holds subscriptions there</b>, not merely when it has a subscription
         /// socket: the fallback probe for a server that will not answer <c>PING</c> in subscriber mode is
         /// an unsubscribe from something nobody subscribed to, which has nothing to confirm on a
         /// connection holding none. See <c>ConnectionMultiplexer.NewCoreHoldsSubscriptionsOn</c>.
@@ -331,7 +330,7 @@ namespace StackExchange.Redis
         private Task<TimeSpan> PingViaNewCore(CommandFlags flags)
         {
             // PING where the server answers it on a subscriber connection, else the unsubscribe-from-nothing
-            // probe - the choice CreatePingMessage made, and routed as that message was: no key, so no slot
+            // probe - the choice v3's CreatePingMessage made, and routed as that message was: no key, so no slot
             var command = PingOnSubscriber(flags) ? RedisCommand.PING : RedisCommand.UNSUBSCRIBE;
             if (multiplexer.ServerSelectionStrategy.Select(ServerSelectionStrategy.NoSlot, command, flags, allowDisconnected: false) is not { } server)
             {
@@ -340,9 +339,10 @@ namespace StackExchange.Redis
             }
             if (!multiplexer.NewCoreHoldsSubscriptionsOn(server.EndPoint))
             {
-                // No subscriptions here, so no subscriber connection to flush - and handing back null sent the
-                // ping down the shipped path, which built a bridge (and dialled it) just to answer. The round
-                // trip that remains meaningful is the one on this core's own connection to that server.
+                // No subscriptions here, so no subscriber connection to flush - and while there were two
+                // cores, handing back null sent the ping down the v3 path, which built a bridge (and dialled
+                // it) just to answer. The round trip that remains meaningful is the one on the ordinary
+                // connection to that server.
                 var direct = new RespContext(multiplexer.RawConfig.CommandMap, database: -1)
                     .WithExecutor(multiplexer.NewCore.ServerExecutor(server.EndPoint));
                 return Measured(new RespDatabaseContext(direct).PingMeasureAsync(flags));
@@ -393,19 +393,19 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>This subscriber's context, when the other core is the one sending.</summary>
+        /// <summary>This subscriber's context for publishing.</summary>
         /// <remarks>
-        /// <b>Publishing is the one pub/sub member that is simply a command</b>, so it is the one that can
-        /// move before the rest of the surface does. It routes itself: <c>PubSub.PublishAsync</c> asks the
+        /// <b>Publishing is the one pub/sub member that is simply a command</b>, so it was the one that could
+        /// move before the rest of the surface did. It routes itself: <c>PubSub.PublishAsync</c> asks the
         /// executor to resolve the channel, which prefers the server this client already holds a
-        /// subscription on - the same rule the shipped path expresses by passing
-        /// <c>GetSubscribedServer</c> as the server, and the stronger one for <c>SPUBLISH</c>, where the
-        /// slot decides and a subscription elsewhere cannot override it.
+        /// subscription on - the same rule the v3 path expressed by passing <c>GetSubscribedServer</c> as
+        /// the server, and the stronger one for <c>SPUBLISH</c>, where the slot decides and a subscription
+        /// elsewhere cannot override it.
         /// <para>
-        /// Worth moving on volume alone: an inventory of everything still travelling as a <c>Message</c>
-        /// under the engine flag came to 22,542 across the suite, and <b>15,820 of them were this member</b>
-        /// - sixty-nine per cent, and the easiest sixty-nine per cent, because subscribing is the part that
-        /// registers a handler and outlives the call.
+        /// Worth moving first on volume alone: an inventory of everything still travelling as a
+        /// <c>Message</c> under the engine flag came to 22,542 across the suite, and <b>15,820 of them were
+        /// this member</b> - sixty-nine per cent, and the easiest sixty-nine per cent, because subscribing
+        /// is the part that registers a handler and outlives the call.
         /// </para>
         /// </remarks>
         private RespDatabaseContext PubSubContext
@@ -486,12 +486,12 @@ namespace StackExchange.Redis
             {
                 if (serverEndPoint.IsSubscriberConnected)
                 {
-                    // On the core that owns this subscription, and that is not a refinement under the
-                    // engine flag - it is the difference between working and poisoning a connection. The
-                    // shipped send below resolves to the INTERACTIVE bridge once there is no subscription
-                    // bridge, so under RESP2 it would put the connection carrying ordinary commands into
-                    // subscriber mode. Same shape either way: try the simple resubscribe, which follows
-                    // any -MOVED, and fall back to a full reconfigure if it faults.
+                    // Through SendViaNewCore, which chooses the subscription socket, and that is not a
+                    // refinement - it is the difference between working and poisoning a connection. The v3
+                    // send resolved to the INTERACTIVE bridge once there was no subscription bridge, so
+                    // under RESP2 it put the connection carrying ordinary commands into subscriber mode.
+                    // Same shape as v3 otherwise: try the simple resubscribe, which follows any -MOVED, and
+                    // fall back to a full reconfigure if it faults.
                     _ = sub.SendViaNewCore(this, channel, SubscriptionAction.Subscribe, CommandFlags.None, serverEndPoint)
                         .ContinueWith(
                             t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),

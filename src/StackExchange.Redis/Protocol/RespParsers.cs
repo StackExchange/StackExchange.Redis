@@ -266,7 +266,7 @@ internal static partial class RespParsers
 
     private static readonly Regex Sha1Hex = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    /// <summary>Whether a script argument is really a SHA1 in hex - the shipped rule for "send it by hash".</summary>
+    /// <summary>Whether a script argument is really a SHA1 in hex - the v3 rule for "send it by hash".</summary>
     internal static bool IsSHA1(string? script) => script is not null && script.Length == SHA1Length && Sha1Hex.IsMatch(script);
 
     /// <summary>The length of a raw SHA1 digest.</summary>

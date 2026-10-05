@@ -93,8 +93,8 @@ namespace StackExchange.Redis
                     // with no command of ours to match it to, matching alone left this client believing
                     // it was still subscribed on a node that had stopped delivering.
                     //
-                    // The shipped core does this in `PhysicalConnection.Read`, which under the engine
-                    // flag never sees it: deliveries arrive on THIS core's connection. Same decision,
+                    // The v3 core did this in `PhysicalConnection.Read`, which while both cores existed
+                    // never saw it: deliveries arrived on THIS core's connection. Same decision,
                     // same routine, same reasoning - including resubscribing via the OUTGOING node,
                     // which is the only one we know has the new route.
                     return RespOutOfBandResult.Handled;

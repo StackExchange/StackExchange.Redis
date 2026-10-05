@@ -31,7 +31,7 @@ namespace StackExchange.Redis
     {
         /// <summary>The <c>CLUSTER SLOTS</c> view, when this connection was the one that asked.</summary>
         /// <remarks>
-        /// <b>Carried out so the shipped <c>ServerEndPoint.ClusterTopology</c> can be set from it</b>, which
+        /// <b>Carried out so <c>ServerEndPoint.ClusterTopology</c> can be set from it</b>, which
         /// is what identity-merging and topology ageing read. Null on every connection that skipped the ask -
         /// which is most of them, since the map describes the deployment and one answer serves all.
         /// </remarks>
@@ -42,7 +42,7 @@ namespace StackExchange.Redis
         /// <b>Carried out raw rather than parsed here, because parsing it needs a <c>ServerEndPoint</c></b> -
         /// <c>ClusterConfiguration</c> is built against the server that answered and the selection strategy -
         /// and the handshake deliberately has neither. <c>RespNewCore.Publish</c> is where this core's
-        /// findings are written onto the shipped server object, so that is where it is turned into one.
+        /// findings are written onto the modelled server object, so that is where it is turned into one.
         /// </remarks>
         internal string? ClusterNodes { get; } = clusterNodes;
 
@@ -161,7 +161,7 @@ namespace StackExchange.Redis
             CancellationToken cancellationToken = default,
             ServerEndPoint? server = null)
         {
-            // the shipped "Auto-configured (SOURCE) ..." events, by the same ids, each written where the fact
+            // v3's "Auto-configured (SOURCE) ..." events, by the same ids, each written where the fact
             // is learned and naming the command that taught it - which is what makes them worth reading
             var log = server?.Multiplexer.Logger;
             log?.LogInformationServerHandshake(new(server!));
@@ -169,7 +169,7 @@ namespace StackExchange.Redis
             // WHO AUTHENTICATES depends on whether AUTH is available at all. A command map that disables it
             // is not a map without credentials - a proxy can require them and refuse the command - and in
             // that case HELLO is the only thing that can authenticate the connection, so the credentials
-            // travel with it. The shipped handshake makes the same split, and says the same thing about
+            // travel with it. The v3 handshake made the same split, and said the same thing about
             // ordering: only the credential-carrying flavour of HELLO has to come first.
             var canAuthDirectly = context.Raw.CommandMap.IsAvailable(RedisCommand.AUTH);
             var helloCarriesCredentials = password is not null
@@ -195,8 +195,8 @@ namespace StackExchange.Redis
                 catch (RedisServerException ex)
                 {
                     // A REFUSED AUTH DOES NOT FAIL THE CONNECTION, and that is parity rather than
-                    // laxity. The shipped handshake writes AUTH fire-and-forget and cannot read the
-                    // reply at all, so it necessarily continues and records the suspicion
+                    // laxity. The v3 handshake wrote AUTH fire-and-forget and could not read the
+                    // reply at all, so it necessarily continued and recorded the suspicion
                     // (`ConnectionMultiplexer.SetAuthSuspect`); commands then fail individually, with
                     // the server's own words, which is a far better diagnostic than a connection that
                     // never exists.
@@ -215,8 +215,8 @@ namespace StackExchange.Redis
                     // AuthException set, while SecureTests.ConnectWithWrongPassword requires the first
                     // command to fail as a connection failure carrying that same auth text.
                     //
-                    // Shipped arrives there by a longer road - a bridge whose AUTH failed never reaches
-                    // ConnectedEstablished, so IsSelectable says no and the command is refused client-side
+                    // v3 arrived there by a longer road - a bridge whose AUTH failed never reached
+                    // ConnectedEstablished, so IsSelectable said no and the command was refused client-side
                     // by ExceptionFactory.UnableToConnect, which reads AuthException for its wording. This
                     // core's connection genuinely does establish, so the unselectability has to be said
                     // out loud. A later handshake that authenticates clears it, which is what lets a
@@ -228,7 +228,7 @@ namespace StackExchange.Redis
                     // a single-endpoint standalone is still chosen - so it bought nothing and risked
                     // leaving a deployment unroutable after a transient refusal.
                     //
-                    // What is actually missing is the COMMAND path: shipped converts a NOAUTH or WRONGPASS
+                    // What is actually missing is the COMMAND path: v3 converted a NOAUTH or WRONGPASS
                     // reply into auth suspicion plus a connection failure (ResultProcessor.SetAuthSuspect,
                     // with its own synthesised "NOAUTH Returned - connection has not yet authenticated"
                     // wording), and this core throws the server's error through untouched. That conversion
@@ -250,8 +250,8 @@ namespace StackExchange.Redis
             // whole handshake rather than being the ordinary decline every one of them is written for.
             // ON RESP2 AS WELL, which is not a wasted round trip: the reply carries the server's version,
             // its mode and its role, so asking is cheaper than the INFO sections that are the alternative
-            // source for all three - which is exactly why the shipped handshake sends a bare HELLO even
-            // when it has no intention of speaking RESP3. Skipping it here meant this core asked for none
+            // source for all three - which is exactly why the v3 handshake sent a bare HELLO even
+            // when it had no intention of speaking RESP3. Skipping it here meant this core asked for none
             // of that, and `HelloHandshakeTests` says so plainly: it asserts HELLO is issued for BOTH
             // protocols, with the protover that matches.
             if (helloAvailable && context.Raw.CommandMap.IsAvailable(RedisCommand.HELLO))
@@ -422,8 +422,8 @@ namespace StackExchange.Redis
             // ClusterTests.TestIdentity and InventKeyRoutesBackToTheServerThatInventedIt, both of which
             // ask a server about itself and got null from the one server that had not been asked.
             //
-            // The shipped core got this from AutoConfigureAsync on every connection, so asking here is
-            // parity rather than a new cost - and it is the last thing keeping that sweep alive.
+            // The v3 core got this from AutoConfigureAsync on every connection, so asking here is
+            // parity rather than a new cost - and it is what replaced that sweep.
             string? clusterNodes = null;
             if (serverType == ServerType.Cluster
                 && context.Raw.CommandMap.IsAvailable(RedisCommand.CLUSTER))
@@ -447,7 +447,7 @@ namespace StackExchange.Redis
             // a role. That is what makes a lazily-connecting core able to answer DemandReplica at all.
             //
             // ROLE rather than INFO REPLICATION: the same facts as a structured reply instead of a text
-            // section to scan, and it is what the shipped core parses too.
+            // section to scan, and it is what the v3 core parsed too.
             //
             // Asked only when it can change a decision. With one endpoint configured there is nothing to
             // prefer a replica OVER, so the round trip would be spent to learn something routing cannot
@@ -511,11 +511,11 @@ namespace StackExchange.Redis
                 await IdentifyAsync(context, clientName, libraryName, libraryVersion).ConfigureAwait(false);
 
                 // ...and what the server calls this connection, which is the only handle on it from
-                // outside: CLIENT LIST names it, CLIENT KILL takes it. The shipped handshake asks in the
+                // outside: CLIENT LIST names it, CLIENT KILL takes it. The v3 handshake asked in the
                 // same breath as the rest of the CLIENT work.
                 try
                 {
-                    // one plain round trip, so it doubles as the latency sample the shipped handshake took
+                    // one plain round trip, so it doubles as the latency sample the v3 handshake took
                     // from its tracer - `MultiGroupMultiplexer` ranks groups by it, and without a sample
                     // every server reads as "not yet measured"
                     var started = DateTime.UtcNow;
@@ -549,23 +549,22 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <para>
         /// <b>Discovery, moved one step at a time.</b> These are facts the client holds about a SERVER -
-        /// how many databases it has, whether its replicas refuse writes - and today they are read by the
-        /// shipped bridge's handshake, which is one of the reasons that bridge must connect at all. Reading
-        /// them here is part of removing that reason; see design notes D2.8.
+        /// how many databases it has, whether its replicas refuse writes - and they used to be read by the
+        /// v3 bridge's handshake, which was one of the reasons that bridge had to connect at all. Reading
+        /// them here is what removed that reason; see design notes D2.8.
         /// </para>
         /// <para>
         /// <b>Only when nothing has described this server yet</b>, which <c>Databases == 0</c> says exactly:
         /// it is the "not discovered" value <c>ServerEndPoint</c> starts at, and both settings are
-        /// discovered together on the shipped path. Asking unconditionally would put two round trips on
-        /// every connection this core dials, which on a large cluster is precisely the cost the lazy design
-        /// exists to avoid - and they are server-wide answers, so asking twice learns nothing. The effect is
-        /// self-adjusting: while the other core still discovers, this does nothing; when it stops, this is
-        /// what knows.
+        /// discovered together here. Asking unconditionally would put two round trips on every connection
+        /// this core dials, which on a large cluster is precisely the cost the lazy design exists to avoid
+        /// - and they are server-wide answers, so asking twice learns nothing. While the v3 core still
+        /// discovered, this did nothing; it is now the only thing that knows.
         /// </para>
         /// <para>
         /// <b>Not subject to admin mode</b>, because it runs during the dial on a context over the bare
         /// connection, and the admin check lives on the endpoint executor. That is the same exemption the
-        /// shipped handshake gets from <c>SetInternalCall</c>, and for the same reason: <c>CONFIG</c> is
+        /// v3 handshake got from <c>SetInternalCall</c>, and for the same reason: <c>CONFIG</c> is
         /// restricted because a CALLER should not reconfigure a server by accident, not because the client
         /// may not know how many databases it has.
         /// </para>
@@ -587,9 +586,9 @@ namespace StackExchange.Redis
             if (!context.Raw.CommandMap.IsAvailable(RedisCommand.CONFIG)) return;
 
             // the server's idle timeout sets how often the heartbeat must write to keep the connection, when
-            // the caller did not choose - the shipped auto-configure reads it, and this did not, so under the
-            // engine flag `WriteEverySeconds` silently kept its 60s default against a server that might drop
-            // idle connections sooner. Same rule as the shipped processor: 20s spare above a minute, else 3/4.
+            // the caller did not choose - the v3 auto-configure read it, and this did not, so on this core
+            // `WriteEverySeconds` silently kept its 60s default against a server that might drop idle
+            // connections sooner. Same rule as the v3 processor: 20s spare above a minute, else 3/4.
             if (server.Multiplexer.RawConfig.KeepAlive <= 0
                 && await ReadSettingAsync(context, "timeout").ConfigureAwait(false) is { } timeout)
             {
@@ -599,7 +598,7 @@ namespace StackExchange.Redis
             if (server.Databases > 0) return;
 
             // the spelling follows the server's own vocabulary, which changed: "replica" from 5.0, "slave"
-            // before it. The shipped handshake picks by the same predicate.
+            // before it. The v3 handshake picked by the same predicate.
             var readOnlyKey = server.GetFeatures().ReplicaCommands ? "replica-read-only" : "slave-read-only";
 
             if (await ReadSettingAsync(context, "databases").ConfigureAwait(false) is { } databases)
@@ -620,8 +619,8 @@ namespace StackExchange.Redis
         /// <returns>Whether the setting is one the client models.</returns>
         /// <remarks>
         /// <b>The one copy of the rules</b>, shared by discovery at connect and by <c>IServer.ConfigSet</c>'s
-        /// read-back, which is how a setting a caller changes stays true on the model - the job the shipped
-        /// auto-configure processor did for both. Logged under the shipped auto-configure ids.
+        /// read-back, which is how a setting a caller changes stays true on the model - the job the v3
+        /// auto-configure processor did for both. Logged under the v3 auto-configure ids.
         /// </remarks>
         internal static bool ApplySetting(ServerEndPoint server, string name, string value)
         {
@@ -630,7 +629,7 @@ namespace StackExchange.Redis
             {
                 case "timeout":
                     // how often the heartbeat must write to keep an idle connection: 20s spare above a
-                    // minute, three quarters below it - the shipped rule. Zero means the server never drops.
+                    // minute, three quarters below it - the v3 rule. Zero means the server never drops.
                     // Applied whenever the server says, even over a configured KeepAlive: that setting only
                     // decides whether discovery ASKS, and a server that will drop idle connections sooner
                     // than the configured interval wins - as it always did (HeartbeatTests measures it).
@@ -697,19 +696,18 @@ namespace StackExchange.Redis
         /// <para>
         /// <b>The opt-in is the whole feature's gate.</b> Everything downstream - the relaxation windows,
         /// the retention and replay, the migration handling - hangs off a connection that has asked, and a
-        /// connection that has not asked is simply never told. So with this core carrying the commands and
-        /// only the shipped bridge opting in, the client was being warned on a connection it no longer
-        /// used. That is the largest single cluster of failures in the coupled move: six test classes.
+        /// connection that has not asked is simply never told. So while this core carried the commands and
+        /// only the v3 bridge opted in, the client was being warned on a connection it no longer used. That is the largest single cluster of failures in the coupled move: six test classes.
         /// </para>
         /// <para>
-        /// <b>RESP3 only, because the notifications are pushes</b> - which is why the shipped core asks the
+        /// <b>RESP3 only, because the notifications are pushes</b> - which is why the v3 core asked the
         /// same question of the same three facts (interactive, RESP3, feature enabled, <c>CLIENT</c>
         /// available), and why that decision is borrowed rather than restated here.
         /// </para>
         /// <para>
         /// The reply is read, and that is the point of asking from here rather than writing it blind: "the
-        /// server agreed" and "the server declined, and here is why" are different facts that the shipped
-        /// core can only distinguish through a result processor. A refusal is ordinary - plenty of
+        /// server agreed" and "the server declined, and here is why" are different facts that the v3 core
+        /// could only distinguish through a result processor. A refusal is ordinary - plenty of
         /// deployments do not offer this - so it is recorded, never thrown.
         /// </para>
         /// </remarks>
@@ -719,7 +717,7 @@ namespace StackExchange.Redis
             // A GROUP MEMBER NEVER ASKS, and has to be told that it is not asking: a caller who wrote
             // maintNotifications=Enabled asked for a guarantee and is not getting it, and the alternative
             // to saying so is a deployment where the feature is silently absent with nothing to explain
-            // it. The shipped handshake warns in exactly this position.
+            // it. The v3 handshake warned in exactly this position.
             if (server.Multiplexer.IsGroupMember
                 && server.Multiplexer.RawConfig.MaintenanceNotifications != MaintenanceNotificationMode.Disabled)
             {
@@ -729,7 +727,7 @@ namespace StackExchange.Redis
 
             // ON THE INTENT, not on what was negotiated, which looks like the worse choice and is not.
             // This core knows the protocol by now and could skip a request it can see is pointless - but
-            // the shipped core asks whenever RESP3 was requested and settles a downgrade afterwards, and
+            // the v3 core asked whenever RESP3 was requested and settled a downgrade afterwards, and
             // that sequence is observable on the wire and asserted:
             // `MaintenanceOptInClientTests.AutoIsOffWhenTheServerDowngradesToResp2` requires the server to
             // have SEEN the opt-in and the client to disbelieve the acceptance anyway. Diverging here
@@ -749,7 +747,7 @@ namespace StackExchange.Redis
 
             try
             {
-                // a bare ON when no preference is configured, which is what the shipped core sends too
+                // a bare ON when no preference is configured, which is what the v3 core sent too
                 if (endpointType.IsNull)
                 {
                     await context.SendAsync(
@@ -779,10 +777,10 @@ namespace StackExchange.Redis
         /// <param name="server">The server whose answer is being settled.</param>
         /// <param name="protocol">What this connection negotiated.</param>
         /// <remarks>
-        /// <b>The shipped core records a connection failure here; this one throws, and that is the same
+        /// <b>The v3 core recorded a connection failure here; this one throws, and that is the same
         /// thing in this core's terms.</b> A handshake that throws fails the connect, which is exactly
         /// what "Enabled means required: no notifications, no connection" asks for - and the decision
-        /// itself, including the wording, is the shipped one rather than a second copy.
+        /// itself, including the wording, is <c>ServerEndPoint</c>'s rather than a second copy.
         /// </remarks>
         private static void Reconcile(ServerEndPoint server, RedisProtocol protocol)
         {
@@ -813,7 +811,7 @@ namespace StackExchange.Redis
         /// </para>
         /// <para>
         /// Re-read per handshake, like the tie-breaker and unlike the product: a failover changes this,
-        /// and a new connection is a reasonable moment to find out. The shipped handshake asks the same
+        /// and a new connection is a reasonable moment to find out. The v3 handshake asked the same
         /// two <c>INFO</c> sections for the same reason.
         /// </para>
         /// </remarks>
@@ -862,7 +860,7 @@ namespace StackExchange.Redis
         /// <para>
         /// <b>Harmless by construction</b>, which is why it is acceptable at all: the value is set only if
         /// absent (<c>NX</c>) and expires in a millisecond (<c>PX 1</c>), and the key is the client's own
-        /// unique id. The shipped probe is the same shape, and uses the same value as its own marker so
+        /// unique id. The v3 probe was the same shape, and used the same value as its own marker so
         /// that anyone watching with <c>MONITOR</c> can see what it was for.
         /// </para>
         /// <para>
@@ -911,7 +909,7 @@ namespace StackExchange.Redis
         /// <summary>Reads <c>role</c>, and the primary it names when this is a replica.</summary>
         /// <remarks>
         /// <c>master_host</c> and <c>master_port</c> arrive in the same section as <c>role</c>, which is
-        /// why they are read together rather than asked for separately - the shipped processor notes the
+        /// why they are read together rather than asked for separately - the v3 processor noted the
         /// same adjacency.
         /// </remarks>
         private sealed class ReplicationHandler : IRespHandler<ReplicationReply>
@@ -980,7 +978,7 @@ namespace StackExchange.Redis
         /// it would make this client ignore the next change.
         /// </para>
         /// <para>
-        /// Same three conditions the shipped handshake applies - not a cluster (where slots decide and
+        /// Same three conditions the v3 handshake applied - not a cluster (where slots decide and
         /// there is nothing to elect), a tie-breaker actually configured, and <c>GET</c> available - and
         /// the same tolerance: a deployment that restricts <c>GET</c> loses the tie-breaker benefit
         /// rather than the connection.
@@ -998,7 +996,7 @@ namespace StackExchange.Redis
                 // DATABASE ZERO explicitly, because a tie-breaker is a key and the context asking may
                 // name no database at all - a server context carries -1, and `GET` without a database
                 // is refused before it reaches a socket ("A target database is required for GET"). The
-                // shipped message hard-codes 0 for the same reason.
+                // v3 message hard-coded 0 for the same reason.
                 var elected = await context.WithDatabase(0).Strings.GetAsync(key).ConfigureAwait(false);
                 server.TieBreakerResult = elected.IsNull ? null : (string?)elected;
             }
@@ -1018,12 +1016,12 @@ namespace StackExchange.Redis
         /// never learns the product applies the wrong rule to a real deployment.
         /// </para>
         /// <para>
-        /// <b>From <c>INFO</c>, not from <c>HELLO</c>, which is deliberate and matches the shipped core.</b>
+        /// <b>From <c>INFO</c>, not from <c>HELLO</c>, which is deliberate and matches the v3 core.</b>
         /// <c>HELLO</c> does carry a <c>server</c> field, and reading it would be free - but it names the
         /// product without its product version, and the version is half of what is being established. The
         /// variant is decided across the whole reply rather than per line, because both
-        /// <c>redis_version</c> and <c>valkey_version</c> can be present in either order; that is the
-        /// shipped processor's rule and this reuses its field table rather than growing a second copy.
+        /// <c>redis_version</c> and <c>valkey_version</c> can be present in either order; that was the
+        /// v3 processor's rule and this reuses its field table rather than growing a second copy.
         /// </para>
         /// <para>
         /// Asked once per server: an empty recorded product version means nobody has described this one
@@ -1080,7 +1078,7 @@ namespace StackExchange.Redis
 
         /// <summary>Reads the product and its version out of an <c>INFO server</c> reply.</summary>
         /// <remarks>
-        /// Decodes the section and walks it a line at a time, which is what the shipped processor does with
+        /// Decodes the section and walks it a line at a time, which is what the v3 processor did with
         /// the same reply - and the point is to go through <c>AutoConfigureInfoFieldMetadata</c> so the
         /// field names have one spelling rather than two.
         /// </remarks>
@@ -1140,7 +1138,7 @@ namespace StackExchange.Redis
                             break;
                         case AutoConfigureInfoField.RedisMode:
                         case AutoConfigureInfoField.ServerMode:
-                            // both spellings, which is the shipped processor's rule and not a guess
+                            // both spellings, which was the v3 processor's rule and not a guess
                             if (ServerTypeMetadata.TryParse(value, out var mode)) serverType = mode;
                             break;
                     }
@@ -1251,8 +1249,8 @@ namespace StackExchange.Redis
         /// <para>
         /// <b>It has to be THIS connection, which is the whole reason this exists here.</b> Invalidations
         /// arrive as out-of-band pushes on the connection that asked for them, and in per-key mode the
-        /// server registers what <i>that connection</i> read. Negotiating tracking on the shipped core's
-        /// socket while the reads happen on this one gave a cache that was filled and never invalidated:
+        /// server registers what <i>that connection</i> read. Negotiating tracking on the v3 core's
+        /// socket while the reads happened on this one gave a cache that was filled and never invalidated:
         /// broadcast mode survived it, because the server pushes regardless of who read, and per-key did
         /// not - `RespInProcTrackingTests.PerKeyTrackingAsksForNoBroadcastAndStillInvalidates` is the
         /// difference made visible.
@@ -1361,7 +1359,7 @@ namespace StackExchange.Redis
         /// - <c>SanityChecks.ValueTupleNotReferenced</c> enforces it, and caught this - because the
         /// down-level targets would take a package dependency for it.
         /// </remarks>
-        /// <summary>Reads a <c>CLUSTER SLOTS</c> reply into the shipped model.</summary>
+        /// <summary>Reads a <c>CLUSTER SLOTS</c> reply into the client's model.</summary>
         /// <remarks>
         /// <b>A four-line handler over <see cref="ClusterSlotsResult.Parse"/>, which is the point.</b> This
         /// used to be its own ~90-line parser producing a reduced <c>SlotRange</c> - from, to, primary, and
@@ -1372,7 +1370,7 @@ namespace StackExchange.Redis
         /// a reply named differently than we hold it, and <c>ServerEndPoint.ClusterTopology</c> - which
         /// identity-merging and topology ageing are both built on - could not be populated from this core at
         /// all. And it was a second implementation of the placeholder rules, which is how
-        /// <c>"?":6379</c> got into the slot map in the first place (9y): the shipped parser had always
+        /// <c>"?":6379</c> got into the slot map in the first place (9y): the v3 parser had always
         /// refused those, in <c>ResolveEndPoint</c>, by the same test.
         /// </para>
         /// </remarks>
@@ -1415,8 +1413,8 @@ namespace StackExchange.Redis
                     }
                     else if (isRole && reader.IsScalar)
                     {
-                        // FREE, and it removes the need to ask: the shipped handshake tracks exactly this
-                        // as RoleKnownFromHello, and skips its SET probe when it is set. #2968 is about
+                        // FREE, and it removes the need to ask: the v3 handshake tracked exactly this
+                        // as RoleKnownFromHello, and skipped its SET probe when it was set. #2968 is about
                         // that probe needing a key, which ACLs can forbid - so not having to send it is
                         // the point rather than a saving.
                         if (reader.TryGetSpan(out var span) && KnownRoleMetadata.TryParse(span, out var replica))

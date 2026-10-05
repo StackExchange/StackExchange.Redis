@@ -11,10 +11,10 @@ public sealed partial class ClusterSlotsResult
     /// <summary>Read a <c>CLUSTER SLOTS</c> reply, or <c>null</c> if it was not one.</summary>
     /// <param name="reader">Positioned on the reply.</param>
     /// <remarks>
-    /// <b>The shape check and the parse, so that both cores can share one parser.</b> Everything below this
-    /// point is pure <c>RespReader</c> work - the only thing the processor above adds is a
-    /// <c>PhysicalConnection</c> to record the side effect against, which the other core does not have and
-    /// does not want. Exposing this is what keeps the richer facts the shipped parser reads - node ids, the
+    /// <b>The shape check and the parse, so that there is one parser.</b> Everything here is pure
+    /// <c>RespReader</c> work - the only thing the v3 processor added was a <c>PhysicalConnection</c> to
+    /// record the side effect against, which this core does not have and does not want. Exposing this is
+    /// what keeps the richer facts the v3 parser read - node ids, the
     /// <c>ip</c>/<c>hostname</c> metadata pair, the three distinct unusable endpoint forms - from being
     /// approximated a second time somewhere else.
     /// </remarks>

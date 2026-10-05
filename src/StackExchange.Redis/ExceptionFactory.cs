@@ -241,7 +241,7 @@ namespace StackExchange.Redis
         /// <param name="message">The command that timed out.</param>
         /// <param name="server">The server it was sent to, when that is known.</param>
         /// <param name="lastConnectionFault">
-        /// What connecting last failed with, when the caller has it to hand. The shipped core reads it off
+        /// What connecting last failed with, when the caller has it to hand. The v3 core read it off
         /// the bridge; a core that has no bridge passes it directly, and the reading is what decides whether
         /// a backlog timeout is reported as a connection fault or as a timeout.
         /// </param>
@@ -482,10 +482,10 @@ namespace StackExchange.Redis
             {
                 // WHY, when nobody handed us a reason. The caller's failureMessage comes from the faulted
                 // per-endpoint tasks of a reconfiguration, so a connection dialled outside that wait -
-                // which is how the other core is started - leaves it empty, and "Error connecting right
-                // now" on its own tells a user nothing they can act on.
+                // which is how the core's eager connect is started - leaves it empty, and "Error connecting
+                // right now" on its own tells a user nothing they can act on.
                 //
-                // The servers themselves know: LastException spans both cores, so the protocol failure, the
+                // The servers themselves know: LastException spans both connections, so the protocol failure, the
                 // refused handshake or the socket error is already recorded against the endpoint it
                 // happened to. RespInProcTrackingTests asks for exactly this - a RESP2 connection with a
                 // client cache must explain that caching needs RESP3, and that explanation has to reach a

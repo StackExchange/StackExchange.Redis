@@ -290,7 +290,7 @@ public static partial class Diagnostics
     /// filter object and the four loose arguments - produce one wire form.
     /// </para>
     /// <para>
-    /// <b>Why it had to move at all.</b> The shipped overloads built a <c>Message</c>, so under the engine
+    /// <b>Why it had to move at all.</b> The v3 overloads built a <c>Message</c>, so under the engine
     /// flag they went down a pipeline with nothing on the other end while <c>CLIENT LIST</c> beside them -
     /// already ported - answered from this core. <c>ClientKillTests</c> reads that as a cancelled task:
     /// the command never reached a server, and killing a client is not something to report as a count.
@@ -643,7 +643,7 @@ public static partial class Diagnostics
     /// <remarks>
     /// <b>A prefix match, not an equality one</b>, because the server appends its own detail after
     /// "Background saving started" and has changed what it appends. The check itself is
-    /// <c>ResultProcessor.ScalarSays</c>, shared with the shipped processors so the two cores cannot
+    /// <c>RespParsers.ScalarSays</c>, once shared with the v3 processors so the two cores could not
     /// disagree about whether a server agreed.
     /// </remarks>
     internal sealed class SaveStartedHandler : IRespHandler<bool>

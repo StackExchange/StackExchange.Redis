@@ -33,7 +33,7 @@ internal static class MaintenanceNotificationReader
     /// at two elements and reads no seq at all, so being stricter than a client that demonstrably works
     /// would be the bug), a time that may be absent from a shape that should carry one or present on a
     /// shape that should not, <c>SMIGRATED</c>'s nested triplets, and explicit nulls. A second copy of
-    /// those rules for the other core would be a second thing to get subtly wrong.
+    /// those rules anywhere else would be a second thing to get subtly wrong.
     /// </remarks>
     internal static void ReadMaintenanceNotification(
         ConnectionMultiplexer muxer,

@@ -12,9 +12,9 @@ public readonly struct LatencyHistoryEntry
     /// <param name="reader">Positioned on the element.</param>
     /// <param name="parsed">The entry.</param>
     /// <remarks>
-    /// <b>Internal and static so both cores read it the same way.</b> The shipped processor below and the
-    /// context surface's handler are two callers of this one walk; a server's own account of its latency
-    /// should not depend on which core asked for it. Same argument as <c>Diagnostics.ParseInfo</c>.
+    /// <b>Internal and static so every caller reads it the same way.</b> It was shared by the v3 processor
+    /// and the context surface's handler while both cores existed; a server's own account of its latency
+    /// should not depend on who asked for it. Same argument as <c>Diagnostics.ParseInfo</c>.
     /// </remarks>
     internal static bool TryParseEntry(ref RespReader reader, out LatencyHistoryEntry parsed)
     {

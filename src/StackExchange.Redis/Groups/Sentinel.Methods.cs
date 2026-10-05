@@ -14,12 +14,12 @@ namespace StackExchange.Redis;
 /// <remarks>
 /// <para>
 /// <b>Internal, and on the raw context rather than a group</b>, because these exist to serve
-/// <c>IServer</c>'s existing sentinel methods and the multiplexer's own failover tracking - which until now
-/// went through <c>Message</c>, and so under the engine flag dialled a shipped bridge beside the new core's
+/// <c>IServer</c>'s existing sentinel methods and the multiplexer's own failover tracking - which used to
+/// go through <c>Message</c>, and so while both cores existed dialled a v3 bridge beside the new core's
 /// socket. Whether sentinel deserves a public group is a surface decision this port should not make.
 /// </para>
 /// <para>
-/// The replies are read as the shipped processors read them, including their leniencies: a missing
+/// The replies are read as the v3 processors read them, including their leniencies: a missing
 /// primary is <see langword="null"/> rather than an error, and entries without a usable address are skipped.
 /// </para>
 /// </remarks>
@@ -89,7 +89,7 @@ internal static class SentinelCommands
             flags,
             cancellationToken: cancellationToken);
 
-    /// <summary>A <c>host port</c> pair, or nothing - the shipped reading of GET-MASTER-ADDR-BY-NAME.</summary>
+    /// <summary>A <c>host port</c> pair, or nothing - the v3 reading of GET-MASTER-ADDR-BY-NAME.</summary>
     private sealed class PrimaryAddressHandler : IRespHandler<EndPoint?>
     {
         internal static readonly PrimaryAddressHandler Instance = new();
@@ -110,7 +110,7 @@ internal static class SentinelCommands
 
     /// <summary>
     /// The address of each entry in an array of field/value descriptions, read from its <c>ip</c> and
-    /// <c>port</c> fields; entries without both are skipped, as the shipped processors skip them.
+    /// <c>port</c> fields; entries without both are skipped, as the v3 processors skipped them.
     /// </summary>
     private sealed class AddressesHandler : IRespHandler<EndPoint[]>
     {
@@ -151,7 +151,7 @@ internal static class SentinelCommands
         }
     }
 
-    /// <summary>One description as field/value pairs, interleaved or mapped - the shipped pair reader.</summary>
+    /// <summary>One description as field/value pairs, interleaved or mapped - the v3 pair reader.</summary>
     internal sealed class PairsHandler : IRespHandler<KeyValuePair<string, string>[]>
     {
         internal static readonly PairsHandler Instance = new();

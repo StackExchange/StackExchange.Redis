@@ -27,22 +27,22 @@ internal partial class TransitionalDatabase
 {
     /// <summary>Whether the cursor form of a scan can actually be used here.</summary>
     /// <remarks>
-    /// <b>Both halves, as the shipped surface asks them.</b> The scan command can be disabled in the
-    /// command map, and a server old enough predates <c>SCAN</c> entirely - and in either case the shipped
-    /// path does not fail, it falls back: with no cursor and no pattern it reads the whole collection as a
-    /// single page, and otherwise refuses with a clear error. That fallback is real behaviour the suite
+    /// <b>Both halves, as the v3 surface asked them.</b> The scan command can be disabled in the
+    /// command map, and a server old enough predates <c>SCAN</c> entirely - and in either case the v3
+    /// path did not fail, it fell back: with no cursor and no pattern it read the whole collection as a
+    /// single page, and otherwise refused with a clear error. That fallback is real behaviour the suite
     /// asserts, not a nicety.
     /// <para>
-    /// Delegated to the fallback rather than rebuilt, because the shipped implementation already knows
-    /// every branch of it and a second copy would be a second thing to keep in step. The new surface owns
-    /// the cursor path; the old one owns the answer when there is no cursor path.
+    /// It was delegated to the v3 implementation while there was one, because that knew every branch of
+    /// it; with the old database gone it is emulated here (see <c>Emulate</c>). The new surface owns the
+    /// cursor path; the emulation owns the answer when there is no cursor path.
     /// </para>
     /// </remarks>
     /// <remarks>
     /// <b>Two conditions that look alike and are not.</b> A batch or transaction cannot scan at all - the
     /// cursor for each page comes from the previous page's reply, which has not been sent - and that is a
     /// refusal, not something a fallback can serve. The command merely being unavailable IS serviceable,
-    /// by the shipped path. Folding them together made a batch delegate instead of refusing, which the
+    /// by the emulation. Folding them together made a batch delegate instead of refusing, which the
     /// batch test caught immediately.
     /// </remarks>
     private bool Scannable(RedisCommand command, in RedisKey key, CommandFlags flags)

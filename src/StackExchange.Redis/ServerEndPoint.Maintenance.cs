@@ -65,10 +65,10 @@ internal sealed partial class ServerEndPoint
         && MaintenanceMode != MaintenanceNotificationMode.Disabled
         && Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT);
 
-    /// <summary>Whether the other core should ask this server for maintenance notifications.</summary>
+    /// <summary>Whether the core's handshake should ask this server for maintenance notifications.</summary>
     /// <param name="negotiateResp3">Whether that connection settled on RESP3.</param>
     /// <remarks>
-    /// The same decision, asked by the core that now owns the connection: the notifications arrive as
+    /// The same decision, asked by the handshake that owns the connection: the notifications arrive as
     /// pushes, so RESP3 is not a preference here but a precondition, and a disabled feature or a
     /// command map without <c>CLIENT</c> means there is nothing to ask for. Interactive is implied -
     /// this is only ever called from an interactive handshake.
@@ -140,9 +140,8 @@ internal sealed partial class ServerEndPoint
     /// <returns>The message to fail the connection with, or null if there is nothing wrong.</returns>
     /// <remarks>
     /// <para>
-    /// The decision rather than the consequence, so both cores can reach it and act in their own terms: the
-    /// shipped bridge records a connection failure, and the other core throws out of its handshake. Same
-    /// rule, same message, one copy.
+    /// The decision rather than the consequence, so the caller acts on it in its own terms - the handshake
+    /// throws, where the v3 bridge recorded a connection failure. Same rule, same message, one copy.
     /// </para>
     /// <para>
     /// <b><c>Enabled</c> means required: no notifications, no connection.</b> That includes a configuration
@@ -172,7 +171,7 @@ internal sealed partial class ServerEndPoint
         return $"Maintenance notifications are enabled, but unavailable: {reason}";
     }
 
-    /// <summary>Record that the other core has asked this server for notifications.</summary>
+    /// <summary>Record that the handshake has asked this server for notifications.</summary>
     /// <remarks>
     /// Separate from the accept/refuse report because it is a different fact: it distinguishes "we asked
     /// and were turned down" from "we never asked", which is the difference between the two RESP2 messages
@@ -297,8 +296,9 @@ internal sealed partial class ServerEndPoint
         // relaxed timeouts, and reported any timeout inside it as caused by maintenance that was long over.
         //
         // Note this declines to *open* a window rather than closing one. Relaxation belongs to the
-        // ServerEndPoint and is shared by both bridges, so a catch-up arriving on a reconnecting subscription
-        // bridge must not cancel a window that a live notification opened on the established interactive one.
+        // ServerEndPoint and is shared by all its connections, so a catch-up arriving on a reconnecting
+        // subscription socket must not cancel a window that a live notification opened on the established
+        // interactive one.
         if (isCatchUp)
         {
             Multiplexer.Trace($"{type}: catch-up copy of a finished event; no relaxation", ToString());
@@ -411,7 +411,7 @@ internal sealed partial class ServerEndPoint
     /// <param name="successor">Where it says to go instead, when it named somewhere.</param>
     /// <param name="current">
     /// The address the announcing connection actually reached. A parameter rather than a connection because
-    /// both cores announce now, and it is the only thing the handoff wanted from one.
+    /// it is the only thing the handoff wanted from one, and it keeps this free of any transport type.
     /// </param>
     internal void OnMovingAnnounced(TimeSpan? window, EndPoint? successor, IPAddress? current)
     {
@@ -508,9 +508,9 @@ internal sealed partial class ServerEndPoint
     /// because the server closes the socket at the end of it regardless - so anything not drained by then was
     /// going to fail either way, and draining strictly dominates.
     /// <para>
-    /// Both bridges, not just the one that was told. The measured blast radius is the *node*: four connections
-    /// to one proxy, differing only in handshake, all closed simultaneously, and only the ones that had opted in
-    /// were warned.
+    /// Every connection to the node, not just the one that was told. The measured blast radius is the *node*:
+    /// four connections to one proxy, differing only in handshake, all closed simultaneously, and only the ones
+    /// that had opted in were warned.
     /// </para>
     /// </remarks>
     private async Task DrainThenRecycleAsync(TimeSpan budget, string reason)
@@ -605,7 +605,7 @@ internal sealed partial class ServerEndPoint
 
     /// <summary>How long after a window closes a fault may still be attributed to it, at minimum.</summary>
     /// <remarks>
-    /// The bridge heartbeat raises timeouts on roughly a one-second cadence rather than at the deadline, so a
+    /// The heartbeat raises timeouts on roughly a one-second cadence rather than at the deadline, so a
     /// timeout can be reported up to about a second after the moment it actually expired.
     /// </remarks>
     private const int FaultAttributionFloorMilliseconds = 1000;

@@ -17,10 +17,10 @@ internal static partial class RespParsers
     /// <param name="expected">The text the server should have said.</param>
     /// <param name="startsWith">Whether a longer reply beginning with it counts.</param>
     /// <remarks>
-    /// <b>Internal and static so both cores check it the same way.</b> "Did the server agree?" is a
+    /// <b>Internal and static so every caller checks it the same way.</b> "Did the server agree?" is a
     /// yes/no about bytes, and two implementations of it would be two chances to accept something the
-    /// other rejects - which for <c>BGSAVE</c> is the difference between "started" and silence. The
-    /// shipped processor below and the context surface's handlers are callers of this one check.
+    /// other rejects - which for <c>BGSAVE</c> is the difference between "started" and silence. The v3
+    /// processor and the context surface's handlers shared this one check.
     /// </remarks>
     internal static bool ScalarSays(ref RespReader reader, in AsciiHash expected, bool startsWith)
     {
@@ -45,10 +45,10 @@ internal static partial class RespParsers
     /// <summary>Read a <c>ROLE</c> reply; null when the server described one this cannot model.</summary>
     /// <param name="reader">Positioned on the reply.</param>
     /// <remarks>
-    /// <b>Internal and static so both cores read it the same way</b>, as the latency and slow-log
-    /// walks are: the shipped processor below and the context surface's handler are two callers of
-    /// this one function. A null reply, a non-aggregate, an empty one or a non-scalar first element
-    /// all answer null, which is the shipped behaviour - <c>ROLE</c> is how a client asks what a
+    /// <b>Internal and static so every caller reads it the same way</b>, as the latency and slow-log
+    /// walks are: the v3 processor and the context surface's handler shared this one function. A null
+    /// reply, a non-aggregate, an empty one or a non-scalar first element all answer null, which is the
+    /// v3 behaviour - <c>ROLE</c> is how a client asks what a
     /// server IS, and inventing an answer for an unreadable reply would be worse than none.
     /// </remarks>
     internal static Role? ParseRole(ref RespReader reader)
@@ -91,8 +91,8 @@ internal static partial class RespParsers
     /// <b><paramref name="isMap"/> is a parameter rather than a protocol.</b> The classic path knows
     /// the connection and passes <c>protocol == Resp3</c>; a reply object has no connection, so it
     /// passes <c>Prefix == RespPrefix.Map</c> - which is the fact that actually decides the shape, and
-    /// is what <c>MultiStreamProcessor</c> has always tested. Keeping it a parameter means the
-    /// shipped path's behaviour is untouched.
+    /// is what <c>MultiStreamProcessor</c> always tested. Keeping it a parameter kept the v3 path's
+    /// behaviour untouched.
     /// </para>
     /// </remarks>
     internal static StreamEntry[] ParseStreamWithNameSkip(ref RespReader reader, bool isMap, bool allowJaggedFields)

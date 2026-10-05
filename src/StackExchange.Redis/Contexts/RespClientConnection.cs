@@ -104,14 +104,13 @@ namespace StackExchange.Redis
         /// <summary>The server this connection reaches; set once the endpoint is known.</summary>
         /// <remarks>
         /// <para>
-        /// Borrowed from the old core rather than reinvented: <see cref="ServerEndPoint"/> already holds
-        /// the script-cache belief and flushes it when a server's identity changes underneath, which is
-        /// exactly the behaviour a preamble gate wants and is not worth a second implementation of while
-        /// both cores exist.
+        /// Borrowed from the client's model rather than reinvented: <see cref="ServerEndPoint"/> already
+        /// holds the script-cache belief and flushes it when a server's identity changes underneath, which
+        /// is exactly the behaviour a preamble gate wants and is not worth a second implementation of.
         /// </para>
         /// <para>
-        /// <b>Held WEAKLY, which is a leak fix rather than a nicety, and the shipped core does the same
-        /// thing for the same reason.</b> A connection runs a read loop for as long as it is open, so the
+        /// <b>Held WEAKLY, which is a leak fix rather than a nicety, and the v3 core did the same thing
+        /// for the same reason.</b> A connection runs a read loop for as long as it is open, so the
         /// loop's pending read keeps the connection reachable - and a <see cref="ServerEndPoint"/> holds
         /// its multiplexer, so a strong reference here let an open socket keep the whole multiplexer
         /// alive. A caller who abandons a multiplexer without disposing it then never gets it collected;
@@ -156,7 +155,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// Without this a claim outlives what it describes: a discarded <c>HashImport</c> field-set stays
         /// "prepared here" for the life of the connection, so the set grows with every field-set a long-lived
-        /// connection ever used - the shipped connection drops it as its <c>DISCARD</c> is written.
+        /// connection ever used - the v3 connection dropped it as its <c>DISCARD</c> was written.
         /// </remarks>
         internal void ReleaseClaim(long id)
         {
@@ -172,7 +171,7 @@ namespace StackExchange.Redis
         /// A push frame always; an array only when this connection delivers them - and then only when it
         /// is not the reply to a <c>PING</c>, which on a subscriber connection is <i>also</i> an array.
         /// Without that exception the ping is consumed as a delivery and whoever sent it waits for ever,
-        /// which is precisely the failure the shipped reader's <c>IsArrayPong</c> exists to avoid.
+        /// which is precisely the failure the v3 reader's <c>IsArrayPong</c> existed to avoid.
         /// </para>
         /// </remarks>
         protected override bool IsOutOfBand(ReadOnlySpan<byte> frame)
@@ -218,7 +217,7 @@ namespace StackExchange.Redis
             // tracer of a reconfiguration, which then held the reconfiguration lock for its whole relaxed
             // timeout - so the topology was never re-read and a dead node was never retired.
             //
-            // The shipped core asks the same question the same way: `PhysicalConnection.Read` checks
+            // The v3 core asked the same question the same way: `PhysicalConnection.Read` checked
             // `PeekChannelMessage(RedisCommand.SUNSUBSCRIBE, ...)` - its own outstanding commands - before
             // treating a `sunsubscribe` as unsolicited.
             if (SubscriptionCommandOf(frame) is { } answers
@@ -353,8 +352,8 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <b>The client's own identity on the wire</b>, and the only way to point at this connection in
         /// <c>CLIENT LIST</c> or kill it by id. Reported through <c>IInternalConnectionMultiplexer.GetConnectionId</c>,
-        /// which until now could only answer about a bridge - so under the engine flag it answered null
-        /// about the connection actually carrying the commands (<c>ConfigTests.GetClients</c>).
+        /// which used to answer only about a bridge - so while both cores existed it answered null about
+        /// the connection actually carrying the commands (<c>ConfigTests.GetClients</c>).
         /// </remarks>
         internal long? ConnectionId { get; set; }
 
@@ -395,8 +394,8 @@ namespace StackExchange.Redis
             // slot went either, so there is nowhere to send this. Asked FIRST, ahead of the caller's
             // preferences, because it is a statement about the reply rather than about what to do with it
             // - a caller who said NoRedirect still wants to know the server could not name a target, and
-            // the topology refresh is worth requesting either way. That ordering matches the shipped core,
-            // which classifies this before it consults NoRedirect at all.
+            // the topology refresh is worth requesting either way. That ordering matches the v3 core,
+            // which classified this before it consulted NoRedirect at all.
             if (redirect.IsUnroutable)
             {
                 router(in redirect, operation);
@@ -417,7 +416,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            // ONCE IS ENOUGH. The shipped core sets NoRedirect when it re-issues, on the reasoning that a
+            // ONCE IS ENOUGH. The v3 core set NoRedirect when it re-issued, on the reasoning that a
             // second redirect for the same command is pathological rather than routine - a redirect loop
             // between two nodes that disagree, or a topology changing faster than commands complete. The
             // command fails with the server's own error, which says more than a hang would.
@@ -430,7 +429,7 @@ namespace StackExchange.Redis
         /// <summary>The error a caller sees when they declined a redirect the client could have followed.</summary>
         /// <param name="redirect">The redirect, whose target and slot are what the caller wants named.</param>
         /// <param name="operation">The command, so the message can name it.</param>
-        /// <remarks>Worded as the shipped core words it, because the two paths are read by the same people.</remarks>
+        /// <remarks>Worded as the v3 core worded it, because the people reading it are the same.</remarks>
         private string DescribeDeclined(in RespRedirect redirect, RespPayloadOperation operation)
             => includeDetailInExceptions
                 ? $"Key has MOVED to Endpoint {redirect.Target} and hashslot {redirect.Slot} but CommandFlags.NoRedirect was specified - redirect not followed for {operation.CommandAndKey}. "
@@ -441,7 +440,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// Quotes what the server wrote, because with no routable endpoint there is nothing else to name -
         /// and the same text under <c>IncludeDetailInExceptions=false</c> is withheld for the same reason
-        /// every other detail is, matching the shipped wording so the two paths read alike.
+        /// every other detail is, matching the v3 wording so the two read alike.
         /// </remarks>
         private string DescribeUnroutable(in RespRedirect redirect)
             => includeDetailInExceptions
