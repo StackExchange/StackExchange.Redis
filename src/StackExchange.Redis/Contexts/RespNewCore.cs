@@ -1735,11 +1735,18 @@ namespace StackExchange.Redis
         /// existed, a surface that reported only the v3 bridge answered "not connected" about a server it
         /// was actively talking to - which <c>ClusterTopologyUnitTests</c> reads immediately after a
         /// successful ping.
+        /// <para>
+        /// <b>The interactive connection only</b>, as v3's <c>ServerEndPoint.IsConnected</c> was. This also counted
+        /// the subscription socket, so in the moment after a drop where that one had reconnected first the
+        /// endpoint read as connected - selectable, and "recovered" to anyone waiting - while the connection
+        /// that carries commands was still down, and a command sent on that answer failed fast
+        /// (<c>ConnectFailTimeoutTests.NoticesConnectFail</c>, on the Windows job). The subscription leg has
+        /// its own question: <see cref="IsSubscriptionConnected"/>.
+        /// </para>
         /// </remarks>
         internal bool IsConnected(EndPoint endpoint)
             => endpoint is not null
-                && ((_endpoints.TryGetValue(endpoint, out var interactive) && interactive.IsConnectedNow)
-                    || (_subscriptions.TryGetValue(endpoint, out var subscription) && subscription.IsConnectedNow));
+                && _endpoints.TryGetValue(endpoint, out var interactive) && interactive.IsConnectedNow;
 
         /// <summary>Whether this core's slot map says an endpoint serves a key-routed channel's slot.</summary>
         /// <param name="endpoint">The endpoint the channel is subscribed on.</param>
