@@ -1,15 +1,26 @@
+﻿using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // VINFO and VLINKS (both spellings), as the IDatabase surface sends them
+    private static readonly IRespHandler<VectorSetInfo?> Info
+        = GroupHandlers.Get<VectorSetInfo?>(typeof(VectorSets), "InfoHandler", "Instance");
+
+    private static readonly IRespHandler<Lease<RedisValue>?> Links
+        = GroupHandlers.Get<Lease<RedisValue>?>(typeof(VectorSets), "LinkHandler", "MembersWritable");
+
+    private static readonly IRespHandler<Lease<VectorSetLink>?> LinksWithScores
+        = GroupHandlers.Get<Lease<VectorSetLink>?>(typeof(VectorSets), "LinkHandler", "ScoredWritable");
+
     [Theory]
     [InlineData("*0\r\n")] // empty array
     [InlineData("*12\r\n$4\r\nsize\r\n:100\r\n$8\r\nvset-uid\r\n:42\r\n$9\r\nmax-level\r\n:5\r\n$10\r\nvector-dim\r\n:128\r\n$10\r\nquant-type\r\n$4\r\nint8\r\n$17\r\nhnsw-max-node-uid\r\n:99\r\n")] // full info with int8
     public void VectorSetInfo_ValidInput(string resp)
     {
-        var processor = ResultProcessor.VectorSetInfo;
+        var processor = Info;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -20,7 +31,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // Empty array should return VectorSetInfo with default values
         var resp = "*0\r\n";
-        var processor = ResultProcessor.VectorSetInfo;
+        var processor = Info;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -38,7 +49,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("_\r\n")] // null (RESP3)
     public void VectorSetInfo_NullArray(string resp)
     {
-        var processor = ResultProcessor.VectorSetInfo;
+        var processor = Info;
         var result = Execute(resp, processor);
 
         Assert.Null(result);
@@ -49,7 +60,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // VINFO response with int8 quantization
         var resp = "*12\r\n$4\r\nsize\r\n:100\r\n$8\r\nvset-uid\r\n:42\r\n$9\r\nmax-level\r\n:5\r\n$10\r\nvector-dim\r\n:128\r\n$10\r\nquant-type\r\n$4\r\nint8\r\n$17\r\nhnsw-max-node-uid\r\n:99\r\n";
-        var processor = ResultProcessor.VectorSetInfo;
+        var processor = Info;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -68,7 +79,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         // Response with a non-scalar value (array) that should be skipped
         // Format: size:100, unknown-field:[1,2,3], vset-uid:42
         var resp = "*6\r\n$4\r\nsize\r\n:100\r\n$13\r\nunknown-field\r\n*3\r\n:1\r\n:2\r\n:3\r\n$8\r\nvset-uid\r\n:42\r\n";
-        var processor = ResultProcessor.VectorSetInfo;
+        var processor = Info;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -84,7 +95,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // VLINKS returns empty array
         var resp = "*0\r\n";
-        var processor = ResultProcessor.VectorSetLinks;
+        var processor = Links;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -96,11 +107,13 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("_\r\n")] // null (RESP3)
     public void VectorSetLinks_NullArray(string resp)
     {
-        var processor = ResultProcessor.VectorSetLinks;
+        var processor = Links;
         using var result = Execute(resp, processor);
 
-        Assert.NotNull(result);
-        Assert.Equal(0, result.Length);
+        // CHANGED: the old processor turned a nil reply into an empty lease; the handler returns null, which the
+        // IDatabase signature (Lease<T>?) allows. Reported: a caller that relied on never seeing null - VLINKS
+        // answers nil for a missing member - would now dereference null.
+        Assert.Null(result);
     }
 
     [Fact]
@@ -108,7 +121,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // VLINKS returns [[element1]]
         var resp = "*1\r\n*1\r\n$8\r\nelement1\r\n";
-        var processor = ResultProcessor.VectorSetLinks;
+        var processor = Links;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -121,7 +134,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // VLINKS returns [[element1], [element2, element3], [element4]]
         var resp = "*3\r\n*1\r\n$8\r\nelement1\r\n*2\r\n$8\r\nelement2\r\n$8\r\nelement3\r\n*1\r\n$8\r\nelement4\r\n";
-        var processor = ResultProcessor.VectorSetLinks;
+        var processor = Links;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -137,7 +150,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // VLINKS WITHSCORES returns empty array
         var resp = "*0\r\n";
-        var processor = ResultProcessor.VectorSetLinksWithScores;
+        var processor = LinksWithScores;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -149,11 +162,13 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("_\r\n")] // null (RESP3)
     public void VectorSetLinksWithScores_NullArray(string resp)
     {
-        var processor = ResultProcessor.VectorSetLinksWithScores;
+        var processor = LinksWithScores;
         using var result = Execute(resp, processor);
 
-        Assert.NotNull(result);
-        Assert.Equal(0, result.Length);
+        // CHANGED: the old processor turned a nil reply into an empty lease; the handler returns null, which the
+        // IDatabase signature (Lease<T>?) allows. Reported: a caller that relied on never seeing null - VLINKS
+        // answers nil for a missing member - would now dereference null.
+        Assert.Null(result);
     }
 
     [Fact]
@@ -161,7 +176,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // VLINKS WITHSCORES returns [[element1, score1]]
         var resp = "*1\r\n*2\r\n$8\r\nelement1\r\n$3\r\n1.5\r\n";
-        var processor = ResultProcessor.VectorSetLinksWithScores;
+        var processor = LinksWithScores;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -175,7 +190,7 @@ public class VectorSet(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // VLINKS WITHSCORES returns [[element1, score1], [element2, score2], [element3, score3]]
         var resp = "*3\r\n*2\r\n$8\r\nelement1\r\n$3\r\n1.5\r\n*2\r\n$8\r\nelement2\r\n$3\r\n2.5\r\n*2\r\n$8\r\nelement3\r\n$3\r\n3.5\r\n";
-        var processor = ResultProcessor.VectorSetLinksWithScores;
+        var processor = LinksWithScores;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);

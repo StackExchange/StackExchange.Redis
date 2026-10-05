@@ -1,9 +1,14 @@
+﻿using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class StreamAutoClaim(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // XAUTOCLAIM, as the command sends it
+    private static readonly IRespHandler<StreamAutoClaimResult> Handler
+        = GroupHandlers.Get<StreamAutoClaimResult>(typeof(global::StackExchange.Redis.Streams), "StreamTypesHandler", "AutoClaim");
+
     [Fact]
     public void WithEntries_ThreeElements_Success()
     {
@@ -23,7 +28,7 @@ public class StreamAutoClaim(ITestOutputHelper log) : ResultProcessorUnitTest(lo
                    "$5\r\nvalue\r\n" +
                    "*0\r\n";  // Empty deleted IDs array
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaim);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Single(result.ClaimedEntries);
@@ -45,7 +50,7 @@ public class StreamAutoClaim(ITestOutputHelper log) : ResultProcessorUnitTest(lo
                    "$5\r\nfield\r\n" +
                    "$5\r\nvalue\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaim);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Single(result.ClaimedEntries);
@@ -61,7 +66,7 @@ public class StreamAutoClaim(ITestOutputHelper log) : ResultProcessorUnitTest(lo
                    "*0\r\n" + // Empty entries array
                    "*0\r\n";  // Empty deleted IDs array
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaim);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Empty(result.ClaimedEntries);
@@ -77,7 +82,7 @@ public class StreamAutoClaim(ITestOutputHelper log) : ResultProcessorUnitTest(lo
                    "$-1\r\n" + // Null entries
                    "*0\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaim);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Empty(result.ClaimedEntries);
@@ -95,7 +100,7 @@ public class StreamAutoClaim(ITestOutputHelper log) : ResultProcessorUnitTest(lo
                    "$15\r\n1609338752495-0\r\n" +
                    "$15\r\n1609338752496-0\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaim);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Empty(result.ClaimedEntries);
@@ -109,7 +114,12 @@ public class StreamAutoClaim(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     {
         var resp = "$5\r\nhello\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamAutoClaim);
+        // CHANGED: the old processor rejected this shape ("Unexpected response"); the new handler maps a reply
+        // that is not the XAUTOCLAIM shape to StreamAutoClaimResult.Null. Pinned as found, and reported: it turns a protocol violation
+        // into a plausible-looking result instead of a fault.
+        var result = Execute(resp, Handler);
+
+        Assert.True(result.IsNull);
     }
 
     [Fact]
@@ -117,6 +127,11 @@ public class StreamAutoClaim(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     {
         var resp = "$-1\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamAutoClaim);
+        // CHANGED: the old processor rejected this shape ("Unexpected response"); the new handler maps a reply
+        // that is not the XAUTOCLAIM shape to StreamAutoClaimResult.Null. Pinned as found, and reported: it turns a protocol violation
+        // into a plausible-looking result instead of a fault.
+        var result = Execute(resp, Handler);
+
+        Assert.True(result.IsNull);
     }
 }

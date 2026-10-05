@@ -1,3 +1,4 @@
+﻿using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
@@ -10,7 +11,7 @@ public class ListMoveMultiple(ITestOutputHelper log) : ResultProcessorUnitTest(l
         // LMOVEM src dst LEFT RIGHT COUNT 2 BULK => ["a", "b"]
         var resp = "*2\r\n$1\r\na\r\n$1\r\nb\r\n";
 
-        var result = Execute(resp, ResultProcessor.NullableRedisValueArray);
+        var result = Execute(resp, RespHandlers.NullableValues);
 
         Assert.NotNull(result);
         Assert.Equal("a,b", Join(result));
@@ -22,7 +23,7 @@ public class ListMoveMultiple(ITestOutputHelper log) : ResultProcessorUnitTest(l
         // an empty array must stay an empty array, distinct from a null reply.
         var resp = "*0\r\n";
 
-        var result = Execute(resp, ResultProcessor.NullableRedisValueArray);
+        var result = Execute(resp, RespHandlers.NullableValues);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -34,7 +35,7 @@ public class ListMoveMultiple(ITestOutputHelper log) : ResultProcessorUnitTest(l
         // EXACTLY not satisfied: RESP2 null array.
         var resp = "*-1\r\n";
 
-        var result = Execute(resp, ResultProcessor.NullableRedisValueArray);
+        var result = Execute(resp, RespHandlers.NullableValues);
 
         Assert.Null(result);
     }
@@ -45,7 +46,7 @@ public class ListMoveMultiple(ITestOutputHelper log) : ResultProcessorUnitTest(l
         // EXACTLY not satisfied: RESP3 null.
         var resp = "_\r\n";
 
-        var result = Execute(resp, ResultProcessor.NullableRedisValueArray, protocol: RedisProtocol.Resp3);
+        var result = Execute(resp, RespHandlers.NullableValues);
 
         Assert.Null(result);
     }
@@ -56,7 +57,7 @@ public class ListMoveMultiple(ITestOutputHelper log) : ResultProcessorUnitTest(l
         // A bulk-string / scalar reply is not a valid LMOVEM response.
         var resp = "$5\r\nhello\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.NullableRedisValueArray);
+        ExecuteUnexpected(resp, RespHandlers.NullableValues);
     }
 
     [Fact]
@@ -64,6 +65,6 @@ public class ListMoveMultiple(ITestOutputHelper log) : ResultProcessorUnitTest(l
     {
         var resp = ":5\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.NullableRedisValueArray);
+        ExecuteUnexpected(resp, RespHandlers.NullableValues);
     }
 }

@@ -1,14 +1,22 @@
-﻿using Xunit;
+﻿using StackExchange.Redis.Protocol;
+using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class GeoPosition(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // GEOPOS for one member, and for several, as the commands send them
+    private static readonly IRespHandler<global::StackExchange.Redis.GeoPosition?> Single
+        = GroupHandlers.Get<global::StackExchange.Redis.GeoPosition?>(typeof(Geospatial), "SingletonPositionHandler", "Instance");
+
+    private static readonly IRespHandler<global::StackExchange.Redis.GeoPosition?[]> Multiple
+        = GroupHandlers.Get<global::StackExchange.Redis.GeoPosition?[]>(typeof(Geospatial), "PositionLeaseHandler", "Array");
+
     [Fact]
     public void GeoPosition_ValidPosition_ReturnsGeoPosition()
     {
         var resp = "*1\r\n*2\r\n$18\r\n13.361389338970184\r\n$16\r\n38.1155563954963\r\n";
-        var processor = ResultProcessor.RedisGeoPosition;
+        var processor = Single;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -20,7 +28,7 @@ public class GeoPosition(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void GeoPosition_NullElement_ReturnsNull()
     {
         var resp = "*1\r\n$-1\r\n";
-        var processor = ResultProcessor.RedisGeoPosition;
+        var processor = Single;
         var result = Execute(resp, processor);
 
         Assert.Null(result);
@@ -30,7 +38,7 @@ public class GeoPosition(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void GeoPosition_EmptyArray_ReturnsNull()
     {
         var resp = "*0\r\n";
-        var processor = ResultProcessor.RedisGeoPosition;
+        var processor = Single;
         var result = Execute(resp, processor);
 
         Assert.Null(result);
@@ -40,7 +48,7 @@ public class GeoPosition(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void GeoPosition_NullArray_ReturnsNull()
     {
         var resp = "*-1\r\n";
-        var processor = ResultProcessor.RedisGeoPosition;
+        var processor = Single;
         var result = Execute(resp, processor);
 
         Assert.Null(result);
@@ -50,7 +58,7 @@ public class GeoPosition(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void GeoPosition_IntegerCoordinates_ReturnsGeoPosition()
     {
         var resp = "*1\r\n*2\r\n:13\r\n:38\r\n";
-        var processor = ResultProcessor.RedisGeoPosition;
+        var processor = Single;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -65,7 +73,7 @@ public class GeoPosition(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "*2\r\n$18\r\n13.361389338970184\r\n$16\r\n38.1155563954963\r\n" +
                    "*2\r\n$18\r\n15.087267458438873\r\n$17\r\n37.50266842333162\r\n" +
                    "$-1\r\n";
-        var processor = ResultProcessor.RedisGeoPositionArray;
+        var processor = Multiple;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -86,7 +94,7 @@ public class GeoPosition(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void GeoPositionArray_EmptyArray_ReturnsEmptyArray()
     {
         var resp = "*0\r\n";
-        var processor = ResultProcessor.RedisGeoPositionArray;
+        var processor = Multiple;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -94,20 +102,23 @@ public class GeoPosition(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     }
 
     [Fact]
-    public void GeoPositionArray_NullArray_ReturnsNull()
+    public void GeoPositionArray_NullArray_ReturnsEmpty()
     {
         var resp = "*-1\r\n";
-        var processor = ResultProcessor.RedisGeoPositionArray;
+        var processor = Multiple;
         var result = Execute(resp, processor);
 
-        Assert.Null(result);
+        // CHANGED: the old processor handed back null here, through a signature (GeoPosition?[]) that promises
+        // an array. The handler returns an empty array, which is what the signature says; acceptable.
+        Assert.NotNull(result);
+        Assert.Empty(result);
     }
 
     [Fact]
     public void GeoPositionArray_AllNulls_ReturnsArrayOfNulls()
     {
         var resp = "*2\r\n$-1\r\n$-1\r\n";
-        var processor = ResultProcessor.RedisGeoPositionArray;
+        var processor = Multiple;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
