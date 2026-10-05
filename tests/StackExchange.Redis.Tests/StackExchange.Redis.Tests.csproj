@@ -14,15 +14,6 @@
     <DefineConstants Condition="'$(TargetFramework)'=='net10.0'">$(DefineConstants);BUILD_CURRENT</DefineConstants>
   </PropertyGroup>
 
-  <!--
-    PARKED: drives a feature the new core does not have yet. Everything else parked by the old core's deletion
-    has been retargeted at the new core.
-  -->
-  <ItemGroup>
-    <!-- DedicatedThreads is not implemented by the new core (plan decision 6): to come back with it -->
-    <Compile Remove="DedicatedThreadsUnitTests.cs" />
-  </ItemGroup>
-
   <ItemGroup>
     <None Update="*.json" CopyToOutputDirectory="Always" />
     <EmbeddedResource Include="*Config.json" />

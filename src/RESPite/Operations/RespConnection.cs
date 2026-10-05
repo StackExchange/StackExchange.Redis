@@ -28,6 +28,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 {
     private readonly DuplexTransport _transport;
 
+    /// <summary>The transport this connection reads and writes through; for diagnostics such as threading mode.</summary>
+    internal DuplexTransport Transport => _transport;
+
     /// <summary>Operations written and awaiting a reply, in wire order.</summary>
     private readonly ConcurrentQueue<IRespMessage> _pending = new();
 

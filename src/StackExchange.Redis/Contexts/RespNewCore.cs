@@ -1986,6 +1986,27 @@ namespace StackExchange.Redis
             return executor.AppendStormLog(sb) ? sb.ToString() : null;
         }
 
+        /// <summary>
+        /// Whether one of this core's connections is read (or written) by a thread of its own; <c>null</c> when
+        /// there is no such connection.
+        /// </summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="connectionType">Which of its connections; under RESP3 the subscription question answers
+        /// about the shared connection, since there is no other.</param>
+        /// <param name="writer">The writer rather than the reader.</param>
+        internal bool? IsDedicatedThread(EndPoint endpoint, ConnectionType connectionType, bool writer)
+        {
+            if (endpoint is null) return null;
+
+            RespEndpointExecutor? executor = null;
+            if (connectionType == ConnectionType.Subscription) _subscriptions.TryGetValue(endpoint, out executor);
+            if (executor is null) _endpoints.TryGetValue(endpoint, out executor);
+
+            return executor?.CurrentConnection?.Transport is StreamDuplexTransport transport
+                ? (writer ? transport.IsSyncWriter : transport.IsSyncReader)
+                : null;
+        }
+
         /// <summary>What connecting to an endpoint last failed with, as this core saw it.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <param name="connectionType">Which of its connections to ask about.</param>

@@ -94,9 +94,9 @@ public partial class ConnectionMultiplexer
     /// asking about <see cref="ConnectionType.Subscription"/> answers about the shared one.
     /// </remarks>
     bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endpoint, ConnectionType connectionType)
-        => null; // DedicatedThreads is not implemented by the new core; see design/v4-alpha-plan.md, decision 6
+        => NewCoreIfCreated?.IsDedicatedThread(endpoint, connectionType, writer: false);
 
     /// <summary>As <c>IsSyncReader</c>, for the writer.</summary>
     bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endpoint, ConnectionType connectionType)
-        => null;
+        => NewCoreIfCreated?.IsDedicatedThread(endpoint, connectionType, writer: true);
 }

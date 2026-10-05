@@ -123,7 +123,7 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 - [x] Delete. Build. Suite: net10.0 over three runs - see Status.
 - [x] **Gaps the deletion exposed**, all diagnostics, all ported with a test each: the storm log
       (`StormLogTests`), the fire-and-forget counter (`FireAndForgetCountTests`), and the circular op-count
-      snapshot in `GetProfile` (`EndpointProfileTests`). `DedicatedThreads` stays open under decision 6.
+      snapshot in `GetProfile` (`EndpointProfileTests`). `DedicatedThreads` is ported (decision 6).
 - [x] **Windows CI never had a synced replica.** Replicas there land the sync RDB on the `/mnt` (drvfs)
       mount and fail to load it, retrying forever - which the old core never noticed, because it read
       replicas from `CLUSTER NODES`; the new core reads `CLUSTER SLOTS`, which rightly omits a replica that
@@ -169,6 +169,13 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       Framework the shared ArrayPool falls through to a larger bucket, so a page could be 16K/32K and never
       completed. Test now uses an exact pool. Not a writer bug.
 
+- [ ] **Sync callers still complete through the thread-pool.** Operations complete with
+      `RunContinuationsAsynchronously = true`, and the sync `IDatabase` methods block on `AsTask()` - so a blocked
+      sync caller wakes only once a pool thread runs the Task's completion. Under a saturated pool (the very case
+      `DedicatedThreads` is for, and .NET Framework, which does not inject threads for blocking waits) that
+      undoes the dedicated reader. v3 pulsed sync waiters directly from the reader; `RespMessageBase.Wait` does
+      the same and is pulsed directly, but the sync wrappers cannot reach it through a `ValueTask`. Next item.
+
 ### Backlog (after the alpha gates; not blocking)
 
 - [ ] **Trusted-callback completion mode - an experiment, then maybe an opt-in.** Respire, a new multiplexed
@@ -194,10 +201,10 @@ Each has a default the work proceeds on; none of them blocks anything.
 5. **Event 71, `Response from {Bridge} / {Command}: {Result}`** - the shipped path dumps every
    handshake reply at Information. *Default:* not ported; each fact those replies carry has its own
    auto-configure event, and a raw reply dump belongs at Debug if anywhere.
-6. **`DedicatedThreads` (opt-in feature flag) is not implemented by the new core** - only `PhysicalConnection`
-   has it. Its tests passed under the engine flag only by inspecting a shipped bridge built on the side.
-   *Default:* the alpha ships without it; the tests skip under the engine flag and say why. Porting it means
-   dedicated reader/writer threads in the RESPite transport.
+6. ~~**`DedicatedThreads` is not implemented by the new core**~~ **Resolved:** the RESPite transport now
+   reads on a dedicated "SE.Redis Sync Reader" thread when its writer is in sync mode, and the factory resolves
+   the write mode from `ConfigurationOptions.WriteMode` + the flag exactly as v3's `ResolveWriteMode` did
+   (which also fixed `WriteMode` and `RequestBufferPool` being ignored by the new core). Tests un-parked.
 
 ## Operating rules
 

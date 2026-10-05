@@ -8,6 +8,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using RESPite.Streams;
 using RESPite.Transports;
 using StackExchange.Redis.Configuration;
 
@@ -178,8 +179,14 @@ namespace StackExchange.Redis
                     stream = ssl;
                 }
 
+                // the configured write mode and request pool, both of which v3 honoured and this ignored: every
+                // connection was async-written from the shared pool whatever the caller had asked for
                 return new ConnectedTransport(
-                    new StreamDuplexTransport(stream),
+                    new StreamDuplexTransport(
+                        stream,
+                        ResolveWriteMode(connectionType, config.WriteMode, ConnectionMultiplexer.DedicatedThreads),
+                        config.RequestBufferPool,
+                        encrypted),
                     (socket?.RemoteEndPoint as IPEndPoint)?.Address,
                     encrypted);
             }
@@ -188,6 +195,35 @@ namespace StackExchange.Redis
                 socket?.Dispose();
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Which writer a connection should use, given how it is configured and what it is for.
+        /// </summary>
+        /// <remarks>
+        /// Policy rather than plumbing, so it is a function that can be tested rather than a condition buried in
+        /// the connect path: three rules interact here, and getting the precedence subtly wrong would show up only
+        /// as a performance characteristic, which is the kind of bug nobody notices for a year. Carried over from
+        /// v3's <c>PhysicalConnection.ResolveWriteMode</c> unchanged.
+        /// </remarks>
+        internal static BufferedStreamWriter.WriteMode ResolveWriteMode(
+            ConnectionType connectionType,
+            BufferedStreamWriter.WriteMode configured,
+            bool dedicatedThreads)
+        {
+            // Redis policy over the generic writer: sync-mode targets latency, which pub/sub never needs.
+            if (connectionType is ConnectionType.Subscription) return BufferedStreamWriter.WriteMode.Async;
+
+            // Sync-mode also owns its reader and writer threads rather than borrowing the thread-pool, which is
+            // what the DedicatedThreads flag is asking for: on a saturated pool the reply cannot be processed,
+            // because processing it needs a thread and every thread is waiting on one. Note this promotes an
+            // *unstated* preference only - anything explicitly configured still wins.
+            if (configured == BufferedStreamWriter.WriteMode.Default && dedicatedThreads)
+            {
+                return BufferedStreamWriter.WriteMode.Sync;
+            }
+
+            return configured;
         }
 
         /// <summary>The issuer to trust from <c>SERedis_IssuerCertPath</c>, when the environment names one.</summary>

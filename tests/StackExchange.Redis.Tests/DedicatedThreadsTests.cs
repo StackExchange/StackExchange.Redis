@@ -26,18 +26,9 @@ public class DedicatedThreadsTests(ITestOutputHelper output) : TestBase(output)
 {
     private const string Flag = "DedicatedThreads";
 
-    // a property rather than a constant, so the assertions below stay compiled for when it is
-    private static bool IsImplemented => false;
-
     /// <summary>Connect with the flag in a known state, and put it back afterwards.</summary>
     private async Task WithFlagAsync(bool enabled, Func<IInternalConnectionMultiplexer, EndPoint, Task> assert)
     {
-        // DedicatedThreads is implemented by the shipped PhysicalConnection only. Under the engine flag these
-        // used to pass by inspecting a shipped bridge that ISubscriber.Ping had built - and dialled - on the
-        // side; with that gone there is no connection here for the flag to have applied to. A capability gap,
-        // recorded in design/v4-alpha-plan.md, not something to assert around.
-        Assert.SkipUnless(IsImplemented, "DedicatedThreads is not yet implemented by the new core");
-
         var wasSet = ConnectionMultiplexer.GetFeatureFlag(Flag);
         ConnectionMultiplexer.SetFeatureFlag(Flag, enabled);
         try
@@ -82,10 +73,8 @@ public class DedicatedThreadsTests(ITestOutputHelper output) : TestBase(output)
     /// </summary>
     /// <remarks>
     /// Only checkable where a separate subscription connection exists. Under RESP3 there *is* none - the
-    /// bridge lookup returns the interactive one - so the question does not arise, and asserting "false"
-    /// there would be asserting against the shared connection we just required to be true. The same holds
-    /// under the engine flag at ANY protocol: the subscription leg belongs to the other core, so this
-    /// endpoint has no subscription bridge for the flag to have applied to or not.
+    /// lookup returns the interactive one - so the question does not arise, and asserting "false" there would
+    /// be asserting against the shared connection we just required to be true.
     /// </remarks>
     [Fact]
     public Task WithTheFlag_PubSubStaysOnTheThreadPool() => WithFlagAsync(true, (conn, endpoint) =>

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -707,6 +708,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         // Read into the group, expect the two entries; we don't expect any data
         // here, at least on a fast server, because it hasn't been idle long enough.
         StreamPosition[] positions = [new(key, StreamPosition.NewMessages)];
+        var sinceFirstRead = Stopwatch.StartNew();
         var groups = await db.StreamReadGroupAsync(positions, groupName, consumer, noAck: false, countPerStream: 10, claimMinIdleTime: idleTime);
         var grp = Assert.Single(groups);
         Assert.Equal(key, grp.Key);
@@ -719,7 +721,10 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         // now repeat immediately; we didn't "ack", so they're still pending, but not idle long enough
         groups = await db.StreamReadGroupAsync(positions, groupName, consumer, noAck: false, countPerStream: 10, claimMinIdleTime: idleTime);
-        Assert.Empty(groups); // nothing available from any group
+
+        // ...unless the real clock already says they ARE idle: on a loaded run the two reads can be further apart
+        // than the idle time, and then claiming them is correct. Only "not yet idle" is asserted.
+        if (sinceFirstRead.Elapsed < idleTime) Assert.Empty(groups); // nothing available from any group
 
         // wait long enough for the messages to be considered idle
         await Task.Delay(idleTime + idleTime);

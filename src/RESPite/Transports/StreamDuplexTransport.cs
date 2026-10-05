@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.IO;
 using System.Threading;
@@ -78,10 +78,66 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     public bool TransitionToAsync() => _writer.TransitionToAsync();
 
     /// <inheritdoc/>
+    /// <summary>Whether the writer is on a thread of its own rather than the thread-pool.</summary>
+    /// <remarks>Can change after connect: a switchable writer may transition to async.</remarks>
+    public bool IsSyncWriter => _writer.IsSync;
+
+    /// <summary>Whether the reader is on a thread of its own rather than the thread-pool.</summary>
+    /// <remarks>Decided once, when reading starts, from the writer's mode at that moment.</remarks>
+    public bool IsSyncReader { get; private set; }
+
     public override void Start(TransportReceiver receiver)
     {
         if (receiver is null) throw new ArgumentNullException(nameof(receiver));
-        _ = Task.Run(() => ReadLoopAsync(receiver));
+
+        // THE READER FOLLOWS THE WRITER. A sync-mode writer owns its thread so that this connection does not
+        // depend on the thread-pool (the DedicatedThreads opt-in, for an application whose pool is saturated);
+        // reading with ReadAsync would put half of the connection straight back on it - the half that has to
+        // run for any reply to be processed. So a sync writer gets a reader of its own too, blocking in Read.
+        if (_writer.IsSync)
+        {
+            IsSyncReader = true;
+            var thread = new Thread(() => ReadLoopSync(receiver))
+            {
+                IsBackground = true,
+                Name = "SE.Redis Sync Reader",
+            };
+            thread.Start();
+        }
+        else
+        {
+            _ = Task.Run(() => ReadLoopAsync(receiver));
+        }
+    }
+
+    private void ReadLoopSync(TransportReceiver receiver)
+    {
+        var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+        Exception? fault = null;
+        try
+        {
+            while (!_shutdown.IsCancellationRequested)
+            {
+                var read = _stream.Read(buffer, 0, buffer.Length);
+                if (read <= 0) break; // orderly close
+
+                receiver.OnReceived(new ReadOnlySpan<byte>(buffer, 0, read));
+                receiver.OnBatchEnd();
+            }
+        }
+        catch (Exception ex) when (!_shutdown.IsCancellationRequested)
+        {
+            fault = ex;
+        }
+        catch
+        {
+            // shutting down: disposing the stream is how a blocking Read is released, and its exception is ours
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+            receiver.OnClosed(fault); // exactly once, after the buffer is returned - as the async loop does
+        }
     }
 
     private async Task ReadLoopAsync(TransportReceiver receiver)
