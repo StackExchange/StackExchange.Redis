@@ -4426,3 +4426,57 @@ Leaving it rather than fixing it is deliberate. The test's intent - "known, but 
 than the next statement. It wants a grace loop, or an assertion about intent rather than observed state,
 and either is a change to what the test *means*; that is worth doing when the old core goes and the
 "transitional" caveats come out of these tests wholesale, not as a one-off now.
+
+### 9ai. Triaging the last fourteen: which are work, which are noise, which are one root
+
+Ran every remaining coupled failure in isolation, which separated them cleanly and was worth doing before
+touching anything.
+
+**Interference, not a bug.** `MovedUnitTests.MovedToSameEndpoint_BatchCommands_QueuedDuringReconnect`
+reported `Multiple databases are not supported on this server; cannot switch to database: 71` - a number
+with no business in a test that uses the default database. It passes 4/4 alone: database 71 belongs to a
+test running beside it. Worth stating because the message reads exactly like a corrupted `SELECT` preamble,
+which would have been serious, and I nearly went looking for one.
+
+**Fixed: the connect failure now says why.** `RespInProcTrackingTests.Resp2WithACacheRefusesLoudly` asks
+only that the reason reach a human - "either chained onto the connect failure, or in the connect log". The
+core was already throwing exactly the right words (`Client-side caching requires RESP3: ...`), and they were
+going nowhere: `ExceptionFactory.UnableToConnect` builds its message from the faulted per-endpoint tasks of
+a reconfiguration, and a connection dialled outside that wait - which is how this core is started - leaves
+it empty. So the user got "Error connecting right now" and nothing actionable.
+
+It now falls back to what the servers themselves recorded, which `LastException` already spans both cores
+for. One change, and it means any core-side connect failure explains itself: protocol refusals, handshake
+failures, socket errors.
+
+**Fixed: the core narrates its own connections.** `LoggerTests.BasicLoggerConfig` counts log lines during
+connect, and the count had fallen by a third - because the shipped bridge narrates its whole lifecycle into
+the connect log and this core opened sockets silently. That log is the artifact users paste into issues, so
+a core that is invisible in it is a support problem independent of any test. Added: the dial, the transport
+(and whether it is encrypted), the completed handshake with protocol/type/connection-id, what discovery
+learned (version, role, slot coverage), and a connection being lost or closed.
+
+**And then stopped, deliberately, one line short.** That took 21 lines to 25 against a threshold of 30. The
+rest of shipped's verbosity is per-bridge narration that a bridgeless core does not have, and writing log
+lines to reach a number is the wrong motivation - the lines above earn their place, more would not. The
+threshold was calibrated against two bridges per endpoint, and the test's own comment calls it deliberately
+loose; adjusting it is a one-line decision at landing time, not a code problem, and not mine to make
+quietly.
+
+**`SecureTests` x2: two levers tried, both wrong, and the right one identified.** Failing the handshake on
+`WRONGPASS`/`NOAUTH` takes `ConnectAsync` down with it, which `ConfigTests.MutableOptions` forbids outright
+- it requires the connect to SUCCEED with `AuthException` set. Marking the endpoint unselectable instead
+changed nothing, because a single-endpoint standalone is still chosen; both reverted rather than left in.
+
+What is actually missing is the command path: shipped converts a `NOAUTH`/`WRONGPASS` *reply* into auth
+suspicion plus a connection failure, with its own synthesised wording, and this core passes the server's
+error straight through. The conversion wants to happen where the kind is already classified -
+`RespPayloadOperation.ParseFrame` - and that has no multiplexer to report to. That indirection is the real
+work, and it is now written down in the code at the point of decision.
+
+**`ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` is not its own item.** `SPUBLISH` times out
+with `bw: SpinningDown` and `qs: 1` - a written command left on a connection being torn down, waiting out
+the full timeout instead of being failed or re-sent. A sharded publish during slot migration earns a
+`-MOVED` to the same endpoint, which is the case already diagnosed as needing the retire to hand over the
+write slot rather than take it - and where the naive fix deadlocks. Same root as
+`MovedToSameEndpoint`; worth doing as one piece of work rather than two.
