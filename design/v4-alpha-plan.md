@@ -121,9 +121,9 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 - [x] Logging enums: relocated to `ConnectionStatus.cs`, ids unchanged.
 - [x] `SimulateConnectionFailure` demands `AllowAdmin` again, as shipped.
 - [x] Delete. Build. Suite: net10.0 over three runs - see Status.
-- [ ] **Gaps the deletion exposed** - each was the old core's, and has no new-core equivalent yet:
-      ~~the connection storm log~~ (ported: the core snapshots its pending queue; `StormLogTests`); ~~the fire-and-forget counter~~ (ported; `FireAndForgetCountTests`); ~~`GetProfile`'s op-count history~~ (ported; `EndpointProfileTests`); `DedicatedThreads` (decision 6). None is a
-      correctness issue; all are diagnostics. Decide per item: port or drop (and document the drop).
+- [x] **Gaps the deletion exposed**, all diagnostics, all ported with a test each: the storm log
+      (`StormLogTests`), the fire-and-forget counter (`FireAndForgetCountTests`), and the circular op-count
+      snapshot in `GetProfile` (`EndpointProfileTests`). `DedicatedThreads` stays open under decision 6.
 - [ ] **Windows CI never had a synced replica.** Replicas there land the sync RDB on the `/mnt` (drvfs)
       mount and fail to load it, retrying forever - which the old core never noticed, because it read
       replicas from `CLUSTER NODES`; the new core reads `CLUSTER SLOTS`, which rightly omits a replica that
@@ -142,7 +142,7 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
         subscribed this"; collapsing them changes the never-sent case, so it needs a look, not a delete.
       - `TransitionalDatabase._fallback` and the `CanWriteRuns`/`CanWriteTransactions` gates: production always
         passes null / true; only tests supply a fallback. Retire with those tests.
-      - ~30 `NewCoreIfCreated?.` null-tolerances, `ServerEndPoint.IsConnecting => false`, `GetProfile()`.
+      - ~30 `NewCoreIfCreated?.` null-tolerances, `ServerEndPoint.IsConnecting => false`.
       - Topology flows both ways between `RespTopology` and `ServerSelectionStrategy` - live, because the
         selector is still the routing fallback and `IServer`'s source. Goes with "phase D".
 - [x] **GC rooting of a dropped multiplexer.** v3 rooted the multiplexer from its heartbeat while caller work
