@@ -921,6 +921,15 @@ namespace StackExchange.Redis
                     CommandStatus.WaitingToBeSent);
             }
 
+            // SAY WHAT WE ARE DOING, which this core did not. A connect log is the artifact users paste
+            // into issues, and the shipped bridge narrates its whole lifecycle into it; a core that opens
+            // the sockets silently turns that log into a record of everything EXCEPT the connections.
+            // LoggerTests.BasicLoggerConfig measures it bluntly, as a line count that fell by a third once
+            // the bridges stopped dialling.
+            var logger = _multiplexer.Logger;
+            var connectionType = subscription ? ConnectionType.Subscription : ConnectionType.Interactive;
+            logger?.LogDebug($"{Format.ToString(endpoint)}: connecting ({connectionType})");
+
             // the shared chain: tunnel, proxy, socket, TLS. This used to be a bare socket here, which
             // silently ignored every one of those - and the TLS I added to it first was a second copy of
             // the shipped logic, which is worse than none: two versions of a security decision, free to
@@ -928,9 +937,12 @@ namespace StackExchange.Redis
             var connected = await RespTransportFactory.ConnectAsync(
                 endpoint,
                 config,
-                subscription ? ConnectionType.Subscription : ConnectionType.Interactive,
+                connectionType,
                 _multiplexer.SetAuthSuspect,
                 cancellationToken).ConfigureAwait(false);
+
+            logger?.LogDebug(
+                $"{Format.ToString(endpoint)}: transport established ({(connected.IsEncrypted ? "encrypted" : "plaintext")})");
 
             // the configured response pool goes to the connection, not just to the shipped core's reader:
             // every reply this core reads lands in an inbound buffer, and a caller who supplied a pool
@@ -1025,6 +1037,18 @@ namespace StackExchange.Redis
             // socket; this core handshakes one too and learns the same facts from it. Publishing them is
             // what lets that other handshake eventually not happen - and in the meantime it corrects the
             // case where this core knows something first, because it dialled first.
+            logger?.LogInformation(
+                $"{Format.ToString(endpoint)}: handshake complete ({result.Protocol}, {result.ServerType}"
+                + $"{(result.ConnectionId is { } id ? $", connection {id}" : "")})");
+
+            // what discovery actually learned, which is the other half of a useful connect log: the shipped
+            // path narrates the server's version, role and slot coverage, and those are the facts a reader
+            // needs to tell "connected to the wrong thing" from "connected and mis-routed"
+            logger?.LogDebug(
+                $"{Format.ToString(endpoint)}: discovered version {result.Version?.ToString() ?? "unknown"}"
+                + $", role {(connection.Server?.IsReplica == true ? "replica" : "primary")}"
+                + $", slot map {(_topology.HasSlotMap ? "present" : "absent")}");
+
             if (connection.Server is { } modelled)
             {
                 Publish(modelled, in result);

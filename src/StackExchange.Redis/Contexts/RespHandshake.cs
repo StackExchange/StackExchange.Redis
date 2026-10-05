@@ -199,13 +199,32 @@ namespace StackExchange.Redis
                     // were expected, after a full connect timeout.
                     onAuthSuspect?.Invoke(ex);
 
-                    // TRIED AND REVERTED: failing the handshake on WRONGPASS/NOAUTH. It is the shape
-                    // SecureTests.ConnectWithWrongPassword asks for, and it fixed that one case - but
-                    // ConfigTests.MutableOptions changes the password at runtime and needs the connection
-                    // to survive the window in which it is wrong, so making the refusal fatal traded one
-                    // test for two. Shipped gets both by continuing here and letting the FIRST COMMAND
-                    // fail with the auth suspicion attached (ResultProcessor, SetAuthSuspect), so that is
-                    // where this core has to arrive too; see design note 9ag.
+                    // ...and where the credentials themselves were refused, stop ROUTING to this endpoint
+                    // without failing the connection. Those are two different things and both tests need
+                    // them separated: ConfigTests.MutableOptions requires ConnectAsync to SUCCEED with
+                    // AuthException set, while SecureTests.ConnectWithWrongPassword requires the first
+                    // command to fail as a connection failure carrying that same auth text.
+                    //
+                    // Shipped arrives there by a longer road - a bridge whose AUTH failed never reaches
+                    // ConnectedEstablished, so IsSelectable says no and the command is refused client-side
+                    // by ExceptionFactory.UnableToConnect, which reads AuthException for its wording. This
+                    // core's connection genuinely does establish, so the unselectability has to be said
+                    // out loud. A later handshake that authenticates clears it, which is what lets a
+                    // corrected password recover.
+                    //
+                    // TWO LEVERS TRIED, BOTH WRONG, recorded so the third one starts further along.
+                    // Failing the handshake takes ConnectAsync down with it, which MutableOptions forbids
+                    // outright. Marking the endpoint unselectable here does not stop the routing either -
+                    // a single-endpoint standalone is still chosen - so it bought nothing and risked
+                    // leaving a deployment unroutable after a transient refusal.
+                    //
+                    // What is actually missing is the COMMAND path: shipped converts a NOAUTH or WRONGPASS
+                    // reply into auth suspicion plus a connection failure (ResultProcessor.SetAuthSuspect,
+                    // with its own synthesised "NOAUTH Returned - connection has not yet authenticated"
+                    // wording), and this core throws the server's error through untouched. That conversion
+                    // wants to happen where the error kind is already classified, which is
+                    // RespPayloadOperation.ParseFrame - and that has no multiplexer to report to, which is
+                    // the real work in it.
                 }
             }
 

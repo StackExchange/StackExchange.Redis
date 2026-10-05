@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using RESPite.Operations;
 using StackExchange.Redis.Protocol;
 
@@ -1151,6 +1152,11 @@ namespace StackExchange.Redis
                 CommandStatus.Unknown);
 
             Volatile.Write(ref _lastConnectFault, fault);
+
+            // ...in the connect log too, not only as an event. A connection going away is the single most
+            // useful line in a support log, and this core was closing sockets without writing one.
+            Server?.Multiplexer.Logger?.LogDebug(
+                $"{Format.ToString(_endpoint)}: connection {(wasRequested ? "closed" : "lost")} - {fault.Message}");
 
             // ...and SAY so, which this core did not. ConnectionFailed is a documented public event and the
             // thing callers wire up to notice a deployment moving underneath them; the shipped bridge

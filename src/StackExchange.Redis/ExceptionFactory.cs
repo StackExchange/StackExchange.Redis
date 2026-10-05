@@ -539,6 +539,22 @@ namespace StackExchange.Redis
             {
                 sb.Append(' ').Append(failureMessage.Trim());
             }
+            else if (inner is null && muxer is not null
+                && PopulateInnerExceptions(muxer.GetServerSnapshot()) is { } observed)
+            {
+                // WHY, when nobody handed us a reason. The caller's failureMessage comes from the faulted
+                // per-endpoint tasks of a reconfiguration, so a connection dialled outside that wait -
+                // which is how the other core is started - leaves it empty, and "Error connecting right
+                // now" on its own tells a user nothing they can act on.
+                //
+                // The servers themselves know: LastException spans both cores, so the protocol failure, the
+                // refused handshake or the socket error is already recorded against the endpoint it
+                // happened to. RespInProcTrackingTests asks for exactly this - a RESP2 connection with a
+                // client cache must explain that caching needs RESP3, and that explanation has to reach a
+                // human "either chained onto the connect failure, or in the connect log".
+                inner = observed;
+                sb.Append(' ').Append(GetInnerMostExceptionMessage(observed));
+            }
 
             return new RedisConnectionException(failureType, CommandFlags.None, sb.ToString(), inner);
         }
