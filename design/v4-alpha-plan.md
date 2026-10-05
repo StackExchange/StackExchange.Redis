@@ -1,0 +1,101 @@
+# V4 alpha: retiring the old core
+
+The working plan. `message-core-replacement.md` is the history of *why*; this file is *what next*, kept
+current as items close. Whoever picks this up - a later session, after a context reset, after a power cut -
+should be able to start from the first unchecked item without asking anyone.
+
+## Goal
+
+Delete `Message`, `ResultProcessor`, `PhysicalBridge`, `PhysicalConnection` and `RedisDatabase` - **once the
+new core works without them**, which means three things a test suite can miss, not just green tests:
+
+1. **Recovery** - reconnect, backlog, resubscribe, redirects, maintenance, failure events.
+2. **Side-effects** - every piece of state a reply writes back onto the server or connection.
+3. **Logging** - the generated `[LoggerMessage]` events, with their event ids preserved, because people
+   filter and alert on them.
+
+## The three gates
+
+| gate | done when | measured by |
+|---|---|---|
+| **1. The coupled move works** | the coupled patch is committed as the behaviour under the engine flag | full suite under both flags, patch applied |
+| **2. Capability parity** | every item in the inventory below is ticked | the inventory, plus an event-id diff between cores |
+| **3. Decouple and delete** | the old core is gone and everything builds and passes | the compiler probe reaches zero, then the suite |
+
+An alpha can ship after gate 2 with the old code present but unreachable, if the date matters more than the
+deletion; that is the user's call, not this plan's.
+
+## Work queue
+
+In order. The first unchecked item is the next action; the order puts the largest unknown first.
+
+### Gate 1
+
+- [ ] **MOVED to the same endpoint: hand the write slot over during the retire.** Diagnosed in an earlier
+      session and not fixed; the naive retire deadlocks on the write slot. Blocks
+      `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` (`SPUBLISH` dies with
+      `bw: SpinningDown`) and `MovedUnitTests.MovedToSameEndpoint_*`. Highest risk, so first.
+- [ ] **Work accumulating at a known-dead node.** `RetirementUnderMaintenanceTests`: 1.8k-5.8k operations
+      outstanding where the flagged premise says zero. Not caused by any retry (9aj). Mechanism unknown -
+      start by finding which code path enqueues, not by reading counts.
+- [ ] **`ConnectionRestored`**: move `OnNewCoreConnected` out of the patch into committed code.
+- [ ] **Land the coupled patch** as the committed engine-flag behaviour. After this, "coupled" and
+      "flag-only" are the same configuration and the patch file retires.
+- [ ] Sentinel (D2.7). Deliberately last in gate 1; may move to after the alpha.
+
+### Gate 2
+
+- [ ] **Logging - measure first.** Capture which event ids fire on a shipped connect, a reconnect, a
+      failover and a maintenance window, then the same under the engine flag; the diff is the list.
+- [ ] Logging - port the ~33 events whose only callers are in deleted files (`ResultProcessor` 15,
+      `PhysicalConnection` 11, `PhysicalBridge` 7), using the same generated methods.
+- [ ] Logging - convert the interpolated `LogInformation($"...")` calls added in 94d6fdb3 to generated events.
+- [ ] Logging - re-type events whose signatures take `PhysicalBridge`/`Message`, preserving event ids.
+- [ ] `IServer` methods still on `Message`: `ClusterNodes`, `ClusterNodesRaw`, `ConfigSet`, `Execute`,
+      `ReplicaOf`, `ScriptLoad`, `Time`. Same shape as the `CLIENT KILL` port (a103e68e).
+- [ ] Side-effects not yet written by the new core: `RunId`, `MultiDatabasesOverride`, `SetLatency`,
+      `SubscriptionCount`. Confirm the 16 "ported" ones are writes, not just name matches.
+- [ ] Profiling: `CommandTrace` / `ProfiledCommand` are built on `Message` and are public.
+
+### Gate 3
+
+- [ ] Decouple the 137 first-layer errors in surviving files: `ServerEndPoint` 34, `RedisServer` 20,
+      `ConnectionMultiplexer` 19, `LoggerExtensions` 10, `ExceptionFactory` 9, `RedisBase` 7, profiling,
+      the rest. Expect another layer of roughly half that once these are fixed.
+- [ ] Delete. Build. Suite.
+
+## Decisions that need the user
+
+Each has a default the work proceeds on; none of them blocks anything.
+
+1. **`LoggerTests.BasicLoggerConfig`** asserts more than 30 log lines during connect, calibrated against two
+   bridges per endpoint. *Default:* left failing until the logging work in gate 2 lands, then re-measured -
+   the generated events may close the gap honestly.
+2. **`DefaultOptionsTests` socket counts** (3 tests) predict sockets during the two-core transition.
+   *Default:* deferred to gate 1's "land the patch" item, after which there is only one core to count.
+3. **`ClusterTopologyUnitTests.SlotLessNodesAreKnownButNotConnected`** is racy on the shipped path too.
+   *Default:* give it a grace loop when gate 1 lands.
+4. **Alpha before or after gate 3.** *Default:* proceed through gate 3; flag the moment gate 2 is done.
+
+## Operating rules
+
+Learned the expensive way; see `message-core-replacement.md` 9aa-9aj for the incidents behind each one.
+
+- **Three configurations, every time.** Shipped (no flags), engine flags only, and coupled (patch
+  applied). Two green configurations can bracket a broken third (9ad).
+- **Bisect, don't reason.** When a mechanism is in doubt, remove the suspect and re-run. Three wrong
+  diagnoses in one afternoon each cost a build cycle; the bisects took two minutes each.
+- **One run is an anecdote.** Any number used to justify a change gets at least five runs (9aj).
+- **Read the assertion text before forming a theory.** It usually says the answer plainly.
+- **`--no-build` only after building the project being run**, never just a project it references (9ad).
+- **Never grep or kill by a pattern your own command line contains** (`pkill -f`, `pgrep -f`).
+- **Commit verified work promptly**; scratch state does not survive a power cut. The coupled patch lives
+  at `~/code/coupled-9p.patch`, outside `/tmp`.
+- **Never end a turn idle.** End it only with a background task pending (its notification resumes the
+  work), with the goal met, or with a question only the user can answer. A progress summary is not a
+  reason to stop.
+
+## Status
+
+- HEAD: `f7f36406`. Shipped green; engine-flags-only 6 (its usual band of known rotators); coupled 10.
+- Compiler probe at HEAD: 335 error sites, 137 of them real decoupling.
