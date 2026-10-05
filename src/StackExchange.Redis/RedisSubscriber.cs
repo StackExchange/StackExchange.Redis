@@ -241,28 +241,15 @@ namespace StackExchange.Redis
         }
 
         public EndPoint? IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            msg.SetInternalCall();
-            if (TryIdentifyViaNewCore(msg, channel, flags) is { } pending) return pending.GetAwaiter().GetResult();
-
-            return ExecuteSync(msg, ResultProcessor.ConnectionIdentity);
-        }
+            => TransitionalSync.Wait(new ValueTask<EndPoint?>(IdentifyViaNewCore(channel, flags)), multiplexer, null);
 
         public Task<EndPoint?> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            msg.SetInternalCall();
-            if (TryIdentifyViaNewCore(msg, channel, flags) is { } pending) return pending;
-
-            return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
-        }
+            => IdentifyViaNewCore(channel, flags);
 
         /// <summary>
         /// Ask a server about a channel and answer which server that was; null when this core is not
         /// carrying it.
         /// </summary>
-        /// <param name="routing">The message that would have been sent, used to choose the server.</param>
         /// <param name="channel">The channel to ask about.</param>
         /// <param name="flags">The caller's flags.</param>
         /// <remarks>
@@ -280,10 +267,19 @@ namespace StackExchange.Redis
         /// <c>NUMSUB</c> regardless of the channel's kind, so this does too.
         /// </para>
         /// </remarks>
-        private Task<EndPoint?>? TryIdentifyViaNewCore(Message routing, in RedisChannel channel, CommandFlags flags)
+        private Task<EndPoint?> IdentifyViaNewCore(in RedisChannel channel, CommandFlags flags)
         {
-            if (!ConnectionMultiplexer.NewCoreEngine) return null;
-            if (multiplexer.SelectServer(routing) is not { } server) return null;
+            // routed as the shipped PUBSUB NUMSUB was: a slot only for a KEY-ROUTED channel - a plain channel is
+            // not slot-bound, so it goes to any node, which is what ClusterTests.ClusterPubSub expects to see vary
+            var strategy = multiplexer.ServerSelectionStrategy;
+            var slot = channel.IsKeyRouted && strategy.ServerType is ServerType.Cluster or ServerType.Twemproxy
+                ? strategy.HashSlot(channel)
+                : ServerSelectionStrategy.NoSlot;
+            if (strategy.Select(slot, RedisCommand.PUBSUB, flags, allowDisconnected: false) is not { } server)
+            {
+                return Task.FromException<EndPoint?>(ExceptionFactory.NoConnectionAvailable(
+                    multiplexer, null, null, multiplexer.GetServerSnapshot(), command: RedisCommand.PUBSUB));
+            }
 
             var endpoint = server.EndPoint;
             var context = new RespPubSub((RespContext)multiplexer.NewCore.ServerContext(endpoint));
@@ -307,25 +303,14 @@ namespace StackExchange.Redis
         }
 
         public override TimeSpan Ping(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = CreatePingMessage(flags);
-            if (TryPingViaNewCore(msg, flags) is { } pending) return pending.GetAwaiter().GetResult();
-
-            return ExecuteSync(msg, ResultProcessor.ResponseTimer);
-        }
+            => TransitionalSync.Wait(new ValueTask<TimeSpan>(PingViaNewCore(flags)), multiplexer, null);
 
         public override Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = CreatePingMessage(flags);
-            if (TryPingViaNewCore(msg, flags) is { } pending) return pending;
-
-            return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
-        }
+            => PingViaNewCore(flags);
 
         /// <summary>
-        /// Time a round trip on the connection deliveries arrive on; null when that is not this core's.
+        /// Time a round trip on the connection deliveries arrive on.
         /// </summary>
-        /// <param name="routing">The message that would have been sent, used to choose the server and the spelling.</param>
         /// <param name="flags">The caller's flags.</param>
         /// <remarks>
         /// <para>
@@ -343,10 +328,16 @@ namespace StackExchange.Redis
         /// connection holding none. See <c>ConnectionMultiplexer.NewCoreHoldsSubscriptionsOn</c>.
         /// </para>
         /// </remarks>
-        private Task<TimeSpan>? TryPingViaNewCore(Message routing, CommandFlags flags)
+        private Task<TimeSpan> PingViaNewCore(CommandFlags flags)
         {
-            if (!ConnectionMultiplexer.NewCoreEngine) return null;
-            if (multiplexer.SelectServer(routing) is not { } server) return null;
+            // PING where the server answers it on a subscriber connection, else the unsubscribe-from-nothing
+            // probe - the choice CreatePingMessage made, and routed as that message was: no key, so no slot
+            var command = PingOnSubscriber(flags) ? RedisCommand.PING : RedisCommand.UNSUBSCRIBE;
+            if (multiplexer.ServerSelectionStrategy.Select(ServerSelectionStrategy.NoSlot, command, flags, allowDisconnected: false) is not { } server)
+            {
+                return Task.FromException<TimeSpan>(ExceptionFactory.NoConnectionAvailable(
+                    multiplexer, null, null, multiplexer.GetServerSnapshot(), command: command));
+            }
             if (!multiplexer.NewCoreHoldsSubscriptionsOn(server.EndPoint))
             {
                 // No subscriptions here, so no subscriber connection to flush - and handing back null sent the
@@ -358,7 +349,7 @@ namespace StackExchange.Redis
             }
 
             var context = multiplexer.NewCore.SubscriptionContext(server.EndPoint);
-            if (routing.Command == RedisCommand.PING)
+            if (command == RedisCommand.PING)
             {
                 return Measured(new RespDatabaseContext(context).PingMeasureAsync(flags));
             }
@@ -380,29 +371,18 @@ namespace StackExchange.Redis
             }
         }
 
-        private Message CreatePingMessage(CommandFlags flags)
+        /// <summary>Whether a <c>PING</c> is answered on a subscriber connection here; when not, the probe unsubscribes from nothing.</summary>
+        private bool PingOnSubscriber(CommandFlags flags)
         {
-            bool usePing = false;
-            if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
+            if (!multiplexer.CommandMap.IsAvailable(RedisCommand.PING)) return false;
+            try
             {
-                try { usePing = GetFeatures(default, flags, RedisCommand.PING, out _).PingOnSubscriber; }
-                catch { }
+                return GetFeatures(default, flags, RedisCommand.PING, out _).PingOnSubscriber;
             }
-
-            Message msg;
-            if (usePing)
+            catch
             {
-                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+                return false;
             }
-            else
-            {
-                // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
-                RedisValue channel = multiplexer.UniqueId;
-                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
-            }
-            // Ensure the ping is sent over the intended subscriber connection, which wouldn't happen in GetBridge() by default with PING;
-            msg.SetForSubscriptionBridge();
-            return msg;
         }
 
         private static void ThrowIfNull(in RedisChannel channel)
@@ -438,41 +418,27 @@ namespace StackExchange.Redis
         {
             ThrowIfNull(channel);
 
-            if (ConnectionMultiplexer.NewCoreEngine)
+            var settling = multiplexer.NewCore.SubscriptionsSettling();
+            if (!settling.IsCompleted)
             {
-                var settling = multiplexer.NewCore.SubscriptionsSettling();
-                if (!settling.IsCompleted)
-                {
-                    // bounded, and deliberately: this holds back a publish so a re-placed subscription can
-                    // get in front of it, which is worth a wait and is not worth a hang
-                    settling.Wait(multiplexer.TimeoutMilliseconds);
-                }
-
-                var context = PubSubContext;
-                return TransitionalSync.Wait(
-                    context.PubSub.PublishAsync(channel, message, flags), multiplexer, context.Raw.Executor);
+                // bounded, and deliberately: this holds back a publish so a re-placed subscription can
+                // get in front of it, which is worth a wait and is not worth a hang
+                settling.Wait(multiplexer.TimeoutMilliseconds);
             }
 
-            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message);
-            // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
-            return ExecuteSync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
+            var context = PubSubContext;
+            return TransitionalSync.Wait(
+                context.PubSub.PublishAsync(channel, message, flags), multiplexer, context.Raw.Executor);
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
 
-            if (ConnectionMultiplexer.NewCoreEngine)
-            {
-                var settling = multiplexer.NewCore.SubscriptionsSettling();
-                return settling.IsCompleted
-                    ? PubSubContext.PubSub.PublishAsync(channel, message, flags).AsTask(asyncState, flags)
-                    : PublishWhenSettledAsync(settling, channel, message, flags);
-            }
-
-            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message);
-            // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
-            return ExecuteAsync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
+            var settling = multiplexer.NewCore.SubscriptionsSettling();
+            return settling.IsCompleted
+                ? PubSubContext.PubSub.PublishAsync(channel, message, flags).AsTask(asyncState, flags)
+                : PublishWhenSettledAsync(settling, channel, message, flags);
         }
 
         /// <summary>Publish once the subscriptions being re-placed are back on the wire.</summary>
@@ -526,22 +492,10 @@ namespace StackExchange.Redis
                     // bridge, so under RESP2 it would put the connection carrying ordinary commands into
                     // subscriber mode. Same shape either way: try the simple resubscribe, which follows
                     // any -MOVED, and fall back to a full reconfigure if it faults.
-                    var viaNewCore = sub.TrySendViaNewCore(
-                        this, channel, SubscriptionAction.Subscribe, CommandFlags.None, serverEndPoint);
-                    if (viaNewCore is not null)
-                    {
-                        _ = viaNewCore.ContinueWith(
+                    _ = sub.SendViaNewCore(this, channel, SubscriptionAction.Subscribe, CommandFlags.None, serverEndPoint)
+                        .ContinueWith(
                             t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
                             TaskContinuationOptions.OnlyOnFaulted);
-                        return;
-                    }
-
-                    // we'll *try* for a simple resubscribe, following any -MOVED etc, but if that fails: fall back
-                    // to full reconfigure; importantly, note that we've already recorded the disconnect
-                    var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false);
-                    _ = ExecuteAsync(message, sub.Processor, serverEndPoint).ContinueWith(
-                        t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
-                        TaskContinuationOptions.OnlyOnFaulted);
                 }
                 else
                 {

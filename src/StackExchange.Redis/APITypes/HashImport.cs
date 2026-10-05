@@ -259,31 +259,19 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
 
     private async Task SafeDiscardAsync(ServerEndPoint server, int db)
     {
-        if (ConnectionMultiplexer.NewCoreEngine && server.Multiplexer.NewCoreIfCreated is { } core)
-        {
-            // on the connection the PREPARE went out on - the new core's, which is where the gate claimed it -
-            // rather than a shipped bridge built (and dialled) just to say goodbye. The claim goes first, so it
-            // never outlives the server's own copy; the DISCARD is fire-and-forget, as the shipped one is.
-            core.ReleaseClaim(server.EndPoint, Id);
-            try
-            {
-                await SendDiscard(new RedisServer(server, null).Context.Raw.WithDatabase(db)).ConfigureAwait(false);
-            }
-            catch
-            {
-                // as below: best-effort; a field-set the server still holds is reclaimed with its connection
-            }
+        // nothing was prepared on a core that was never created, so there is nothing to discard
+        if (server.Multiplexer.NewCoreIfCreated is not { } core) return;
 
-            return;
-        }
-
+        // on the connection the PREPARE went out on, which is where the gate claimed it. The claim goes first, so
+        // it never outlives the server's own copy; the DISCARD is fire-and-forget, as it always was.
+        core.ReleaseClaim(server.EndPoint, Id);
         try
         {
-            await server.WriteDirectAsync(new HashImportDiscardMessage(db, CommandFlags.FireAndForget, this), ResultProcessor.DemandOK).ForAwait();
+            await SendDiscard(new RedisServer(server, null).Context.Raw.WithDatabase(db)).ConfigureAwait(false);
         }
         catch
         {
-            // best-effort: the field-set dies with the connection regardless, so cleanup failures are benign
+            // best-effort: a field-set the server still holds is reclaimed with its connection
         }
     }
 }

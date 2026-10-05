@@ -1832,7 +1832,7 @@ namespace StackExchange.Redis
             // mode worth offering, but as a default it silently changes what a caller sees: with one
             // socket open, a non-routed pub/sub probe lands on the same endpoint ten times out of ten,
             // which ClusterTests.ClusterPubSub reads as "the channel is being routed when it should not be".
-            = ConnectionMultiplexer.NewCoreEngine ? ConnectMode.Eager : ConnectMode.Lazy;
+            = ConnectMode.Eager;
 
         /// <summary>
         /// The buffer pool to use when buffering requests.

@@ -79,9 +79,7 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         private RespExecutorBase ServerExecutor()
-            => ConnectionMultiplexer.NewCoreEngine
-                ? multiplexer.NewCore.ServerExecutor(server.EndPoint)
-                : new RespMessageExecutor(this, -1);
+            => multiplexer.NewCore.ServerExecutor(server.EndPoint);
 
         /// <inheritdoc/>
         /// <remarks>
@@ -139,7 +137,7 @@ namespace StackExchange.Redis
         /// </remarks>
         public bool IsConnected
             => server.IsConnected
-                || (ConnectionMultiplexer.NewCoreEngine && multiplexer.NewCoreIfCreated?.IsConnected(server.EndPoint) == true);
+                || multiplexer.NewCoreIfCreated?.IsConnected(server.EndPoint) == true;
 
         bool IServer.IsSlave => IsReplica;
         public bool IsReplica => server.IsReplica;
