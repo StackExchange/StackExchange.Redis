@@ -214,8 +214,9 @@ Learned the expensive way; see `message-core-replacement.md` 9aa-9aj for the inc
   exhausted the WSL servers' client limit and made net481 take 20 minutes with "unable to connect" skips
   (fixed; `DisposeClosesSocketsTests`); `IsConnected` counting the subscription socket (now interactive
   only, as v3); and a handful of timing races in tests, each fixed at the race rather than by retrying.
-  Local net10.0 runs are now mostly fully green; the remaining known flakes are `SweepIfDueHonoursTheInterval`,
-  `TouchIdleTime`, Envoy, and the occasional RESP3 ~5s stall below.
+  Local net10.0 runs are now mostly fully green; the remaining known flakes are `TouchIdleTime` (TOUCH
+  occasionally does not reset idle time on 6381, which never forks - the suppression its comment blames
+  does not apply there, so the cause is open), Envoy, and the occasional RESP3 ~5s stall below.
 - **Old core deleted.** net10.0 over three runs after the deletion: 1 / 2 / 3 failures, each a one-off
   from the known-flake list (`SubscribeToWrongServerAsync(false)`, `SweepIfDueHonoursTheInterval`, a
   `MovedUnitTests` reconnect case). The `NewCore*Tests` re-run suites went with it - they built a second core

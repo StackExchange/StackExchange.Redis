@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -1118,9 +1119,11 @@ public class RespClientCacheTests
     [Fact]
     public async Task SweepIfDueHonoursTheInterval()
     {
+        var interval = TimeSpan.FromMilliseconds(250);
+        var sinceCreated = Stopwatch.StartNew();
         using var cache = new RespClientCache(new CacheOptions
         {
-            SweepInterval = TimeSpan.FromMilliseconds(50),
+            SweepInterval = interval,
             DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(10) },
         });
 
@@ -1128,11 +1131,17 @@ public class RespClientCacheTests
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
         Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
 
-        await Task.Delay(20); // expired, but the sweep is not due yet
-        Assert.Equal(0, cache.SweepIfDue());
-        Assert.Equal(1, cache.Count);
+        await Task.Delay(20); // expired, but the sweep is not due yet...
 
-        await Task.Delay(60);
+        // ...unless the delay itself overran the interval, which a loaded runner does: the clock is real, so
+        // "not due" is only asserted while it is still true. The sweep that IS due is checked either way.
+        if (sinceCreated.Elapsed < interval - TimeSpan.FromMilliseconds(50))
+        {
+            Assert.Equal(0, cache.SweepIfDue());
+            Assert.Equal(1, cache.Count);
+        }
+
+        await Task.Delay(interval + TimeSpan.FromMilliseconds(50));
         Assert.Equal(1, cache.SweepIfDue());
         Assert.Equal(0, cache.Count);
     }
