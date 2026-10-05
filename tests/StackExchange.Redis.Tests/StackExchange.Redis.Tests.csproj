@@ -20,10 +20,47 @@
     core's handlers (see design/v4-alpha-plan.md, gate 3) rather than dropped. Excluded only until then.
   -->
   <ItemGroup>
-    <Compile Remove="ResultProcessorUnitTests/**" />
+    <Compile Remove="ResultProcessorUnitTests/AutoConfigure.cs" />
+    <Compile Remove="ResultProcessorUnitTests/BasicAggregates.cs" />
+    <Compile Remove="ResultProcessorUnitTests/BasicScalars.cs" />
+    <Compile Remove="ResultProcessorUnitTests/ClientInfo.cs" />
+    <Compile Remove="ResultProcessorUnitTests/ClusterNodes.cs" />
+    <Compile Remove="ResultProcessorUnitTests/ConditionTests.cs" />
+    <Compile Remove="ResultProcessorUnitTests/DateTime.cs" />
+    <Compile Remove="ResultProcessorUnitTests/DemandZeroOrOne.cs" />
+    <Compile Remove="ResultProcessorUnitTests/ExpectBasicString.cs" />
+    <Compile Remove="ResultProcessorUnitTests/GeoPosition.cs" />
+    <Compile Remove="ResultProcessorUnitTests/GeoRadius.cs" />
+    <Compile Remove="ResultProcessorUnitTests/HotKeys.cs" />
+    <Compile Remove="ResultProcessorUnitTests/Info.cs" />
+    <Compile Remove="ResultProcessorUnitTests/InterleavedPairs.cs" />
+    <Compile Remove="ResultProcessorUnitTests/Latency.cs" />
+    <Compile Remove="ResultProcessorUnitTests/Lease.cs" />
+    <Compile Remove="ResultProcessorUnitTests/LeaseRedisValue.cs" />
+    <Compile Remove="ResultProcessorUnitTests/ListMoveMultiple.cs" />
+    <Compile Remove="ResultProcessorUnitTests/LongestCommonSubsequence.cs" />
+    <Compile Remove="ResultProcessorUnitTests/Misc.cs" />
+    <Compile Remove="ResultProcessorUnitTests/RedisValueFromArray.cs" />
+    <Compile Remove="ResultProcessorUnitTests/RespResultProcessor.cs" />
+    <Compile Remove="ResultProcessorUnitTests/Role.cs" />
+    <Compile Remove="ResultProcessorUnitTests/Scan.cs" />
+    <Compile Remove="ResultProcessorUnitTests/ScriptLoad.cs" />
+    <Compile Remove="ResultProcessorUnitTests/SentinelGetPrimaryAddressByName.cs" />
+    <Compile Remove="ResultProcessorUnitTests/SentinelGetReplicaAddresses.cs" />
+    <Compile Remove="ResultProcessorUnitTests/SentinelGetSentinelAddresses.cs" />
+    <Compile Remove="ResultProcessorUnitTests/StreamAutoClaim.cs" />
+    <Compile Remove="ResultProcessorUnitTests/StreamAutoClaimIdsOnly.cs" />
+    <Compile Remove="ResultProcessorUnitTests/StreamInfo.cs" />
+    <Compile Remove="ResultProcessorUnitTests/StreamPendingInfo.cs" />
+    <Compile Remove="ResultProcessorUnitTests/StreamPendingMessages.cs" />
+    <Compile Remove="ResultProcessorUnitTests/Streams.cs" />
+    <Compile Remove="ResultProcessorUnitTests/TimeSpan.cs" />
+    <Compile Remove="ResultProcessorUnitTests/Timing.cs" />
+    <Compile Remove="ResultProcessorUnitTests/TracerProcessor.cs" />
+    <Compile Remove="ResultProcessorUnitTests/TrackSubscriptions.cs" />
+    <Compile Remove="ResultProcessorUnitTests/VectorSet.cs" />
     <Compile Remove="RoundTripUnitTests/**" />
     <!-- byte-parity against the old writer, which is gone: to become golden-byte tests, captured from the last build that had it -->
-    <Compile Remove="RespSurface*ParityTests.cs" />
     <!-- retry categories of the old RedisDatabase messages: to assert the same categories on the new surface's frames -->
     <Compile Remove="CommandRetryCategoryUnitTests.cs" />
     <!-- drive ResultBox and RedisDatabase through a Message: to drive the same paths through the new core -->
