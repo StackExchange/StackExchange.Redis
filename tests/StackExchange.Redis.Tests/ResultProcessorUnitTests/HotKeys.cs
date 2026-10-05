@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
@@ -60,7 +60,7 @@ public class HotKeys(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "$18\r\nhotkey_001_counter\r\n" +
                    ":116\r\n";
 
-        var result = Execute(resp, HotKeysResult.Processor);
+        var result = Execute(resp, HotKeysResult.Handler.Instance);
 
         Assert.NotNull(result);
         Assert.False(result.TrackingActive);
@@ -120,7 +120,7 @@ public class HotKeys(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "$15\r\ntracking-active\r\n" +
                    ":1\r\n";
 
-        var result = Execute(resp, HotKeysResult.Processor);
+        var result = Execute(resp, HotKeysResult.Handler.Instance);
 
         Assert.NotNull(result);
         Assert.True(result.TrackingActive);
@@ -131,7 +131,7 @@ public class HotKeys(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         var resp = "$5\r\nhello\r\n";
 
-        ExecuteUnexpected(resp, HotKeysResult.Processor);
+        ExecuteUnexpected(resp, HotKeysResult.Handler.Instance);
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class HotKeys(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         var resp = "$-1\r\n";
 
-        var result = Execute(resp, HotKeysResult.Processor);
+        var result = Execute(resp, HotKeysResult.Handler.Instance);
         Assert.Null(result);
     }
 }

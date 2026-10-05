@@ -1,9 +1,13 @@
-﻿using Xunit;
+﻿using StackExchange.Redis.Protocol;
+using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class RoleTests(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // ROLE is read by Diagnostics.RoleHandler, over RespParsers.ParseRole
+    private static IRespHandler<Role?> RoleHandler => NewCoreHandlers.Get<Role?>(typeof(Diagnostics), "RoleHandler");
+
     [Fact]
     public void Role_Master_NoReplicas()
     {
@@ -11,7 +15,7 @@ public class RoleTests(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         // 2) (integer) 3129659
         // 3) (empty array)
         var resp = "*3\r\n$6\r\nmaster\r\n:3129659\r\n*0\r\n";
-        var processor = ResultProcessor.Role;
+        var processor = RoleHandler;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -39,7 +43,7 @@ public class RoleTests(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "*2\r\n" +
                    "*3\r\n$9\r\n127.0.0.1\r\n$4\r\n9001\r\n$7\r\n3129242\r\n" +
                    "*3\r\n$9\r\n127.0.0.1\r\n$4\r\n9002\r\n$7\r\n3129543\r\n";
-        var processor = ResultProcessor.Role;
+        var processor = RoleHandler;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -70,7 +74,7 @@ public class RoleTests(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         // 4) "connected"
         // 5) (integer) 3167038
         var resp = $"*5\r\n${roleType.Length}\r\n{roleType}\r\n$9\r\n127.0.0.1\r\n:9000\r\n$9\r\nconnected\r\n:3167038\r\n";
-        var processor = ResultProcessor.Role;
+        var processor = RoleHandler;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -92,7 +96,7 @@ public class RoleTests(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void Role_Replica_VariousStates(string state)
     {
         var resp = $"*5\r\n$5\r\nslave\r\n$9\r\n127.0.0.1\r\n:9000\r\n${state.Length}\r\n{state}\r\n:3167038\r\n";
-        var processor = ResultProcessor.Role;
+        var processor = RoleHandler;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -115,7 +119,7 @@ public class RoleTests(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "$21\r\nhtml-fragments-master\r\n" +
                    "$12\r\nstats-master\r\n" +
                    "$15\r\nmetadata-master\r\n";
-        var processor = ResultProcessor.Role;
+        var processor = RoleHandler;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -140,7 +144,7 @@ public class RoleTests(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var resp = streaming
             ? $"*1\r\n$?\r\n;{roleName.Length}\r\n{roleName}\r\n;6\r\n_extra\r\n;0\r\n" // force an extra chunk
             : $"*1\r\n${roleName.Length}\r\n{roleName}\r\n";
-        var processor = ResultProcessor.Role;
+        var processor = RoleHandler;
         var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -152,7 +156,7 @@ public class RoleTests(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void Role_EmptyArray_ReturnsNull()
     {
         var resp = "*0\r\n";
-        var processor = ResultProcessor.Role;
+        var processor = RoleHandler;
         var result = Execute(resp, processor);
         Assert.Null(result);
     }
