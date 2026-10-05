@@ -4780,7 +4780,10 @@ shipped check only where this core has no view.
 Every coupled failure left is now on the triaged list (Sentinel, the retry-policy rotator, the `LoggerTests`
 threshold, the transitional socket counts, a racy premise) or is a timing flake that passes 5/5 alone.
 
-**One more finding, recorded rather than chased:** tests labelled "(RESP2)" run on RESP3 connections under
-the coupled patch - the traces show `>3` push frames. Either the configured protocol is not reaching the
-handshake, or the label means something narrower than it appears to. Worth checking before the patch lands,
-since a client that ignores `Protocol = Resp2` would be a behaviour change users would notice.
+**A finding recorded here and then retracted.** The first draft of this note said tests labelled "(RESP2)"
+were running on RESP3 connections, because the traces showed `>3` push frames during a RESP2 run. They were
+not: both protocol variants run in the same process, and the trace window interleaved them. Counting by
+connection settles it - six connections carried RESP2 arrays (`*3 ... subscribe`) and six carried RESP3
+pushes, two disjoint sets. The core sends `HELLO 2` whenever `Protocol = Resp2` is configured
+(`config.Protocol is null or Resp3` decides it). No client bug; a reading error, caught by counting rather
+than by eye.

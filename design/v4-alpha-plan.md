@@ -38,9 +38,8 @@ In order. The first unchecked item is the next action; the order puts the larges
 - [x] **The reply to our own unsubscribe was read as unsolicited** - a desync, and the one root behind both
       `ClusterShardedTests.KeepSubscribed*` and `RetirementUnderMaintenanceTests` (9am). Pushes now match
       the command at the head of the queue; `RemoveIncorrectRouting` asks this core's map.
-- [ ] **Does `Protocol = Resp2` reach the handshake?** Tests labelled "(RESP2)" run on RESP3 connections
-      under the coupled patch (`>3` frames in the traces). Settle before landing the patch - a client that
-      ignored the configured protocol would be a visible behaviour change.
+- [x] ~~Does `Protocol = Resp2` reach the handshake?~~ Yes - the "RESP3 frames in a RESP2 run" were two
+      interleaved runs; counted by connection, the sets are disjoint (9am).
 - [ ] **`ConnectionRestored`**: move `OnNewCoreConnected` out of the patch into committed code.
 - [ ] **Land the coupled patch** as the committed engine-flag behaviour. After this, "coupled" and
       "flag-only" are the same configuration and the patch file retires.
