@@ -115,6 +115,7 @@ namespace StackExchange.Redis
             if ((request.Flags & CommandFlags.FireAndForget) != 0)
             {
                 RespPayloadOperation.DiscardReply(operation);
+                _inner.OnFireAndForget();
                 return default;
             }
 

@@ -192,6 +192,9 @@ namespace StackExchange.Redis
         /// </remarks>
         private ServerEndPoint? Server => _serverCache ??= _server?.Invoke();
 
+        /// <summary>Count a command whose caller declined the outcome, for the multiplexer's summary.</summary>
+        internal void OnFireAndForget() => Server?.Multiplexer.OnFireAndForget();
+
         /// <inheritdoc/>
         public override int Database { get; }
 
@@ -544,6 +547,7 @@ namespace StackExchange.Redis
             if ((request.Flags & CommandFlags.FireAndForget) != 0)
             {
                 RespPayloadOperation.DiscardReply(operation);
+                OnFireAndForget();
                 return null!;
             }
 
@@ -563,6 +567,7 @@ namespace StackExchange.Redis
             if ((request.Flags & CommandFlags.FireAndForget) != 0)
             {
                 RespPayloadOperation.DiscardReply(operation);
+                OnFireAndForget();
                 return default;
             }
 

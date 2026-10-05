@@ -35,7 +35,7 @@ namespace StackExchange.Redis
         /// </summary>
         internal int _connectAttemptCount = 0, _connectCompletedCount = 0, _connectionCloseCount = 0;
         internal long syncOps, asyncOps;
-        private long syncTimeouts, asyncTimeouts;
+        private long syncTimeouts, asyncTimeouts, fireAndForgets;
         private string? failureMessage, activeConfigCause;
         private TimerToken? pulse;
 
@@ -1721,7 +1721,7 @@ namespace StackExchange.Redis
             log.LogInformationTimeoutsSummary(
                 Volatile.Read(ref syncTimeouts),
                 Volatile.Read(ref asyncTimeouts),
-                0, // fire-and-forget operations are not counted by the new core
+                Volatile.Read(ref fireAndForgets),
                 LastHeartbeatSecondsAgo);
         }
 
@@ -2623,6 +2623,8 @@ namespace StackExchange.Redis
         public override string ToString() => string.IsNullOrWhiteSpace(ClientName) ? GetType().Name : ClientName;
 
         internal void OnAsyncTimeout() => Interlocked.Increment(ref asyncTimeouts);
+
+        internal void OnFireAndForget() => Interlocked.Increment(ref fireAndForgets);
 
         /// <summary>Count a command that timed out while its caller was blocked on it.</summary>
         /// <remarks>
