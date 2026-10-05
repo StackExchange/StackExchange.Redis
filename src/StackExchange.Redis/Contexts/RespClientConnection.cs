@@ -151,6 +151,21 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>Forget a connection-local fact, once the server has been told to forget it too.</summary>
+        /// <param name="id">What was claimed.</param>
+        /// <remarks>
+        /// Without this a claim outlives what it describes: a discarded <c>HashImport</c> field-set stays
+        /// "prepared here" for the life of the connection, so the set grows with every field-set a long-lived
+        /// connection ever used - the shipped connection drops it as its <c>DISCARD</c> is written.
+        /// </remarks>
+        internal void ReleaseClaim(long id)
+        {
+            lock (this)
+            {
+                _claims?.Remove(id);
+            }
+        }
+
         /// <inheritdoc/>
         /// <remarks>
         /// <para>

@@ -315,6 +315,22 @@ namespace StackExchange.Redis
             var nodes = _serverSnapshot; // same as GetServerSnapshot(), but doesn't force span
             var newPrimary = Format.ToString(server.EndPoint);
 
+            // Every write in here names its node, and under the engine flag reaches it through that node's own
+            // context - the new core's connection to it - rather than WriteDirectAsync, which writes to a shipped
+            // bridge and so builds (and dials) one per node it touches.
+            async Task SetTieBreakerAsync(ServerEndPoint node, RedisKey key)
+            {
+                if (NewCoreEngine)
+                {
+                    var strings = new RespStrings(node.GetRedisServer(null).Context.Raw.WithDatabase(0));
+                    await strings.SetAsync(key, newPrimary.AsRedisValue(), flags: flags | CommandFlags.FireAndForget).ForAwait();
+                    return;
+                }
+
+                var setMessage = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, key, newPrimary.AsRedisValue());
+                await node.WriteDirectAsync(setMessage, ResultProcessor.DemandOK).ForAwait();
+            }
+
             // try and write this everywhere; don't worry if some folks reject our advances
             if (RawConfig.TryGetTieBreaker(out var tieBreakerKey)
                 && options.HasFlag(ReplicationChangeOptions.SetTiebreaker)
@@ -324,10 +340,9 @@ namespace StackExchange.Redis
                 {
                     if (!node.IsConnected || node.IsReplica) continue;
                     log?.LogInformationAttemptingToSetTieBreaker(new(node.EndPoint));
-                    msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary.AsRedisValue());
                     try
                     {
-                        await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
+                        await SetTieBreakerAsync(node, tieBreakerKey).ForAwait();
                     }
                     catch { }
                 }
@@ -349,10 +364,9 @@ namespace StackExchange.Redis
             if (!tieBreakerKey.IsNull && !server.IsReplica)
             {
                 log?.LogInformationResendingTieBreaker(new(server.EndPoint));
-                msg = Message.Create(0, flags | CommandFlags.FireAndForget, RedisCommand.SET, tieBreakerKey, newPrimary.AsRedisValue());
                 try
                 {
-                    await server.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
+                    await SetTieBreakerAsync(server, tieBreakerKey).ForAwait();
                 }
                 catch { }
             }
@@ -382,8 +396,17 @@ namespace StackExchange.Redis
                     {
                         if (!node.IsConnected) continue;
                         log?.LogInformationBroadcastingViaNode(new(node.EndPoint));
-                        msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary.AsRedisValue());
-                        await node.WriteDirectAsync(msg, ResultProcessor.Int64).ForAwait();
+                        if (NewCoreEngine)
+                        {
+                            // with the channel prefix, applied by the context as the Message applied it at write
+                            var broadcast = new RespPubSub(node.GetRedisServer(null).Context.Raw.AppendChannelPrefix(RawConfig.ChannelPrefix));
+                            await broadcast.PublishAsync(channel, newPrimary.AsRedisValue(), flags | CommandFlags.FireAndForget).ForAwait();
+                        }
+                        else
+                        {
+                            msg = Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.PUBLISH, channel, newPrimary.AsRedisValue());
+                            await node.WriteDirectAsync(msg, ResultProcessor.Int64).ForAwait();
+                        }
                     }
                 }
             }
@@ -398,8 +421,15 @@ namespace StackExchange.Redis
                     if (node == server || node.ServerType != ServerType.Standalone) continue;
 
                     log?.LogInformationReplicatingToNode(new(node.EndPoint));
-                    msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
-                    await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
+                    if (NewCoreEngine)
+                    {
+                        await node.GetRedisServer(null).ReplicaOfAsync(server.EndPoint, flags).ForAwait();
+                    }
+                    else
+                    {
+                        msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
+                        await node.WriteDirectAsync(msg, ResultProcessor.DemandOK).ForAwait();
+                    }
                 }
             }
 
@@ -2391,6 +2421,20 @@ namespace StackExchange.Redis
                 ? EndPoints.ToArray()
                 : _serverSnapshot.GetEndPoints();
 
+        /// <summary>One server's <c>CLUSTER SLOTS</c> view, on the RESP context, recorded on it as the shipped processor did.</summary>
+        /// <remarks>
+        /// Read alongside <c>ClusterNodesAsync</c>, which records the configuration itself. The SLOTS view is
+        /// recorded here, as <c>ClusterSlotsResult.AutoConfigureProcessor</c> recorded it - the public
+        /// <c>ClusterSlots</c> does not, and should not: a caller asking for the map is not asking for the
+        /// client's model to change.
+        /// </remarks>
+        private static async Task<ClusterSlotsResult?> ReadClusterSlotsAsync(ServerEndPoint server)
+        {
+            var slots = await new RedisServer(server, null).ClusterSlotsAsync().ForAwait();
+            if (slots is not null) server.SetClusterSlots(slots);
+            return slots;
+        }
+
         private async Task<EndPointCollection?> GetEndpointsFromClusterNodes(ServerEndPoint server, ILogger? log)
         {
             try
@@ -2408,9 +2452,22 @@ namespace StackExchange.Redis
                     && core.IsInteractiveConnected(server.EndPoint)
                     && server.ClusterConfiguration is not null)
                 {
-                    // ...renewed by the refresh above, which is what makes reading rather than re-asking
-                    // correct: one topology read per pass, and this is the pass that did it
-                    clusterConfig = server.ClusterConfiguration;
+                    // RE-ASKED, not read from the cache: the refresh above renews SLOTS and roles, but not this
+                    // node's NODES view - that used to be renewed as a side-effect of the shipped auto-configure,
+                    // which this pass also ran, and which the engine flag no longer runs because it wrote to a
+                    // shipped bridge. Trusting the cache kept a node that had left the cluster in the endpoint
+                    // list (MaintenanceTopologyRefreshTests.NodeThatLeavesTheClusterIsRetired). One NODES read
+                    // per pass, on the new core, is what the shipped path paid; the cache stands in if it fails.
+                    try
+                    {
+                        clusterConfig = await new RedisServer(server, null).ClusterNodesAsync().ForAwait()
+                            ?? server.ClusterConfiguration;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine(ex.Message);
+                        clusterConfig = server.ClusterConfiguration;
+                    }
 
                     // ...and the SLOTS view, which is a fact about the DEPLOYMENT rather than about this
                     // node, so whichever server happened to ask for it holds the answer for all of them.
@@ -2434,15 +2491,19 @@ namespace StackExchange.Redis
                     // rather than returning null and reporting a deployment with no endpoints
                     if (clusterConfig is null)
                     {
-                        var slotsRetry = ExecuteAsyncImpl(
-                            RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server);
-                        var nodesRetry = ExecuteAsyncImpl(
-                            RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
-
-                        var slotsAnswer = await slotsRetry.ForAwait();
-                        clusterConfig = await nodesRetry.ForAwait();
-                        topology ??= ClusterTopology.From(slotsAnswer);
+                        var slotsRead = ReadClusterSlotsAsync(server);
+                        clusterConfig = await new RedisServer(server, null).ClusterNodesAsync().ForAwait();
+                        topology ??= ClusterTopology.From(await slotsRead.ForAwait());
                     }
+                }
+                else if (NewCoreEngine)
+                {
+                    // not connected on the new core yet, or nothing cached: ASK, but on the new core. The
+                    // Message path below writes to a shipped bridge, which under the engine flag means building
+                    // one - and dialling it - for two topology reads.
+                    var slotsRead = ReadClusterSlotsAsync(server);
+                    clusterConfig = await new RedisServer(server, null).ClusterNodesAsync().ForAwait();
+                    topology = ClusterTopology.From(await slotsRead.ForAwait());
                 }
                 else
                 {

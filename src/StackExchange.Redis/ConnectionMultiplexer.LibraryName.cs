@@ -35,6 +35,11 @@ public partial class ConnectionMultiplexer
         // core IServer is on, and while both exist that is one of the two. See RespNewCore.SetLibraryName.
         NewCoreIfCreated?.SetLibraryName(libName);
 
+        // ...and under the engine flag that is every connection there is: the loop below writes to shipped
+        // bridges, so running it would build one per server (each of which dials) to rename a socket that the
+        // client does not otherwise use
+        if (NewCoreEngine) return;
+
         // Sent through the pipeline rather than through IServer.Execute, which is what this used to do.
         // IServer is a ROUTING abstraction and the routing has moved: under the engine flag its commands go
         // on the other core's socket, so a retro-fix issued that way named the wrong connection and left the

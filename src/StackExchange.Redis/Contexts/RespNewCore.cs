@@ -2357,6 +2357,17 @@ namespace StackExchange.Redis
             foreach (var pair in _subscriptions) pair.Value.OnHeartbeat(timeout);
         }
 
+        /// <summary>Release a connection-local claim on this core's interactive connection to an endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="id">What was claimed; see <c>RespClientConnection.ReleaseClaim</c>.</param>
+        internal void ReleaseClaim(EndPoint endpoint, long id)
+        {
+            if (_endpoints.TryGetValue(endpoint, out var executor) && executor.CurrentConnection is RespClientConnection connection)
+            {
+                connection.ReleaseClaim(id);
+            }
+        }
+
         /// <summary>Stop holding a connection to an endpoint the client has stopped modelling.</summary>
         /// <param name="endpoint">The endpoint whose server was retired.</param>
         /// <remarks>

@@ -1,6 +1,7 @@
 ﻿using System;
 using RESPite;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -33,6 +34,38 @@ public sealed partial class HotKeysResult
 
             return false;
         }
+    }
+
+    /// <summary>Reads <c>HOTKEYS GET</c> on the RESP context, by the same parse as <see cref="Processor"/>.</summary>
+    internal sealed class Handler : IRespHandler<HotKeysResult?>
+    {
+        internal static readonly Handler Instance = new();
+
+        public HotKeysResult? Parse(ref RespReader reader)
+        {
+            if (reader.IsNull) return null;
+
+            // an array with a single element that *is* an array/map that is the results
+            if (reader.IsAggregate && reader.AggregateLengthIs(1))
+            {
+                var iter = reader.AggregateChildren();
+                iter.DemandNext();
+                if (iter.Value.IsAggregate && !iter.Value.IsNull)
+                {
+                    return new HotKeysResult(ref iter.Value);
+                }
+            }
+
+            throw new RespException("Unexpected HOTKEYS GET reply.");
+        }
+    }
+
+    /// <summary>Reads <c>HOTKEYS STOP</c>: whether a session was stopped, with (nil) meaning "no", as the shipped core read it.</summary>
+    internal sealed class StopHandler : IRespHandler<bool>
+    {
+        internal static readonly StopHandler Instance = new();
+
+        public bool Parse(ref RespReader reader) => !reader.IsNull && reader.ReadBoolean();
     }
 
     private HotKeysResult(ref RespReader reader)

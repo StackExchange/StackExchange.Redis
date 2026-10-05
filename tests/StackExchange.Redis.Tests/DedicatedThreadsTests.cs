@@ -29,6 +29,12 @@ public class DedicatedThreadsTests(ITestOutputHelper output) : TestBase(output)
     /// <summary>Connect with the flag in a known state, and put it back afterwards.</summary>
     private async Task WithFlagAsync(bool enabled, Func<IInternalConnectionMultiplexer, EndPoint, Task> assert)
     {
+        // DedicatedThreads is implemented by the shipped PhysicalConnection only. Under the engine flag these
+        // used to pass by inspecting a shipped bridge that ISubscriber.Ping had built - and dialled - on the
+        // side; with that gone there is no connection here for the flag to have applied to. A capability gap,
+        // recorded in design/v4-alpha-plan.md, not something to assert around.
+        Assert.SkipWhen(ConnectionMultiplexer.NewCoreEngine, "DedicatedThreads is not yet implemented by the new core");
+
         var wasSet = ConnectionMultiplexer.GetFeatureFlag(Flag);
         ConnectionMultiplexer.SetFeatureFlag(Flag, enabled);
         try

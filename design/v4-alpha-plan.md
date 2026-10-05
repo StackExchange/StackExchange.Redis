@@ -100,7 +100,7 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       Left, all load-only (0/15 each in isolation): `SubscribeToWrongServerAsync(false)` (a key-routed plain
       subscription moved to the slot owner inside the test's 50ms window), `PubSubOrderedRouted` (conn
       appears to receive one message twice - a possible duplicate subscription, worth a capture), and the stall.
-- [ ] **Make the old core unreachable under the engine flag.** A probe on bridge construction across one
+- [x] **Make the old core unreachable under the engine flag.** Done: 179 -> 20, every remaining one a test driving `RedisDatabase` or bridges on purpose. Was: A probe on bridge construction across one
       full engine run counted 179 shipped bridges still created - each one dials - from: `ISubscriber.Ping`
       (71), `ServerEndPoint.OnConnectedAsync`'s activation path and its `AutoConfigureAsync` (41+42),
       `IServer.HotKeysStop` (24), `HashImport.SafeDiscardAsync` (16), `AddLibraryNameSuffix` (3),
@@ -130,6 +130,10 @@ Each has a default the work proceeds on; none of them blocks anything.
 5. **Event 71, `Response from {Bridge} / {Command}: {Result}`** - the shipped path dumps every
    handshake reply at Information. *Default:* not ported; each fact those replies carry has its own
    auto-configure event, and a raw reply dump belongs at Debug if anywhere.
+6. **`DedicatedThreads` (opt-in feature flag) is not implemented by the new core** - only `PhysicalConnection`
+   has it. Its tests passed under the engine flag only by inspecting a shipped bridge built on the side.
+   *Default:* the alpha ships without it; the tests skip under the engine flag and say why. Porting it means
+   dedicated reader/writer threads in the RESPite transport.
 
 ## Operating rules
 

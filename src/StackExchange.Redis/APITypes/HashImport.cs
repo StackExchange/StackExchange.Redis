@@ -230,8 +230,53 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
         }
     }
 
+    /// <summary>Compose and send <c>HIMPORT DISCARD</c> for this field-set; synchronous up to the send, since the frame is a ref struct.</summary>
+    private ValueTask<bool> SendDiscard(RespContext context)
+    {
+        var cmd = context.Compose(RedisCommand.HIMPORT, 2);
+        Protocol.RespRequestFrame frame;
+        try
+        {
+            cmd.AppendFormatted(RedisLiterals.DISCARD);
+            WriteName(ref cmd);
+            frame = cmd.Complete();
+        }
+        catch
+        {
+            cmd.Dispose();
+            throw;
+        }
+
+        try
+        {
+            return context.SendAsync(ref frame, CommandFlags.FireAndForget, Protocol.RespHandlers.Success, default);
+        }
+        finally
+        {
+            frame.Dispose(); // a no-op once the send has detached it
+        }
+    }
+
     private async Task SafeDiscardAsync(ServerEndPoint server, int db)
     {
+        if (ConnectionMultiplexer.NewCoreEngine && server.Multiplexer.NewCoreIfCreated is { } core)
+        {
+            // on the connection the PREPARE went out on - the new core's, which is where the gate claimed it -
+            // rather than a shipped bridge built (and dialled) just to say goodbye. The claim goes first, so it
+            // never outlives the server's own copy; the DISCARD is fire-and-forget, as the shipped one is.
+            core.ReleaseClaim(server.EndPoint, Id);
+            try
+            {
+                await SendDiscard(new RedisServer(server, null).Context.Raw.WithDatabase(db)).ConfigureAwait(false);
+            }
+            catch
+            {
+                // as below: best-effort; a field-set the server still holds is reclaimed with its connection
+            }
+
+            return;
+        }
+
         try
         {
             await server.WriteDirectAsync(new HashImportDiscardMessage(db, CommandFlags.FireAndForget, this), ResultProcessor.DemandOK).ForAwait();

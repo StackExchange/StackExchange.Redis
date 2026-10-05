@@ -347,7 +347,15 @@ namespace StackExchange.Redis
         {
             if (!ConnectionMultiplexer.NewCoreEngine) return null;
             if (multiplexer.SelectServer(routing) is not { } server) return null;
-            if (!multiplexer.NewCoreHoldsSubscriptionsOn(server.EndPoint)) return null;
+            if (!multiplexer.NewCoreHoldsSubscriptionsOn(server.EndPoint))
+            {
+                // No subscriptions here, so no subscriber connection to flush - and handing back null sent the
+                // ping down the shipped path, which built a bridge (and dialled it) just to answer. The round
+                // trip that remains meaningful is the one on this core's own connection to that server.
+                var direct = new RespContext(multiplexer.RawConfig.CommandMap, database: -1)
+                    .WithExecutor(multiplexer.NewCore.ServerExecutor(server.EndPoint));
+                return Measured(new RespDatabaseContext(direct).PingMeasureAsync(flags));
+            }
 
             var context = multiplexer.NewCore.SubscriptionContext(server.EndPoint);
             if (routing.Command == RedisCommand.PING)

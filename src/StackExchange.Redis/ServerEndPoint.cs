@@ -794,6 +794,13 @@ namespace StackExchange.Redis
         /// </param>
         internal async Task AutoConfigureAsync(PhysicalConnection? connection, ILogger? log = null, CommandFlags extraFlags = CommandFlags.None, bool helloPending = false)
         {
+            // Not on the new core, where every one of these facts already has an owner: the connection's
+            // handshake discovers the server (RespHandshake.DiscoverServerConfigAsync), and a reconfiguration
+            // re-reads slots and roles (RespNewCore.RefreshTopologyAsync) in the same pass that calls this.
+            // Writing these messages anyway constructs a shipped bridge to carry them - which dials - so a
+            // `reconfigureAll` pass was opening a second socket to every server it re-checked.
+            if (ConnectionMultiplexer.NewCoreEngine) return;
+
             if (!serverType.SupportsAutoConfigure())
             {
                 // Don't try to detect configuration.
