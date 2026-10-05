@@ -124,7 +124,7 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 - [x] **Gaps the deletion exposed**, all diagnostics, all ported with a test each: the storm log
       (`StormLogTests`), the fire-and-forget counter (`FireAndForgetCountTests`), and the circular op-count
       snapshot in `GetProfile` (`EndpointProfileTests`). `DedicatedThreads` stays open under decision 6.
-- [ ] **Windows CI never had a synced replica.** Replicas there land the sync RDB on the `/mnt` (drvfs)
+- [x] **Windows CI never had a synced replica.** Replicas there land the sync RDB on the `/mnt` (drvfs)
       mount and fail to load it, retrying forever - which the old core never noticed, because it read
       replicas from `CLUSTER NODES`; the new core reads `CLUSTER SLOTS`, which rightly omits a replica that
       has never synced, so replica routing failed on Windows only. CI now starts Windows replicas with
@@ -167,10 +167,9 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       window `RerouteSubscription` exists for), which does not treat arrays as deliveries. Not reproduced
       locally (10/10 in isolation); needs load or net481 timing. Next: log, per delivery-shaped frame that
       reaches a non-delivering connection, which connection and why - that turns the next CI hit into a cause.
-- [ ] **net481: `BufferedStreamWriterTests.FlushStateDoesNotLeakIntoNextPageActivation` still fails
-      intermittently** (both modes; the blocked write never starts within 5s). Once it was the socket leak
-      starving the run; it has recurred without it. The writer is the production transport's
-      (`StreamDuplexTransport`), so this wants understanding, not a wider timeout.
+- [x] **net481 `BufferedStreamWriterTests` page-boundary failures**: the test assumed an 8K page; on .NET
+      Framework the shared ArrayPool falls through to a larger bucket, so a page could be 16K/32K and never
+      completed. Test now uses an exact pool. Not a writer bug.
 
 ### Backlog (after the alpha gates; not blocking)
 
@@ -222,6 +221,8 @@ Learned the expensive way; see `message-core-replacement.md` 9aa-9aj for the inc
 
 ## Status
 
+- **First fully green CI with the old core deleted: run 37369810590 (2026-10-05)** - Ubuntu net10.0, RESPite,
+  Build.Tests; Windows net10.0 and net481. Zero failures.
 - **CI green-up, 2026-10-05.** Windows was failing for environmental and real reasons, now separated:
   replicas never synced under WSL (diskless load + a fatal sync check); two client socket leaks, which
   exhausted the WSL servers' client limit and made net481 take 20 minutes with "unable to connect" skips
