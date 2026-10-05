@@ -4474,6 +4474,29 @@ error straight through. The conversion wants to happen where the kind is already
 `RespPayloadOperation.ParseFrame` - and that has no multiplexer to report to. That indirection is the real
 work, and it is now written down in the code at the point of decision.
 
+**...and then `SecureTests` fell, from the command path after all.** The two reverted levers were both
+trying to make the *connection* refuse; the conversion belongs where shipped puts it, on the reply. A
+`NOAUTH` or `WRONGPASS` answer is a statement about the connection and not about the command - a caller
+whose `PING` comes back "NOAUTH Authentication required" has not written a bad `PING` - so it now records
+auth suspicion and throws `ExceptionFactory.UnableToConnect`, which already knows how to explain it.
+
+Shipped's synthesised wording for `NOAUTH` is kept deliberately, and not only because the test reads it:
+"connection has not yet authenticated" names the cause where the server's "authentication required" names
+only the symptom. `WRONGPASS` keeps the server's own message, which is already precise. And because
+`SetAuthSuspect` keeps the FIRST report, a refusal recorded during the handshake wins over the `NOAUTH`
+that follows it - which is exactly what makes the wrong-password case read as `WRONGPASS`.
+
+**Three plumbing steps, each found by the failure not moving.** `RespExecutorBase` gained a
+`Multiplexer` - virtual, null by default, because an executor built straight over a transport has none and
+nothing may depend on having one. Then `RespDatabaseExecutor` had to delegate it, and then
+`RespMultiplexerExecutor` had to be *given* one, since it is built from delegates and knows nothing else
+about the client. Each layer in that chain answered null and swallowed the conversion silently; the test
+output was identical all three times, which is worth remembering - "no change" did not mean "wrong idea".
+
+Both tests pass with `ConfigTests.MutableOptions` and `MultiPrimaryTests` intact, which is the trade that
+could not be made from the handshake: the connect still succeeds with `AuthException` set, and the command
+is the thing that fails.
+
 **`ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` is not its own item.** `SPUBLISH` times out
 with `bw: SpinningDown` and `qs: 1` - a written command left on a connection being torn down, waiting out
 the full timeout instead of being failed or re-sent. A sharded publish during slot migration earns a
