@@ -59,7 +59,7 @@ public class BasicAggregates(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     // processor deliberately accepted a scalar "pretending to be an array" (its example: SPOP {key} 1), and
     // a nil scalar as empty. The new array handler throws "This operation requires an aggregate element"
     // for both, so a server that answers SPOP/SRANDMEMBER-with-count that way now fails the call.
-    [Theory(Skip = "new-core RedisValue[] handler rejects a scalar reply the shipped processor read as a one-element array; reported for review")]
+    [Theory]
     [InlineData("$3\r\nfoo\r\n", "foo")] // single bulk string treated as array
     [InlineData("$-1\r\n", "")] // null bulk string treated as empty array
     public void RedisValueArrayFromScalar(string resp, string expected) => Assert.Equal(expected, Join(Execute(resp, RespHandlers.Values)));

@@ -732,6 +732,9 @@ namespace StackExchange.Redis.Protocol
             /// </remarks>
             RedisType IRespHandler<RedisType>.Parse(ref RespReader reader)
             {
+                // nil or empty is "no such key", as v3 read it - not a type we failed to recognise
+                if (reader.IsNull || (reader.IsScalar && reader.ScalarLength() == 0)) return RedisType.None;
+
                 RedisType result;
                 unsafe
                 {
@@ -763,6 +766,9 @@ namespace StackExchange.Redis.Protocol
             {
                 // a nil array - which MGET does not send, but a RESP3 server may for an empty aggregate -
                 // reads as empty rather than null, because every caller of an array reply wants to iterate it
+                // ...and a SCALAR reads as a one-element array (nil as none), as v3's processor did on purpose:
+                // a count-taking command such as SPOP can be answered with a bare value by some servers
+                if (!reader.IsAggregate) return reader.IsNull ? Array.Empty<RedisValue>() : [reader.ReadRedisValue()];
                 return reader.ReadPastRedisValues() ?? Array.Empty<RedisValue>();
             }
 
@@ -1011,7 +1017,9 @@ namespace StackExchange.Redis.Protocol
         private sealed class NullableValuesHandler : IRespHandler<RedisValue[]?>
         {
             public RedisValue[]? Parse(ref RespReader reader)
-                => reader.IsNull ? null : RespHandlers.Values.Parse(ref reader);
+                // strict, unlike Values: v3's NullableRedisValueArray rejected a scalar, and LMOVEM's array is
+                // never a bare value - so the reader's own aggregate demand is the check
+                => reader.IsNull ? null : reader.ReadPastRedisValues() ?? Array.Empty<RedisValue>();
         }
 
         /// <inheritdoc cref="NullableValueLease"/>

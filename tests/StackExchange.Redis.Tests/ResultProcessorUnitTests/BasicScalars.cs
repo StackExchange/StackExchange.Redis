@@ -189,7 +189,7 @@ public class BasicScalars(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     // SUSPECTED REGRESSION, kept at the shipped expectation and skipped rather than weakened: the old
     // processor mapped a nil or empty TYPE reply to None explicitly ("RESP null values and empty strings
     // should map to None rather than Unknown"); the new handler reports Unknown for them.
-    [Theory(Skip = "new-core RedisType handler reads nil/empty as Unknown, where shipped read None; reported for review")]
+    [Theory]
     [InlineData("$-1\r\n", Redis.RedisType.None)]
     [InlineData("_\r\n", Redis.RedisType.None)]
     [InlineData("$0\r\n\r\n", Redis.RedisType.None)]
