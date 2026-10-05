@@ -30,7 +30,7 @@ public class BufferedStreamWriterTests
             Write(writer, PageSize, 2);
 
             var partial = writer.GetMemory(1);
-            await stream.WaitForBlockedWriteAsync().ForAwait();
+            await WaitWithTimeoutAsync(stream.WaitForBlockedWriteAsync(), TimeSpan.FromSeconds(5)).ForAwait(); // bounded: a write that never comes must fail the test, not hang the run
             partial.Span[0] = 3;
             writer.Advance(1);
 
@@ -58,7 +58,7 @@ public class BufferedStreamWriterTests
             Write(writer, 1, 1);
             writer.Flush();
 
-            await stream.WaitForBlockedFlushAsync().ForAwait();
+            await WaitWithTimeoutAsync(stream.WaitForBlockedFlushAsync(), TimeSpan.FromSeconds(5)).ForAwait(); // bounded: a write that never comes must fail the test, not hang the run
 
             Write(writer, 1, 2);
             writer.Flush();
@@ -142,7 +142,7 @@ public class BufferedStreamWriterTests
             stream.BlockNextWrite();
             Write(writer, PageSize, 1);
             writer.Flush();
-            await stream.WaitForBlockedWriteAsync().ForAwait();
+            await WaitWithTimeoutAsync(stream.WaitForBlockedWriteAsync(), TimeSpan.FromSeconds(5)).ForAwait(); // bounded: a write that never comes must fail the test, not hang the run
 
             Assert.True(writer.TransitionToAsync());
             Assert.True(writer.IsSync);
