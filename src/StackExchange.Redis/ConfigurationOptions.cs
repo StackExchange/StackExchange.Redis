@@ -1826,7 +1826,13 @@ namespace StackExchange.Redis
         /// <see cref="ConnectMode.Lazy"/> today would still get every socket opened, by the other half.
         /// It goes public with the step that stops that happening; see design notes 9d.
         /// </remarks>
-        internal ConnectMode ConnectMode { get; set; } = ConnectMode.Lazy;
+        internal ConnectMode ConnectMode { get; set; }
+            // Eager, not Discover - the shipped core activates EVERY endpoint at connect,
+            // and the move is meant to preserve behaviour rather than improve on it. Discover is a real
+            // mode worth offering, but as a default it silently changes what a caller sees: with one
+            // socket open, a non-routed pub/sub probe lands on the same endpoint ten times out of ten,
+            // which ClusterTests.ClusterPubSub reads as "the channel is being routed when it should not be".
+            = ConnectionMultiplexer.NewCoreEngine ? ConnectMode.Eager : ConnectMode.Lazy;
 
         /// <summary>
         /// The buffer pool to use when buffering requests.

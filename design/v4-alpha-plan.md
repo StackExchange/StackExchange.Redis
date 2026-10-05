@@ -40,9 +40,10 @@ In order. The first unchecked item is the next action; the order puts the larges
       the command at the head of the queue; `RemoveIncorrectRouting` asks this core's map.
 - [x] ~~Does `Protocol = Resp2` reach the handshake?~~ Yes - the "RESP3 frames in a RESP2 run" were two
       interleaved runs; counted by connection, the sets are disjoint (9am).
-- [ ] **`ConnectionRestored`**: move `OnNewCoreConnected` out of the patch into committed code.
-- [ ] **Land the coupled patch** as the committed engine-flag behaviour. After this, "coupled" and
-      "flag-only" are the same configuration and the patch file retires.
+- [x] **`ConnectionRestored`**: `OnNewCoreConnected` moved into committed code with the landing.
+- [x] **Land the coupled patch** as the committed engine-flag behaviour. "Coupled" and "flag-only" are now
+      the same configuration and the patch file is retired. Landing fixes: eager connect skips inert
+      cluster nodes (`RespTopology.ServesAnySlot`); the socket-count and slot-less tests re-baselined.
 - [ ] Sentinel (D2.7). Deliberately last in gate 1; may move to after the alpha.
 
 ### Gate 2
@@ -73,10 +74,12 @@ Each has a default the work proceeds on; none of them blocks anything.
 1. **`LoggerTests.BasicLoggerConfig`** asserts more than 30 log lines during connect, calibrated against two
    bridges per endpoint. *Default:* left failing until the logging work in gate 2 lands, then re-measured -
    the generated events may close the gap honestly.
-2. **`DefaultOptionsTests` socket counts** (3 tests) predict sockets during the two-core transition.
-   *Default:* deferred to gate 1's "land the patch" item, after which there is only one core to count.
-3. **`ClusterTopologyUnitTests.SlotLessNodesAreKnownButNotConnected`** is racy on the shipped path too.
-   *Default:* give it a grace loop when gate 1 lands.
+2. **`DefaultOptionsTests` Vanilla/Azure-RESP3 still see one extra socket** under the engine flags: an
+   endpoint whose protocol is not yet known gets a dedicated subscription socket, and keeps it (the
+   documented trade-off in `SubscriptionEndpoint`). *Default:* accept it for the alpha; revisit by
+   closing the dedicated socket once RESP3 is confirmed.
+3. ~~`SlotLessNodesAreKnownButNotConnected` racy~~ - resolved at landing: the test no longer activates the
+   node it is asserting on, and eager connect no longer dials inert nodes.
 4. **Alpha before or after gate 3.** *Default:* proceed through gate 3; flag the moment gate 2 is done.
 
 ## Operating rules

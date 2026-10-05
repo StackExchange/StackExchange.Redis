@@ -1911,7 +1911,26 @@ namespace StackExchange.Redis
         internal static void ActivateServer(ServerEndPoint server, ILogger? log)
         {
             // bool hasSubscriptions = GetSubscriptionsCount() != 0;
-            server.Activate(ConnectionType.Interactive, log);
+            // the shipped core stops dialling under the flag, and the other core dials
+            // in its place - HERE, because "activate this server" is what this method means, and a caller
+            // that says it expects the server to come up. Doing it only in ReconfigureAsync's loop left an
+            // explicit ActivateServer dialling nothing at all, so a waiter on an undialled server could
+            // never be completed (InertClusterNodeUnitTests.WaitingOnAnUndialledServerCannotComplete).
+            //
+            // Eager only: Discover wants exactly one connection for the whole deployment, and which one
+            // is a decision for the pass that can see them all, so that case stays in the loop. An inert
+            // node never reaches here, which is what keeps it undialled.
+            if (NewCoreEngine)
+            {
+                if (server.Multiplexer.RawConfig.ConnectMode == ConnectMode.Eager)
+                {
+                    server.Multiplexer.NewCore.DialEndpointSoon(server.EndPoint);
+                }
+            }
+            else
+            {
+                server.Activate(ConnectionType.Interactive, log);
+            }
             // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
             if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
             {
@@ -2034,6 +2053,11 @@ namespace StackExchange.Redis
                         var available = new Task<string>[endpoints.Count];
                         servers = new ServerEndPoint[available.Length];
 
+                        // Discover means ONE connection for the whole pass, and the dial below is
+                        // fire-and-forget - so "has anything connected yet?" cannot be the test; by the
+                        // time the second endpoint is reached the first one's socket is still opening
+                        var dialledOne = false;
+
                         for (int i = 0; i < available.Length; i++)
                         {
                             Trace("Testing: " + Format.ToString(endpoints[i]));
@@ -2056,11 +2080,37 @@ namespace StackExchange.Redis
                             // ...which is also why it says when it fires. A guard that repairs the state in silence
                             // hides any *new* route into it behind a connect that simply works; this way the log
                             // names the endpoint, and the question "does anything still reach here?" has an answer
-                            if (server.GetBridge(ConnectionType.Interactive, create: false) is null)
+                            // ...and only where the shipped core is the one dialling. The
+                            // guard asks "did something reach here with no bridge?", which is a question
+                            // about shipped activation; under the flag a null shipped bridge is the normal
+                            // state for every endpoint, so the warning would fire for all of them and mean
+                            // nothing (InertClusterNodeUnitTests asserts the absence of exactly this line).
+                            if (!NewCoreEngine && server.GetBridge(ConnectionType.Interactive, create: false) is null)
                             {
                                 log?.LogInformationActivatingUndialledServer(new(server.EndPoint));
                             }
                             ActivateServer(server, log);
+
+                            // ...and the other core's connection for this endpoint, which is the one that
+                            // will carry the commands. It has to be kicked HERE and nowhere earlier: the
+                            // multiplexer has no endpoints until this method has resolved them, so an
+                            // eager dial before this point iterates an empty list and silently does
+                            // nothing - measured as `muxerEndpoints=0`. Fire-and-forget, because the wait
+                            // below is the thing that waits, and its establish completes the waiter that
+                            // `OnConnectedAsync` is about to hand out.
+                            //
+                            // ...and only as much as ConnectMode asked for. Lazy means nothing is opened
+                            // until a command needs it, and Discover means ONE connection - which is
+                            // enough, because one handshake maps the whole deployment. Dialling every
+                            // endpoint regardless made Lazy unobservable, which RespConnectionStateTests
+                            // reads as "Lazy should open nothing" against a core that had opened six.
+                            // Eager is handled inside ActivateServer above; this is only the Discover
+                            // case, which needs the whole pass in view to pick one endpoint
+                            if (NewCoreEngine && RawConfig.ConnectMode == ConnectMode.Discover && !dialledOne)
+                            {
+                                dialledOne = true;
+                                NewCore.DialEndpointSoon(server.EndPoint);
+                            }
 
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
                             // (which is the reconfigure case, except second iteration which is only for newly discovered cluster members).

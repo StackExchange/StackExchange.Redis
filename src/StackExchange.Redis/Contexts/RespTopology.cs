@@ -283,6 +283,38 @@ namespace StackExchange.Redis
             SlotMapSuspect = false; // answered by whoever just told us
         }
 
+        /// <summary>Whether the slot map names an endpoint as the owner or a replica of any slot.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <returns>Whether it serves anything; true when there is no map to judge by.</returns>
+        /// <remarks>
+        /// The definition of a cluster node that is "known but inert": discovery registers a node that serves
+        /// no slots so it stays addressable, and deliberately does not dial it, because nothing would ever be
+        /// routed there. Answered from the map rather than from the node's own <c>CLUSTER NODES</c> view,
+        /// because a node nobody has connected to has no view - and a slot-serving node not yet dialled must
+        /// not be mistaken for an inert one.
+        /// </remarks>
+        internal bool ServesAnySlot(EndPoint endpoint)
+        {
+            var map = Volatile.Read(ref _slots);
+            if (map is null || endpoint is null) return true;
+
+            SlotOwners? previous = null;
+            foreach (var owners in map)
+            {
+                // ranges share one SlotOwners instance, so consecutive repeats are skipped cheaply
+                if (owners is null || ReferenceEquals(owners, previous)) continue;
+                previous = owners;
+
+                if (Equals(owners.Primary, endpoint)) return true;
+                foreach (var replica in owners.Replicas)
+                {
+                    if (Equals(replica, endpoint)) return true;
+                }
+            }
+
+            return false;
+        }
+
         /// <summary>Move a single slot, as a <c>MOVED</c> says to.</summary>
         /// <param name="slot">The slot that moved.</param>
         /// <param name="endpoint">Where the server says it went.</param>

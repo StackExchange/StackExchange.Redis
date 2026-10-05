@@ -1147,6 +1147,11 @@ namespace StackExchange.Redis
                 await SubscribeToConfigurationChannelAsync(context, cancellationToken).ConfigureAwait(false);
             }
 
+            if (!subscription && connection.Server is { } established)
+            {
+                established.OnNewCoreConnected($"{endpoint} connected on the new core");
+            }
+
             // A connection deliveries arrive on is useless until the subscriptions are on it again, and
             // nothing else was going to notice: the shipped core re-subscribes when its own subscription
             // bridge establishes, so a socket THIS core brought back had no equivalent trigger and the
@@ -1656,6 +1661,20 @@ namespace StackExchange.Redis
             var any = false;
             foreach (var endpoint in _multiplexer.GetEndPoints())
             {
+                // NOT the inert ones. Discovery registers a cluster node that serves no slots so that it stays
+                // addressable, and deliberately does not dial it - nothing will ever be routed there, and a
+                // socket to it is pure cost. Eager means "open everything we will use", and walking every
+                // KNOWN endpoint instead quietly dialled those too, which
+                // ClusterTopologyUnitTests.SlotLessNodesAreKnownButNotConnected caught as a node that was
+                // connected without anyone having asked for it. A configured endpoint is always dialled,
+                // whatever it serves: it is a seed the caller named.
+                if (mode == ConnectMode.Eager
+                    && _multiplexer.TryResolveServerEndPoint(endpoint) is { Provenance: ServerProvenance.ClusterTopology }
+                    && !_topology.ServesAnySlot(endpoint))
+                {
+                    continue;
+                }
+
                 try
                 {
                     await Endpoint(endpoint).ConnectNowAsync(cancellationToken).ConfigureAwait(false);

@@ -142,7 +142,8 @@ namespace StackExchange.Redis
         }
 
         public bool IsConnecting => interactive?.IsConnecting == true;
-        public bool IsConnected => interactive?.IsConnected == true;
+        public bool IsConnected => interactive?.IsConnected == true
+            || (ConnectionMultiplexer.NewCoreEngine && Multiplexer.NewCoreIfCreated?.IsConnected(EndPoint) == true);
         // ...and where there is no second bridge, SupportsSubscriptions is the term that would otherwise
         // go missing: a bridge for a disabled SUBSCRIBE never connects, so the shipped answer is no by
         // construction, where sharing one connection has to say no on purpose.
@@ -1194,11 +1195,25 @@ namespace StackExchange.Redis
         internal bool IsSelectable(RedisCommand command, bool allowDisconnected = false)
         {
             // Until we've connected at least once, we're going to have a DidNotRespond unselectable reason present
-            var bridge = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond)
-                ? GetBridge(command, true)
-                : null;
+            var usable = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond);
 
+            if (ConnectionMultiplexer.NewCoreEngine)
+            {
+                // connectivity from the core that carries the commands, and deliberately
+                // without creating a bridge to ask about - creating one is what made an unactivated bridge
+                // permanently unselectable.
+                return usable
+                    && (allowDisconnected || Multiplexer.NewCoreIfCreated?.IsConnected(EndPoint) == true);
+            }
+
+            var bridge = usable ? GetBridge(command, true) : null;
             return bridge != null && (allowDisconnected || bridge.IsConnected);
+        }
+
+        internal void OnNewCoreConnected(string source)
+        {
+            CompletePendingConnectionMonitors(source);
+            Multiplexer.OnConnectionRestored(EndPoint, ConnectionType.Interactive, source);
         }
 
         private void CompletePendingConnectionMonitors(string source)
@@ -1849,7 +1864,7 @@ namespace StackExchange.Redis
             }
 
             var connType = bridge.ConnectionType;
-            if (connType == ConnectionType.Interactive)
+            if (connType == ConnectionType.Interactive && !ConnectionMultiplexer.NewCoreEngine)
             {
                 await AutoConfigureAsync(connection, log, extraFlags: Message.NoFlushFlag, helloPending: helloAvailable).ForAwait();
             }
