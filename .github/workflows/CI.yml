@@ -277,7 +277,7 @@ jobs:
         # A hung test otherwise holds the job until GitHub's six-hour limit, and says nothing about which
         # test it was. --blame-hang names it (in the run's Sequence file and the log) and kills it, so the
         # rest still report; the step timeout is the backstop if even that does not return.
-        timeout-minutes: 90
+        timeout-minutes: 30
         run: |
           $exitCode = 0
           foreach ($tfm in @("net10.0", "net481")) {
