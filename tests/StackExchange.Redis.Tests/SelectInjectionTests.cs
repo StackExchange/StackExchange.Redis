@@ -96,7 +96,10 @@ public class SelectInjectionTests
         var flushes = transport.Flushes;
 
         _ = context.Strings.GetAsync("k");
-        await WaitFor(() => transport.Written.Contains("GET"));
+
+        // the flush lands just AFTER the bytes, so wait for both: waiting for the bytes alone read the count
+        // in between, as 0, on a slow net481 runner
+        await WaitFor(() => transport.Written.Contains("GET") && transport.Flushes - flushes >= 1);
 
         // one flush, and nothing between them: another sender taking the lock in the middle would run its
         // command against database 3, which is the silent failure this exists to prevent
