@@ -78,9 +78,24 @@ In order. The first unchecked item is the next action; the order puts the larges
 
 ### Gate 3
 
-- [ ] Decouple the 137 first-layer errors in surviving files: `ServerEndPoint` 34, `RedisServer` 20,
-      `ConnectionMultiplexer` 19, `LoggerExtensions` 10, `ExceptionFactory` 9, `RedisBase` 7, profiling,
-      the rest. Expect another layer of roughly half that once these are fixed.
+Re-probed at 836f138a: **221 distinct error sites** (930 errors) from deleting `Message*`,
+`ResultProcessor*`, `PhysicalBridge*`, `PhysicalConnection*`, `RedisDatabase*`. Of them, 84 die with the
+deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTransaction`, per-command
+`*Message`/`*ResultProcessor` files); 46 are old-core internals nested in surviving public types
+(`Condition`, `CursorEnumerable`, `HashImport`, `ClientInfo`, `CommandTrace`, latency entries,
+`ProfiledCommand`); 91 are real decoupling (`ServerEndPoint` 28, `RedisServer` 14,
+`ConnectionMultiplexer` 13, `ExceptionFactory` 9, `RespHandlers` 5, `LoggerExtensions` 5, `RedisBase` 4, ...).
+
+**Every one of those removals breaks the shipped configuration while it exists**, so the order is forced:
+
+- [ ] Zero the engine-flag triage list - CI sets no flags, so after the flip it inherits whatever is left:
+      `ReconnectRetryPolicyUnitTests` (Success), `DefaultOptionsTests` x2 (decision 2), Sentinel
+      `AbortOnConnectFailFalseRecoversOnceSentinelsAppear` (D2.7), and the `MovedProfiling` / `GetClients` /
+      `SubscribeToWrongServer` flakes.
+- [ ] **Flip the default**: the engine flags on unless `SEREDIS_NEW_CORE_ENGINE=0`. The old core is then
+      present but unreachable by default - the shape the alpha can ship in.
+- [ ] Decouple the 91 + 46 above (was 137 at f7f36406, by a different count). Expect another layer
+      once these are fixed - the compiler suppresses cascades.
 - [ ] Logging - three events take nested `PhysicalBridge.State` / `BacklogStatus` /
       `PhysicalConnection.ReadStatus`/`WriteStatus` (`ServerStatus` 214, `EndpointState` 226,
       `OnConnectedAsyncInit` 473): move the enums out or re-type, preserving ids.
