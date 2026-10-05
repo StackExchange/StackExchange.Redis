@@ -375,6 +375,18 @@ namespace StackExchange.Redis
                 Add(data, sb, "OpsSinceLastHeartbeat", "inst", bs.MessagesSinceLastHeartbeat.ToString());
                 Add(data, sb, "Queue-Awaiting-Write", "qu", bs.BacklogMessagesPending.ToString());
                 Add(data, sb, "Queue-Awaiting-Response", "qs", bs.Connection.MessagesSentAwaitingResponse.ToString());
+
+                // the storm log: once per multiplexer until reset, and only when the queue is deep enough to be
+                // worth a person's reading - what was in flight is usually the answer to "why did this time out?"
+                if (multiplexer.StormLogThreshold >= 0
+                    && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold
+                    && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
+                {
+                    var stormLog = multiplexer.NewCoreIfCreated?.GetStormLog(
+                        server.EndPoint, message.IsForSubscriptionBridge ? ConnectionType.Subscription : ConnectionType.Interactive);
+                    if (string.IsNullOrWhiteSpace(stormLog)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
+                    else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, stormLog);
+                }
                 Add(data, sb, "Active-Writer", "aw", bs.IsWriterActive.ToString());
                 Add(data, sb, "Backlog-Writer", "bw", bs.BacklogStatus.ToString());
                 if (bs.Connection.ReadStatus != ReadStatus.NA) Add(data, sb, "Read-State", "rs", bs.Connection.ReadStatus.ToString());

@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -1934,6 +1935,23 @@ namespace StackExchange.Redis
         {
             var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
             return endpoint is not null && map.TryGetValue(endpoint, out var executor) ? executor.GetStatus() : null;
+        }
+
+        /// <summary>
+        /// A storm log for one endpoint: what was awaiting a reply when a timeout found the queue deep.
+        /// </summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="connectionType">Which of its connections to describe.</param>
+        /// <returns>The log, or null when that connection has nothing pending.</returns>
+        internal string? GetStormLog(EndPoint endpoint, ConnectionType connectionType)
+        {
+            var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
+            if (endpoint is null || !map.TryGetValue(endpoint, out var executor)) return null;
+
+            var sb = new StringBuilder("Storm log for ").Append(Format.ToString(endpoint)).Append(" / ").Append(connectionType)
+                .Append(" at ").Append(DateTime.UtcNow)
+                .AppendLine().AppendLine();
+            return executor.AppendStormLog(sb) ? sb.ToString() : null;
         }
 
         /// <summary>What connecting to an endpoint last failed with, as this core saw it.</summary>

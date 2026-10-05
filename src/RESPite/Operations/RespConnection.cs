@@ -127,6 +127,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// <summary>Operations written and still awaiting a reply.</summary>
     public int PendingCount => _pending.Count;
 
+    /// <summary>The messages awaiting a reply, oldest first, as of now.</summary>
+    /// <remarks>A <see cref="ConcurrentQueue{T}"/> enumerates a moment-in-time snapshot, so this is safe to walk while traffic continues.</remarks>
+    internal IEnumerable<IRespMessage> PendingSnapshot => _pending;
+
     /// <summary>Operations awaiting a reply that can still be finished by one.</summary>
     /// <remarks>
     /// <b>Not <see cref="PendingCount"/>, and the gap is the point.</b> A timed-out or otherwise

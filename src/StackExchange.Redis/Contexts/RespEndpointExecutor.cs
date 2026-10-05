@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -397,6 +398,32 @@ namespace StackExchange.Redis
         /// a plausible zero: there is no socket-level byte count and no pipe, because there is no pipe.
         /// </para>
         /// </remarks>
+        /// <summary>Append the commands awaiting a reply on this endpoint's connection - the storm log's body.</summary>
+        /// <param name="sb">Where to write.</param>
+        /// <returns>Whether there was anything to write.</returns>
+        /// <remarks>
+        /// Capped at 500 lines, as v3's was: a storm log is read by a person, and the 501st pending GET says
+        /// nothing the first 500 did not.
+        /// </remarks>
+        internal bool AppendStormLog(StringBuilder sb)
+        {
+            RespConnection? connection;
+            lock (_sync) connection = _connection;
+            if (connection is not { IsClosed: false } || connection.PendingCount == 0) return false;
+
+            sb.Append("Sent, awaiting response from server: ").Append(connection.PendingCount).AppendLine();
+            var total = 0;
+            foreach (var message in connection.PendingSnapshot)
+            {
+                if (++total > 500) break;
+                if (message is IFaultSubject subject) sb.Append(subject.CommandAndKey);
+                else sb.Append(message.GetType().Name);
+                sb.AppendLine();
+            }
+
+            return true;
+        }
+
         internal BridgeStatus GetStatus()
         {
             RespConnection? connection;
