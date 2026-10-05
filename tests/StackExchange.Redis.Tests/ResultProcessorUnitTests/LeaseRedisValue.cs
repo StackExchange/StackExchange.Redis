@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
@@ -17,7 +18,7 @@ public class LeaseRedisValue(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     [InlineData("*?\r\n.\r\n", 0)] // streaming empty array
     public void LeaseRedisValueProcessor_ValidInput(string resp, int expectedCount)
     {
-        var processor = ResultProcessor.LeaseRedisValue;
+        var processor = VectorSets.ValueLeaseHandler.Writable;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -29,7 +30,7 @@ public class LeaseRedisValue(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     {
         // Array of 3 RedisValues: "aaa", "bbb", "ccc"
         var resp = "*3\r\n$3\r\naaa\r\n$3\r\nbbb\r\n$3\r\nccc\r\n";
-        var processor = ResultProcessor.LeaseRedisValue;
+        var processor = VectorSets.ValueLeaseHandler.Writable;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -44,7 +45,7 @@ public class LeaseRedisValue(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     {
         // Empty array (key doesn't exist)
         var resp = "*0\r\n";
-        var processor = ResultProcessor.LeaseRedisValue;
+        var processor = VectorSets.ValueLeaseHandler.Writable;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -56,7 +57,7 @@ public class LeaseRedisValue(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     [InlineData("_\r\n")] // null (RESP3)
     public void LeaseRedisValueProcessor_NullArray(string resp)
     {
-        var processor = ResultProcessor.LeaseRedisValue;
+        var processor = VectorSets.ValueLeaseHandler.Writable;
         var result = Execute(resp, processor);
 
         Assert.Null(result);
@@ -68,7 +69,7 @@ public class LeaseRedisValue(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     [InlineData("+OK\r\n")] // simple string (not an array)
     public void LeaseRedisValueProcessor_InvalidInput(string resp)
     {
-        var processor = ResultProcessor.LeaseRedisValue;
+        var processor = VectorSets.ValueLeaseHandler.Writable;
         ExecuteUnexpected(resp, processor);
     }
 
@@ -77,7 +78,7 @@ public class LeaseRedisValue(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     {
         // Array with mixed types: bulk string, simple string, integer
         var resp = "*3\r\n$5\r\nhello\r\n+world\r\n:42\r\n";
-        var processor = ResultProcessor.LeaseRedisValue;
+        var processor = VectorSets.ValueLeaseHandler.Writable;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);

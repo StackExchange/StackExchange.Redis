@@ -571,7 +571,7 @@ public static partial class VectorSets
     /// A flat array of values as a writable lease, for <see cref="IDatabase"/>: the read-only shape is
     /// an inbuilt handler, and this is that answer copied into storage the caller may write to.
     /// </summary>
-    private sealed class ValueLeaseHandler : IRespHandler<Lease<RedisValue>?>
+    internal sealed class ValueLeaseHandler : IRespHandler<Lease<RedisValue>?>
     {
         private static readonly ValueLeaseHandler Instance = new();
 
@@ -582,7 +582,7 @@ public static partial class VectorSets
     }
 
     /// <summary>VDIM replies with a count that is an <see cref="int"/> on the old surface.</summary>
-    private sealed class Int32Handler : IRespHandler<int>
+    internal sealed class Int32Handler : IRespHandler<int>
     {
         internal static readonly Int32Handler Instance = new();
 
@@ -590,7 +590,7 @@ public static partial class VectorSets
     }
 
     /// <summary>VEMB: a flat array of components, which the server sends as text.</summary>
-    private sealed class Float32Handler : IRespHandler<ReadOnlyLease<float>?>, IRespHandler<Lease<float>?>
+    internal sealed class Float32Handler : IRespHandler<ReadOnlyLease<float>?>, IRespHandler<Lease<float>?>
     {
         private static readonly Float32Handler Instance = new();
 

@@ -216,7 +216,7 @@ namespace StackExchange.Redis
 
         /// <summary>Times a round trip by being created before it and read after it.</summary>
         /// <remarks><inheritdoc cref="PingMeasureAsync" path="/remarks/para[1]"/></remarks>
-        private sealed class PingMeasureHandler : IRespHandler<TimeSpan>
+        internal sealed class PingMeasureHandler : IRespHandler<TimeSpan>
         {
             private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
 

@@ -646,7 +646,7 @@ public static partial class Diagnostics
     /// <c>ResultProcessor.ScalarSays</c>, shared with the shipped processors so the two cores cannot
     /// disagree about whether a server agreed.
     /// </remarks>
-    private sealed class SaveStartedHandler : IRespHandler<bool>
+    internal sealed class SaveStartedHandler : IRespHandler<bool>
     {
         /// <summary>A <c>BGSAVE</c> reply.</summary>
         internal static readonly SaveStartedHandler Rdb = new(aof: false);
@@ -696,7 +696,7 @@ public static partial class Diagnostics
     }
 
     /// <summary>Reads <c>TIME</c>: unix seconds, then microseconds within that second.</summary>
-    private sealed class ServerTimeHandler : IRespHandler<DateTime>
+    internal sealed class ServerTimeHandler : IRespHandler<DateTime>
     {
         internal static readonly ServerTimeHandler Instance = new();
 

@@ -549,7 +549,7 @@ public static partial class Scripts
             cancellationToken);
 
     /// <summary>Reads <c>SCRIPT EXISTS</c>: one flag per hash asked about, and we asked about one.</summary>
-    private sealed class ScriptExistsHandler : IRespHandler<bool>
+    internal sealed class ScriptExistsHandler : IRespHandler<bool>
     {
         internal static readonly ScriptExistsHandler Instance = new();
 

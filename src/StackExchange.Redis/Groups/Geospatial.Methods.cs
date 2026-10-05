@@ -528,7 +528,7 @@ public static partial class Geospatial
     }
 
     /// <summary>GEOHASH for one member: an array of one, or an empty array if it is missing.</summary>
-    private sealed class SingletonStringHandler : IRespHandler<string?>
+    internal sealed class SingletonStringHandler : IRespHandler<string?>
     {
         internal static readonly SingletonStringHandler Instance = new();
 
@@ -560,7 +560,7 @@ public static partial class Geospatial
         }
     }
 
-    private sealed class StringLeaseHandler : IRespHandler<ReadOnlyLease<string?>>, IRespHandler<string?[]>
+    internal sealed class StringLeaseHandler : IRespHandler<ReadOnlyLease<string?>>, IRespHandler<string?[]>
     {
         private static readonly StringLeaseHandler Instance = new();
 

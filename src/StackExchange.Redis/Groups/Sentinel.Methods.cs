@@ -152,7 +152,7 @@ internal static class SentinelCommands
     }
 
     /// <summary>One description as field/value pairs, interleaved or mapped - the shipped pair reader.</summary>
-    private sealed class PairsHandler : IRespHandler<KeyValuePair<string, string>[]>
+    internal sealed class PairsHandler : IRespHandler<KeyValuePair<string, string>[]>
     {
         internal static readonly PairsHandler Instance = new();
 

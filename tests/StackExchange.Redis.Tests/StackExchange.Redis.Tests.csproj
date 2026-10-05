@@ -20,20 +20,6 @@
     core's handlers (see design/v4-alpha-plan.md, gate 3) rather than dropped. Excluded only until then.
   -->
   <ItemGroup>
-    <Compile Remove="ResultProcessorUnitTests/BasicAggregates.cs" />
-    <Compile Remove="ResultProcessorUnitTests/BasicScalars.cs" />
-    <Compile Remove="ResultProcessorUnitTests/DateTime.cs" />
-    <Compile Remove="ResultProcessorUnitTests/DemandZeroOrOne.cs" />
-    <Compile Remove="ResultProcessorUnitTests/ExpectBasicString.cs" />
-    <Compile Remove="ResultProcessorUnitTests/InterleavedPairs.cs" />
-    <Compile Remove="ResultProcessorUnitTests/Lease.cs" />
-    <Compile Remove="ResultProcessorUnitTests/LeaseRedisValue.cs" />
-    <Compile Remove="ResultProcessorUnitTests/Misc.cs" />
-    <Compile Remove="ResultProcessorUnitTests/RedisValueFromArray.cs" />
-    <Compile Remove="ResultProcessorUnitTests/RespResultProcessor.cs" />
-    <Compile Remove="ResultProcessorUnitTests/TimeSpan.cs" />
-    <Compile Remove="ResultProcessorUnitTests/Timing.cs" />
-    <Compile Remove="ResultProcessorUnitTests/TracerProcessor.cs" />
     <Compile Remove="RoundTripUnitTests/**" />
     <!-- byte-parity against the old writer, which is gone: to become golden-byte tests, captured from the last build that had it -->
     <!-- retry categories of the old RedisDatabase messages: to assert the same categories on the new surface's frames -->

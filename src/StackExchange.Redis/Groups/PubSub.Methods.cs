@@ -197,7 +197,7 @@ public static partial class PubSub
     /// name containing <c>*</c> is a name rather than a pattern - reading them as patterns would make a
     /// channel called <c>news.*</c> compare equal to a subscription it has nothing to do with.
     /// </remarks>
-    private sealed class ChannelArrayHandler : IRespHandler<RedisChannel[]>
+    internal sealed class ChannelArrayHandler : IRespHandler<RedisChannel[]>
     {
         private static readonly ChannelArrayHandler Unprefixed = new(default);
 
@@ -224,7 +224,7 @@ public static partial class PubSub
     }
 
     /// <summary>Reads <c>PUBSUB NUMSUB</c>: name/count pairs, of which we asked for exactly one.</summary>
-    private sealed class NumSubHandler : IRespHandler<long>
+    internal sealed class NumSubHandler : IRespHandler<long>
     {
         internal static readonly NumSubHandler Instance = new();
 
