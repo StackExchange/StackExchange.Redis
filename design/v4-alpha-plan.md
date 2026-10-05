@@ -31,10 +31,11 @@ In order. The first unchecked item is the next action; the order puts the larges
 
 ### Gate 1
 
-- [ ] **MOVED to the same endpoint: hand the write slot over during the retire.** Diagnosed in an earlier
-      session and not fixed; the naive retire deadlocks on the write slot. Blocks
-      `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` (`SPUBLISH` dies with
-      `bw: SpinningDown`) and `MovedUnitTests.MovedToSameEndpoint_*`. Highest risk, so first.
+- [x] ~~MOVED to the same endpoint~~ - already fixed in `75065917`; all 22 `MovedUnitTests` pass under the
+      coupled patch. This item was written from a memory note a week out of date.
+- [ ] **`ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync`** (RESP3): `SPUBLISH` times out with
+      `bw: SpinningDown`, `qs: 1` after a slot migration. Previously lumped in with MOVED-to-same-endpoint;
+      it is a separate mechanism. Trace it before theorising.
 - [ ] **Work accumulating at a known-dead node.** `RetirementUnderMaintenanceTests`: 1.8k-5.8k operations
       outstanding where the flagged premise says zero. Not caused by any retry (9aj). Mechanism unknown -
       start by finding which code path enqueues, not by reading counts.

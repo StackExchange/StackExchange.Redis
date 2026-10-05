@@ -4642,3 +4642,45 @@ more will surface as the first layer is fixed.
 Two capabilities this surfaced that the grep inventory missed: **profiling** is built on `Message` and
 needs a new-core shape, and the **logging events' parameter types** couple them to the old core even where
 the calling code survives.
+
+### 9ak. A confirmation push could answer an unrelated command, and a gate that looked right was not
+
+Chasing `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` (RESP3). It is still open; two things
+came out of it, one kept and one withdrawn, and the method that separated them is the part worth keeping.
+
+**Kept: a confirmation push is only a reply if a subscription command is waiting for one.** On RESP3 one
+connection carries commands and subscriptions together. The push dispatcher marks a `(s)subscribe`
+confirmation `MatchToCommand`, and `RespClientConnection.OnOutOfBand` then handed it to *whatever op was
+at the head of the pending queue*. Instrumented, it caught one red-handed: an `ssubscribe` confirmation
+arriving with **`PING`** at the head. Unguarded, the PING is answered with a push frame and every reply
+after it shifts by one - which is a desync, the most dangerous class of bug a client can have, because it
+returns wrong answers rather than failing.
+
+The class's own remarks already stated the rule - matching a push "would answer somebody's command with an
+unrelated frame and every reply after it would be off by one" - but applied it only to *unrecognised*
+pushes; `MatchToCommand` bypassed it. The guard drops a confirmation when the head is *known* to be some
+other command. Conservatively so: the first version asked "is a subscribe waiting?" instead, and since not
+every operation records its command (`RedisCommand.NONE`), it dropped the handshake's own configuration-
+channel `SUBSCRIBE` confirmation and stalled every connect for its full timeout. It now drops only on
+positive evidence, and matches as before whenever it cannot tell. RESPite gained an internal
+`TryPeekPending` for it; the peek is safe because only the reader loop dequeues, and this runs on it.
+
+**Withdrawn: gating the slot-map re-resolution on a redirect count.** `Subscription.Settle` re-resolves a
+sharded subscription's endpoint from the slot map whenever the map disagrees with where it was aimed, on
+the theory that a `-MOVED` must have taught the map. After a migration the map can simply be *stale*, and
+the trace showed it overwriting a correct landing with the old owner. The fix counted redirects through
+`RespTopology.OnSlotMoved` and trusted the map only if one happened during the send.
+
+It looked right, passed in isolation five times out of five - and failed RESP2 in **three of three**
+full-suite runs, at precisely the assertion it governs. Its assumption was false: the post-migration
+resubscribe deliberately goes via the *outgoing* node, and that redirect is not always followed through
+`OnSlotMoved`, so the count did not move and the gate recorded the old node. Reverted; with only the
+confirmation guard in place, RESP2 passes under load again.
+
+**Method note.** That regression was invisible in isolation and consistent under load. "Passes 5/5 alone"
+was not evidence of safety for a change to shared connection state; three full-suite runs were what found
+it, and one would not have been enough to trust either way.
+
+**Still open**, and narrower than it was: on RESP3 the subscription ends recorded on the old node after a
+migration. The stale-map re-resolution is the mechanism; the fix needs a real signal of where a redirected
+subscribe *landed*, not an inference from the map or from a counter that misses a path.

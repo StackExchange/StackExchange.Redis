@@ -725,6 +725,17 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// array.
     /// </para>
     /// </remarks>
+    /// <summary>The operation the next reply will be matched to, without taking it.</summary>
+    /// <param name="message">The head of the pending queue, when there is one.</param>
+    /// <returns>Whether anything is pending.</returns>
+    /// <remarks>
+    /// For a subclass deciding whether an out-of-band frame that CLAIMS to be a reply really is one: a
+    /// confirmation push matched to the wrong operation answers somebody's command with an unrelated frame,
+    /// and every reply after it is then off by one. Only the reader loop dequeues, and this runs on it, so
+    /// the head cannot change between the peek and the match.
+    /// </remarks>
+    protected bool TryPeekPending(out IRespMessage? message) => _pending.TryPeek(out message);
+
     protected virtual bool IsOutOfBand(ReadOnlySpan<byte> frame)
         => !frame.IsEmpty && (RespPrefix)frame[0] == RespPrefix.Push;
 

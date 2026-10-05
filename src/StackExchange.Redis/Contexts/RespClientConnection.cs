@@ -193,10 +193,44 @@ namespace StackExchange.Redis
             return verdict switch
             {
                 RespOutOfBandResult.Handled => true,
-                RespOutOfBandResult.MatchToCommand => false,
+                RespOutOfBandResult.MatchToCommand => HeadIsKnownNotSubscription(),
                 _ => (RespPrefix)frame[0] == RespPrefix.Push, // unrecognised: drop a push, match an array
             };
         }
+
+        /// <summary>Whether a confirmation push would be matched to a command it cannot belong to.</summary>
+        /// <remarks>
+        /// <b>A confirmation push is only a reply if a subscription command is waiting for one.</b> The rule
+        /// in this class's own remarks - matching a push "would answer somebody's command with an unrelated
+        /// frame and every reply after it would be off by one" - was applied to UNRECOGNISED pushes, and a
+        /// confirmation the dispatcher marked <c>MatchToCommand</c> went straight to whatever was at the head
+        /// of the pending queue, whatever command that was.
+        /// <para>
+        /// On RESP3 that is a live hazard rather than a theoretical one, because one connection carries both
+        /// the commands and the subscriptions. After a slot migration this client resubscribes, and a
+        /// confirmation can arrive while a <c>SPUBLISH</c> is at the head: the publish was answered with an
+        /// <c>ssubscribe</c> push, its real reply then had nothing to match, and the caller timed out
+        /// holding a command the server had already executed - the message was delivered.
+        /// <c>ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync</c> (RESP3) is that sequence.
+        /// </para>
+        /// <para>
+        /// So a stray confirmation is dropped, which costs nothing: it confirms a state this client already
+        /// tracks, and the resubscribe machinery is what owns getting that state right.
+        /// </para>
+        /// <para>
+        /// <b>Conservative on purpose: it drops only when it KNOWS the head is something else.</b> The first
+        /// version asked the opposite question - "is a subscribe waiting?" - and that dropped the handshake's
+        /// own configuration-channel <c>SUBSCRIBE</c> confirmation, because not every operation carries its
+        /// command (<see cref="RedisCommand.NONE"/>), so every connect then waited out its full timeout. A
+        /// head whose command is unknown, or that is not a command of this client's at all, is matched as
+        /// before; only a head that is positively some OTHER command refuses the frame.
+        /// </para>
+        /// </remarks>
+        private bool HeadIsKnownNotSubscription()
+            => TryPeekPending(out var head)
+                && head is RespPayloadOperation { Command: not RedisCommand.NONE } operation
+                && operation.Command is not (RedisCommand.SUBSCRIBE or RedisCommand.PSUBSCRIBE or RedisCommand.SSUBSCRIBE
+                    or RedisCommand.UNSUBSCRIBE or RedisCommand.PUNSUBSCRIBE or RedisCommand.SUNSUBSCRIBE);
 
         /// <summary>Whether this array is the reply to a <c>PING</c> rather than a delivery.</summary>
         private static bool IsPong(ReadOnlySpan<byte> frame)
