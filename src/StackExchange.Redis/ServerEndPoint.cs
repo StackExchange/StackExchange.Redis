@@ -636,7 +636,13 @@ namespace StackExchange.Redis
         internal string GetProfile()
         {
             var sb = new StringBuilder(Format.ToString(EndPoint)).Append(": ");
-            sb.Append("Circular op-count snapshot; int: n/a; sub: n/a"); // the new core keeps no op-count history
+            sb.Append("Circular op-count snapshot; int:");
+            var core = Multiplexer.NewCoreIfCreated;
+            if (core is null) sb.Append(" n/a");
+            else core.AppendProfile(EndPoint, ConnectionType.Interactive, sb);
+            sb.Append("; sub:");
+            if (core is null) sb.Append(" n/a");
+            else core.AppendProfile(EndPoint, ConnectionType.Subscription, sb);
             return sb.ToString();
         }
 

@@ -122,7 +122,7 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 - [x] `SimulateConnectionFailure` demands `AllowAdmin` again, as shipped.
 - [x] Delete. Build. Suite: net10.0 over three runs - see Status.
 - [ ] **Gaps the deletion exposed** - each was the old core's, and has no new-core equivalent yet:
-      ~~the connection storm log~~ (ported: the core snapshots its pending queue; `StormLogTests`); ~~the fire-and-forget counter~~ (ported; `FireAndForgetCountTests`); `GetProfile`'s per-connection op-count history; `DedicatedThreads` (decision 6). None is a
+      ~~the connection storm log~~ (ported: the core snapshots its pending queue; `StormLogTests`); ~~the fire-and-forget counter~~ (ported; `FireAndForgetCountTests`); ~~`GetProfile`'s op-count history~~ (ported; `EndpointProfileTests`); `DedicatedThreads` (decision 6). None is a
       correctness issue; all are diagnostics. Decide per item: port or drop (and document the drop).
 - [ ] **Windows CI never had a synced replica.** Replicas there land the sync RDB on the `/mnt` (drvfs)
       mount and fail to load it, retrying forever - which the old core never noticed, because it read

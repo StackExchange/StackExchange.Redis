@@ -1894,6 +1894,17 @@ namespace StackExchange.Redis
                 ? executor.RemoteAddress
                 : null;
 
+        /// <summary>Append one connection's circular op-count snapshot, or "n/a" when there is no such connection.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <param name="connectionType">Which of its connections to describe.</param>
+        /// <param name="sb">Where to write.</param>
+        internal void AppendProfile(EndPoint endpoint, ConnectionType connectionType, StringBuilder sb)
+        {
+            var map = connectionType == ConnectionType.Subscription ? _subscriptions : _endpoints;
+            if (endpoint is not null && map.TryGetValue(endpoint, out var executor)) executor.AppendProfile(sb);
+            else sb.Append(" n/a");
+        }
+
         /// <summary>How many operations this core has run against an endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>

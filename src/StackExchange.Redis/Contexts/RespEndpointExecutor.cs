@@ -1234,6 +1234,42 @@ namespace StackExchange.Redis
             }
         }
 
+        private const int ProfileLogSamples = 10;
+        private const double ProfileLogSeconds = (1000 /* ms */ * ProfileLogSamples) / 1000.0;
+        private readonly long[] _profileLog = new long[ProfileLogSamples];
+        private int _profileLogIndex;
+
+        /// <summary>
+        /// Append the circular op-count snapshot: the operation count at each of the last ten heartbeats, and the
+        /// rate across them.
+        /// </summary>
+        /// <param name="sb">Where to write.</param>
+        /// <remarks>
+        /// v3's format exactly (" base+delta+delta=total (rate ops/s; spans 10s)"), since it appears in logged
+        /// endpoint summaries that people read side by side across versions. Like v3, the span assumes the
+        /// default one-second heartbeat.
+        /// </remarks>
+        internal void AppendProfile(StringBuilder sb)
+        {
+            var clone = new long[ProfileLogSamples + 1];
+            for (var i = 0; i < ProfileLogSamples; i++)
+            {
+                clone[i] = Volatile.Read(ref _profileLog[i]);
+            }
+
+            clone[ProfileLogSamples] = OperationCount;
+            Array.Sort(clone);
+            sb.Append(' ').Append(clone[0]);
+            for (var i = 1; i < clone.Length; i++)
+            {
+                if (clone[i] != clone[i - 1]) sb.Append('+').Append(clone[i] - clone[i - 1]);
+            }
+
+            if (clone[0] != clone[ProfileLogSamples]) sb.Append('=').Append(clone[ProfileLogSamples]);
+            var rate = (clone[ProfileLogSamples] - clone[0]) / ProfileLogSeconds;
+            sb.Append(" (").Append(rate.ToString("N2", CultureInfo.InvariantCulture)).Append(" ops/s; spans ").Append(ProfileLogSeconds).Append("s)");
+        }
+
         /// <summary>Periodic upkeep: time out whatever has waited too long, queued or in flight.</summary>
         /// <param name="timeoutMilliseconds">The configured command timeout.</param>
         /// <remarks>
@@ -1248,6 +1284,9 @@ namespace StackExchange.Redis
         /// </remarks>
         internal void OnHeartbeat(int timeoutMilliseconds)
         {
+            var index = (uint)Interlocked.Increment(ref _profileLogIndex);
+            Volatile.Write(ref _profileLog[index % ProfileLogSamples], OperationCount);
+
             ExpireBacklog();
 
             if (timeoutMilliseconds <= 0) return;
