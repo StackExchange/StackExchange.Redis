@@ -119,6 +119,18 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 - [ ] `SimulateConnectionFailure` runs without `AllowAdmin` under the engine flag; the shipped path demands it.
 - [ ] Delete. Build. Suite.
 
+### Backlog (after the alpha gates; not blocking)
+
+- [ ] **Trusted-callback completion mode - an experiment, then maybe an opt-in.** Respire, a new multiplexed
+      .NET client, posts higher numbers in the bench (`redis-developer/ClientBench`, checked out at
+      `~/code/RespFest`; added in f8ef921, measured in d23d45d). Hypothesis: it completes callers *inline on the
+      reader*, trusting continuations to be quick, with a watchdog to catch one that blocks - great when it
+      holds, dangerous when it does not (a slow or blocking continuation stalls every reply behind it). Aims:
+      (a) **prove or refute the hypothesis** by adding the same mode here behind a config option or feature
+      flag and measuring it in the bench against the current behaviour; (b) if it holds, **offer it opt-in**,
+      default off, with the watchdog and with documentation that is plain about the failure mode. Read
+      Respire's completion path first to confirm the mechanism rather than inferring it from the numbers.
+
 ## Decisions that need the user
 
 Each has a default the work proceeds on; none of them blocks anything.
