@@ -15,20 +15,10 @@
   </PropertyGroup>
 
   <!--
-    PARKED, NOT DELETED: these drive the old core's ResultProcessor, PhysicalConnection, RedisDatabase or writer
-    directly, which went with the old core. Their RESP inputs and expected values are worth keeping, so they are to be retargeted at the new
-    core's handlers (see design/v4-alpha-plan.md, gate 3) rather than dropped. Excluded only until then.
+    PARKED: drives a feature the new core does not have yet. Everything else parked by the old core's deletion
+    has been retargeted at the new core.
   -->
   <ItemGroup>
-    <Compile Remove="RoundTripUnitTests/**" />
-    <!-- byte-parity against the old writer, which is gone: to become golden-byte tests, captured from the last build that had it -->
-    <!-- retry categories of the old RedisDatabase messages: to assert the same categories on the new surface's frames -->
-    <Compile Remove="CommandRetryCategoryUnitTests.cs" />
-    <!-- drive ResultBox and RedisDatabase through a Message: to drive the same paths through the new core -->
-    <Compile Remove="ResultBoxTests.cs" />
-    <Compile Remove="SortedSetIncrementUnitTests.cs" />
-    <!-- byte-parity of ValueCondition/Expiration against the old writer: golden bytes, as the parity tests -->
-    <Compile Remove="InterpolatedOptionalArgTests.cs" />
     <!-- DedicatedThreads is not implemented by the new core (plan decision 6): to come back with it -->
     <Compile Remove="DedicatedThreadsUnitTests.cs" />
   </ItemGroup>

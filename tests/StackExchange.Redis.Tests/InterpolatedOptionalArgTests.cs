@@ -29,19 +29,6 @@ public class InterpolatedOptionalArgTests
         return cmd.Complete();
     }
 
-    /// <summary>The same command through the legacy MessageWriter, using the types' own WriteTo.</summary>
-    private static RespRequestFrame ViaMessageWriter(RedisKey key, RedisValue value, ValueCondition when, Expiration expiry)
-    {
-        var sink = new RespFrameWriter();
-        var writer = new MessageWriter(null, CommandMap.Default, sink);
-        writer.WriteHeader(RedisCommand.SET, 2 + when.TokenCount + expiry.GetTokenCount(allowEnx: true));
-        writer.Write(key);
-        writer.WriteBulkString(value);
-        when.WriteTo(writer);
-        expiry.WriteTo(writer);
-        return sink.Complete(ServerSelectionStrategy.NoSlot);
-    }
-
     public static TheoryData<string, ValueCondition, Expiration, string> Cases() => new()
     {
         // name                       condition                          expiry                                  expected tail
@@ -68,20 +55,8 @@ public class InterpolatedOptionalArgTests
         Assert.Equal("*" + frame.ArgCount + "|$3|SET|$1|k|$1|v|" + tail, Text(frame));
     }
 
-    [Theory]
-    [MemberData(nameof(Cases))]
-    public void BothWritersAgreeByteForByte(string name, ValueCondition when, Expiration expiry, string tail)
-    {
-        _ = (name, tail);
-
-        // the operand selection lives in ONE place (Expiration.OperandResp / ValueCondition.KeywordResp)
-        // and each writer only does its own plumbing; this is what holds those two halves together
-        using var viaHandler = ViaHandler("k", "v", when, expiry);
-        using var viaMessage = ViaMessageWriter("k", "v", when, expiry);
-
-        Assert.Equal(Text(viaMessage), Text(viaHandler));
-        Assert.Equal(viaMessage.ArgCount, viaHandler.ArgCount);
-    }
+    // BothWritersAgreeByteForByte is gone with the legacy MessageWriter it compared against: there is now
+    // one writer, and TheFullSetRendersInTheDocumentedOrder pins its bytes directly.
 
     [Theory]
     [MemberData(nameof(Cases))]
@@ -122,11 +97,12 @@ public class InterpolatedOptionalArgTests
     public void ADigestConditionIsSentAsHexNotAsTheInt64()
     {
         var digest = ValueCondition.DigestEqual("some value");
-        using var viaHandler = ViaHandler("k", "v", digest, Expiration.Default);
-        using var viaMessage = ViaMessageWriter("k", "v", digest, Expiration.Default);
+        using var frame = ViaHandler("k", "v", digest, Expiration.Default);
 
-        var text = Text(viaHandler);
-        Assert.Contains("$5|IFDEQ|$16|", text);      // 8 bytes of XXH3, hex-encoded
-        Assert.Equal(Text(viaMessage), text);
+        // 8 bytes of XXH3, hex-encoded; ToString formats the same digest through the char-based hex writer,
+        // which stands in for the byte-parity check against the legacy writer that this used to make
+        var hex = digest.ToString().Substring("IFDEQ ".Length);
+        Assert.Equal(16, hex.Length);
+        Assert.Equal("*5|$3|SET|$1|k|$1|v|$5|IFDEQ|$16|" + hex + "|", Text(frame));
     }
 }

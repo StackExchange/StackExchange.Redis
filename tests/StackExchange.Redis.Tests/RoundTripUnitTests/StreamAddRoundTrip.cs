@@ -64,14 +64,11 @@ public class StreamAddRoundTrip(ITestOutputHelper log)
     [Fact]
     public async Task PairsArray()
     {
-        var db = new RedisDatabase(null!, 0, null);
         NameValueEntry[] pairs = [new("f1", "v1"), new("f2", "v2")];
         var options = new StreamAddOptions { CreateStream = false, MinId = "5-5", Approximate = true };
-        var message = db.GetStreamAddMessage("stream", in options, pairs, CommandFlags.None);
 
-        var result = await TestConnection.ExecuteAsync(
-            message,
-            ResultProcessor.RedisValue,
+        var result = await RoundTrip.ExecuteAsync(
+            db => db.StreamAddAsync("stream", pairs, options),
             "*11\r\n$4\r\nXADD\r\n$6\r\nstream\r\n$10\r\nNOMKSTREAM\r\n$5\r\nMINID\r\n$1\r\n~\r\n$3\r\n5-5\r\n$1\r\n*\r\n$2\r\nf1\r\n$2\r\nv1\r\n$2\r\nf2\r\n$2\r\nv2\r\n",
             Reply,
             log: log);
@@ -82,13 +79,10 @@ public class StreamAddRoundTrip(ITestOutputHelper log)
     [Fact]
     public async Task NilReplyIsNullValue()
     {
-        var db = new RedisDatabase(null!, 0, null);
         var options = new StreamAddOptions { CreateStream = false };
-        var message = db.GetStreamAddMessage("stream", in options, new NameValueEntry("field", "value"), CommandFlags.None);
 
-        var result = await TestConnection.ExecuteAsync(
-            message,
-            ResultProcessor.RedisValue,
+        var result = await RoundTrip.ExecuteAsync(
+            db => db.StreamAddAsync("stream", "field", "value", options),
             "*6\r\n$4\r\nXADD\r\n$6\r\nstream\r\n$10\r\nNOMKSTREAM\r\n$1\r\n*\r\n$5\r\nfield\r\n$5\r\nvalue\r\n",
             "$-1\r\n",
             log: log);
@@ -102,7 +96,8 @@ public class StreamAddRoundTrip(ITestOutputHelper log)
     [InlineData("LimitWithoutApproximate")]
     public void InvalidCombinationsAreRejected(string scenario)
     {
-        var db = new RedisDatabase(null!, 0, null);
+        var executor = new RoundTripExecutor(Reply);
+        var db = RoundTrip.Database(executor);
         var options = scenario switch
         {
             nameof(StreamAddOptions.MaxLength) => new StreamAddOptions { MaxLength = 10, MinId = "5-5" },
@@ -111,19 +106,17 @@ public class StreamAddRoundTrip(ITestOutputHelper log)
             _ => new StreamAddOptions { MaxLength = 10, Limit = 5 },
         };
 
-        // the validation is on the public entry-points, not the message builder: the shipped positional
-        // overloads have always passed odd-but-legal-looking combinations to the server, and still do
+        // the validation is on the options entry-points: the shipped positional overloads have always
+        // passed odd-but-legal-looking combinations to the server, and still do
         var ex = Assert.Throws<ArgumentException>(() => db.StreamAdd("stream", "field", "value", options));
         log.WriteLine(ex.Message);
         Assert.Equal("options", ex.ParamName);
+        Assert.Empty(executor.Frames);
     }
 
     private async Task AssertPairAsync(StreamAddOptions options, string requestResp)
     {
-        var db = new RedisDatabase(null!, 0, null);
-        var message = db.GetStreamAddMessage("stream", in options, new NameValueEntry("field", "value"), CommandFlags.None);
-
-        var result = await TestConnection.ExecuteAsync(message, ResultProcessor.RedisValue, requestResp, Reply, log: log);
+        var result = await RoundTrip.ExecuteAsync(db => db.StreamAddAsync("stream", "field", "value", options), requestResp, Reply, log: log);
         Assert.Equal("1-0", result);
     }
 }

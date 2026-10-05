@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using StackExchange.Redis.Tests.RoundTripUnitTests;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -10,7 +11,8 @@ public class SortedSetIncrementUnitTests
     [MemberData(nameof(InvalidValueConditions))]
     public void InvalidValueConditionModesThrow(ValueCondition condition)
     {
-        var db = new RedisDatabase(null!, 0, null);
+        var executor = new RoundTripExecutor("$1\r\n1\r\n");
+        var db = RoundTrip.Database(executor);
 
         Assert.Throws<InvalidOperationException>(() =>
             db.SortedSetIncrement("key", "member", 1, condition, CommandFlags.None));
@@ -19,6 +21,9 @@ public class SortedSetIncrementUnitTests
         {
             _ = db.SortedSetIncrementAsync("key", "member", 1, condition, CommandFlags.None);
         });
+
+        // refused before anything reached the wire
+        Assert.Empty(executor.Frames);
     }
 
     public static IEnumerable<object[]> InvalidValueConditions()
