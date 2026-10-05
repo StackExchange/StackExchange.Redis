@@ -151,6 +151,14 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       and the multiplexer stays reachable (the connection roots it), so the heartbeat runs and the command
       times out at its own 500ms.
 
+- [ ] **A subscription's re-aim waits for its in-flight send to fail.** When a node drops, the SSUBSCRIBE in
+      flight on it is re-queued to that node's backlog, and `EnsureSubscribedToServer` will not re-aim while a
+      send is in flight - so moving the subscription to a reachable node waits out one failed reconnect: instant
+      on Linux, ~2s on Windows (a refused loopback connect), the connect timeout for a dropped SYN. Found on
+      the Windows job (`ARefusingNodeAccumulatesOnlyOurOwnTraffic`, now polled); reproduced by delaying the
+      refusal. Improving it means re-aiming while the first send may still land, i.e. de-duplicating a
+      subscription that ends up on two nodes - worth doing carefully, not urgent.
+
 ### Backlog (after the alpha gates; not blocking)
 
 - [ ] **Trusted-callback completion mode - an experiment, then maybe an opt-in.** Respire, a new multiplexed

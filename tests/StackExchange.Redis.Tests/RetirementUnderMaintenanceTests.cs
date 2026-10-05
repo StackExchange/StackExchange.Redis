@@ -122,7 +122,14 @@ public class RetirementUnderMaintenanceTests(ITestOutputHelper log)
             endpoint.HasCallerWork(),
             "a caller's work should not be queued on a node that cannot be written to while a reachable "
             + "candidate for the slot exists");
-        Assert.NotEqual(doomed, subscriber.SubscribedEndpoint(channel));
+        //
+        // POLLED, not read once: the subscribe that was in flight when the node went is re-sent from its backlog,
+        // and the re-aim waits for that one attempt to fail. A refused loopback connect fails at once on Linux and
+        // takes about two seconds on Windows, which is longer than the window above - measured by delaying the
+        // refusal locally, which failed this 3/3 exactly as the Windows job did.
+        Assert.True(
+            await Poll.UntilAsync(() => !Equals(doomed, subscriber.SubscribedEndpoint(channel)), timeoutMilliseconds: 10_000),
+            $"the subscription should have left {doomed}, but is still on {subscriber.SubscribedEndpoint(channel)}");
         GC.KeepAlive(survivor);
 
         // only now does the cluster admit it has gone
