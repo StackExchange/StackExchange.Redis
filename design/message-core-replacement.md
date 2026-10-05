@@ -4684,3 +4684,47 @@ it, and one would not have been enough to trust either way.
 **Still open**, and narrower than it was: on RESP3 the subscription ends recorded on the old node after a
 migration. The stale-map re-resolution is the mechanism; the fix needs a real signal of where a redirected
 subscribe *landed*, not an inference from the map or from a counter that misses a path.
+
+### 9al. A reconfiguration storm at a dead node, and the next root underneath it
+
+Working `RetirementUnderMaintenanceTests.ARefusingNodeAccumulatesOnlyOurOwnTrafficAndIsRetired`, by tracing
+each layer rather than reading counts. Three layers, one fixed, one withdrawn, one handed on.
+
+**Layer 1, fixed: a reconfiguration storm.** Tracing every subscription send showed 4,579 `SSUBSCRIBE`s in
+three seconds - all aimed at the LIVE node, not the dead one, which refuted my first lead (that the
+resubscribe aimed at the dead node via the shipped selector). Tracing `EnsureSubscriptions` showed 3,772
+calls, every one from `ReconfigureAsync`: about 1,200 reconfigurations a second. The loop:
+
+> `SSUBSCRIBE` → `-MOVED` to the dead node (the server still assigns it the slot) → `OnSlotMoved` →
+> `ReconfigureIfNeeded("MOVED encountered")` → `ReconfigureAsync` → `EnsureSubscriptions` → `SSUBSCRIBE` → ...
+
+`ReconfigureIfNeeded` only coalesces while one is in flight, so nothing capped the rate. In production
+that is CPU and cluster load proportional to how fast the loop can spin, for as long as a slot points at an
+unreachable node.
+
+Fixed at the start of the loop: a redirect to a node this core already knows is down no longer triggers a
+reconfiguration. Nothing is lost - a redirect to an unreachable node cannot be acted on, and re-reading
+*because* a node is unreachable already has an owner with proper restraint
+(`ServerEndPoint.OnRepeatedConnectFailure`, rate-limited to `ConfigCheckSeconds`). And a *subscribe* is not
+followed to a known-down node, so it is not queued where nobody will deliver on it; ordinary commands still
+follow and queue, because `IsKnownDown` is also true for the length of a brief reconnect and "wait for it"
+should not quietly become "fail now".
+
+Outstanding work at the dead node: **thousands → 0, in 5 of 5 runs.**
+
+**Layer 2, withdrawn.** With the storm gone the node still was not retired: retirement needs it absent across
+several consecutive topology generations, and 39 of the test's 40 forced reconfigurations were declined as
+"already in progress" behind one `"connection restored"` reconfiguration. I assumed that one was waiting out
+`ConnectTimeout` on the dead node, and changed `OnConnectedAsync` to resolve such a wait immediately. Then I
+measured it: the wait was on the **live** node, and the dead node was not in that pass at all. Reverted -
+that change addressed something that was not happening. It is the plan's first operating rule, broken and
+caught within one cycle.
+
+**Layer 3, handed on: a tracer left on a replaced connection.** Timed properly, the 9-second blocker is the
+tracer `OnConnectedAsync` sends to an *already-connected* node: normally 1ms, once 9,014ms, under a
+maintenance relaxation that stretches its timeout. It is not failing; it is getting no reply and waiting out
+the timeout - holding the reconfiguration lock the whole time.
+
+That is the same signature as `ClusterShardedTests`' `SPUBLISH` dying with `bw: SpinningDown`: a command left
+on a connection that is being replaced waits for its timeout instead of being failed or re-sent. Two tests,
+probably one root - which makes the root the next plan item rather than either test.

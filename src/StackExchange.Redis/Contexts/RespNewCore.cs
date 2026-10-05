@@ -553,7 +553,23 @@ namespace StackExchange.Redis
             // which is more current than anything a rediscovery would find - and the shipped core is still
             // asked to reconfigure, because its map is what everything else reads until phase D
             _topology.OnSlotMoved(slot, endpoint);
-            _multiplexer.ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
+
+            // ...EXCEPT when the redirect points at a node we already know we cannot reach, because there
+            // the reconfiguration is what closes a loop. Every reconfiguration ends in EnsureSubscriptions,
+            // which re-sends each sharded subscribe; the server - still assigning the slot to the dead node
+            // - answers each with -MOVED to it; and each -MOVED asked for another reconfiguration.
+            // ReconfigureIfNeeded only coalesces while one is IN FLIGHT, so nothing capped the rate:
+            // `RetirementUnderMaintenanceTests` measured ~1,200 reconfigurations a second, and thousands of
+            // subscribes queued against the dead node.
+            //
+            // Nothing is lost by declining. A redirect to an unreachable node cannot be acted on, so
+            // re-reading only relearns the same unusable answer - and re-reading BECAUSE a node is
+            // unreachable already has an owner with the restraint this lacks:
+            // ServerEndPoint.OnRepeatedConnectFailure, rate-limited to ConfigCheckSeconds.
+            if (!IsKnownDown(endpoint))
+            {
+                _multiplexer.ReconfigureIfNeeded(endpoint, false, "MOVED encountered");
+            }
         }
 
         /// <summary>The server redirected somewhere it could not name, so our map is wrong somewhere.</summary>
@@ -1472,8 +1488,29 @@ namespace StackExchange.Redis
                 return true; // ours now; the operation must not be completed with the redirect
             }
 
+            // A SUBSCRIBE that would follow a redirect to a node we know is down is declined rather than
+            // queued there. Queueing is right for an ordinary command - it waits for the reconnect, which
+            // is the backlog's whole job - but a subscription queued on a dead node is a subscription nobody
+            // will deliver on, and the resubscribe machinery that sent it will send it again. Left alone,
+            // that is how thousands came to be outstanding against one unreachable node.
+            //
+            // Declining fails the subscribe, which leaves it unplaced; that is the truth, and it is what
+            // lets the next pass place it somewhere live. Deliberately NOT applied to ordinary commands:
+            // IsKnownDown is also true for the length of a brief reconnect, and turning "wait for it" into
+            // "fail now" for those is a behaviour change worth deciding on its own.
+            if (redirect.Endpoint is { } redirectedTo
+                && IsSubscriptionCommand(operation.Command)
+                && IsKnownDown(redirectedTo))
+            {
+                return false;
+            }
+
             return _router.TryFollowRedirect(in redirect, operation);
         }
+
+        private static bool IsSubscriptionCommand(RedisCommand command)
+            => command is RedisCommand.SUBSCRIBE or RedisCommand.PSUBSCRIBE or RedisCommand.SSUBSCRIBE
+                or RedisCommand.UNSUBSCRIBE or RedisCommand.PUNSUBSCRIBE or RedisCommand.SUNSUBSCRIBE;
 
         /// <summary>Replace an endpoint's connection, then send the command again on the new one.</summary>
         /// <param name="endpoint">The endpoint to reconnect.</param>

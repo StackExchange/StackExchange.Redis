@@ -33,12 +33,15 @@ In order. The first unchecked item is the next action; the order puts the larges
 
 - [x] ~~MOVED to the same endpoint~~ - already fixed in `75065917`; all 22 `MovedUnitTests` pass under the
       coupled patch. This item was written from a memory note a week out of date.
-- [ ] **`ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync`** (RESP3): `SPUBLISH` times out with
-      `bw: SpinningDown`, `qs: 1` after a slot migration. Previously lumped in with MOVED-to-same-endpoint;
-      it is a separate mechanism. Trace it before theorising.
-- [ ] **Work accumulating at a known-dead node.** `RetirementUnderMaintenanceTests`: 1.8k-5.8k operations
-      outstanding where the flagged premise says zero. Not caused by any retry (9aj). Mechanism unknown -
-      start by finding which code path enqueues, not by reading counts.
+- [x] **Reply desync on RESP3** - a confirmation push could answer an unrelated command. Guarded (3941e4fa, 9ak).
+- [x] **Reconfiguration storm at a dead node** - ~1,200 reconfigurations/s; outstanding work thousands → 0 (9al).
+- [ ] **Commands left on a replaced connection wait out their timeout** instead of being failed or re-sent.
+      One root behind two tests: `ClusterShardedTests.KeepSubscribedThroughSlotMigrationAsync` (RESP3,
+      `SPUBLISH` dies with `bw: SpinningDown`) and `RetirementUnderMaintenanceTests` (a tracer waits 9s
+      under relaxation, holding the reconfiguration lock so retirement never runs). Start by finding what
+      the connection's teardown does with its pending queue, and whether it runs at all on replacement.
+- [ ] RESP3 sharded subscription recorded on the old node after migration - needs a real signal of where a
+      redirected subscribe *landed*; the redirect-count gate was tried and withdrawn (9ak).
 - [ ] **`ConnectionRestored`**: move `OnNewCoreConnected` out of the patch into committed code.
 - [ ] **Land the coupled patch** as the committed engine-flag behaviour. After this, "coupled" and
       "flag-only" are the same configuration and the patch file retires.
