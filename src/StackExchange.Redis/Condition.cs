@@ -831,14 +831,11 @@ namespace StackExchange.Redis
     {
         internal readonly Condition Condition;
 
-        private IResultBox<bool>? resultBox;
-
         private volatile bool wasSatisfied;
 
         internal ConditionResult(Condition condition)
         {
             Condition = condition;
-            resultBox = SimpleResultBox<bool>.Create();
         }
 
         /// <summary>
@@ -846,21 +843,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool WasSatisfied => wasSatisfied;
 
-        internal IResultBox<bool>? GetBox() => resultBox;
-
         // used by the retry machinery to copy the outcome of a per-attempt condition onto the durable
         // ConditionResult that was handed back to the caller when the transaction was built
         internal void SetSatisfied(bool value) => wasSatisfied = value;
-
-        internal bool UnwrapBox()
-        {
-            if (resultBox != null)
-            {
-                bool val = resultBox.GetResult(out var ex);
-                resultBox = null;
-                wasSatisfied = ex == null && val;
-            }
-            return wasSatisfied;
-        }
     }
 }
