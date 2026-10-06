@@ -43,6 +43,18 @@ Each has a default the work proceeds on until answered.
 
 ## Backlog (after the alpha)
 
+- **Unobserved faults on the transitional `Task` surface.** v3 marked every faulted command task observed the
+  moment it faulted (`TaskResultBox.ActivateContinuationsImpl`: read `.Exception`, `GC.SuppressFinalize`), so a
+  dropped `Task` never raised `TaskScheduler.UnobservedTaskException` - or, down-level with
+  `ThrowUnobservedTaskExceptions` enabled, took the process down. v4's `TransitionalAsyncState.AsTask` does
+  **not**: the common path is a bare `ValueTask.AsTask()`, and `Bridge` faults its `TaskCompletionSource`
+  without observing it. Fix: observe on fault in both (cheap; a fault-only continuation, or observe after
+  `TrySetException` in `Bridge`), plus a test that drops a faulted task, forces GC, and asserts no event.
+  The new surface is mostly exempt - a `ValueTask` over the pooled operation has no `Task` and no finalizer -
+  **except** where a non-pooled `async ValueTask` completes asynchronously: every such method down-level
+  (`AsyncValueTaskMethodBuilder` is `Task`-backed), and the 10 of 13 on net6+ that lack the pooling builder.
+  Dropping an un-awaited `ValueTask` is already misuse, so this is lower priority than the transitional fix.
+
 - **Batch/transaction buffer packing**: write a batch's commands adjacently into one shared buffer, rather
   than one rented frame per command, and hand the transport one contiguous run. The abandoned v3-era RESPite
   spike implemented this fully (PR #2959, `marc/respite`, "WIP : RESPite overhaul" - still open but idle since 2026-08: `src/RESPite/RespBatch.cs`,
