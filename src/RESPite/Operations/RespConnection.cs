@@ -81,6 +81,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// <summary>First unconsumed byte in <see cref="_inbound"/>.</summary>
     private int _start;
 
+    // the scan of the frame at _start, carried across receives, and how many of its bytes it has consumed; see Drain
+    private RespScanState _scan;
+    private int _scanned;
+
     /// <summary>First free byte in <see cref="_inbound"/>.</summary>
     private int _end;
 
@@ -800,14 +804,28 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
         while (_start < _end)
         {
-            // A FRESH state each attempt, deliberately. RespScanState CAN carry across calls, and the
-            // first version of this held one in a field on exactly that reasoning - which was wrong, and
-            // wrong in a way that passed every test at the time. Bytes are only consumed here when a
-            // frame COMPLETES, so an incomplete frame leaves its bytes in the buffer; re-feeding those
-            // same bytes to a state that already counted them double-counts the aggregate depth. Carrying
-            // the state is for a reader that does not retain what it has scanned. This one does.
-            var scan = default(RespScanState);
-            if (!scan.TryRead(buffer.GetSpan().Slice(_start, _end - _start), out var length)) break;
+            // The scan is CARRIED across calls, with how far into this frame it has got, and only bytes it has
+            // not seen are fed to it. It used to be a fresh state every attempt, rescanning an incomplete frame
+            // from its first byte each time more arrived - which is quadratic in the frame: a large aggregate
+            // arriving a read buffer at a time kept the reader in RespScanState.ReadCore for seconds, not
+            // reading the socket, and every other command on the connection stalled behind it (the "~5s with
+            // nothing inbound" timeouts; caught with a reply sitting unread in the kernel for 14.8s).
+            //
+            // The reason it was fresh still holds, and is why _scanned exists: an incomplete frame's bytes stay
+            // in the buffer, and re-feeding them to a state that already counted them double-counts the
+            // aggregate depth. Feeding only [_start + _scanned, _end) never re-feeds anything. Offsets are
+            // relative to _start, so the compaction in EnsureSpace, which moves [_start, _end) as a block,
+            // leaves them valid.
+            var unseen = buffer.GetSpan().Slice(_start + _scanned, _end - _start - _scanned);
+            if (!_scan.TryRead(unseen, out var read))
+            {
+                _scanned += read;
+                break;
+            }
+
+            var length = _scanned + read;
+            _scan = default;
+            _scanned = 0;
 
             var frame = buffer.GetSpan().Slice(_start, length);
             _start += length;

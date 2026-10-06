@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -209,6 +210,60 @@ public class RespConnectionTests
         Assert.False(connection.IsClosed);
         Assert.Equal(0, connection.PendingCount);
         Assert.Equal(3, message.GetResult(message.Token));
+    }
+
+    /// <summary>
+    /// A nested aggregate, one byte at a time, then a read that completes one frame and starts the next: the
+    /// carried scan must restart at each frame boundary and never see a byte twice.
+    /// </summary>
+    [Fact]
+    public void ACarriedScanRestartsAtEachFrameBoundary()
+    {
+        var (connection, transport) = Connect();
+        var first = CountingMessage.Create();
+        var second = CountingMessage.Create();
+        connection.Send(first);
+        connection.Send(second);
+
+        var reply = Encoding.UTF8.GetBytes("*2\r\n*2\r\n:1\r\n:2\r\n*1\r\n$3\r\nabc\r\n*4\r\n:1\r\n:2\r\n:3\r\n:4\r\n");
+        var split = reply.Length - 9; // inside the second reply
+        for (var i = 0; i < split; i++) transport.Receive(reply.AsSpan(i, 1));
+        transport.Receive(reply.AsSpan(split));
+
+        Assert.False(connection.IsClosed);
+        Assert.Equal(2, first.GetResult(first.Token));
+        Assert.Equal(4, second.GetResult(second.Token));
+    }
+
+    /// <summary>
+    /// A large aggregate arriving a read at a time is scanned once, not once per read.
+    /// </summary>
+    /// <remarks>
+    /// Each read used to rescan the incomplete frame from its first byte, which is quadratic in the frame: this
+    /// 4MB reply kept the reader busy for about two seconds on an idle machine (against ~90ms now), not reading the socket, and every other command on a shared
+    /// connection waited behind it. The bound is ten times the fixed cost; the point is the order of magnitude, and it grows with the square of the reply.
+    /// </remarks>
+    [Fact]
+    public void ALargeAggregateArrivingInPiecesIsScannedOnce()
+    {
+        var (connection, transport) = Connect();
+        var message = CountingMessage.Create();
+        connection.Send(message);
+
+        const int Elements = 1_000_000; // 4MB
+        var text = new StringBuilder("*").Append(Elements).Append("\r\n");
+        for (var i = 0; i < Elements; i++) text.Append(":1\r\n");
+        var reply = Encoding.UTF8.GetBytes(text.ToString());
+
+        var watch = Stopwatch.StartNew();
+        for (var offset = 0; offset < reply.Length; offset += 4096)
+        {
+            transport.Receive(reply.AsSpan(offset, Math.Min(4096, reply.Length - offset)));
+        }
+        watch.Stop();
+
+        Assert.Equal(Elements, message.GetResult(message.Token));
+        Assert.True(watch.ElapsedMilliseconds < 1000, $"took {watch.ElapsedMilliseconds}ms");
     }
 
     [Fact]
