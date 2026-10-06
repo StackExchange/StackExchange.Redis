@@ -593,6 +593,45 @@ while c1 took an `INCR` every ~5 s and c2 was read back; then `{"crdt_sync":"ena
   instance. Captured bodies cannot be committed as fixtures without scrubbing. Relevant to credential
   scope too: whether `cluster_viewer`/`db_viewer` see the same was not checked (we used admin).
 
+### What a probe can discover, and with what (2026-10-06, `marcgravell-test-60790432`)
+
+**Active-Active membership is not visible over RESP.** Compared on c1: both Active-Active members and a
+freshly created plain database (since deleted).
+
+- `HELLO` is identical in shape (`mode: cluster`, `role: master` on all three, including the plain one).
+- `CRDT.INFO` is an unknown command everywhere; `INFO crdt` / `INFO crdb` are empty everywhere; no INFO
+  field mentions crdt.
+- The only INFO differences are incidental: `cmdstat_replconf` on the members (the syncer's own traffic,
+  so absent until a peer has connected), a different module list (the members load only ReJSON and
+  search), and `rdb_changes_since_last_save`. None is a signal to build on.
+- So the probe has to learn it from REST: `GET /v1/bdbs/{uid}?fields=uid,crdt` answers
+  `{"crdt":true,"uid":1}`, or it is configuration.
+
+**`db_viewer` is enough, and the least privileged role still sees database passwords.** Temporary
+roles (`management: db_viewer`, then `cluster_viewer`) and users, deleted afterwards. RS 8 rejects the
+legacy `role` field (`role_not_exist`); roles are objects referenced by `role_uids`, and a fresh cluster
+has only `Admin`.
+
+| route, as `db_viewer` (`cluster_viewer` identical) | result |
+| --- | --- |
+| `/v1/bdbs/{uid}/availability`, with and without `extend_check=lag` | 200 |
+| `/v1/bdbs/{uid}?fields=uid,crdt` | 200, no password fields |
+| `/v1/bdbs?fields=uid,endpoints` | 200, 599 bytes, no password fields |
+| `/v1/bdbs/{uid}` (unfiltered) | 200, **`authentication_redis_pass` and `authentication_admin_pass` populated** |
+| `/v1/crdbs` | 200, every instance's passwords populated |
+
+This is with `mask_bdb_credentials: false`, the cluster's setting here; masked clusters were not
+tested. Consequence: the probe must only ever issue `fields=`-filtered requests, and the docs should
+recommend `db_viewer`. Possibly worth raising with the RS team that the viewer roles see secrets.
+
+**The REST endpoint is derivable from the database hostname.** Every database's `dns_name`, plain,
+Active-Active and OSS-cluster alike, is `redis-<port>.<cluster fqdn>`, so the management endpoint is
+`https://<cluster fqdn>:9443`. But the OSS-cluster database advertises **IP addresses** through
+`CLUSTER SLOTS`/`CLUSTER SHARDS` (`oss_cluster_api_preferred_endpoint_type: ip`), so the derivation must
+start from the member's *configured* endpoint, not from discovered nodes. A customer CNAME or a bare IP
+defeats it, so it can only be a default with an override. uid discovery by matching `dns_name` and port
+against `/v1/bdbs?fields=uid,endpoints` is safe on credentials (filtered, no passwords).
+
 ### Multi-cluster shape
 
 - `env_output.json` nests clusters under `.clusters.value[N]`, each with its own FQDN and credentials.
