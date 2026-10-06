@@ -81,7 +81,6 @@ namespace StackExchange.Redis.Configuration
         /// without anybody needing to change a connection string. AMR also already prefers RESP3 here, which
         /// the feature requires.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
     }
 }

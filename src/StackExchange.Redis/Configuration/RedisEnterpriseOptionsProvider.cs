@@ -40,7 +40,6 @@ namespace StackExchange.Redis.Configuration
         /// the feature switched off, must keep working. Choose <c>Enabled</c> explicitly if you would rather a
         /// connection be refused than run without advance warning.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
 
         // Note: no GetDefaultSsl and no DefaultVersion override. Both are deployment choices here rather than

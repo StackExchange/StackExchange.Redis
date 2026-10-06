@@ -68,7 +68,6 @@ namespace StackExchange.Redis.Configuration
         /// updated yet must keep working: the opt-in is then refused and the feature stays off, rather than the
         /// connection being rejected.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public override MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Auto;
 
         // Two things AzureManagedRedisOptionsProvider does that are deliberately *not* repeated here:
