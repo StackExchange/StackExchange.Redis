@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -59,10 +60,15 @@ namespace StackExchange.Redis
                 if (!pending.IsCompleted)
                 {
                     pending.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(pump.SignalDone);
-                    if (!pump.RunUntilDone(TimeoutFor(multiplexer, executor, out var backstop)))
+                    var deadline = Deadline(TimeoutFor(multiplexer, executor, out var backstop));
+                    do
                     {
-                        throw backstop ? MissedTimeout(multiplexer, pump) : new TimeoutException();
+                        if (!pump.RunUntilDone(Remaining(deadline)))
+                        {
+                            throw backstop ? MissedTimeout(multiplexer, pump) : new TimeoutException();
+                        }
                     }
+                    while (WasStale(pump, pending.IsCompleted) && !pending.IsCompleted);
                 }
 
                 return pending.GetAwaiter().GetResult();
@@ -91,7 +97,12 @@ namespace StackExchange.Redis
                 if (!pending.IsCompleted)
                 {
                     pending.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(pump.SignalDone);
-                    if (!pump.RunUntilDone(TimeoutFor(multiplexer, null, out _))) throw new TimeoutException();
+                    var deadline = Deadline(TimeoutFor(multiplexer, null, out _));
+                    do
+                    {
+                        if (!pump.RunUntilDone(Remaining(deadline))) throw new TimeoutException();
+                    }
+                    while (WasStale(pump, pending.IsCompleted) && !pending.IsCompleted);
                 }
 
                 pending.GetAwaiter().GetResult();
@@ -100,6 +111,45 @@ namespace StackExchange.Redis
             {
                 SyncPump.Exit(pump);
             }
+        }
+
+        /// <summary>
+        /// Whether the pump was woken by a signal that was not this call's - in which case it is cleared, so the
+        /// caller re-checks its own operation and waits again.
+        /// </summary>
+        /// <param name="pump">The pump that reported done.</param>
+        /// <param name="completed">Whether this call's operation has completed.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>"Done" is a hint, never the answer.</b> The pump is reused per thread, and a call that gave up - a
+        /// timeout - leaves its <c>SignalDone</c> registered on an operation that is still running. When that
+        /// operation finally completes, the signal lands on whichever call the thread is making NOW, which then
+        /// left the pump and blocked in <c>GetResult</c> on its own operation, with no deadline at all. That was
+        /// the CI hang: a synchronous <c>HashFieldExpireNoField</c> parked in <c>GetResult</c> for minutes, on a
+        /// connection that was answering normally, after an earlier call on the same thread had timed out.
+        /// </para>
+        /// <para>
+        /// The caller re-checks completion AFTER the flag is cleared, so a genuine signal arriving between the two
+        /// cannot be lost: either the operation is already complete, or its signal is still to come.
+        /// </para>
+        /// </remarks>
+        private static bool WasStale(SyncPump pump, bool completed)
+        {
+            if (completed) return false;
+            pump.ClearDone();
+            return true;
+        }
+
+        private static long Deadline(int timeoutMilliseconds)
+            => timeoutMilliseconds == Timeout.Infinite
+                ? long.MaxValue
+                : Stopwatch.GetTimestamp() + (timeoutMilliseconds * Stopwatch.Frequency / 1000);
+
+        private static int Remaining(long deadline)
+        {
+            if (deadline == long.MaxValue) return Timeout.Infinite;
+            var remaining = (deadline - Stopwatch.GetTimestamp()) * 1000 / Stopwatch.Frequency;
+            return remaining <= 0 ? 0 : (int)Math.Min(remaining, int.MaxValue);
         }
 
         /// <summary>

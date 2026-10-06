@@ -170,6 +170,12 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>Forget a "done" that turned out not to be this call's; see <c>TransitionalSync.WasStale</c>.</summary>
+        internal void ClearDone()
+        {
+            lock (_sync) _done = false;
+        }
+
         /// <summary>What the pump was doing, for the exception a missed timeout raises.</summary>
         internal string Describe()
         {
