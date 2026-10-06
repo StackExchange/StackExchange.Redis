@@ -27,7 +27,7 @@ Server-side you may also see it discussed as *maintenance mode*, *shard migratio
 
 ## Do I need to configure anything?
 
-Usually not. If you connect using the hostname your provider gave you, the matching options provider recognizes it and turns the feature on for you.
+Usually not. If you connect using the hostname your provider gave you, the matching options provider recognizes it and turns the feature on for you by default.
 
 | You connect to | Recognized as | Notifications |
 |---|---|---|
