@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Operations;
 using RESPite.Transports;
@@ -68,5 +69,52 @@ public class RespPayloadOperationPoolingTests
             var next = RespPayloadOperation.Rent();
             Assert.Equal(-1, next.Database);
         }
+    }
+
+    /// <summary>
+    /// An operation cancelled after it was written keeps its slot in the connection's pending queue to absorb its
+    /// late reply, and may meanwhile be recycled and rented again. Nothing done through that stale slot - the late
+    /// reply, a heartbeat timeout - may reach the instance's NEXT life.
+    /// </summary>
+    /// <remarks>
+    /// The queue held bare references and acted through each instance's current token, so the late reply to the
+    /// cancelled PING completed the GET that reused the instance, and a heartbeat sweep could time out a pooled
+    /// instance, so that its next renter failed at once with "0ms elapsed".
+    /// </remarks>
+    [Fact]
+    public async Task AStaleQueueSlotCannotReachTheNextLifeOfItsOperation()
+    {
+        var transport = new FakeTransport();
+        var connection = new RespClientConnection(transport, static (in RespRedirect _, RespPayloadOperation _) => false);
+
+        using var cancel = new CancellationTokenSource();
+        var first = RespPayloadOperation.Rent();
+        first.Attach("*1\r\n$4\r\nPING\r\n"u8, CommandFlags.None, cancel.Token);
+        Assert.True(connection.Send(first));                     // written and queued
+        cancel.Cancel();                                         // cancelled after the write
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await new ValueTask<RespPayload>(first, first.Token));
+
+        RespPayloadOperation? second = null;
+        for (var i = 0; i < 64 && second is null; i++)
+        {
+            var next = RespPayloadOperation.Rent();
+            if (ReferenceEquals(next, first)) second = next;
+        }
+
+        Assert.NotNull(second); // a definite outcome is recyclable; that is the case under test
+        second.Attach("*2\r\n$3\r\nGET\r\n$1\r\nk\r\n"u8, CommandFlags.None, default);
+        await Task.Delay(20);
+
+        // a sweep through the stale slot must not time out the new life...
+        connection.ExpirePending(TimeSpan.FromMilliseconds(1));
+        Assert.False(((IRespMessage)second).IsFinished);
+
+        Assert.True(connection.Send(second));
+        transport.Reply("+PONG\r\n");    // the cancelled PING's late reply
+        transport.Reply("$1\r\nx\r\n"); // the GET's own
+
+        // ...and the late reply must not complete it
+        using var payload = await new ValueTask<RespPayload>(second, second.Token);
+        Assert.Equal("$1\r\nx\r\n", Encoding.UTF8.GetString(payload.Span.ToArray()));
     }
 }

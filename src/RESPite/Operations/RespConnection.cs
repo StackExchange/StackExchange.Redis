@@ -32,7 +32,25 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     internal DuplexTransport Transport => _transport;
 
     /// <summary>Operations written and awaiting a reply, in wire order.</summary>
-    private readonly ConcurrentQueue<IRespMessage> _pending = new();
+    private readonly ConcurrentQueue<PendingEntry> _pending = new();
+
+    /// <summary>A queued operation, and WHICH life of it was written.</summary>
+    /// <remarks>
+    /// <b>The token is the point.</b> An operation that ends early - cancelled, timed out, faulted - keeps its
+    /// slot in this queue to absorb the reply it no longer wants, and meanwhile its owner can consume it; one
+    /// that ended definitely (a cancellation) is then recycled and rented again. Acting through the instance's
+    /// CURRENT token would act on that later life: its late reply completing somebody else's command, the
+    /// heartbeat timing out a pooled instance (whose next renter failed at once, "0ms elapsed"), push matching
+    /// reading another command's name. Every action through the queue therefore uses the token captured when
+    /// the life was written, and a stale entry does nothing but consume its frame.
+    /// </remarks>
+    private readonly struct PendingEntry(IRespMessage message, short token)
+    {
+        public readonly IRespMessage Message = message;
+        public readonly short Token = token;
+
+        public bool IsCurrent => Message.Token == Token;
+    }
 
     /// <summary>
     /// Serialises writers.
@@ -135,7 +153,16 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
     /// <summary>The messages awaiting a reply, oldest first, as of now.</summary>
     /// <remarks>A <see cref="ConcurrentQueue{T}"/> enumerates a moment-in-time snapshot, so this is safe to walk while traffic continues.</remarks>
-    internal IEnumerable<IRespMessage> PendingSnapshot => _pending;
+    internal IEnumerable<IRespMessage> PendingSnapshot
+    {
+        get
+        {
+            foreach (var entry in _pending)
+            {
+                if (entry.IsCurrent) yield return entry.Message;
+            }
+        }
+    }
 
     /// <summary>Operations awaiting a reply that can still be finished by one.</summary>
     /// <remarks>
@@ -151,9 +178,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         get
         {
             var count = 0;
-            foreach (var message in _pending)
+            foreach (var entry in _pending)
             {
-                if (!message.IsFinished) count++;
+                if (entry.IsCurrent && !entry.Message.IsFinished) count++;
             }
 
             return count;
@@ -202,9 +229,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (olderThan <= TimeSpan.Zero || _pending.IsEmpty) return 0;
 
         var expired = 0;
-        foreach (var message in _pending)
+        foreach (var entry in _pending)
         {
-            if (message.TryTimeoutIfOlderThan(olderThan)) expired++;
+            if (entry.Message.TryTimeoutIfOlderThan(entry.Token, olderThan)) expired++;
         }
 
         return expired;
@@ -247,7 +274,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 // our own write in the baseline would make every command look like progress
                 message.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
 
-                _pending.Enqueue(message);
+                _pending.Enqueue(new(message, message.Token));
                 Write(payload.Span);
                 Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
             }
@@ -320,7 +347,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 try
                 {
                     message.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                    _pending.Enqueue(message);
+                    _pending.Enqueue(new(message, message.Token));
                     Write(only.Span);
                     Volatile.Write(ref _bytesSent, _bytesSent + only.Length);
                 }
@@ -341,8 +368,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                         head.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
                         message.OnEnqueued(this, _bytesSent + headPayload.Length, Volatile.Read(ref _bytesReceived));
 
-                        _pending.Enqueue(head);
-                        _pending.Enqueue(message);
+                        _pending.Enqueue(new(head, head.Token));
+                        _pending.Enqueue(new(message, message.Token));
                         Write(headPayload.Span);
                         Write(bodyPayload.Span);
                         Volatile.Write(ref _bytesSent, _bytesSent + bytes);
@@ -418,7 +445,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 try
                 {
                     second.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                    _pending.Enqueue(second);
+                    _pending.Enqueue(new(second, second.Token));
                     Write(only.Span);
                     Volatile.Write(ref _bytesSent, _bytesSent + only.Length);
                 }
@@ -439,8 +466,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                         first.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
                         second.OnEnqueued(this, _bytesSent + firstPayload.Length, Volatile.Read(ref _bytesReceived));
 
-                        _pending.Enqueue(first);
-                        _pending.Enqueue(second);
+                        _pending.Enqueue(new(first, first.Token));
+                        _pending.Enqueue(new(second, second.Token));
                         Write(firstPayload.Span);
                         Write(secondPayload.Span);
                         Volatile.Write(ref _bytesSent, _bytesSent + bytes);
@@ -490,8 +517,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                     first.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
                     second.OnEnqueued(this, _bytesSent + firstPayload.Length, Volatile.Read(ref _bytesReceived));
 
-                    _pending.Enqueue(first);
-                    _pending.Enqueue(second);
+                    _pending.Enqueue(new(first, first.Token));
+                    _pending.Enqueue(new(second, second.Token));
                     Write(firstPayload.Span);
                     Write(secondPayload.Span);
                     Volatile.Write(ref _bytesSent, _bytesSent + bytes);
@@ -554,7 +581,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                     try
                     {
                         head.OnEnqueued(this, _bytesSent, received);
-                        _pending.Enqueue(head);
+                        _pending.Enqueue(new(head, head.Token));
                         Write(headPayload.Span);
                         Volatile.Write(ref _bytesSent, _bytesSent + headPayload.Length);
                     }
@@ -573,7 +600,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 try
                 {
                     message.OnEnqueued(this, _bytesSent, received);
-                    _pending.Enqueue(message);
+                    _pending.Enqueue(new(message, message.Token));
                     Write(payload.Span);
                     Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
                 }
@@ -628,7 +655,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                     // earlier element can arrive while a later one is still being copied, but no reply can
                     // arrive for something not yet written
                     message.OnEnqueued(this, _bytesSent, received);
-                    _pending.Enqueue(message);
+                    _pending.Enqueue(new(message, message.Token));
                     Write(payload.Span);
                     Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
                 }
@@ -744,7 +771,19 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// and every reply after it is then off by one. Only the reader loop dequeues, and this runs on it, so
     /// the head cannot change between the peek and the match.
     /// </remarks>
-    protected bool TryPeekPending(out IRespMessage? message) => _pending.TryPeek(out message);
+    protected bool TryPeekPending(out IRespMessage? message)
+    {
+        // a stale head - its life ended and the instance moved on - names nobody: its frame is owed, but what
+        // the instance says about itself now describes a different command
+        if (_pending.TryPeek(out var entry) && entry.IsCurrent)
+        {
+            message = entry.Message;
+            return true;
+        }
+
+        message = null;
+        return false;
+    }
 
     protected virtual bool IsOutOfBand(ReadOnlySpan<byte> frame)
         => !frame.IsEmpty && (RespPrefix)frame[0] == RespPrefix.Push;
@@ -828,15 +867,16 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
             if (IsOutOfBand(frame) && OnOutOfBand(frame)) continue;
 
-            if (_pending.TryDequeue(out var message))
+            if (_pending.TryDequeue(out var entry))
             {
                 // offered first: a redirect is an instruction, not an answer, and completing the
-                // operation with it would report a failure for something routine
-                if (!TryHandOff(frame, message))
+                // operation with it would report a failure for something routine. Only to the life that was
+                // written: a stale entry's frame is simply consumed (see PendingEntry)
+                if (!(entry.IsCurrent && TryHandOff(frame, entry.Message)))
                 {
                     // the buffer goes along with the bytes, so a message whose result IS the frame can
                     // retain it rather than copy it out
-                    message.TrySetResult(message.Token, frame, buffer);
+                    entry.Message.TrySetResult(entry.Token, frame, buffer);
                 }
             }
 
@@ -875,9 +915,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         // INDEFINITE, and this is the case that distinction exists for: a write may have reached the
         // server and had its reply lost with the connection, so these operations are not provably
         // unapplied and their instances must not go back to a pool
-        while (_pending.TryDequeue(out var message))
+        while (_pending.TryDequeue(out var entry))
         {
-            message.TrySetException(message.Token, reason, definite: false);
+            entry.Message.TrySetException(entry.Token, reason, definite: false);
         }
     }
 

@@ -119,5 +119,7 @@ internal interface IRespMessage : IValueTaskSource
     /// claim an outcome for an operation that had just succeeded. The claim is the same one every other
     /// outcome makes, so whoever gets there first wins and the loser does nothing.
     /// </remarks>
-    bool TryTimeoutIfOlderThan(TimeSpan age);
+    /// <param name="token">The life to time out; a later life is left alone.</param>
+    /// <param name="age">How old it must be.</param>
+    bool TryTimeoutIfOlderThan(short token, TimeSpan age);
 }

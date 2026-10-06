@@ -511,14 +511,14 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     }
 
     /// <inheritdoc/>
-    void IRespMessage.TrySetTimedOut() => TrySetTimeout();
+    void IRespMessage.TrySetTimedOut() => TrySetTimeout(Token); // the backstop's registration ends with its life, in Reset
 
     /// <inheritdoc/>
     bool IRespMessage.IsFinished => HasFlag(Flag_OutcomeKnown);
 
     /// <inheritdoc/>
-    bool IRespMessage.TryTimeoutIfOlderThan(TimeSpan age)
-        => _diagnostics.Age >= age && TrySetTimeout();
+    bool IRespMessage.TryTimeoutIfOlderThan(short token, TimeSpan age)
+        => VersionOf(Volatile.Read(ref _state)) == token && _diagnostics.Age >= age && TrySetTimeout(token);
 
     /// <inheritdoc/>
     void IRespMessage.TrySetCanceled()
@@ -533,8 +533,8 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// Marc's rule, and the reason it is worth a named method: <i>"timeouts are undefined chaos"</i>. The
     /// pipeline has not told us anything; it may still write the request and complete us later.
     /// </remarks>
-    private bool TrySetTimeout()
-        => TryClaimOutcome(Token) && Fail(CreateTimeoutException(), definite: false);
+    private bool TrySetTimeout(short token)
+        => TryClaimOutcome(token) && Fail(CreateTimeoutException(), definite: false);
 
     /// <summary>The exception a timeout produces.</summary>
     /// <remarks>
@@ -722,7 +722,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             }
         }
 
-        if (timedOut) TrySetTimeout();
+        if (timedOut) TrySetTimeout(token);
         return GetResult(token);
 
         static void ThrowWillNotPulse() => throw new InvalidOperationException(

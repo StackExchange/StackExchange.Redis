@@ -44,14 +44,14 @@ Each has a default the work proceeds on until answered.
   - The first timeouts have `PREPARE` (the HIMPORT preamble) at the head of the line; `RespHashImportProbeTests`
     shares the fixture connection and fires preamble/command pairs in a burst.
   - `RespHashImportProbeTests.PreamblePairsUnderLoadLeaveTheConnectionUsable` (long-running only) reproduces
-    ~1 run in 30: once with PREPARE at the head and nothing inbound, once with a GET failed as a timeout at
-    "0ms elapsed". Every life IS stamped (`SetRequest` calls `OnCreated`), and `Reset` clears the stamp, so an
-    age of zero means the exception was built for an operation already RECYCLED - a reuse-after-recycle race
-    on the timeout path, the same family as the OnCompleted flag race fixed in cacab8cf. Suspects:
-    the preamble pair path (`RespEndpointExecutor.SendAsync(preamble, request, gate)`) bypasses `Dispatch`, and
-    its interplay with `_writeSlotHeld` / the backlog.
-  - Fixed along the way, each real but NOT this: the quadratic frame rescan (24a4838b, 05294e3d), and the stale
-    pump signal that turned these stalls into permanent hangs (ddcfdea8).
+    ~1 run in 30, once with PREPARE at the head and nothing inbound. Its other failure - a GET timed out at
+    "0ms elapsed" - turned out to be a separate bug, now fixed: the pending queue acted through each operation's
+    CURRENT token, so a slot left by an operation cancelled after it was written could time out, or complete
+    with its late reply, the NEXT life of that instance (see the commit that added `PendingEntry`). Suspect for
+    the stall itself: the preamble pair path (`RespEndpointExecutor.SendAsync(preamble, request, gate)`)
+    bypasses `Dispatch`; its interplay with `_writeSlotHeld` / the backlog is unexamined.
+  - Fixed along the way, each real but NOT this: the quadratic frame rescan (24a4838b, 05294e3d), the stale
+    pump signal that turned these stalls into permanent hangs (ddcfdea8), and the stale pending-queue slot.
 - **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`.
 
 ## Backlog (after the alpha)
