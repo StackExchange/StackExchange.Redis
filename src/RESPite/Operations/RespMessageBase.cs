@@ -262,6 +262,22 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         }
     }
 
+    /// <summary>Set flags on the life <paramref name="token"/> names, and on no other.</summary>
+    /// <remarks>
+    /// <see cref="SetFlag"/> preserves whatever version is current, which is right for the code that owns the
+    /// current life; a caller acting on behalf of a token it was handed must not, because by the time it acts the
+    /// operation may have been recycled under it.
+    /// </remarks>
+    private void SetFlagFor(short token, int flag)
+    {
+        while (true)
+        {
+            var state = Volatile.Read(ref _state);
+            if (VersionOf(state) != token || (state & flag) == flag) return;
+            if (Interlocked.CompareExchange(ref _state, state | flag, state) == state) return;
+        }
+    }
+
     /// <summary>
     /// Claim the right to set the outcome, for the holder of <paramref name="token"/>.
     /// </summary>
@@ -761,6 +777,13 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// <inheritdoc/>
     public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
     {
+        // BEFORE registering, and only on this life. Set afterwards - as it was - the flags could land on the NEXT
+        // life: if the operation is already complete, the continuation registered below can run on the pool,
+        // consume the result and recycle the operation, and a synchronous Send can rent it again, all before this
+        // thread reaches the next line. The stale NoPulse then told that Send's Wait the operation had "entered
+        // async mode", and it threw (SetTests.SScan, net481 CI). A stale token sets nothing, and the core rejects it.
+        SetFlagFor(token, Flag_NoPulse | Flag_Awaited); // an async consumer will never be blocked in Wait
+
         if (_interpose)
         {
             // rented during a synchronous call: keep the continuation ourselves, so that if the caller blocks it
@@ -774,8 +797,6 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         {
             _asyncCore.OnCompleted(continuation, state, token, flags);
         }
-
-        SetFlag(Flag_NoPulse | Flag_Awaited); // an async consumer will never be blocked in Wait
     }
 
     private bool _interpose;
