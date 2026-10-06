@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -16,11 +17,12 @@ namespace StackExchange.Redis
     /// <c>new TaskCompletionSource&lt;T&gt;(state)</c>.
     /// </para>
     /// <para>
-    /// <b>So it is paid for only when it is asked for.</b> A database with no async state - which is what
-    /// <c>GetDatabase()</c> gives you - takes the plain <c>AsTask()</c> path and is unchanged. The new
-    /// <c>RespDatabaseContext</c> surface returns <c>ValueTask</c> and allocates nothing at all; this
-    /// exists for <see cref="IDatabaseAsync"/>, which returns <see cref="Task"/> and so was already
-    /// allocating one object per command. The delta is one more object, on an opt-in path.
+    /// <b>The state itself costs nothing extra.</b> Every pending command takes the same bridge - a completion
+    /// source, its task and one delegate - with or without state, because the bridge is also what marks a fault
+    /// observed (see <c>Bridge</c>); <c>ValueTask.AsTask()</c> would be about one object cheaper and cannot do
+    /// that. A completed result allocates nothing without state. The new <c>RespDatabaseContext</c> surface
+    /// returns <c>ValueTask</c> and needs none of this; it exists for <see cref="IDatabaseAsync"/>, which
+    /// returns <see cref="Task"/>.
     /// </para>
     /// <para>
     /// <b>Do not be tempted to stamp the state onto whatever <c>AsTask()</c> returns.</b> It is reachable
@@ -42,92 +44,138 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The database's async state, or null.</param>
         /// <param name="flags">The command's flags.</param>
         /// <remarks>
+        /// <para>
         /// <b>Fire-and-forget deliberately carries no state</b>, which is what the shipped surface does:
         /// it hands back a stateless completed task, and <c>CombineFireAndForgetAndRegularAsyncInTransaction</c>
         /// asserts exactly that, one line away from asserting that the ordinary command does carry it.
+        /// </para>
+        /// <para>
+        /// <b>A pending result is never handed out as <c>ValueTask.AsTask()</c></b>, even without state: that task
+        /// belongs to the runtime, and a fault on it that the caller drops raises
+        /// <see cref="TaskScheduler.UnobservedTaskException"/> - which v3 never did, because it marked every faulted
+        /// command task observed as it faulted. See <see cref="Bridge{T}"/>.
+        /// </para>
         /// </remarks>
         internal static Task<T> AsTask<T>(this ValueTask<T> pending, object? asyncState, CommandFlags flags)
         {
-            if (asyncState is null || (flags & CommandFlags.FireAndForget) != 0) return pending.AsTask();
+            if ((flags & CommandFlags.FireAndForget) != 0) asyncState = null;
 
             if (pending.IsCompletedSuccessfully)
             {
-                // a synchronously-completed result - notably a client-side cache hit - needs no bridge
+                // a synchronously-completed result - notably a client-side cache hit - needs no bridge; .Result
+                // consumes the source, as it must be consumed exactly once
+                var result = pending.Result;
+                if (asyncState is null) return Task.FromResult(result);
                 var completed = new TaskCompletionSource<T>(asyncState);
-                completed.SetResult(pending.Result);
+                completed.SetResult(result);
                 return completed.Task;
             }
 
-            return Bridge(pending, asyncState);
+            return new Bridge<T>(pending, asyncState).Task;
         }
 
         /// <inheritdoc cref="AsTask{T}(ValueTask{T}, object?, CommandFlags)"/>
         internal static Task AsTask(this ValueTask pending, object? asyncState, CommandFlags flags)
         {
-            if (asyncState is null || (flags & CommandFlags.FireAndForget) != 0) return pending.AsTask();
+            if ((flags & CommandFlags.FireAndForget) != 0) asyncState = null;
+
             if (pending.IsCompletedSuccessfully)
             {
+                pending.GetAwaiter().GetResult(); // consumes the source; see AsTask<T>
+                if (asyncState is null) return Task.CompletedTask;
                 var completed = new TaskCompletionSource<bool>(asyncState);
                 completed.SetResult(true);
                 return completed.Task;
             }
 
-            return Bridge(pending, asyncState);
+            return new VoidBridge(pending, asyncState).Task;
         }
 
+        /// <summary>
+        /// A task of our own over a pending <see cref="ValueTask{TResult}"/>: born with the async state, and marking
+        /// a fault observed as it faults.
+        /// </summary>
         /// <typeparam name="T">The result type.</typeparam>
         /// <remarks>
-        /// <b>No <c>RunContinuationsAsynchronously</c>, and that is deliberate rather than an oversight.</b>
-        /// The core already completes its operations with asynchronous continuations (see
-        /// <c>docs/ThreadTheft.md</c>), so by the time this resumes the hop off the IO thread has already
-        /// happened. Asking for a second one would add latency to buy a guarantee that is already held.
+        /// <para>
+        /// <b>Observed, not swallowed.</b> Reading <see cref="Task.Exception"/> marks the fault handled, so a caller
+        /// that drops the task never sees <see cref="TaskScheduler.UnobservedTaskException"/> - and down-level, with
+        /// <c>ThrowUnobservedTaskExceptions</c> enabled, is not taken down by it. A caller who awaits still gets the
+        /// exception. This is v3's <c>TaskResultBox</c> behaviour; its <c>GC.SuppressFinalize(task)</c> is not
+        /// copied, because the finalizer is on the task's internal exception holder, not on <see cref="Task"/>.
+        /// </para>
+        /// <para>
+        /// <b>Attached straight to the source</b> rather than through an <c>async</c> helper: one object where the
+        /// state machine cost two, and no <c>RunContinuationsAsynchronously</c>, because the core already completes
+        /// its operations off the IO thread (see <c>docs/ThreadTheft.md</c>).
+        /// </para>
         /// </remarks>
-        private static Task<T> Bridge<T>(ValueTask<T> pending, object asyncState)
+        private sealed class Bridge<T> : TaskCompletionSource<T>
         {
-            var source = new TaskCompletionSource<T>(asyncState);
-            _ = CompleteAsync(pending, source);
-            return source.Task;
+            private readonly ConfiguredValueTaskAwaitable<T>.ConfiguredValueTaskAwaiter _awaiter;
 
-            static async Task CompleteAsync(ValueTask<T> pending, TaskCompletionSource<T> source)
+            internal Bridge(ValueTask<T> pending, object? asyncState) : base(asyncState)
+            {
+                _awaiter = pending.ConfigureAwait(false).GetAwaiter();
+
+                // already faulted or cancelled - "no connection" under FailFast, say - is answered NOW, as
+                // ValueTask.AsTask() answers it: registering would hop to the pool first, and a caller checking
+                // IsFaulted straight away (AsyncTasksReportFailureIfServerUnavailable) would see it still running
+                if (_awaiter.IsCompleted) OnCompleted();
+                else _awaiter.UnsafeOnCompleted(OnCompleted);
+            }
+
+            private void OnCompleted()
             {
                 try
                 {
-                    source.TrySetResult(await pending.ConfigureAwait(false));
+                    TrySetResult(_awaiter.GetResult());
                 }
                 catch (OperationCanceledException ex)
                 {
                     // cancelled, not faulted: callers read TaskStatus.Canceled, and a transaction whose
                     // condition failed completes its queued commands exactly this way
-                    source.TrySetCanceled(ex.CancellationToken);
+                    TrySetCanceled(ex.CancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    source.TrySetException(ex);
+                    TrySetException(ex);
+                    _ = Task.Exception; // observed; see the remarks
                 }
             }
         }
 
-        /// <inheritdoc cref="Bridge{T}(ValueTask{T}, object)"/>
-        private static Task Bridge(ValueTask pending, object asyncState)
+        /// <inheritdoc cref="Bridge{T}"/>
+        private sealed class VoidBridge : TaskCompletionSource<bool>
         {
-            var source = new TaskCompletionSource<bool>(asyncState);
-            _ = CompleteAsync(pending, source);
-            return source.Task;
+            private readonly ConfiguredValueTaskAwaitable.ConfiguredValueTaskAwaiter _awaiter;
 
-            static async Task CompleteAsync(ValueTask pending, TaskCompletionSource<bool> source)
+            internal VoidBridge(ValueTask pending, object? asyncState) : base(asyncState)
+            {
+                _awaiter = pending.ConfigureAwait(false).GetAwaiter();
+
+                // already faulted or cancelled - "no connection" under FailFast, say - is answered NOW, as
+                // ValueTask.AsTask() answers it: registering would hop to the pool first, and a caller checking
+                // IsFaulted straight away (AsyncTasksReportFailureIfServerUnavailable) would see it still running
+                if (_awaiter.IsCompleted) OnCompleted();
+                else _awaiter.UnsafeOnCompleted(OnCompleted);
+            }
+
+            private void OnCompleted()
             {
                 try
                 {
-                    await pending.ConfigureAwait(false);
-                    source.TrySetResult(true);
+                    _awaiter.GetResult();
+                    TrySetResult(true);
                 }
                 catch (OperationCanceledException ex)
                 {
-                    source.TrySetCanceled(ex.CancellationToken);
+                    TrySetCanceled(ex.CancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    source.TrySetException(ex);
+                    TrySetException(ex);
+                    _ = Task.Exception;
                 }
             }
         }
