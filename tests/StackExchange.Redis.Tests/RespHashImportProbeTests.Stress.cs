@@ -15,8 +15,8 @@ public partial class RespHashImportProbeTests
     /// </summary>
     /// <remarks>
     /// <b>A reproduction tool for an open defect, so it is long-running only.</b> It fails roughly 1 run in 30
-    /// (2 of 69 locally), with a GET timed out at "0ms elapsed" - an operation whose age was never stamped,
-    /// failed by something other than the heartbeat sweep (which needs an age of the full timeout) - and once
+    /// (2 of 69 locally), with a GET timed out at "0ms elapsed" - an age of zero, which only a RECYCLED operation has, so a
+    /// reuse-after-recycle race on the timeout path - and once
     /// with PREPARE at the head of the line and nothing inbound, the CI stall's signature. See the v4 ledger.
     /// </remarks>
     [Fact]

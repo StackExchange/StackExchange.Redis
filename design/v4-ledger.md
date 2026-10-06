@@ -45,7 +45,9 @@ Each has a default the work proceeds on until answered.
     shares the fixture connection and fires preamble/command pairs in a burst.
   - `RespHashImportProbeTests.PreamblePairsUnderLoadLeaveTheConnectionUsable` (long-running only) reproduces
     ~1 run in 30: once with PREPARE at the head and nothing inbound, once with a GET failed as a timeout at
-    "0ms elapsed" - i.e. never age-stamped, and failed by something other than the heartbeat sweep. Suspects:
+    "0ms elapsed". Every life IS stamped (`SetRequest` calls `OnCreated`), and `Reset` clears the stamp, so an
+    age of zero means the exception was built for an operation already RECYCLED - a reuse-after-recycle race
+    on the timeout path, the same family as the OnCompleted flag race fixed in cacab8cf. Suspects:
     the preamble pair path (`RespEndpointExecutor.SendAsync(preamble, request, gate)`) bypasses `Dispatch`, and
     its interplay with `_writeSlotHeld` / the backlog.
   - Fixed along the way, each real but NOT this: the quadratic frame rescan (24a4838b, 05294e3d), and the stale
