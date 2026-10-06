@@ -292,7 +292,8 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.False(server.IsScriptLoaded(script));
 
         (await surface.Scripts.EvaluateAsync(script)).Dispose();
-        Assert.True(server.IsScriptLoaded(script), "the first evaluation did not load the script");
+        // polled: the belief is recorded by the SCRIPT LOAD's own completion, which can land just after the caller resumes
+        Assert.True(await Poll.UntilAsync(() => server.IsScriptLoaded(script), timeoutMilliseconds: 2000), "the first evaluation did not load the script");
 
         // now it is believed loaded, the gate must decline - and the call must still work, which is the
         // half that matters: declining the preamble writes the EVALSHA alone
@@ -630,7 +631,8 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         sep.FlushScriptCache();
         (await surface.Scripts.EvaluateAsync(script)).Dispose();
-        Assert.True(sep.IsScriptLoaded(script), "the first call should have loaded it");
+        // polled: the belief is recorded by the SCRIPT LOAD's own completion, which can land just after the caller resumes
+        Assert.True(await Poll.UntilAsync(() => sep.IsScriptLoaded(script), timeoutMilliseconds: 2000), "the first call should have loaded it");
 
         // the server forgets, behind the client's back
         await conn.GetServer(endpoint).ScriptFlushAsync();
@@ -640,7 +642,8 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         // dropped, and the message re-issued from the read path - so the caller never sees the failure
         using var recovered = await surface.Scripts.EvaluateAsync(script);
         Assert.Equal(Me(), recovered.ReadScalar().ReadString());
-        Assert.True(sep.IsScriptLoaded(script), "the retry should have re-loaded it");
+        // polled: the belief is recorded by the SCRIPT LOAD's own completion, which can land just after the caller resumes
+        Assert.True(await Poll.UntilAsync(() => sep.IsScriptLoaded(script), timeoutMilliseconds: 2000), "the retry should have re-loaded it");
     }
 
     [Fact]
