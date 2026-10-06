@@ -50,6 +50,16 @@ Each has a default the work proceeds on until answered.
 
 ## Backlog (after the alpha)
 
+- **Alternative client-side-cache invalidation sources, and opt-in/out.** Today invalidation comes only from
+  `CLIENT TRACKING` (`CacheTrackingMode`: Default -> BCAST, or per-key tracking) and the cache is on by default
+  (`CacheOptions.Enabled = true`). Add policies for deployments where tracking is unavailable or unwanted
+  (proxies, older servers, some managed offerings): **keyspace notifications** (`__keyspace@<db>__:*`, which
+  needs `notify-keyspace-events` configured server-side and carries no RESP3 requirement) and **explicit
+  pub/sub** (an application-defined invalidation channel the writer publishes to). Settle the opt-in/out story
+  at the same time: whether on-by-default is right for 4.0, how a caller opts out per multiplexer and per
+  command, and what the cache does when the chosen source is not available (refuse loudly, as RESP2 + cache
+  does today, versus degrade to no caching).
+
 - **Unobserved faults on the new surface** (the transitional `Task` surface was fixed in the commit that removed
   this item's first half: it now bridges through its own task and marks a fault observed). A `ValueTask` over the
   pooled operation has no `Task` and no finalizer, but a non-pooled `async ValueTask` that completes asynchronously
