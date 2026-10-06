@@ -587,7 +587,14 @@ while c1 took an `INCR` every ~5 s and c2 was read back; then `{"crdt_sync":"ena
 - **`fields=` filters on `/v1/bdbs` but not on `/v1/cluster`**, which returns the whole object.
 - **The local form answers for the node that served the request.** Through the cluster FQDN that was
   always node 1, which usually does not host the endpoint under `proxy_policy: single` - so 503 for three
-  of four Active-Active members that were serving traffic perfectly well.
+  of four Active-Active members that were serving traffic perfectly well. *Corrected 2026-10-06:* reached
+  through the **database's own hostname** (`https://redis-<port>.<fqdn>:9443`, as go-redis does), the
+  local form answered 200, plain and lag, for all four members, from the node actually serving the
+  endpoint; via the cluster FQDN the same calls gave 503 for three of them. Every node presents the same
+  cluster certificate (pinned on each), and its `*.<fqdn>` SAN covers the database hostname, so the
+  `TrustIssuer` pin should hold there too (*inferred*; only the fingerprint was checked on that path). So
+  the local form is usable, and arguably the more truthful one, provided it is routed by database host.
+  Not yet measured: whether `local` + `extend_check=lag` flips under paused sync as the database form does.
 - **`/v1/bdbs` returns database passwords** (`authentication_redis_pass`, `authentication_admin_pass`)
   when `mask_bdb_credentials` is false, as on these clusters, and `/v1/crdbs` returns the same for every
   instance. Captured bodies cannot be committed as fixtures without scrubbing. Relevant to credential
@@ -631,6 +638,56 @@ Active-Active and OSS-cluster alike, is `redis-<port>.<cluster fqdn>`, so the ma
 start from the member's *configured* endpoint, not from discovered nodes. A customer CNAME or a bare IP
 defeats it, so it can only be a default with an override. uid discovery by matching `dns_name` and port
 against `/v1/bdbs?fields=uid,endpoints` is safe on credentials (filtered, no passwords).
+
+### Certificate trust reuses the existing TLS callback (2026-10-06)
+
+The library's own `ConfigurationOptions.TrustIssuer(...)` callback, obtained through the public
+`TlsOptions.CertificateValidationCallback` and adapted to `HttpClientHandler` with a one-line lambda,
+validates the 9443 call. Against c1, `GET /v1/cluster`:
+
+| trust | result |
+| --- | --- |
+| platform default | rejected, `UntrustedRoot` |
+| `TrustIssuer(c1's own 9443 certificate)` | **200** |
+| `TrustIssuer(config-dir ca.crt)` - the CA that signs the RESP proxy certs | rejected |
+| `TrustIssuer(c2's 9443 certificate)` | rejected |
+
+The only policy error ever presented was `RemoteCertificateChainErrors`: the certificate carries SANs for
+`<fqdn>` and `*.<fqdn>` and server-auth EKU, so host-name checks pass, which is the one condition
+`TrustIssuer` requires. `TrustIssuer(leaf)` therefore *is* a pin, because the self-signed leaf is its own
+chain. No new trust API is needed.
+
+What does **not** carry over is the trust *configuration*: the data-plane and management-plane
+certificates have different issuers (proxy certs from the deployment CA, 9443 self-signed per cluster),
+so a member's Redis `TrustIssuer` cannot be reused for its REST calls; it is the same mechanism with a
+separate setting. The adapter is the same on every TFM (`ServerCertificateCustomValidationCallback`), and
+on `net5`+ `SocketsHttpHandler.SslOptions.RemoteCertificateValidationCallback` takes the delegate
+unchanged, which matters if the HTTP path rides on `Tunnel` (§8). A production cluster with a CA-signed
+9443 certificate needs no callback at all.
+
+### Who else implements it, and what turns it on (2026-10-06)
+
+Read from anonymous shallow clones, heads of 2026-09-26 to 2026-10-06 (`gh` search is blocked by SSO).
+
+| client | support | activation | REST endpoint | uid | lag / tolerance | REST TLS |
+| --- | --- | --- | --- | --- | --- | --- |
+| Lettuce | `failover/health/LagAwareStrategy.java` | explicit strategy supplier; default `PingStrategy` | user-supplied URI | discovered from `/v1/bdbs` by host | on / 5000 | own `SslOptions` |
+| Jedis | `mcf/LagAwareStrategy.java` | explicit strategy supplier; default `PingStrategy` | user-supplied | `/v1/bdbs?fields=uid,endpoints` by host | on / 5000 | own `SslOptions` |
+| redis-py (asyncio only) | `asyncio/multidb/healthcheck.py` | explicit `health_checks`; default `PingHealthCheck` | user-supplied `health_check_url` + port 9443 | **unfiltered** `/v1/bdbs`, by `dns_name`/`addr` | always on / 5000 | own CA / `verify_tls` / mTLS |
+| go-redis | **feature branch only** (`feature/multidb-integration`), `multidb/healthcheck_lag_aware.go` | explicit `HealthChecks`; default PING | **derived: `https://<db host>:9443`**, override available | `/v1/bdbs?fields=uid,endpoints`, host + resolved IPs + port | on / 5000 | own `tls.Config` incl. `InsecureSkipVerify` |
+| node-redis, NRedisStack, redis-rs, rueidis, predis, phpredis | not found | | | | | |
+
+- **Nobody activates it automatically** - no domain detection, no provider. It is an opt-in health
+  check everywhere, and PING is the default everywhere.
+- **No client checks `crdt`**, so (*inferred*, from §10) all fail permanently on non-Active-Active.
+- **No client reuses the Redis connection's TLS settings** for REST, and none pins.
+- redis-py's unfiltered `/v1/bdbs` receives database passwords (per the role test above).
+- **go-redis has the two design ideas worth taking:**
+  1. it uses the *local* form routed via each member's own database host, once per master in cluster
+     mode - the routing that makes the local form truthful (see the correction above);
+  2. `FailbackOnly() == true`: the lag verdict only gates moving traffic *to* a member and never evicts
+     the active one, while PING keeps judging the active member's liveness. That is the `Inconclusive`
+     failback problem in `plan.md` step 3, solved by giving the check a scope rather than a new result.
 
 ### Multi-cluster shape
 
