@@ -46,6 +46,15 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public override int Database => _inner.Database;
 
+        /// <summary>Whether this batch has been executed or discarded; either way, nothing more will be sent.</summary>
+        internal bool IsSent
+        {
+            get
+            {
+                lock (_sync) return _sent;
+            }
+        }
+
         /// <summary>How many commands are waiting to be sent.</summary>
         internal int Count
         {

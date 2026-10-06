@@ -523,7 +523,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
 
         await context.Keys.DeleteAsync([$"{{{key}}}:a", $"{{{key}}}:b", $"{{{key}}}:c"]);
 
-        using var batch = context.CreateBatch();
+        using var batch = context.CreateTaskBatch();
         var setA = batch.Context.Strings.SetAsync($"{{{key}}}:a", "1");
         var setB = batch.Context.Strings.SetAsync($"{{{key}}}:b", "2");
         var getC = batch.Context.Strings.GetAsync($"{{{key}}}:c");
@@ -553,7 +553,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var context = conn.GetDatabase().Context;
         var key = Me();
 
-        using var batch = context.CreateBatch();
+        using var batch = context.CreateTaskBatch();
         var set = batch.Context.Strings.SetAsync(key, "solo");
         await batch.ExecuteAsync();
 

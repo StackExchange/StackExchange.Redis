@@ -81,6 +81,15 @@ namespace StackExchange.Redis
         /// </remarks>
         internal bool WasWatchConflict => _watchConflict;
 
+        /// <summary>Whether this transaction has been executed or discarded; either way, nothing more will be sent.</summary>
+        internal bool IsSent
+        {
+            get
+            {
+                lock (_sync) return _sent;
+            }
+        }
+
         /// <summary>How many commands are waiting to be sent.</summary>
         internal int Count
         {

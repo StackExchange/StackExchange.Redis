@@ -796,3 +796,22 @@ static StackExchange.Redis.Diagnostics.LatencyResetAsync(this in StackExchange.R
 static StackExchange.Redis.Diagnostics.MemoryStatsAsync(this in StackExchange.Redis.RespDiagnostics diagnostics, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.RedisResult!>
 static StackExchange.Redis.Diagnostics.SlowLogAsync(this in StackExchange.Redis.RespDiagnostics diagnostics, int count = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.CommandTrace![]!>
 static StackExchange.Redis.Config.SetAsync(this in StackExchange.Redis.RespConfig config, StackExchange.Redis.RedisValue setting, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
+[SER014]StackExchange.Redis.RespBatch
+[SER014]StackExchange.Redis.RespBatch.Context.get -> StackExchange.Redis.RespDatabaseContext
+[SER014]StackExchange.Redis.RespBatch.Count.get -> int
+[SER014]StackExchange.Redis.RespBatch.Dispose() -> void
+[SER014]StackExchange.Redis.RespBatch.ExecuteAsync() -> System.Threading.Tasks.Task!
+[SER014]StackExchange.Redis.RespBatch.RespBatch() -> void
+[SER014]StackExchange.Redis.RespTransaction
+[SER014]StackExchange.Redis.RespTransaction.AddCondition(StackExchange.Redis.Condition! condition) -> StackExchange.Redis.ConditionResult!
+[SER014]StackExchange.Redis.RespTransaction.Context.get -> StackExchange.Redis.RespDatabaseContext
+[SER014]StackExchange.Redis.RespTransaction.Count.get -> int
+[SER014]StackExchange.Redis.RespTransaction.Dispose() -> void
+[SER014]StackExchange.Redis.RespTransaction.ExecuteAsync() -> System.Threading.Tasks.Task<bool>!
+[SER014]StackExchange.Redis.RespTransaction.RespTransaction() -> void
+[SER014]StackExchange.Redis.RespTransaction.WasWatchConflict.get -> bool
+[SER014]static StackExchange.Redis.RespBatching.BeginBatch(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespBatch
+[SER014]static StackExchange.Redis.RespBatching.BeginBatch<TTarget>(this TTarget target) -> StackExchange.Redis.RespBatch
+[SER014]static StackExchange.Redis.RespBatching.BeginTransaction(this in StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespTransaction
+[SER014]static StackExchange.Redis.RespBatching.BeginTransaction<TTarget>(this TTarget target) -> StackExchange.Redis.RespTransaction
+StackExchange.Redis.RespBatching

@@ -29,7 +29,7 @@ public class RespBatchExecutorTests
     public async Task NothingIsSentUntilTheBatchIsExecuted()
     {
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
-        using var batch = Source(executor).CreateBatch();
+        using var batch = Source(executor).CreateTaskBatch();
 
         var first = batch.Context.Strings.GetAsync("k1");
         var second = batch.Context.Strings.GetAsync("k2");
@@ -58,7 +58,7 @@ public class RespBatchExecutorTests
     public async Task PayloadsAreCompletedTypedByTheLayerAbove()
     {
         var executor = new FakeExecutor("$4\r\nmarc\r\n", ":7\r\n", "+OK\r\n");
-        using var batch = Source(executor).CreateBatch();
+        using var batch = Source(executor).CreateTaskBatch();
 
         var value = batch.Context.Strings.GetAsync("k");
         var length = batch.Context.Strings.LengthAsync("k");
@@ -76,7 +76,7 @@ public class RespBatchExecutorTests
     public async Task AFaultIsDeliveredToTheCommandThatCausedIt()
     {
         var executor = new FakeExecutor("-ERR nope\r\n", "$1\r\nb\r\n");
-        using var batch = Source(executor).CreateBatch();
+        using var batch = Source(executor).CreateTaskBatch();
 
         var bad = batch.Context.Strings.GetAsync("k1");
         var good = batch.Context.Strings.GetAsync("k2");
@@ -92,7 +92,7 @@ public class RespBatchExecutorTests
     public async Task AnEmptyBatchExecutesCleanly()
     {
         var executor = new FakeExecutor("+OK\r\n");
-        using var batch = Source(executor).CreateBatch();
+        using var batch = Source(executor).CreateTaskBatch();
 
         await batch.ExecuteAsync();
 
@@ -112,7 +112,7 @@ public class RespBatchExecutorTests
     public async Task ABatchIsOneShot()
     {
         var executor = new FakeExecutor("$1\r\na\r\n");
-        using var batch = Source(executor).CreateBatch();
+        using var batch = Source(executor).CreateTaskBatch();
 
         _ = batch.Context.Strings.GetAsync("k");
         await batch.ExecuteAsync();
@@ -138,7 +138,7 @@ public class RespBatchExecutorTests
         var executor = new FakeExecutor("$1\r\na\r\n");
         Task<RedisValue> pending;
 
-        using (var batch = Source(executor).CreateBatch())
+        using (var batch = Source(executor).CreateTaskBatch())
         {
             pending = batch.Context.Strings.GetAsync("k").AsTask();
         }
@@ -153,7 +153,7 @@ public class RespBatchExecutorTests
     public void ASynchronousSendRefuses()
     {
         var executor = new FakeExecutor("+OK\r\n");
-        using var batch = Source(executor).CreateBatch();
+        using var batch = Source(executor).CreateTaskBatch();
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => batch.Context.Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None));
@@ -175,7 +175,7 @@ public class RespBatchExecutorTests
     public void FireAndForgetCompletesImmediatelyAndStillSends()
     {
         var executor = new FakeExecutor("+OK\r\n");
-        using var batch = Source(executor).CreateBatch();
+        using var batch = Source(executor).CreateTaskBatch();
 
         var pending = batch.Context.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
 
@@ -208,7 +208,7 @@ public class RespBatchExecutorTests
     public async Task FireAndForgetKeepsTheFrameAliveUntilItIsSent()
     {
         var executor = new FakeExecutor("+OK\r\n");
-        using var batch = Source(executor).CreateBatch();
+        using var batch = Source(executor).CreateTaskBatch();
 
         await batch.Context.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
         await Task.Yield(); // and let any continuation the caller had run
@@ -223,7 +223,7 @@ public class RespBatchExecutorTests
     public async Task AwaitedAndForgottenCommandsShareTheRun()
     {
         var executor = new FakeExecutor("+OK\r\n", "$1\r\na\r\n");
-        using var batch = Source(executor).CreateBatch();
+        using var batch = Source(executor).CreateTaskBatch();
 
         var forgotten = batch.Context.Strings.SetAsync("k1", "v", flags: CommandFlags.FireAndForget);
         var awaited = batch.Context.Strings.GetAsync("k2");
@@ -249,7 +249,7 @@ public class RespBatchExecutorTests
     public void DiscardingReleasesForgottenCommandsExactlyOnce()
     {
         var executor = new FakeExecutor("+OK\r\n");
-        var batch = Source(executor).CreateBatch();
+        var batch = Source(executor).CreateTaskBatch();
 
         _ = batch.Context.Strings.SetAsync("k", "v", flags: CommandFlags.FireAndForget);
 
@@ -310,7 +310,7 @@ public class RespBatchExecutorTests
     public async Task ARunCapableExecutorGetsTheWholeQueueAtOnce()
     {
         var executor = new RunExecutor("$1\r\na\r\n", "$1\r\nb\r\n", "$1\r\nc\r\n");
-        using var batch = new RespDatabaseContext(new RespContext().WithExecutor(executor)).CreateBatch();
+        using var batch = new RespDatabaseContext(new RespContext().WithExecutor(executor)).CreateTaskBatch();
 
         var first = batch.Context.Strings.GetAsync("k1");
         var second = batch.Context.Strings.GetAsync("k2");
@@ -347,7 +347,7 @@ public class RespBatchExecutorTests
         var executor = new RunExecutor("$1\r\na\r\n");
         var context = new RespDatabaseContext(
             new RespContext(serverType: ServerType.Cluster).WithExecutor(executor));
-        using var batch = context.CreateBatch();
+        using var batch = context.CreateTaskBatch();
 
         var first = batch.Context.Strings.GetAsync("{x}:1");
         var second = batch.Context.Strings.GetAsync("{y}:1");
@@ -376,7 +376,7 @@ public class RespBatchExecutorTests
     public async Task AStandaloneBatchIsOneRunWhateverTheKeys()
     {
         var executor = new RunExecutor("$1\r\na\r\n");
-        using var batch = new RespDatabaseContext(new RespContext().WithExecutor(executor)).CreateBatch();
+        using var batch = new RespDatabaseContext(new RespContext().WithExecutor(executor)).CreateTaskBatch();
 
         _ = batch.Context.Strings.GetAsync("{x}:1");
         _ = batch.Context.Strings.GetAsync("{y}:1");
@@ -393,7 +393,7 @@ public class RespBatchExecutorTests
     {
         var executor = new FakeExecutor("$1\r\na\r\n");
         var source = Source(executor);
-        using var batch = source.CreateBatch();
+        using var batch = source.CreateTaskBatch();
 
         Assert.Equal("a", (string?)await source.Strings.GetAsync("k"));
         Assert.True(executor.HasSent);

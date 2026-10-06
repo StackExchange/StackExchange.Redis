@@ -53,6 +53,12 @@
         /// </remarks>
         public const string BorrowedValues = "SER012";
 
+        /// <summary>
+        /// Batches and transactions on the context surface: <c>RespBatch</c>, <c>RespTransaction</c>, and
+        /// <c>BeginBatch</c>/<c>BeginTransaction</c>.
+        /// </summary>
+        public const string Batching = "SER014";
+
         // ReSharper restore InconsistentNaming
 
         // this one is not a real experiment; it exists to help me
