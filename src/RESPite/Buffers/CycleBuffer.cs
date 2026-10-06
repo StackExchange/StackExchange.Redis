@@ -571,6 +571,14 @@ public partial struct CycleBuffer
             Memory = default;
             RunningIndex = 0;
             _flags = Flags.None;
+
+            // This object becomes available - via the SHARED, STATIC _spare slot below - to any CycleBuffer in the
+            // process, handed out by Segment.Create as a pristine segment, so StartTrimCount must not survive it.
+            // Some callers recycle without Untrim first (Release; AppendOrRecycle's search-exhausted path), and Init
+            // never touches it, so a stale trim reached a "new" segment: Debug.Assert(leasedStart == 0) in Debug,
+            // and in Release a later Untrim expanding backwards by a trim that never happened, corrupting the
+            // chain's running indexes. Found under PR #3251's read/parse stress test; absorbed into v4 with the split.
+            StartTrimCount = 0;
             Interlocked.Exchange(ref _spare, this);
             DebugAssertValidChain();
         }

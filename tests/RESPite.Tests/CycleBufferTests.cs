@@ -128,4 +128,46 @@ public class CycleBufferTests()
 
         Assert.Equal(0, buffer.GetCommittedLength());
     }
+
+    /// <summary>
+    /// A segment recycled while start-trimmed must not carry its trim into the next buffer that is handed it.
+    /// </summary>
+    /// <remarks>
+    /// Recycled segments go to a process-wide spare slot and come back out of <c>Segment.Create</c> as pristine.
+    /// <c>Recycle</c> did not reset <c>StartTrimCount</c>, and some paths - <see cref="CycleBuffer.Release"/>, and
+    /// <c>AppendOrRecycle</c>'s search-exhausted path - recycle without <c>Untrim</c> first, so the next buffer's
+    /// "new" segment wrote at a stale offset and read its committed bytes from the wrong place. Found under #3251's
+    /// read/parse stress test as <c>Debug.Assert(leasedStart == 0)</c>; absorbed into v4 with the split.
+    /// </remarks>
+    [Fact]
+    public void ARecycledTrimmedSegmentStartsCleanInTheNextBuffer()
+    {
+        // the spare slot is process-wide and the suite is parallel, so another buffer can take the segment first;
+        // repeat the scenario rather than assert on a race nobody controls
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            var first = CycleBuffer.Create();
+            first.Write("0123456789"u8);
+            first.DiscardCommitted(4);   // start-trimmed: StartTrimCount is now 4
+            first.Release();             // recycled WITHOUT Untrim
+
+            var second = CycleBuffer.Create();
+
+            second.Write("hello"u8);
+
+            // read directly, because in Release - where the Debug.Assert is compiled out - nothing visible fails
+            // at once: the stale trim only corrupts the chain arithmetic of a later Untrim
+            Assert.Equal(0, StartTrimCountOfFirstSegment(second));
+            Assert.True(second.TryGetCommitted(out var committed));
+            Assert.Equal("hello", System.Text.Encoding.ASCII.GetString(committed.ToArray()));
+            second.Release();
+        }
+    }
+
+    private static int StartTrimCountOfFirstSegment(CycleBuffer buffer)
+    {
+        const System.Reflection.BindingFlags Any = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+        var segment = typeof(CycleBuffer).GetField("startSegment", Any)!.GetValue(buffer)!;
+        return (int)segment.GetType().GetProperty("StartTrimCount", Any)!.GetValue(segment)!;
+    }
 }
