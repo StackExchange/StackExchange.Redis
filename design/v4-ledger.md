@@ -38,8 +38,19 @@ Each has a default the work proceeds on until answered.
   timeout for a dropped SYN). Fixing it means de-duplicating a subscription that lands on two nodes. Not urgent.
 - **Retire the `RespTaskBatch` spike**: port `RespBatchExecutorTests`' still-useful cases (forgotten commands,
   run-capable executors, per-slot split) onto `RespBatch`, then delete it and `RespBatchExecutor`.
-- **Known flakes**, each needing a capture rather than a guess: `TouchIdleTime` (6381), occasional
-  `HashImportProbe`, `RespAggregateTiming`, and the rare ~5s RESP3 stall on a shared connection.
+- **The "~5s with nothing inbound" stall (RESP2 and RESP3, local and CI) - root cause open.** What is known:
+  - The client stops receiving on ONE shared connection; the server is fine (a reply sat unread in the
+    kernel's receive queue for 14.8s). Not a pause, not a blocking command, not the cache's invalidation path.
+  - The first timeouts have `PREPARE` (the HIMPORT preamble) at the head of the line; `RespHashImportProbeTests`
+    shares the fixture connection and fires preamble/command pairs in a burst.
+  - `RespHashImportProbeTests.PreamblePairsUnderLoadLeaveTheConnectionUsable` (long-running only) reproduces
+    ~1 run in 30: once with PREPARE at the head and nothing inbound, once with a GET failed as a timeout at
+    "0ms elapsed" - i.e. never age-stamped, and failed by something other than the heartbeat sweep. Suspects:
+    the preamble pair path (`RespEndpointExecutor.SendAsync(preamble, request, gate)`) bypasses `Dispatch`, and
+    its interplay with `_writeSlotHeld` / the backlog.
+  - Fixed along the way, each real but NOT this: the quadratic frame rescan (24a4838b, 05294e3d), and the stale
+    pump signal that turned these stalls into permanent hangs (ddcfdea8).
+- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`.
 
 ## Backlog (after the alpha)
 
