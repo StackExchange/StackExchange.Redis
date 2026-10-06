@@ -1,8 +1,9 @@
 ﻿# V4 alpha: retiring the old core
 
-The working plan. `message-core-replacement.md` is the history of *why*; this file is *what next*, kept
-current as items close. Whoever picks this up - a later session, after a context reset, after a power cut -
-should be able to start from the first unchecked item without asking anyone.
+> **Superseded as the working list by [`v4-ledger.md`](v4-ledger.md)** (2026-10-06). The gates are done and
+> the old core is deleted; this file is kept as the record of how, and its open items have moved there.
+
+The plan that retired the old core. `message-core-replacement.md` is the history of *why*.
 
 ## Goal
 
