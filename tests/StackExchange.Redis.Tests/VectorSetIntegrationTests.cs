@@ -968,6 +968,60 @@ public class VectorSetIntegrationTests(ITestOutputHelper output) : TestBase(outp
     }
 
     [Fact]
+    public async Task VectorSetRange_BinaryMemberAsBound()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+
+        var vector = new[] { 1.0f, 2.0f, 3.0f };
+        byte[] binary = [0xFF, 0x01]; // not valid UTF-8
+        foreach (var member in new RedisValue[] { "a", "b", binary })
+        {
+            var request = VectorSetAddRequest.Member(member, vector.AsMemory());
+            await db.VectorSetAddAsync(key, request);
+        }
+
+        // nothing sorts after the binary member
+        using var afterBinary = await db.VectorSetRangeAsync(key, start: binary, exclude: Exclude.Start);
+        Assert.NotNull(afterBinary);
+        Assert.Equal(0, afterBinary.Length);
+
+        using var upToBinary = await db.VectorSetRangeAsync(key, start: "b", end: binary, exclude: Exclude.Start);
+        Assert.NotNull(upToBinary);
+        Assert.Equal(1, upToBinary.Length);
+        Assert.Equal(binary, (byte[]?)upToBinary.Span[0]);
+    }
+
+    [Fact]
+    public async Task VectorSetRangeEnumerate_BinaryMembers()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
+        var db = conn.GetDatabase();
+        var key = Me();
+
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+
+        var vector = new[] { 1.0f, 2.0f, 3.0f };
+        byte[] binary = [0xFF, 0x01]; // not valid UTF-8
+        foreach (var member in new RedisValue[] { "a", "b", binary })
+        {
+            var request = VectorSetAddRequest.Member(member, vector.AsMemory());
+            await db.VectorSetAddAsync(key, request);
+        }
+
+        // each batch starts after the last member of the previous one; Take guards against a loop
+        var allMembers = db.VectorSetRangeEnumerate(key, count: 1).Take(10).ToArray();
+
+        Assert.Equal(3, allMembers.Length);
+        Assert.Equal("a", (string?)allMembers[0]);
+        Assert.Equal("b", (string?)allMembers[1]);
+        Assert.Equal(binary, (byte[]?)allMembers[2]);
+    }
+
+    [Fact]
     public async Task VectorSetRangeEnumerate_BasicIteration()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);

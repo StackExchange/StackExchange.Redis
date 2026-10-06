@@ -733,16 +733,16 @@ public static partial class VectorSets
     /// Shared with the interpolated surface, as <c>GetLexRange</c> is for the sorted sets: the bracket is
     /// the whole of the meaning, and an exclusive bound written inclusively is an off-by-one nobody sees
     /// until it matters.
+    /// <para>
+    /// <b>Built from the raw bytes</b>, by delegating to <see cref="SortedSets.LexBound"/>: the spelling is
+    /// identical to <c>ZRANGEBYLEX</c>'s. It used to concatenate <c>"[" + value</c>, which goes through a
+    /// string and mangles a member that is not valid UTF-8 - so a binary member could not be used as a
+    /// bound, and paging past one restarted from the wrong place (3.x #3256).
+    /// </para>
     /// </remarks>
     /// <param name="value">The bound value, or null for an open end.</param>
     /// <param name="exclude">Which bounds the caller asked to exclude.</param>
     /// <param name="isStart">Whether this is the lower bound.</param>
     internal static RedisValue VectorSetBound(in RedisValue value, Exclude exclude, bool isStart)
-    {
-        if (value.IsNull) return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSymbol;
-
-        var mask = isStart ? Exclude.Start : Exclude.Stop;
-        var isExclusive = (exclude & mask) != 0;
-        return ((isExclusive ? "(" : "[") + value).AsRedisValue();
-    }
+        => SortedSets.LexBound(value, exclude, isStart, Order.Ascending);
 }
