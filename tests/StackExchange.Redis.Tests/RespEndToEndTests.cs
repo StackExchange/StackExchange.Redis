@@ -422,7 +422,11 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var idle = await ctx.Keys.IdleTimeAsync(key);
         Assert.NotNull(idle);
         Assert.True(idle.Value < TimeSpan.FromMinutes(1), $"idle time {idle} is implausible for a key just written");
-        Assert.Equal(await db.KeyIdleTimeAsync(key), idle);
+        // within a second rather than equal: the server reports whole seconds and the two reads are not
+        // simultaneous, so it can tick between them. A unit error is a factor of a thousand, not one
+        var viaOldPath = await db.KeyIdleTimeAsync(key);
+        Assert.NotNull(viaOldPath);
+        Assert.InRange((viaOldPath.Value - idle.Value).Duration(), TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
         // and a missing key is null on both, rather than zero on one of them
         var absent = key + ":absent";
