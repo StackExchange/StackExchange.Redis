@@ -1448,7 +1448,7 @@ namespace StackExchange.Redis
         /// <c>RedisDatabase</c>, and every member has moved; the old database went with the old core.
         /// </remarks>
         private IDatabase Surface(int database, object? asyncState)
-            => new TransitionalDatabase(NewCore.GetDatabase(database), this, asyncState, null);
+            => new TransitionalDatabase(NewCore.GetDatabase(database), this, asyncState);
 
         private RespNewCore? _newCore;
 

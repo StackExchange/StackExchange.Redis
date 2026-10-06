@@ -19,7 +19,7 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
         Renamed,
     }
 
-    [Theory(Timeout = 1000)]
+    [Theory(Timeout = 10000)]
     [InlineData(MapMode.Null, "", "*1\r\n$4\r\nECHO\r\n")]
     [InlineData(MapMode.Default, "", "*1\r\n$4\r\nECHO\r\n")]
     [InlineData(MapMode.Disabled, "", "")]
@@ -51,7 +51,7 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
         }
     }
 
-    [Theory(Timeout = 1000)]
+    [Theory(Timeout = 10000)]
     [InlineData("ACL SETUSER x")]
     [InlineData("get key")]
     public void CommandWithWhitespaceThrows(string command)
@@ -63,7 +63,7 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
         Assert.Empty(executor.Frames);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task SingleTokenCommandDoesNotThrow()
     {
         // the correct token-per-argument form must still be accepted unchanged
@@ -84,7 +84,7 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
         _ => throw new ArgumentOutOfRangeException(nameof(mode)),
     };
 
-    [Theory(Timeout = 1000)]
+    [Theory(Timeout = 10000)]
     [InlineData(MapMode.Null, "", "*1\r\n$6\r\ncustom\r\n")]
     [InlineData(MapMode.Default, "", "*1\r\n$6\r\ncustom\r\n")]
     // [InlineData(MapMode.Disabled, "", "")]

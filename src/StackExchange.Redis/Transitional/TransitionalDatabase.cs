@@ -30,10 +30,10 @@ namespace StackExchange.Redis
     /// wrappers, which is what it is really for.
     /// </para>
     /// <para>
-    /// <b>The fallback is no longer about commands</b>, and what is left of it says where the remaining
-    /// work is: scans against a server too old to <c>SCAN</c>, and batch/transaction when the executor
-    /// cannot write a contiguous run - which is only ever true over the <c>Message</c> shim, never over
-    /// the new core. See <c>CanWriteRuns</c>.
+    /// <b>There is no fallback.</b> This once forwarded anything not yet moved to the v3 <c>RedisDatabase</c>, and
+    /// then only batches and transactions over an executor that could not write a contiguous run (the
+    /// <c>Message</c> shim). Both went with the old core: every command is implemented here, and creating a
+    /// batch or transaction over an executor that cannot write one says so rather than forwarding.
     /// </para>
     /// </remarks>
     /// <remarks>
@@ -48,31 +48,12 @@ namespace StackExchange.Redis
     /// costs nothing, because there is nothing behind it to be stuck with.
     /// </para>
     /// </remarks>
-    internal partial class TransitionalDatabase(RespDatabaseContext inner, IConnectionMultiplexer multiplexer, object? asyncState, IDatabase? fallback = null)
+    internal partial class TransitionalDatabase(RespDatabaseContext inner, IConnectionMultiplexer multiplexer, object? asyncState)
         : IDatabase, IInternalDatabaseAsync
     {
         /// <inheritdoc/>
         public RespDatabaseContext Context => _inner;
         private readonly RespDatabaseContext _inner = inner;
-
-        /// <summary>
-        /// An old-surface database to forward not-yet-moved commands to, or <see langword="null"/> to throw.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// <b>This is what lets the EXISTING test suite be the proof.</b> Given a fallback, an instance of
-        /// this class is a drop-in <see cref="IDatabase"/> that happens to route the moved commands through
-        /// the new write path and everything else through the old one - so <c>StringTests</c> runs
-        /// unmodified against it and every assertion in it becomes an assertion about the new surface. The
-        /// alternative is a parallel suite that re-states the same expectations and drifts.
-        /// </para>
-        /// <para>
-        /// Deliberately <b>not</b> the default: without a fallback the throw is the point (see the type
-        /// remarks), and a production transitional database that silently forwards would make "has this
-        /// moved?" unanswerable. It is opt-in, and the only thing that opts in is a test harness.
-        /// </para>
-        /// </remarks>
-        private readonly IDatabase? _fallback = fallback;
 
         /// <inheritdoc/>
         RespContext IRespTarget.Context => _inner.Raw;
@@ -109,14 +90,9 @@ namespace StackExchange.Redis
         // Found by trying the GetDatabase swap: nothing failed, which is exactly the problem.
 
         /// <inheritdoc/>
-        /// <remarks>
-        /// Delegated to the fallback where there is one, because it knows the connection; otherwise the
-        /// cluster flag is read from the context, which is where this surface keeps the same fact.
-        /// </remarks>
+        /// <remarks>The cluster flag is read from the context, which is where this surface keeps that fact.</remarks>
         DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
         {
-            if (_fallback is { } db) return db.GetFeatures(out name) | OwnFeatures;
-
             name = multiplexer?.ClientName ?? "";
             return (_inner.Raw.ServerType == ServerType.Cluster
                 ? DatabaseFeatureFlags.Cluster
@@ -135,13 +111,10 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// <b>Forwarded, not answered.</b> This surface has no failover notion of its own; the databases
-        /// that do - <c>RetryDatabase</c>, <c>MultiGroupDatabase</c> - sit above it and hand their own
-        /// token down. Returning <see cref="CancellationToken.None"/> without asking the fallback is what
-        /// silently disconnects retry from failover.
+        /// This surface has no failover notion of its own; the databases that do - <c>RetryDatabase</c>,
+        /// <c>MultiGroupDatabase</c> - sit above it and hand their own token down.
         /// </remarks>
-        CancellationToken IInternalDatabaseAsync.GetNextFailover()
-            => _fallback is { } db ? db.GetNextFailover() : CancellationToken.None;
+        CancellationToken IInternalDatabaseAsync.GetNextFailover() => CancellationToken.None;
 
         // The [AutoDatabase] funnels used to be here - four of them, the landing place for every member
         // this class did not implement. They are gone with the attribute: there is no longer a member that
@@ -156,12 +129,6 @@ namespace StackExchange.Redis
         /// </remarks>
         private RespExecutorBase Router => _inner.Raw.Executor
             ?? throw new InvalidOperationException("No executor is configured for this context.");
-
-        /// <summary>The fallback, or a throw naming what is missing.</summary>
-        private IDatabase Fallback<TState>() => _fallback ?? throw NotMoved<TState>();
-
-        private static NotImplementedException NotMoved<TState>()
-            => new($"This command has not yet moved to the RESP context surface (captured as '{typeof(TState).Name}').");
 
         // ---- the sync bridge ----------------------------------------------------------------------------
 
@@ -197,8 +164,6 @@ namespace StackExchange.Redis
         private void Wait(ValueTask pending) => TransitionalSync.Wait(pending, multiplexer);
 
         // ---- members the generator deliberately skips (see AutoDatabaseGenerator.SkipMethod) -------------
-        // These take the fallback too, so a harness that supplies one gets a complete IDatabase rather than
-        // one with holes in exactly the places a test suite reaches for scaffolding.
 
         /// <inheritdoc/>
         /// <remarks>
@@ -215,7 +180,7 @@ namespace StackExchange.Redis
             if (this is IBatch) throw new NotSupportedException("Nested batches are not supported");
             return CanWriteRuns
                 ? TransitionalBatch.CreateBatch(_inner, multiplexer, asyncState ?? AsyncState)
-                : Fallback<IBatch>().CreateBatch(asyncState);
+                : throw new NotSupportedException("This executor cannot write a batch as one contiguous run.");
         }
 
         /// <summary>Whether a batch or transaction composed here could actually be written.</summary>
@@ -227,7 +192,7 @@ namespace StackExchange.Redis
         /// run", which was true but unhelpful while a perfectly good v3 implementation was available.
         /// <para>
         /// The shim went with the old core, so a production executor can always write a run; the question
-        /// remains for executors that cannot (and for a test harness's fallback, which then serves it).
+        /// remains for executors that cannot, such as a test's fake, which are told so.
         /// </para>
         /// </remarks>
         private bool CanWriteRuns => _inner.Raw.Executor is { CanWriteRuns: true };
@@ -240,7 +205,7 @@ namespace StackExchange.Redis
             // hold a connection across MULTI/EXEC, and the old Message shim was exactly that
             return _inner.Raw.Executor is { CanWriteTransactions: true }
                 ? TransitionalTransaction.CreateTransaction(_inner, multiplexer, asyncState ?? AsyncState)
-                : Fallback<ITransaction>().CreateTransaction(asyncState);
+                : throw new NotSupportedException("This executor cannot hold a connection across MULTI/EXEC.");
         }
 
         ITransactionAsync IDatabaseAsync.CreateTransaction(object? asyncState) => CreateTransaction(asyncState);

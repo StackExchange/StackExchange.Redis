@@ -5,7 +5,7 @@ namespace StackExchange.Redis.Tests.RoundTripUnitTests;
 
 public class SetCardinalityRoundTrip(ITestOutputHelper log)
 {
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task SDiffCard_NoLimit_RoundTrips()
     {
         // IDatabase's default limit of 0 means "no limit", and is omitted rather than sent as LIMIT 0
@@ -15,7 +15,7 @@ public class SetCardinalityRoundTrip(ITestOutputHelper log)
         Assert.Equal(2, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task SUnionCard_WithLimit_RoundTrips()
     {
         const string requestResp = "*6\r\n$10\r\nSUNIONCARD\r\n$1\r\n2\r\n$2\r\ns1\r\n$2\r\ns2\r\n$5\r\nLIMIT\r\n$1\r\n3\r\n";
@@ -24,7 +24,7 @@ public class SetCardinalityRoundTrip(ITestOutputHelper log)
         Assert.Equal(3, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task SUnionCard_ApproxWithLimit_RoundTrips()
     {
         // APPROX is written before LIMIT

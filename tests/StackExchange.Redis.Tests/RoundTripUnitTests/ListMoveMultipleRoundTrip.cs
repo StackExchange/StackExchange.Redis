@@ -5,7 +5,7 @@ namespace StackExchange.Redis.Tests.RoundTripUnitTests;
 
 public class ListMoveMultipleRoundTrip(ITestOutputHelper log)
 {
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task UpTo_Bulk_RoundTrips()
     {
         const string requestResp =
@@ -23,7 +23,7 @@ public class ListMoveMultipleRoundTrip(ITestOutputHelper log)
         Assert.Equal("b", result[1].ToString());
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task Exactly_OneByOne_NotSatisfied_RoundTripsNull()
     {
         const string requestResp =

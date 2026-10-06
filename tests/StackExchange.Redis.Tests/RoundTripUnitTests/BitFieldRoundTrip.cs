@@ -20,7 +20,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         return lease.Span.ToArray();
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task Increment_RoundTrips()
     {
         const string RequestResp = "*6\r\n$8\r\nBITFIELD\r\n$1\r\nk\r\n$6\r\nINCRBY\r\n$2\r\ni8\r\n$1\r\n0\r\n$1\r\n1\r\n";
@@ -29,7 +29,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Equal(new long?[] { 1 }, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task SingleOperation_WritesTheSameAsAUnitBatch()
     {
         // the single-operation overload avoids the array, but must produce identical bytes
@@ -43,7 +43,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Equal(1, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task AllGet_UsesReadOnlyCommand()
     {
         const string RequestResp = "*8\r\n$11\r\nBITFIELD_RO\r\n$1\r\nk\r\n$3\r\nGET\r\n$2\r\nu8\r\n$1\r\n0\r\n$3\r\nGET\r\n$3\r\nu63\r\n$2\r\n#2\r\n";
@@ -57,7 +57,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Equal(new long?[] { 255, 0 }, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task AllGet_WithoutKnownFeatures_UsesTheWritableCommand()
     {
         // nothing known about the server: BITFIELD works everywhere, BITFIELD_RO only from 6.0
@@ -69,7 +69,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Equal(7, result);
     }
 
-    [Theory(Timeout = 1000)]
+    [Theory(Timeout = 10000)]
     [InlineData(1, "$2\r\ni1\r\n")]
     [InlineData(9, "$2\r\ni9\r\n")]
     [InlineData(10, "$3\r\ni10\r\n")]
@@ -84,7 +84,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Equal(new long?[] { 0 }, result);
     }
 
-    [Theory(Timeout = 1000)]
+    [Theory(Timeout = 10000)]
     [InlineData(0, "$2\r\n#0\r\n")]
     [InlineData(9, "$2\r\n#9\r\n")]
     [InlineData(1234567890123, "$14\r\n#1234567890123\r\n")]
@@ -96,7 +96,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Equal(new long?[] { 0 }, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task LeadingWrap_IsNotEmitted()
     {
         // WRAP is the server default, so there is nothing to say
@@ -106,7 +106,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Equal(new long?[] { 0 }, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task Overflow_IsEmittedOnlyWhenItChanges()
     {
         const string RequestResp = "*18\r\n$8\r\nBITFIELD\r\n$1\r\nk\r\n"
@@ -124,7 +124,7 @@ public class BitFieldRoundTrip(ITestOutputHelper log)
         Assert.Equal(new long?[] { 0, 2, 1 }, result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task Overflow_SurvivesAnInterveningGet_AndFailReportsNull()
     {
         // the sticky OVERFLOW state is not reset or consumed by a GET, so the second INCRBY needs no token

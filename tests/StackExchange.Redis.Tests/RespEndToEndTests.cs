@@ -36,7 +36,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await using var conn = Create();
 
         var classic = conn.GetDatabase();
-        var surface = new TransitionalDatabase(NewSurface(conn, classic.Database), conn, null, fallback: null);
+        var surface = new TransitionalDatabase(NewSurface(conn, classic.Database), conn, null);
 
         RedisKey key = Me();
         Assert.Equal(await classic.IdentifyEndpointAsync(key), await surface.IdentifyEndpointAsync(key));
@@ -55,7 +55,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await using var conn = Create();
 
         var classic = conn.GetDatabase();
-        var surface = new TransitionalDatabase(NewSurface(conn, classic.Database), conn, null, fallback: null);
+        var surface = new TransitionalDatabase(NewSurface(conn, classic.Database), conn, null);
 
         RedisKey key = Me();
         Assert.Equal(classic.IsConnected(key), surface.IsConnected(key));

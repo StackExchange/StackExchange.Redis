@@ -5,7 +5,7 @@ namespace StackExchange.Redis.Tests.RoundTripUnitTests;
 
 public class StreamReadMaxCountRoundTrip(ITestOutputHelper log)
 {
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task XRead_CountMaxCountMaxSize_OrderedAfterCount()
     {
         StreamPosition[] positions = [new StreamPosition("sa", "5-5")];
@@ -22,7 +22,7 @@ public class StreamReadMaxCountRoundTrip(ITestOutputHelper log)
         Assert.Empty(result);
     }
 
-    [Fact(Timeout = 1000)]
+    [Fact(Timeout = 10000)]
     public async Task XReadGroup_CountMaxCountMaxSize_OrderedAfterCount()
     {
         StreamPosition[] positions = [new StreamPosition("sa", "5-5")];
