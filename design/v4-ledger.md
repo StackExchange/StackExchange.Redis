@@ -46,9 +46,6 @@ Each has a default the work proceeds on until answered.
   `RunContinuationsAsynchronously`, which survives a reset: across lives (the inline continuation recycled the
   instance before the `finally` restored it) and within one (TrySetCanceledInline flipped it before claiming).
   12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
-- **`RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeamWithADifferentScope` intermittently reads
-  null** after HIMPORT SET reported success (3 of 12 runs; also earlier, before these fixes). Not a flush: the
-  flushing tests use dedicated databases. Unexplained.
 - **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`.
 
 ## Backlog (after the alpha)

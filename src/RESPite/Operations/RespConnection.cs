@@ -489,6 +489,101 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         return true;
     }
 
+    /// <summary>
+    /// As <see cref="Send{TState}(IRespMessage, IRespMessage, TState, Func{TState, bool}, out bool)"/>, with a
+    /// connection-state preamble - a <c>SELECT</c> - decided and written ahead of both, under the same lock.
+    /// </summary>
+    /// <typeparam name="TState">Whatever the callbacks need; a struct, so static lambdas allocate nothing.</typeparam>
+    /// <param name="first">The preamble, written only if <paramref name="isFirstNeeded"/> says so.</param>
+    /// <param name="second">The operation whose reply the caller wants.</param>
+    /// <param name="state">Passed to both callbacks.</param>
+    /// <param name="select">Asked once, holding the write lock and BEFORE the gate; returns the operation to write
+    /// ahead of everything, or null.</param>
+    /// <param name="isFirstNeeded">Asked once, holding the write lock.</param>
+    /// <param name="wroteSelect">What <paramref name="select"/> produced, so the caller can discard its reply.</param>
+    /// <param name="wroteFirst">Whether the preamble was written; if not, the caller still owns it.</param>
+    /// <returns>Whether <paramref name="second"/> was written.</returns>
+    /// <remarks>
+    /// <b>Why a pair needs its own <c>SELECT</c>.</b> A connection is shared by every database that reaches its
+    /// endpoint, so the database it is on is whatever the last writer selected. The pair used to be written with
+    /// neither, so a <c>HIMPORT PREPARE</c>/<c>SET</c> for the default database ran against whichever database a
+    /// concurrent caller had just selected - succeeding there, and leaving the default database without the key.
+    /// </remarks>
+    public bool Send<TState>(
+        IRespMessage first,
+        IRespMessage second,
+        TState state,
+        Func<TState, IRespMessage?> select,
+        Func<TState, bool> isFirstNeeded,
+        out IRespMessage? wroteSelect,
+        out bool wroteFirst)
+    {
+        if (first is null) throw new ArgumentNullException(nameof(first));
+        if (second is null) throw new ArgumentNullException(nameof(second));
+        if (select is null) throw new ArgumentNullException(nameof(select));
+        if (isFirstNeeded is null) throw new ArgumentNullException(nameof(isFirstNeeded));
+
+        wroteSelect = null;
+        wroteFirst = false;
+        if (Volatile.Read(ref _closed) != 0) return false;
+
+        lock (_writeLock)
+        {
+            if (select(state) is { } head)
+            {
+                wroteSelect = head;
+                if (head.TryReserveRequest(head.Token, out var headPayload))
+                {
+                    try
+                    {
+                        head.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+                        _pending.Enqueue(new(head, head.Token));
+                        Write(headPayload.Span);
+                        Volatile.Write(ref _bytesSent, _bytesSent + headPayload.Length);
+                    }
+                    finally
+                    {
+                        head.ReleaseRequest();
+                    }
+                }
+            }
+
+            var needed = isFirstNeeded(state);
+            if (needed)
+            {
+                if (!first.TryReserveRequest(first.Token, out var firstPayload)) return false;
+                try
+                {
+                    first.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+                    _pending.Enqueue(new(first, first.Token));
+                    Write(firstPayload.Span);
+                    Volatile.Write(ref _bytesSent, _bytesSent + firstPayload.Length);
+                    wroteFirst = true;
+                }
+                finally
+                {
+                    first.ReleaseRequest();
+                }
+            }
+
+            if (!second.TryReserveRequest(second.Token, out var secondPayload)) return false;
+            try
+            {
+                second.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+                _pending.Enqueue(new(second, second.Token));
+                Write(secondPayload.Span);
+                Volatile.Write(ref _bytesSent, _bytesSent + secondPayload.Length);
+            }
+            finally
+            {
+                second.ReleaseRequest();
+            }
+        }
+
+        _transport.Flush();
+        return true;
+    }
+
     /// <summary>Write two operations with nothing of anybody else's between them.</summary>
     /// <param name="first">The operation to write first; typically a preamble.</param>
     /// <param name="second">The operation whose reply the caller wants.</param>

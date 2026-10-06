@@ -681,15 +681,24 @@ namespace StackExchange.Redis
 
             var target = connection as IRespPreambleTarget;
 
+            // a server with one database cannot be asked for another; the sequential path dispatches each half
+            // through Send, which refuses that with the shipped message
+            if (_select is not null && Database > 0 && target is { Server: { SupportsDatabases: false } })
+            {
+                return SequentialAsync(preamble, request, gate, cancellationToken);
+            }
+
             var head = RespPayloadOperation.Rent();
             head.Attach(preamble.Span, preamble.Flags, default);
             head.Observer = this;
+            head.Database = Database;
 
             var body = RespPayloadOperation.Rent();
             body.Attach(request.Span, request.Flags, cancellationToken);
             body.Slot = request.Slot;
             body.Command = request.Command;
             body.Observer = this;
+            body.Database = Database;
             _startProfile?.Invoke(body, request.Command, request.Flags, Database, _endpoint);
 
             // The gate is asked INSIDE the connection's write lock, which is the whole point of this
@@ -700,8 +709,30 @@ namespace StackExchange.Redis
             // The head operation is created speculatively, before the answer is known, because renting one
             // inside the lock is work the lock should not be holding. If the gate declines, nothing was
             // written for it and it is simply discarded.
+            // ...and the pair carries its own SELECT, decided under the same lock: the connection is shared by
+            // every database that reaches this endpoint, so the one it is on is whatever the last writer chose.
+            // Written without it, a default-database HIMPORT PREPARE/SET ran against a concurrent caller's
+            // database - succeeding there, and leaving the key missing where it was asked for.
             bool wroteHead;
-            if (!connection.Send(head, body, new Decision(gate, target), static d => d.IsNeeded(), out wroteHead))
+            bool sent;
+            if (_select is not null && Database >= 0)
+            {
+                sent = connection.Send(
+                    head,
+                    body,
+                    new PairState(new Decision(gate, target), new Selector(connection, _select, Database)),
+                    static p => p.Selector.Preamble(),
+                    static p => p.Decision.IsNeeded(),
+                    out var selected,
+                    out wroteHead);
+                if (selected is RespPayloadOperation discard) RespPayloadOperation.DiscardReply(discard);
+            }
+            else
+            {
+                sent = connection.Send(head, body, new Decision(gate, target), static d => d.IsNeeded(), out wroteHead);
+            }
+
+            if (!sent)
             {
                 RespPayloadOperation.DiscardReply(head);
                 body.EnsureFaulted(request.Flags, NoConnection(request.Command, body.CommandAndKey));
@@ -746,6 +777,13 @@ namespace StackExchange.Redis
         /// The gate and what it is being asked about, as one struct so the predicate can be a static
         /// lambda and allocate nothing on a path that runs per command.
         /// </summary>
+        /// <summary>The gate and the selector together, for the pair overload that writes a <c>SELECT</c> too.</summary>
+        private readonly struct PairState(Decision decision, Selector selector)
+        {
+            internal readonly Decision Decision = decision;
+            internal readonly Selector Selector = selector;
+        }
+
         private readonly struct Decision(IRespPreambleGate? gate, IRespPreambleTarget? target)
         {
             /// <remarks>
