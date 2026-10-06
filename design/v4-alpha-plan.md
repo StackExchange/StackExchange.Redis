@@ -233,6 +233,8 @@ Learned the expensive way; see `message-core-replacement.md` 9aa-9aj for the inc
 
 ## Status
 
+- **2026-10-06: CI fully green with DedicatedThreads and the sync pump** - run 37391223850 (Ubuntu after one
+  rerun of two server-side timeouts that did not recur; Windows net10.0 and net481 first time).
 - **First fully green CI with the old core deleted: run 37369810590 (2026-10-05)** - Ubuntu net10.0, RESPite,
   Build.Tests; Windows net10.0 and net481. Zero failures.
 - **CI green-up, 2026-10-05.** Windows was failing for environmental and real reasons, now separated:
