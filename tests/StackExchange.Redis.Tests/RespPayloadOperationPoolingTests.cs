@@ -84,6 +84,18 @@ public class RespPayloadOperationPoolingTests
     [Fact]
     public async Task AStaleQueueSlotCannotReachTheNextLifeOfItsOperation()
     {
+        // the pool is process-wide and the suite runs in parallel, so another test can take the instance between
+        // its recycle and our rent; retry the whole scenario rather than assert on a race we do not control
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            if (await TryStaleSlotScenarioAsync()) return;
+        }
+
+        Assert.Skip("The operation pool was contended on every attempt, so the reused instance never came back to this test.");
+    }
+
+    private static async Task<bool> TryStaleSlotScenarioAsync()
+    {
         var transport = new FakeTransport();
         var connection = new RespClientConnection(transport, static (in RespRedirect _, RespPayloadOperation _) => false);
 
@@ -101,7 +113,8 @@ public class RespPayloadOperationPoolingTests
             if (ReferenceEquals(next, first)) second = next;
         }
 
-        Assert.NotNull(second); // a definite outcome is recyclable; that is the case under test
+        if (second is null) return false; // taken by somebody else; try again
+
         second.Attach("*2\r\n$3\r\nGET\r\n$1\r\nk\r\n"u8, CommandFlags.None, default);
         await Task.Delay(20);
 
@@ -116,5 +129,6 @@ public class RespPayloadOperationPoolingTests
         // ...and the late reply must not complete it
         using var payload = await new ValueTask<RespPayload>(second, second.Token);
         Assert.Equal("$1\r\nx\r\n", Encoding.UTF8.GetString(payload.Span.ToArray()));
+        return true;
     }
 }

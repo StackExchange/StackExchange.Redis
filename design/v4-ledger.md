@@ -38,20 +38,17 @@ Each has a default the work proceeds on until answered.
   timeout for a dropped SYN). Fixing it means de-duplicating a subscription that lands on two nodes. Not urgent.
 - **Retire the `RespTaskBatch` spike**: port `RespBatchExecutorTests`' still-useful cases (forgotten commands,
   run-capable executors, per-slot split) onto `RespBatch`, then delete it and `RespBatchExecutor`.
-- **The "~5s with nothing inbound" stall (RESP2 and RESP3, local and CI) - root cause open.** What is known:
-  - The client stops receiving on ONE shared connection; the server is fine (a reply sat unread in the
-    kernel's receive queue for 14.8s). Not a pause, not a blocking command, not the cache's invalidation path.
-  - The first timeouts have `PREPARE` (the HIMPORT preamble) at the head of the line; `RespHashImportProbeTests`
-    shares the fixture connection and fires preamble/command pairs in a burst.
-  - `RespHashImportProbeTests.PreamblePairsUnderLoadLeaveTheConnectionUsable` (long-running only) reproduces
-    ~1 run in 30, once with PREPARE at the head and nothing inbound. Its other failure - a GET timed out at
-    "0ms elapsed" - turned out to be a separate bug, now fixed: the pending queue acted through each operation's
-    CURRENT token, so a slot left by an operation cancelled after it was written could time out, or complete
-    with its late reply, the NEXT life of that instance (see the commit that added `PendingEntry`). Suspect for
-    the stall itself: the preamble pair path (`RespEndpointExecutor.SendAsync(preamble, request, gate)`)
-    bypasses `Dispatch`; its interplay with `_writeSlotHeld` / the backlog is unexamined.
-  - Fixed along the way, each real but NOT this: the quadratic frame rescan (24a4838b, 05294e3d), the stale
-    pump signal that turned these stalls into permanent hangs (ddcfdea8), and the stale pending-queue slot.
+- **The "~5s with nothing inbound" stall: root cause found and fixed** (the commit after 7aa7f818); CI to confirm.
+  A full dump of a stuck run showed the connection's read loop mid-execution on a thread running TEST code: the
+  reader completed an operation INLINE, the continuation ran up into a test's `await`, and the test then made a
+  synchronous call whose reply only that reader could deliver. Inline completion leaked from the two deliberate
+  inline paths (the sync pump's sink, `TrySetCanceledInline`) through `ManualResetValueTaskSourceCore`'s
+  `RunContinuationsAsynchronously`, which survives a reset: across lives (the inline continuation recycled the
+  instance before the `finally` restored it) and within one (TrySetCanceledInline flipped it before claiming).
+  12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
+- **`RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeamWithADifferentScope` intermittently reads
+  null** after HIMPORT SET reported success (3 of 12 runs; also earlier, before these fixes). Not a flush: the
+  flushing tests use dedicated databases. Unexplained.
 - **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`.
 
 ## Backlog (after the alpha)

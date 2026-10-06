@@ -309,6 +309,14 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         Debug.Assert(_requestRefCount == 0, "the request is being set more than once");
         _diagnostics.OnCreated(); // per LIFE, not per instance: a recycled operation is a new command
+
+        // Every life starts asynchronous, whatever the last one left behind. The two inline paths (a claimed sink,
+        // TrySetCanceledInline) flip this and restore it in a finally - but the continuation they run inline can
+        // consume, recycle and hand this instance to a NEW life before that finally runs, and that life then
+        // completes inline from the read loop: the reader runs a caller's continuation, which (caught in a dump)
+        // went on to block synchronously on a reply only that reader could deliver. The connection wedged until
+        // timeouts cleared it - the "~5s with nothing inbound" stall.
+        _asyncCore.RunContinuationsAsynchronously = true;
         _request = request;
         _requestOwner = owner;
         _requestRefCount = 1;
@@ -497,17 +505,13 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// </remarks>
     public bool TrySetCanceledInline(short token, CancellationToken cancellationToken = default)
     {
-        _asyncCore.RunContinuationsAsynchronously = false;
-        try
-        {
-            return TrySetCanceled(token, cancellationToken);
-        }
-        finally
-        {
-            // unconditionally back to the safe default, even if the inline continuation recycled and
-            // re-rented this instance: true is what a fresh life wants anyway
-            _asyncCore.RunContinuationsAsynchronously = true;
-        }
+        // CLAIM FIRST, then go inline. Flipping before the claim let a reply racing this cancellation win the claim
+        // and complete with the flag still false - inline, from the read loop.
+        var named = cancellationToken.IsCancellationRequested ? cancellationToken : _cancellationToken;
+        if (!TryClaimOutcome(token)) return false;
+
+        // inline is passed as a DECISION rather than left as state: Fail sets the flag, completes, and restores it
+        return Fail(new OperationCanceledException(named), definite: true, inline: true);
     }
 
     /// <inheritdoc/>
@@ -563,6 +567,9 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         }
         else
         {
+            // the ordinary path is ALWAYS asynchronous: this is usually the read loop, and false here can only be
+            // left over from another life's inline completion (see SetRequest), never a decision for this one
+            _asyncCore.RunContinuationsAsynchronously = true;
             _asyncCore.SetResult(response);
         }
 
@@ -570,11 +577,11 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         return true;
     }
 
-    private bool Fail(Exception exception, bool definite)
+    private bool Fail(Exception exception, bool definite, bool inline = false)
     {
         var pulse = Mark(definite);
         OnFinished(exception);
-        if (HasFlag(Flag_Sink))
+        if (inline || HasFlag(Flag_Sink))
         {
             _asyncCore.RunContinuationsAsynchronously = false;
             try
@@ -588,6 +595,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         }
         else
         {
+            _asyncCore.RunContinuationsAsynchronously = true; // see Complete
             _asyncCore.SetException(exception);
         }
 
