@@ -78,4 +78,5 @@ Each has a default the work proceeds on until answered.
 
 - `v4` branched 2026-10-06 from `marc/v4-core-operation` (now superseded); packages compute as
   `4.0.N-alpha`, assembly version `4.0.0.0`. `main` drift: 0 (merged at c176699f).
-- First fully green `v4` CI: run 37428740387 at cacab8cf (Ubuntu; Windows net10.0 and net481).
+- Latest fully green `v4` CI: 220d480c (Ubuntu; Windows net10.0 and net481), after the stall, stale-slot, pair-SELECT and
+  stale-pump-signal fixes. First fully green: 37428740387 at cacab8cf.
