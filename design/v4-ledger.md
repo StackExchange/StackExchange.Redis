@@ -48,6 +48,23 @@ Each has a default the work proceeds on until answered.
 
 ## Backlog (after the alpha)
 
+- **Client-side cache across a geo/active-active failover.** Today there is **no flush on switch, by design**
+  (`MultiGroupDatabase` remarks): each member multiplexer has its own cache, resolved per command
+  (`WithCacheResolver(() => TryGetActive()?.ClientCache)`), so a switch serves from the new member's cache and
+  leaves the old one warm for switching back; and any member whose connection fails flushes its own cache
+  (`ConnectionMultiplexer.OnConnectionFailed` -> `ClientCache.OnFlush`), which covers the usual failover cause.
+  Covered only by a unit test (`RespGroupExecutorTests.TheCacheFollowsTheActiveMemberRatherThanBeingShared`);
+  the fault-injector tier has no cache scenario. Gaps to settle:
+  - **Read-your-writes across a failback.** While B is active, writes land on B; A's cached entries are only
+    invalidated once replication carries those writes to A and A's server pushes the invalidation to A's
+    tracking connection - so on switching back, A can serve pre-switch values for up to the replication lag.
+    Options: flush the returning member's cache on a switch (the "nuke"), keep it warm under a max-age bound,
+    or make it a policy (keep-warm vs flush-on-switch).
+  - **A silent inactive member.** An inactive member's tracking connection that goes half-open never raises a
+    failure, so nothing flushes; check the heartbeat covers inactive members, or flush on becoming active.
+  - **A real test:** a fault-injector scenario with the cache on - write via B during failover, fail back,
+    assert no stale read.
+
 - **Alternative client-side-cache invalidation sources, and opt-in/out.** Today invalidation comes only from
   `CLIENT TRACKING` (`CacheTrackingMode`: Default -> BCAST, or per-key tracking) and the cache is on by default
   (`CacheOptions.Enabled = true`). Add policies for deployments where tracking is unavailable or unwanted
