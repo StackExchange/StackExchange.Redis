@@ -36,8 +36,6 @@ Each has a default the work proceeds on until answered.
   - Topology flows both ways between `RespTopology` and `ServerSelectionStrategy` ("phase D").
 - **Subscription re-aim waits for its in-flight send to fail** (instant on Linux, ~2s on Windows, a connect
   timeout for a dropped SYN). Fixing it means de-duplicating a subscription that lands on two nodes. Not urgent.
-- **Retire the `RespTaskBatch` spike**: port `RespBatchExecutorTests`' still-useful cases (forgotten commands,
-  run-capable executors, per-slot split) onto `RespBatch`, then delete it and `RespBatchExecutor`.
 - **The "~5s with nothing inbound" stall: root cause found and fixed** (the commit after 7aa7f818); CI to confirm.
   A full dump of a stuck run showed the connection's read loop mid-execution on a thread running TEST code: the
   reader completed an operation INLINE, the continuation ran up into a test's `await`, and the test then made a

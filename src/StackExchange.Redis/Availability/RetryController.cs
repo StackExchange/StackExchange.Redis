@@ -96,7 +96,7 @@ internal sealed class RetryController
     /// <b>Fire-and-forget is the second veto, and it is about intent rather than safety.</b> Retry exists
     /// to improve an outcome somebody is waiting for; <see cref="CommandFlags.FireAndForget"/> declares
     /// that nobody is. Replaying one cannot be observed to have helped, and the cost - a backoff delay
-    /// added to a call advertised as returning immediately - is observable. <c>RespBatchExecutor</c> makes
+    /// added to a call advertised as returning immediately - is observable. <c>RespOperationBatchExecutor</c> makes
     /// the same point structurally: a fire-and-forget command there is answered <i>before</i> it is sent,
     /// so by the time anything could fail there is no longer anybody to tell.
     /// </para>

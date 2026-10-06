@@ -126,7 +126,7 @@ namespace StackExchange.Redis
             }
 
             // Fire-and-forget is answered NOW, with a null payload that Parse turns into default(T) -
-            // the same thing RespBatchExecutor does, and for the same reason: the real reply arrives
+            // the same thing RespOperationBatchExecutor does, and for the same reason: the real reply arrives
             // later, with EXEC, and the caller has said they do not want it. The operation still has to
             // be drained or it never recycles, which is what DiscardReply is for.
             //

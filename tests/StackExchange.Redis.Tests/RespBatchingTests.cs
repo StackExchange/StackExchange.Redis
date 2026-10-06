@@ -76,6 +76,21 @@ public class RespBatchingTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.False(await db.KeyExistsAsync(key));
     }
 
+    /// <summary>The target a batch was started from is untouched, and still sends immediately.</summary>
+    [Fact]
+    public async Task TheSourceIsNotBatched()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+
+        using var batch = db.BeginBatch();
+        await db.StringSetAsync(key, "direct");
+
+        Assert.Equal(0, batch.Count);
+        Assert.Equal("direct", (string?)await db.StringGetAsync(key));
+    }
+
     [Fact]
     public async Task ABatchExecutesOnce()
     {

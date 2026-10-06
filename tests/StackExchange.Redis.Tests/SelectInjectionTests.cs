@@ -201,7 +201,7 @@ public class SelectInjectionTests
     {
         var (transport, context) = ForDatabase(4);
 
-        using var batch = context.CreateTaskBatch();
+        using var batch = context.BeginBatch();
         _ = batch.Context.Strings.GetAsync("a");
         _ = batch.Context.Strings.GetAsync("b");
         _ = batch.ExecuteAsync();

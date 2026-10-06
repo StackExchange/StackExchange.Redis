@@ -247,7 +247,7 @@ public class RespRetryExecutorTests
     /// <para>
     /// Retry exists to improve an outcome somebody is waiting for. A replayed fire-and-forget cannot be
     /// observed to have helped, and the cost - a backoff delay on a call advertised as returning
-    /// immediately - can. <c>RespBatchExecutor</c> makes the same point structurally: a fire-and-forget
+    /// immediately - can. <c>RespOperationBatchExecutor</c> makes the same point structurally: a fire-and-forget
     /// there is answered before it is sent, so nothing that fails afterwards has anybody to tell.
     /// </para>
     /// <para>
