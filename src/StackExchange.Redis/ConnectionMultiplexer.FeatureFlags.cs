@@ -40,6 +40,17 @@ public partial class ConnectionMultiplexer
 
         /// <summary>Retired, as <see cref="NewDatabaseSurface"/>: the switch between the old and new connection engine.</summary>
         NewCoreEngine = 8,
+
+        /// <summary>
+        /// Read and parse on one loop, rather than filling from the socket on one task and parsing on another.
+        /// </summary>
+        /// <remarks>
+        /// The split is the default from 4.0 (the intent of PR #3251): with one loop, nothing reads while a parse
+        /// pass runs, so the socket idles and throughput on concurrent reads with a payload is capped. It costs a
+        /// few percent where there is almost nothing to parse; this restores the single loop, for comparison or
+        /// for a workload that measures better without the split. Connections made after it is set use it.
+        /// </remarks>
+        SingleReadLoop = 16,
     }
 
     private static void SetAutodetectFeatureFlags()
@@ -53,6 +64,48 @@ public partial class ConnectionMultiplexer
         }
         catch { }
         SetFeatureFlag(nameof(FeatureFlags.PreventThreadTheft), value);
+        ApplyEnvironmentFeatureFlags();
+    }
+
+    /// <summary>
+    /// Each flag can also be set from the environment: flag <c>Foo</c> reads <c>SEREDIS_FOO</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>1</c>/<c>true</c>/<c>yes</c> sets it and <c>0</c>/<c>false</c>/<c>no</c> clears it; anything else, or
+    /// nothing, leaves it alone. Applied after autodetection, so the environment overrides a guess; a later
+    /// <see cref="SetFeatureFlag"/> call in code overrides both. For support and benchmarking, where changing
+    /// the environment is easier than changing the code - a flag set this way is the same flag as one set in code.
+    /// </remarks>
+    private static void ApplyEnvironmentFeatureFlags() => ApplyEnvironmentFeatureFlags(Environment.GetEnvironmentVariable);
+
+    /// <inheritdoc cref="ApplyEnvironmentFeatureFlags()"/>
+    /// <param name="read">Reads one variable; the environment, except under test.</param>
+    internal static void ApplyEnvironmentFeatureFlags(Func<string, string?> read)
+    {
+        foreach (var name in Enum.GetNames(typeof(FeatureFlags)))
+        {
+            if (name == nameof(FeatureFlags.None)) continue;
+
+            string? raw;
+            try
+            {
+                raw = read("SEREDIS_" + name.ToUpperInvariant());
+            }
+            catch
+            {
+                return; // a host that forbids reading the environment gets the defaults
+            }
+
+            switch (raw?.Trim().ToLowerInvariant())
+            {
+                case "1" or "true" or "yes":
+                    SetFeatureFlag(name, true);
+                    break;
+                case "0" or "false" or "no":
+                    SetFeatureFlag(name, false);
+                    break;
+            }
+        }
     }
 
     /// <summary>
@@ -83,6 +136,8 @@ public partial class ConnectionMultiplexer
     internal static bool PreventThreadTheft => (s_featureFlags & FeatureFlags.PreventThreadTheft) != 0;
 
     internal static bool DedicatedThreads => (s_featureFlags & FeatureFlags.DedicatedThreads) != 0;
+
+    internal static bool SingleReadLoop => (s_featureFlags & FeatureFlags.SingleReadLoop) != 0;
 
     /// <summary>
     /// Whether the connection of this type to this endpoint is read by a thread we own; <c>null</c> if there

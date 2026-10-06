@@ -115,6 +115,11 @@ ConnectionMultiplexer.SetFeatureFlag("DedicatedThreads", true); // early in appl
 This makes the library read and write on threads it owns rather than borrowing the thread-pool, so redis
 traffic keeps flowing even while the pool is saturated.
 
+Every feature flag can also be set from the environment, which is often easier than a code change: flag `Foo`
+reads `SEREDIS_FOO` (`1`/`true`/`yes` to set it, `0`/`false`/`no` to clear it), so this one is
+`SEREDIS_DEDICATEDTHREADS=1`. The environment is read once, when the library starts; `SetFeatureFlag` in code
+still overrides it.
+
 Be clear about what this does and does not do. It **does not fix the thread-pool** — nothing in this library
 can, because the blocked threads are in your code. What it does is stop redis from being caught in the jam,
 which usually converts "everything times out" into "the application is slow, and one part of it is obviously

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,6 +34,7 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     private readonly BufferedStreamWriter _writer;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly bool _isEncrypted;
+    private readonly bool _splitReadAndParse;
     private int _disposed;
 
     /// <summary>Create a transport over a stream, which it takes ownership of.</summary>
@@ -44,10 +46,12 @@ internal sealed class StreamDuplexTransport : DuplexTransport
         Stream stream,
         BufferedStreamWriter.WriteMode mode = BufferedStreamWriter.WriteMode.Default,
         MemoryPool<byte>? bufferPool = null,
-        bool isEncrypted = false)
+        bool isEncrypted = false,
+        bool splitReadAndParse = true)
     {
         _stream = stream ?? throw new ArgumentNullException(nameof(stream));
         _isEncrypted = isEncrypted;
+        _splitReadAndParse = splitReadAndParse;
         _writer = BufferedStreamWriter.Create(mode, stream, bufferPool, _shutdown.Token);
     }
 
@@ -104,9 +108,206 @@ internal sealed class StreamDuplexTransport : DuplexTransport
             };
             thread.Start();
         }
+        else if (_splitReadAndParse)
+        {
+            _ = Task.Run(() => ReadAndParseSeparatelyAsync(receiver));
+        }
         else
         {
             _ = Task.Run(() => ReadLoopAsync(receiver));
+        }
+    }
+
+    // ---- the read/parse split (the intent of StackExchange.Redis PR #3251, re-implemented for v4) ----------------
+
+    /// <summary>How many fills may be outstanding between the filler and the parser.</summary>
+    /// <remarks>
+    /// Bounded, so a peer that produces faster than this process parses is held back through the socket rather
+    /// than through this process's memory. At 64KiB each that is 256KiB of pooled buffers per connection - the
+    /// configuration that was measured.
+    /// </remarks>
+    private const int FillDepth = 4;
+
+    /// <summary>How much one read may return, and so how many replies one hand-off carries.</summary>
+    /// <remarks>
+    /// The hand-off has a fixed cost per buffer, so what matters is how many replies it is amortised over: at
+    /// 16KiB an 8KiB reply amortises it over about two. Measured on <c>get-8k-conc64</c>: 16KiB 331,966 ops/s,
+    /// 64KiB 348,747, 256KiB 346,683 - it saturates at 64KiB.
+    /// </remarks>
+    private const int FillBufferBytes = 64 * 1024;
+
+    /// <summary>How many times the parser polls for a fill before parking; zero parks at once.</summary>
+    /// <remarks>
+    /// The filler is usually only microseconds ahead, so parking costs more than the wait it replaces - and this
+    /// is what the split gave back on shapes with nothing to parse. Measured on <c>incr-conc64</c>: no spin
+    /// 1,150,757 ops/s at 10.19us CPU/op, 200 spins 1,200,150 at 9.77us; 1,000 to 16,000 are within noise of
+    /// 200. CPU per op goes DOWN: it removes park/unpark work rather than trading CPU for latency.
+    /// </remarks>
+    private const int FillSpin = 200;
+
+    /// <summary>One filled buffer, and how much of it the read returned.</summary>
+    private readonly struct Fill(byte[] buffer, int length)
+    {
+        public readonly byte[] Buffer = buffer;
+        public readonly int Length = length;
+    }
+
+    /// <summary>Read from the socket independently of parsing, so the two no longer take turns.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The single loop reads, parses, then reads again.</b> Nothing reads while the receiver is busy, so a parse
+    /// pass only ever sees what one physical read returned, and the socket sits idle meanwhile: the ceiling
+    /// StackExchange.Redis#3251 diagnosed in the 3.x reader, which this transport inherited. Here a filler does
+    /// nothing but socket-to-queue, and a parser drains the queue.
+    /// </para>
+    /// <para>
+    /// <b>Simpler than #3251, because of the receiver's contract.</b> A payload is transport-owned and valid only for
+    /// the call - the receiver copies anything it keeps - so a buffer can be reused the moment
+    /// <see cref="TransportReceiver.OnReceived"/> returns, and the halves need only a bounded FIFO between them. Order
+    /// is preserved by construction: one filler, one parser.
+    /// </para>
+    /// <para>
+    /// <b>The parser completes operations, and must never run their continuations</b> - a continuation that blocks
+    /// on a reply would block the very thread that delivers it. That is guaranteed one layer down: operations
+    /// always complete asynchronously except where a waiting caller has claimed them (see <c>RespMessageBase</c>).
+    /// </para>
+    /// </remarks>
+    private async Task ReadAndParseSeparatelyAsync(TransportReceiver receiver)
+    {
+        var free = new Stack<byte[]>(FillDepth);
+        var filled = new Queue<Fill>(FillDepth);
+        var sync = new object();
+        using var hasFilled = new SemaphoreSlim(0, FillDepth + 1); // +1: the filler's final wake
+        using var hasFree = new SemaphoreSlim(FillDepth, FillDepth);
+
+        // the filler's own stop, linked to shutdown: ending the parser must stop the filler without cancelling the
+        // transport's token, which the writer also uses and DisposeAsync owns
+        using var stopFiller = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+        var stop = stopFiller.Token;
+
+        for (var i = 0; i < FillDepth; i++) free.Push(ArrayPool<byte>.Shared.Rent(FillBufferBytes));
+
+        Exception? fault = null;
+        var completed = false;
+
+        var filler = Task.Run(async () =>
+        {
+            try
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    await hasFree.WaitAsync(stop).ConfigureAwait(false);
+
+                    byte[] buffer;
+                    lock (sync) buffer = free.Pop();
+
+#if NET6_0_OR_GREATER
+                    var read = await _stream.ReadAsync(buffer.AsMemory(), stop).ConfigureAwait(false);
+#else
+                    var read = await _stream.ReadAsync(buffer, 0, buffer.Length, stop).ConfigureAwait(false);
+#endif
+                    if (read <= 0)
+                    {
+                        lock (sync) free.Push(buffer);
+                        break; // orderly close
+                    }
+
+                    lock (sync) filled.Enqueue(new Fill(buffer, read));
+                    hasFilled.Release();
+                }
+            }
+            catch (Exception ex) when (!stop.IsCancellationRequested)
+            {
+                fault = ex;
+            }
+            catch
+            {
+                // stopping: disposing the stream is how a pending read is released, and its exception is ours
+            }
+            finally
+            {
+                // wake the parser so it drains what is queued and then stops
+                lock (sync) completed = true;
+                hasFilled.Release();
+            }
+        });
+
+        try
+        {
+            var done = false;
+            while (!done)
+            {
+                var acquired = false;
+                for (var i = 0; i < FillSpin && !acquired; i++)
+                {
+                    acquired = hasFilled.Wait(0);
+                    if (!acquired) Thread.SpinWait(20);
+                }
+
+                if (!acquired) await hasFilled.WaitAsync(_shutdown.Token).ConfigureAwait(false);
+
+                // one permit, so one buffer
+                Fill next;
+                lock (sync)
+                {
+                    if (filled.Count == 0)
+                    {
+                        done = completed; // the filler's final wake, or nothing yet
+                        continue;
+                    }
+
+                    next = filled.Dequeue();
+                }
+
+                try
+                {
+                    receiver.OnReceived(new ReadOnlySpan<byte>(next.Buffer, 0, next.Length));
+                    receiver.OnBatchEnd();
+                }
+                finally
+                {
+                    lock (sync) free.Push(next.Buffer);
+                    hasFree.Release();
+                }
+            }
+        }
+        catch (Exception ex) when (!_shutdown.IsCancellationRequested)
+        {
+            fault ??= ex;
+        }
+        catch
+        {
+            // shutting down
+        }
+        finally
+        {
+            // stop the filler before reclaiming anything it might still be reading into
+            try
+            {
+                stopFiller.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // already torn down
+            }
+
+            try
+            {
+                await filler.ConfigureAwait(false);
+            }
+            catch
+            {
+                // its fault, if any, is already recorded; this is only the join
+            }
+
+            lock (sync)
+            {
+                while (filled.Count != 0) ArrayPool<byte>.Shared.Return(filled.Dequeue().Buffer);
+                while (free.Count != 0) ArrayPool<byte>.Shared.Return(free.Pop());
+            }
+
+            // exactly once, and after the buffers are back, as the single loop does
+            receiver.OnClosed(fault);
         }
     }
 
