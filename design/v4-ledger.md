@@ -21,6 +21,11 @@ Each has a default the work proceeds on until answered.
 
 ## Pending work (no decision needed)
 
+- **CI: `GetServerTestsCluster.GetServerByKeyMemoization` (RESP3) fails on Windows net481** - 2 of the first 3
+  `v4` runs, each after a cluster connect that waited the full 20s at the very start of the net481 run (three
+  cluster connects stalled together). Suspected lost wake-up, fixed speculatively in d45eadf7 (announce
+  "connected" only after the connection is published); not reproduced locally. Tests now print the connection
+  log, with thread-pool stats, for any connect that uses half its timeout - read it if it recurs.
 - **Absorb `main` by merging**, little and often; resolve each conflict by re-expressing the change in v4
   terms and say how in the merge message. Drift check: `git rev-list --count v4..origin/main`. The final
   landing on `main` must be a real merge, never a squash.
@@ -38,6 +43,13 @@ Each has a default the work proceeds on until answered.
 
 ## Backlog (after the alpha)
 
+- **Batch/transaction buffer packing**: write a batch's commands adjacently into one shared buffer, rather
+  than one rented frame per command, and hand the transport one contiguous run. The abandoned v3-era RESPite
+  spike implemented this fully (PR #2959, `marc/respite`, "WIP : RESPite overhaul" - still open but idle since 2026-08: `src/RESPite/RespBatch.cs`,
+  `Connections/Internal/{Buffering,Merging}BatchConnection.cs`, `SynchronizedBlockBufferSerializer`; v4's
+  `BlockBufferSerializer` remarks are the surviving trace).
+  **Check first** whether the interpolated writer's reserved prologue - the `*N` count is back-filled into
+  padding reserved ahead of each frame - still lets frames sit adjacently, or leaves gaps that cost a copy.
 - **Trusted-callback completion mode** - test whether Respire's speed comes from completing callers inline
   on the reader with a watchdog; if so, offer it opt-in, default off. Read Respire's completion path first.
 
