@@ -108,10 +108,29 @@ has been rolling out across clients:
 | client | type | lag tolerance default |
 | --- | --- | --- |
 | Lettuce | `LagAwareStrategy` | **5000 ms** |
-| Jedis | `LagAwareStrategy` | (same family) |
-| redis-py | `LagAwareHealthCheck` | **100 ms** |
+| Jedis | `LagAwareStrategy` | **5000 ms** |
+| redis-py | `LagAwareHealthCheck` | **5000 ms** (*corrected*: its docstring says 100) |
 | Redis Enterprise cluster | `availability_lag_tolerance_ms` | **100 ms** |
 | REST API docs | "Recommended value" | **100 ms** |
+
+> **Corrected 2026-10-06, read from source rather than docs** (heads as of that date; `gh` search of
+> issues/PRs was blocked by the org's SSO, so discussion that did not reach code is not covered):
+>
+> - Lettuce `LagAwareStrategy.java:163-165`: `EXTENDED_CHECK_DEFAULT = true`, tolerance 5000 ms.
+>   Unchanged since it was introduced (#3576, 2026-02-06); #3914 (2026-09-15) promoted it to GA without
+>   touching either value.
+> - Jedis `mcf/LagAwareStrategy.java:96-97`: the same `true` / 5000.
+> - redis-py `asyncio/multidb/healthcheck.py:73`: `DEFAULT_LAG_AWARE_TOLERANCE = 5000`, while line 502's
+>   docstring says "(default: 100)" - both from the same commit, `f3806fad`, 2025-10-07. It always sends
+>   `extend_check=lag` with the tolerance; there is no plain mode.
+> - None checks `crdt`, so given §10, *inferred*: all three report every non-Active-Active database as
+>   permanently unhealthy under default settings.
+> - All three map any REST failure to unhealthy; none has a third state (§4).
+> - TLS is truststore/CA based in all three; none supports pinning, so with the cluster's self-signed 9443
+>   certificate a user must import that leaf as a trust anchor.
+>
+> So the server and docs say 100 ms and every client says 5000 ms. Our plan sidesteps it: send no
+> tolerance unless configured, and let the cluster's own setting apply.
 
 **Lettuce is fifty times more permissive than everyone else, including the server's own default and
 its own documentation's recommendation.** That is either a deliberate call about real-world WAN
