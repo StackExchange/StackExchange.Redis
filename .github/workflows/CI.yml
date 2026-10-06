@@ -4,7 +4,7 @@ run-name: "CI${{ github.event.inputs.client-libs-test-image-tag != '' && format(
 on:
   pull_request:
   push:
-    branches: [ 'main', 'v3' ]
+    branches: [ 'main', 'v3', 'v4' ]
     paths:
       - '**'
       - '!/docs/*' # Don't run workflow when files are only in the /docs directory
@@ -253,7 +253,7 @@ jobs:
         run: dotnet build Build.csproj -c Release /p:CI=true
       # The analyzer and the props that configures it reach consumers only through the package, and a
       # packaging regression is silent: no diagnostics, ever, for anybody, with a build that still succeeds.
-      # The real pack below runs only on pushes to main/v3, so check it here where PRs will see it too.
+      # The real pack below runs only on pushes to main/v3/v4, so check it here where PRs will see it too.
       - name: Verify package contents
         run: |
           $out = "${env:GITHUB_WORKSPACE}\.packcheck"

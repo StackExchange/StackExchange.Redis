@@ -140,8 +140,8 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
 - [ ] **Two-core leftovers** (from the comment sweep's report; the high-confidence dead code is removed):
       - `Subscription._onNewCore` / `IsOwnedByNewCore` / `NewCoreOwnsAnySubscription` now only mean "something
         subscribed this"; collapsing them changes the never-sent case, so it needs a look, not a delete.
-      - `TransitionalDatabase._fallback` and the `CanWriteRuns`/`CanWriteTransactions` gates: production always
-        passes null / true; only tests supply a fallback. Retire with those tests.
+      - ~~`TransitionalDatabase._fallback`~~ removed (ad081e5c); `CanWriteRuns`/`CanWriteTransactions` stay,
+        since a test's fake executor legitimately cannot write a run.
       - ~30 `NewCoreIfCreated?.` null-tolerances, `ServerEndPoint.IsConnecting => false`.
       - Topology flows both ways between `RespTopology` and `ServerSelectionStrategy` - live, because the
         selector is still the routing fallback and `IServer`'s source. Goes with "phase D".
