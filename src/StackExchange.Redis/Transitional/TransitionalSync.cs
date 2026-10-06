@@ -59,7 +59,10 @@ namespace StackExchange.Redis
                 if (!pending.IsCompleted)
                 {
                     pending.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(pump.SignalDone);
-                    if (!pump.RunUntilDone(TimeoutFor(multiplexer, executor))) throw new TimeoutException();
+                    if (!pump.RunUntilDone(TimeoutFor(multiplexer, executor, out var backstop)))
+                    {
+                        throw backstop ? MissedTimeout(multiplexer, pump) : new TimeoutException();
+                    }
                 }
 
                 return pending.GetAwaiter().GetResult();
@@ -88,7 +91,7 @@ namespace StackExchange.Redis
                 if (!pending.IsCompleted)
                 {
                     pending.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(pump.SignalDone);
-                    if (!pump.RunUntilDone(TimeoutFor(multiplexer, null))) throw new TimeoutException();
+                    if (!pump.RunUntilDone(TimeoutFor(multiplexer, null, out _))) throw new TimeoutException();
                 }
 
                 pending.GetAwaiter().GetResult();
@@ -100,11 +103,37 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The same limit the unpumped wait applies: none of our own where the executor times operations out
-        /// itself (its exception says far more than a bare timeout), and the multiplexer's otherwise.
+        /// The multiplexer's timeout - or, where the executor times operations out itself, a <b>backstop</b>
+        /// well beyond it, so that the executor's exception (which names the command, the endpoint and why)
+        /// always gets to fire first.
         /// </summary>
-        private static int TimeoutFor(IConnectionMultiplexer multiplexer, RespExecutorBase? executor)
-            => executor is { EnforcesTimeouts: true } ? Timeout.Infinite : multiplexer.TimeoutMilliseconds;
+        /// <remarks>
+        /// <b>A backstop rather than no limit at all</b>, which is what this used to be. "The executor will time it
+        /// out" is a promise about one mechanism, and a waiter that trusts it with an infinite wait turns any
+        /// operation that escapes it into a hung caller: on CI a synchronous <c>HashFieldGetAndDelete</c> waited
+        /// for over ten minutes on a connection that had stopped answering, while the async callers on the same
+        /// connection were each timed out by the executor at five seconds, and the hang watchdog killed the
+        /// whole test run. Twice the timeout plus a few heartbeats is far enough out never to race the real one.
+        /// </remarks>
+        private static int TimeoutFor(IConnectionMultiplexer multiplexer, RespExecutorBase? executor, out bool backstop)
+        {
+            var timeout = multiplexer.TimeoutMilliseconds;
+            backstop = executor is { EnforcesTimeouts: true };
+            if (!backstop || timeout < 0 || timeout >= (int.MaxValue - BackstopSlackMilliseconds) / 2) return backstop ? Timeout.Infinite : timeout;
+            return (timeout * 2) + BackstopSlackMilliseconds;
+        }
+
+        private const int BackstopSlackMilliseconds = 5000;
+
+        /// <summary>The executor's timeout should have fired and did not; say so, rather than report a plain timeout.</summary>
+        private static RedisTimeoutException MissedTimeout(IConnectionMultiplexer multiplexer, SyncPump? pump)
+        {
+            var timeout = multiplexer.TimeoutMilliseconds;
+            var message = $"A synchronous call was not timed out by its connection within {(timeout * 2) + BackstopSlackMilliseconds}ms, "
+                + $"twice the configured {timeout}ms; the connection's own timeout should have fired first, so this is "
+                + "a client fault worth reporting." + (pump is null ? string.Empty : " Pump: " + pump.Describe());
+            return new(CommandFlags.CommandRetryNever, message, CommandStatus.Unknown);
+        }
 
         /// <summary>Wait for a result.</summary>
         /// <typeparam name="T">The result type.</typeparam>
@@ -125,6 +154,9 @@ namespace StackExchange.Redis
             // that says only that time passed. Racing them means the useful one usually loses.
             if (executor is { EnforcesTimeouts: true })
             {
+                // ...but never without a limit: see TimeoutFor
+                var limit = TimeoutFor(multiplexer, executor, out _);
+                if (limit != Timeout.Infinite && !((IAsyncResult)task).AsyncWaitHandle.WaitOne(limit)) throw MissedTimeout(multiplexer, null);
                 #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
                 return task.GetAwaiter().GetResult();
                 #pragma warning restore SER308

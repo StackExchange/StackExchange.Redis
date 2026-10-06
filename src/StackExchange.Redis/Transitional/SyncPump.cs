@@ -170,6 +170,16 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>What the pump was doing, for the exception a missed timeout raises.</summary>
+        internal string Describe()
+        {
+            lock (_sync)
+            {
+                return $"open={_open}, done={_done}, pumping={_pumping}, running={_running}, queued={_queue?.Count ?? 0}, "
+                    + $"captured={Math.Min(_capturedCount, CaptureCapacity)}, generation={_generation}, nested={_outer is not null}";
+            }
+        }
+
         /// <summary>Run posted continuations on this thread until the call is done or the timeout passes.</summary>
         /// <param name="timeoutMilliseconds">The limit, or <see cref="Timeout.Infinite"/>.</param>
         /// <returns>Whether the call completed in time.</returns>
