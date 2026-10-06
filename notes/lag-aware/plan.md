@@ -3,8 +3,10 @@
 What we intend to do about [`findings.md`](findings.md). That file is the evidence; this one is the
 sequence.
 
-Status: **proposed. Step 0 is cleared; step 1 is next and needs a machine with cluster access.**
-Nothing below has shipped.
+Status: **proposed. Step 0 is cleared; step 1 is answered (findings §10): the lag check flips under
+real Active-Active lag, on the stale member only, and the tolerance is honoured on a running link.
+Cross-region lag magnitudes remain unmeasured (both test clusters share a region).** Nothing below has
+shipped.
 
 > **This branch is not only a planning branch.** `marc/lag-aware-availability` carries these notes
 > now, and is the feature branch from here — the implementation lands on top of the same branch and
@@ -53,22 +55,34 @@ assumption I started with was wrong in some way that mattered."* Same vendor, sa
 
 The checklist, each item currently an assumption:
 
-- [ ] does the deployed version support `extend_check=lag` at all?
+- [x] does the deployed version support `extend_check=lag` at all? **Yes (RS 8.0.22), but only
+      meaningfully on Active-Active members; everything else gets `503 bdb_unavailable`
+      unconditionally.** Findings §10.
 - [ ] does `availability_lag_tolerance_ms` as a query parameter genuinely override the cluster
-      default, and what happens if it is absurd (0, negative, enormous)?
+      default, and what happens if it is absurd (0, negative, enormous)? **Honoured on a running
+      link:** under a write burst 100 ms failed while 600000 ms passed. No effect off Active-Active or
+      with sync paused (both always fail). Negative not tried.
 - [ ] what is actually in a failure body — is `error_code` reliably present, and are the composed
-      forms (`bdb_unavailable_shard_unreachable_port_unbound`) real?
-- [ ] is `Host: cnm.cluster.fqdn` required on the availability route? (`ClusterRestClient` sets no
-      such header for `/v1/bdbs` and works.)
-- [ ] `/v1/bdbs/{uid}/availability` versus `/v1/local/bdbs/{uid}/endpoint/availability` — what does
-      each actually report on a multi-node deployment, and is RS155734 (miscalculated endpoint
-      metrics) visible?
+      forms (`bdb_unavailable_shard_unreachable_port_unbound`) real? *Partly:* `error_code` and
+      `description` present on every failure seen; lag failure is plain `bdb_unavailable`, the same
+      as "not Active-Active"; composed suffixes not yet observed.
+- [x] does the lag check flip while the plain check stays green? **Yes, on the stale member only,
+      within seconds, clearing when data catches up** (findings §10, `crdt_sync=paused`).
+- [x] is `Host: cnm.cluster.fqdn` required on the availability route? **No.**
+- [x] `/v1/bdbs/{uid}/availability` versus `/v1/local/bdbs/{uid}/endpoint/availability`? **The local
+      form reports for whichever node answered the REST call; unusable through the cluster FQDN.** Use
+      the database form. RS155734 not assessed.
 - [ ] what does `GET /v1/bdbs?fields=uid,endpoints` return, in the shape Lettuce matches hosts
-      against?
+      against? Not yet asked with those fields; full `/v1/bdbs` bodies captured (contain passwords,
+      not committed).
 - [ ] **what lag do real geo-replicated links show under load?** The empirical way to settle 100 ms
-      (server default, docs, redis-py) versus 5000 ms (Lettuce) — see findings §3.
+      (server default, docs, redis-py) versus 5000 ms (Lettuce) — see findings §3. Needs a two-cluster
+      environment, which now exists.
 - [ ] which fault-injector effects can drive lag past the tolerance — ask `GetValidTriggersAsync`,
-      do not assume `network_latency`.
+      do not assume `network_latency`. **`network_latency` is ruled out** (node-wide, and its cleanup
+      fails; findings §10). The `/action` enum also lists `network_failure`, `execute_rladmin_command`
+      and `update_cluster_config`; which of these can hold back Active-Active sync safely is the open
+      question.
 
 Output: the answers written into `findings.md`, and **captured response bodies saved as fixtures**, so
 the stubbed tests in step 5 replay real payloads instead of guessing at the wire format.
@@ -83,7 +97,7 @@ here. The honest current state:
   shared framework on `net8.0`/`net10.0`. The genuinely new dependency would be `System.Text.Json` on
   `net472`/`netstandard2.0`, and findings §5 shows JSON is avoidable if the bdb uid is configured
   rather than discovered.
-- **`src/` may need no changes at all.** `HealthCheckProbe` is externally subclassable (no internal
+- **`src/` may need no changes at all** *(no longer true - see the `Inconclusive` point in step 3)*. `HealthCheckProbe` is externally subclassable (no internal
   abstract members), and `IConnectionMultiplexer.RawConfig` and `ConfigurationOptions.Tunnel` are both
   public, so a probe can reach everything it needs from the context it already gets.
 - So the question is not really "can we" but "should a general-purpose Redis client carry a
@@ -110,13 +124,31 @@ Behaviour, with the deliberate deviations called out:
 - `GET /v1/bdbs/{uid}/availability`, adding `extend_check=lag` and `availability_lag_tolerance_ms`
   when lag-awareness is on.
 - 200 → `Healthy`. A definite negative (503 with a recognised `error_code`) → `Unhealthy`.
+- **Lag-awareness is per member and only for Active-Active members.** Off Active-Active the server
+  answers `503 bdb_unavailable` to every lag check (findings §10), so enabling it there would fail a
+  healthy database forever. Either refuse the combination at configuration time, or check `crdt` once
+  via `/v1/bdbs/{uid}` and fall back to the plain check - the latter needs JSON, the former does not.
+- Addressing is REST endpoint **plus** uid per member; uids are not stable across the clusters of one
+  Active-Active database.
+- **The probe is called per endpoint, but the answer is per database.** `HealthCheck.CheckHealthAsync
+  (IConnectionMultiplexer)` fans out one probe call per server (`HealthCheck.Execute.cs:25-40`), so an
+  OSS-cluster member with six endpoints would make six identical REST calls per pass. Either cache
+  within a pass, or hook in at member level instead.
+- **`Inconclusive` is right for failover and wrong for failback.** `ConnectionGroupMember.UpdateState`
+  (`MultiGroupMultiplexer.cs:315`) treats anything but `Unhealthy` as connected, and once
+  `FailbackDelay` has passed that makes the member eligible again. So "the REST API could not be
+  asked" would let the group fail back onto a member that may be stale - the exact case the lag check
+  exists to prevent. Keeping an active member while refusing to *return* to an unverified one needs a
+  distinction `UpdateState` does not currently make, which means a small `src/` change after all (step 2
+  assumed none).
 - **A failed REST call → `Inconclusive`, not `Unhealthy`.** This is the deviation from every other
   client (findings §4): Lettuce's two-state `HealthStatus` cannot distinguish "the database is down"
   from "I could not ask", so a management-plane outage can fail over a database that is serving
   traffic perfectly. We have `Inconclusive`; we should use it. Document it as a difference.
 - Configuration: REST endpoint, credentials **via a callback so they can rotate** (Lettuce takes a
-  `Supplier`), CA/certificate options — step 1 confirmed the management certificate is self-signed per
-  environment, so ambient trust is not enough — bdb uid, tolerance, and a lag-aware on/off switch.
+  `Supplier`), certificate options (step 1 confirmed the management certificate is self-signed by the
+  cluster itself, so neither ambient trust nor a separate CA works; the option has to accept a pinned
+  certificate or fingerprint), bdb uid, tolerance, and a lag-aware on/off switch.
 - Defaults deferred to step 1's measurements rather than copied from either existing client.
 
 Explicit uid first; host-based discovery is a later, optional extra (findings §5).
@@ -147,7 +179,9 @@ Three tiers, cheapest first:
    data plane. Real sockets on both planes; the level where the whole thing is exercised.
 3. **Fault-injector scenario test**, in the tier from step 0: drive real lag past the tolerance and
    assert the lag-aware check flips while the plain check stays green — then that the group fails
-   over, and fails back only once lag recovers.
+   over, and fails back only once lag recovers. Produce the lag with `crdt_sync=paused` on the target
+   member via its cluster's REST API (findings §10), and resume in a `finally`; not with
+   `network_latency`.
 
 Tier 3 is the authoritative one and the slowest; tier 1 is what runs on every push.
 

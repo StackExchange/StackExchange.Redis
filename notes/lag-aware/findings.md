@@ -47,6 +47,12 @@ disaster recovery by … ensuring failover-failback flows only occur when databa
 sufficiently synchronized."* This is the check that stops you failing **back** onto a region that is
 reachable but stale.
 
+> **Corrected by measurement (§10).** On RS 8.0.22 the lag is Active-Active (CRDB) sync lag, not
+> intra-cluster replica lag. On any database that is not an Active-Active member, `extend_check=lag`
+> answers `503 bdb_unavailable` unconditionally - with or without `replication`, and whatever
+> `availability_lag_tolerance_ms` says - while the plain check answers 200. The "replica" wording
+> above is the documentation's, and it is misleading.
+
 ### Response detail
 
 | status | meaning |
@@ -334,6 +340,11 @@ documentation they were drawn from:
   via `ServerCertificateCustomValidationCallback` with `X509ChainTrustMode.CustomRootTrust`, with the
   comment *"this channel carries credentials"*. So a lag-aware probe **does** need CA/cert
   configuration in the redis-py mould; relying on the ambient trust store will not do.
+  *Corrected (§10):* the 9443 certificate is self-signed by the cluster itself (issuer = subject =
+  cluster FQDN, minted at bootstrap), and the CA in the config directory signs only the RESP-plane
+  proxy certificates - so that chain build could never succeed. `ClusterRestClient` now pins the leaf
+  on first use instead. The conclusion stands and sharpens: a probe needs a pinned certificate or
+  fingerprint option, not merely a custom CA.
 - **Auth is HTTP Basic**, confirmed against a real cluster rather than inferred from Lettuce.
 - **`/v1/bdbs?fields=…` returns an array of objects carrying the requested fields**, so Lettuce's
   `fields=uid,endpoints` discovery is straightforward. That weakens the §5 argument a little: skipping
@@ -450,6 +461,9 @@ external probe can already reach `context.Server.Multiplexer.RawConfig.Tunnel` w
    Lettuce uses the former. The latter does not redirect to the primary node, which may be the more
    accurate signal when probing a specific endpoint, and is what the docs recommend for load
    balancers under the `all-nodes` proxy policy. Note known issue RS155734 against the endpoint form.
+   *Partly answered (§10):* the local form answers for whichever node served the REST call, so through
+   the cluster FQDN it is effectively random under `proxy_policy: single`. Not usable from a client
+   unless it addresses a specific node.
 4. **Explicit bdb uid, discovery, or both?** Explicit avoids JSON entirely (§5).
 5. ~~**Is `HealthCheckContext` sufficient?**~~ Answered in §8 — `RawConfig` and
    `ConfigurationOptions.Tunnel` are both public, so a probe can reach the tunnel from the context it
@@ -469,3 +483,113 @@ external probe can already reach `context.Server.Multiplexer.RawConfig.Tunnel` w
    `HealthCheckProbe` is externally subclassable, `RawConfig`/`Tunnel` are public, and the REST
    plumbing precedent lives in the test tier. The `Tunnel` addition in §8 is the one thing that would
    have to land in the core package — and only if we want the management plane to honour tunnels.
+
+## 10. Measured against real deployments (2026-09-18 to 2026-09-30)
+
+Everything here was observed, not read. Three AWS-template environments, all RS 8.0.22, three nodes per
+cluster; the last one (`marcgravell-test-dc1342d5`) has two clusters, `c1` and `c2`, carrying two
+Active-Active databases between them. Where a line is an inference rather than an observation it says so.
+
+### `extend_check=lag` is an Active-Active check
+
+Same cluster (c1), same session:
+
+| database | `crdt` | `replication` | plain | `extend_check=lag` at 100 ms / 600000 ms / 0 ms |
+| --- | --- | --- | --- | --- |
+| `re-active-active` | true | false | 200 | 200 / 200 / 200 |
+| `re-active-active-oss-cluster` | true | false | 200 | 200 / 200 / 200 |
+| control, freshly created | false | false | 200 | 503 / 503 / 503 |
+| control, freshly created | false | true | 200 | 503 / 503 / 503 |
+
+Both Active-Active databases answer the same on c2. The control 503 is always
+`{"error_code":"bdb_unavailable","description":"BDB <uid> is not available"}`, held for the whole 30 s
+observed from creation, and was reproduced on two earlier environments over 60 s.
+
+- **Measured:** off Active-Active, the lag check fails regardless of replication and tolerance - the
+  tolerance parameter has no observable effect at all there.
+- **Inferred:** the server has no sync lag to measure on such a database and reports "unavailable"
+  rather than "not applicable".
+- **Consequence for the probe:** lag-awareness on a non-Active-Active member turns a healthy database
+  into a permanently unhealthy one. It must be opt-in per member, and that specific 503 should not be
+  read as a data-plane verdict - `Inconclusive` at most. This is a stronger version of the §4 argument.
+- **Inferred about Lettuce, untested:** `EXTENDED_CHECK_DEFAULT = true` should make `LagAwareStrategy`
+  report `UNHEALTHY` forever against any database that is not Active-Active. Worth putting to Redis with
+  the 100 ms versus 5000 ms question (§3).
+- **Unknown:** whether a 0 ms tolerance is honoured (and an idle link simply reports zero lag) or
+  ignored. The idle Active-Active result cannot tell those apart; it needs real lag.
+
+### Under real lag: the check flips, and only on the stale member (2026-10-05)
+
+Environment `marcgravell-test-9db7bbf0`, two clusters, `re-active-active` (uid 1 on both, paired by
+`crdt_guid`). Sync *into* c2's member paused with `PUT /v1/bdbs/1 {"crdt_sync":"paused"}` on c2 for 60 s
+while c1 took an `INCR` every ~5 s and c2 was read back; then `{"crdt_sync":"enabled"}`.
+
+| phase | c1 member | c2 member | data |
+| --- | --- | --- | --- |
+| baseline | plain 200, lag 200 (100 / 600000 / 0 ms) | plain 200, lag 200 (all three) | c2 tracks c1 |
+| c2 sync paused | unchanged | plain 200, **lag 503 at all three**, first sample ~2 s in | c1 3 to 14, c2 stuck at 2 |
+| resumed | unchanged | lag 503 ~5 s more, then 200 | c2 reaches 14 |
+
+- **Measured:** the plain check never noticed; the lag check on the stale member flipped within seconds
+  and cleared once the data had caught up. This is the "reachable but stale" case the feature exists for.
+- **Measured:** only the member that is *behind* flips. The member being written to stays green - which
+  is the right polarity for failback, where the question is "is the target caught up".
+- **Measured:** with sync paused, 600000 ms still answers 503 although the true lag was seconds. A paused
+  link is unavailable regardless of tolerance.
+- **Measured: the tolerance does govern a running link.** Sync enabled; a server-side Lua loop on c1
+  wrote ~50 MB per call (500 x 100 KB over a 200-key space) for 30 s, ~2.75 GB in all, while c2 was
+  sampled every ~0.5 s. In 66 samples the 100 ms check failed twice, each time with c2 visibly a few
+  batches behind, and recovered on the next sample; the 600000 ms check never failed. So 100 ms and
+  600000 ms disagree exactly when the link is running but behind - the parameter is honoured.
+- **Caveat on the numbers:** both clusters are in `us-east-1`. Under that load sync stayed under
+  100 ms almost all the time, but that says nothing about a cross-region link, which is the case the
+  100 ms versus 5000 ms question (§3) is actually about.
+- **Measured:** the failure body is the same as for a non-Active-Active database -
+  `{"error_code":"bdb_unavailable","description":"BDB 1 is not available"}`. No lag-specific code, so a
+  probe cannot tell "lagging" from "not applicable" by the response; Active-Active membership has to be
+  configuration, not inference.
+- **Inferred:** at baseline c2 was observed one write behind (read 1 after c1 wrote 2) while the 0 ms
+  check passed - either lag is sampled coarsely or 0 is not honoured.
+- **Tooling:** `crdt_sync` `paused`/`enabled` is a narrow, reliably reversible way to produce lag - one
+  member, no network change, `status` returns to `active` within a few seconds. Far better suited to a
+  scenario test than `network_latency` or `network_failure` (which drops all inbound bar SSH on every
+  hosting node and kills `dmcproxy`). It is a direct REST mutation, not an injector action.
+
+### Other answers
+
+- **Cluster default** `availability_lag_tolerance_ms` is 100, on every environment - the server agrees
+  with the docs and redis-py, not Lettuce.
+- **`Host: cnm.cluster.fqdn` is not required.** A bogus `Host` on the availability route still gets 200.
+- **Both error-code families are real.** Database form: `bdb_unavailable`. Local form:
+  `bdb_endpoint_unavailable`, description `"Local endpoint of BDB <uid> on node <n> is not available"`.
+  The composed suffixes (`_shard_unreachable`, `_port_unbound`) have not been observed yet - nothing so
+  far has broken a shard.
+- **Healthy is an empty 200.** No body to parse; JSON appears only on failure, as §5 hoped.
+- **`fields=` filters on `/v1/bdbs` but not on `/v1/cluster`**, which returns the whole object.
+- **The local form answers for the node that served the request.** Through the cluster FQDN that was
+  always node 1, which usually does not host the endpoint under `proxy_policy: single` - so 503 for three
+  of four Active-Active members that were serving traffic perfectly well.
+- **`/v1/bdbs` returns database passwords** (`authentication_redis_pass`, `authentication_admin_pass`)
+  when `mask_bdb_credentials` is false, as on these clusters, and `/v1/crdbs` returns the same for every
+  instance. Captured bodies cannot be committed as fixtures without scrubbing. Relevant to credential
+  scope too: whether `cluster_viewer`/`db_viewer` see the same was not checked (we used admin).
+
+### Multi-cluster shape
+
+- `env_output.json` nests clusters under `.clusters.value[N]`, each with its own FQDN and credentials.
+  `FaultInjectorEnvironment` reads only `[0]`.
+- Each cluster has its own self-signed 9443 certificate, so pins are per host
+  (`cluster-cert.<fqdn>.sha256`).
+- Member uids happened to match across c1 and c2; the platform does not promise it. `/v1/crdbs` on one
+  cluster reports the other's instance with `db_uid=None`, so pairing members means reading each
+  cluster's `/v1/bdbs` and matching on `crdt_guid`. The probe's configuration should therefore be
+  "cluster REST endpoint plus uid" per member, not a uid shared across the group.
+
+### Fault injection
+
+- **`network_latency` is not safe to use for this.** It applies `netem` to the node's primary interface,
+  not to the database, and its scheduled removal fails ("No existing session" - the cleanup thread reuses
+  an SSH session that has been torn down) while the action still reports success. On 2026-09-18 that
+  left a 5 s delay on two nodes, which took down the cluster's own DNS and 9443 until removed by hand
+  over SSH. Reported to `redis-developer/cae-client-testing`.
+- **Holding back sync:** done with `crdt_sync=paused` on the stale member (above), not with the injector.
