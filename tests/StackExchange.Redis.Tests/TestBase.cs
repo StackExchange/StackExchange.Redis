@@ -544,6 +544,15 @@ public abstract class TestBase : IDisposable
             if (output != null)
             {
                 Log(output, "Connect took: " + watch.ElapsedMilliseconds + "ms");
+
+                // a connect that used most of its timeout was waiting on something that never answered, and the
+                // connect log is the only record of which endpoint that was - so show it, rather than only when
+                // the connect throws. A 20s cluster connect on net481 left nothing else to go on.
+                if (localLog != null && watch.ElapsedMilliseconds >= config.ConnectTimeout / 2)
+                {
+                    output.WriteLine("Slow connect; the connection log follows:");
+                    output.WriteLine(localLog.ToString());
+                }
             }
             var conn = task.Result;
             if (checkConnect)

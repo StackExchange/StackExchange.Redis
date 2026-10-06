@@ -1152,10 +1152,9 @@ namespace StackExchange.Redis
                     await SubscribeToConfigurationChannelAsync(context, cancellationToken).ConfigureAwait(false);
                 }
 
-                if (!subscription && connection.Server is { } established)
-                {
-                    established.OnNewCoreConnected($"{endpoint} connected on the new core");
-                }
+                // NOT where "connected" is announced: the executor has not published this connection yet, so
+                // anything told now would ask IsConnected and hear no. RespEndpointExecutor.ConnectAsync says
+                // it, after publishing - see the remarks there.
 
                 // A connection deliveries arrive on is useless until the subscriptions are on it again, and
                 // nothing else was going to notice: the v3 core re-subscribed when its own subscription

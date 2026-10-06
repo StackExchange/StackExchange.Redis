@@ -2186,6 +2186,17 @@ namespace StackExchange.Redis
 
                 if (drain) ReleaseWrites(); // drains in arrival order, then frees or hands on the slot
 
+                // "Connected" is announced HERE, after the connection is published, and never from inside
+                // the handshake. Announced earlier, it completed the waiters of ServerEndPoint.OnConnectedAsync
+                // before IsConnected could say yes - so a waiter that registered in between missed the signal,
+                // re-checked, still heard no, and waited out the whole ConnectTimeout. That is a cluster
+                // connect taking exactly 20,015ms, seen at the start of a loaded net481 run, followed by
+                // GetServer answering from whichever node HAD connected.
+                if (!IsSubscriptionEndpoint && connection is RespClientConnection { Server: { } established })
+                {
+                    established.OnNewCoreConnected($"{_endpoint} connected on the new core");
+                }
+
                 return connection;
             }
             catch (Exception ex)
