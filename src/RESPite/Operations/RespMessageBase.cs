@@ -82,7 +82,8 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         Flag_Queued = 1 << 8,           // accepted by an owner that will send it later - a backlog
         Flag_Awaited = 1 << 9,          // an async consumer attached a continuation; nobody is blocked on it
         Flag_Sink = 1 << 10,            // a blocked synchronous caller will run this life's continuation
-        Flag_Waiting = 1 << 11;         // a synchronous caller is (or was) blocked in Wait: completing must pulse
+        Flag_Waiting = 1 << 11,         // a synchronous caller is (or was) blocked in Wait: completing must pulse
+        Flag_InlineContinuation = 1 << 12; // the continuation only dispatches, so it runs on the completing thread
 
     private const int FlagMask = 0xFFFF;
 
@@ -562,7 +563,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         Mark(definite);
         OnFinished(null);
-        if (HasFlag(Flag_Sink))
+        if (HasFlag(Flag_Sink | Flag_InlineContinuation))
         {
             // claimed by a blocked caller: the trampoline only posts, so run it here rather than paying a pool hop
             _asyncCore.RunContinuationsAsynchronously = false;
@@ -591,15 +592,18 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         Mark(definite);
         OnFinished(exception);
-        if (inline || HasFlag(Flag_Sink))
+        if (inline || HasFlag(Flag_Sink | Flag_InlineContinuation))
         {
             _asyncCore.RunContinuationsAsynchronously = false;
+            var wasInline = t_completingInline;
+            t_completingInline = inline;
             try
             {
                 _asyncCore.SetException(exception);
             }
             finally
             {
+                t_completingInline = wasInline;
                 _asyncCore.RunContinuationsAsynchronously = true;
             }
         }
@@ -861,6 +865,50 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         {
             _asyncCore.OnCompleted(continuation, state, token, flags);
         }
+    }
+
+    /// <summary>
+    /// Register a continuation that does nothing but dispatch - so it may run on the completing thread, where an
+    /// ordinary continuation is always handed to the thread pool first.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>For a consumer that does its own dispatch</b>, as the <c>IDatabase</c> task bridge does: its continuation
+    /// queues the operation itself as a thread-pool work item. Through the ordinary path, the core queued the
+    /// continuation instead, and a delegate-plus-state continuation is wrapped in an allocated work item on every
+    /// completion (only an async method's own box is queued as-is). Inline, the only thing the completing thread -
+    /// usually the reader - runs is that queueing call.
+    /// </para>
+    /// <para>
+    /// <b>The continuation must never run caller code</b>: it runs on the reader, and anything that blocks or sends
+    /// there stalls every reply behind it. An operation rented during a synchronous call (see
+    /// <see cref="TryAttachSink"/>) takes the ordinary path, because its continuation may belong to that caller.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// Whether this thread is completing an operation inline <b>on purpose</b> - <c>TrySetCanceledInline</c>, a
+    /// cancelled transaction's queued commands - rather than merely running a dispatch-only continuation inline.
+    /// </summary>
+    /// <remarks>
+    /// A dispatch-only continuation (see <see cref="OnCompletedInline"/>) should then finish its work right here
+    /// rather than queue it: the caller completing inline is relying on the outcome being visible when it returns -
+    /// a failed transaction's commands are already <c>Canceled</c> when <c>Execute</c> returns, and callers read that.
+    /// </remarks>
+    protected static bool IsCompletingInline => t_completingInline;
+
+    [ThreadStatic]
+    private static bool t_completingInline;
+
+    protected void OnCompletedInline(Action<object?> continuation, object? state, short token)
+    {
+        if (_interpose)
+        {
+            OnCompleted(continuation, state, token, ValueTaskSourceOnCompletedFlags.None);
+            return;
+        }
+
+        SetFlagFor(token, Flag_NoPulse | Flag_Awaited | Flag_InlineContinuation);
+        _asyncCore.OnCompleted(continuation, state, token, ValueTaskSourceOnCompletedFlags.None);
     }
 
     private bool _interpose;

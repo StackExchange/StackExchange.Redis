@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using StackExchange.Redis.Protocol;
@@ -29,7 +30,11 @@ namespace StackExchange.Redis
     /// be one interface, and the raw payload has no parse to absorb anyway.
     /// </para>
     /// </remarks>
+#if NET
+    internal sealed class RespPayloadOperation<TResult> : RespPayloadOperation, IValueTaskSource<TResult>, IValueTaskSource, IThreadPoolWorkItem
+#else
     internal sealed class RespPayloadOperation<TResult> : RespPayloadOperation, IValueTaskSource<TResult>, IValueTaskSource
+#endif
     {
         private static readonly RespPayloadOperation<TResult>?[] TypedPool = new RespPayloadOperation<TResult>?[PoolSize];
 
@@ -158,7 +163,22 @@ namespace StackExchange.Redis
         private AsyncTaskMethodBuilder<TResult> _taskBuilder;
         private short _taskToken;
 
+#if NET
+        // runs INLINE on the completing thread (see OnCompletedInline), so it only queues: the operation is its own
+        // work item, where a delegate-plus-state continuation cost an allocated wrapper per completion
+        // ...unless the core is completing inline ON PURPOSE (a failed transaction cancelling its commands), when the
+        // outcome must be visible as that call returns: then it is completed here, as the ordinary path did
+        private static readonly Action<object?> s_dispatchTask = static state =>
+        {
+            var operation = (RespPayloadOperation<TResult>)state!;
+            if (IsCompletingInline) operation.CompleteTask();
+            else ThreadPool.UnsafeQueueUserWorkItem(operation, preferLocal: false);
+        };
+
+        void IThreadPoolWorkItem.Execute() => CompleteTask();
+#else
         private static readonly Action<object?> s_completeTask = static state => ((RespPayloadOperation<TResult>)state!).CompleteTask();
+#endif
 
         /// <summary>This life's result as a <see cref="Task{TResult}"/>, for the <c>IDatabase</c> surface.</summary>
         /// <param name="token">The life to bridge.</param>
@@ -186,7 +206,11 @@ namespace StackExchange.Redis
 
             // already settled - faulted under FailFast, say - is answered now
             if (((IValueTaskSource<TResult>)this).GetStatus(token) != ValueTaskSourceStatus.Pending) CompleteTask();
+#if NET
+            else OnCompletedInline(s_dispatchTask, this, token);
+#else
             else OnCompleted(s_completeTask, this, token, ValueTaskSourceOnCompletedFlags.None);
+#endif
             return task;
         }
 

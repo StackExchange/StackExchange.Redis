@@ -123,6 +123,12 @@ Each has a default the work proceeds on until answered.
   connections where 1 opted in - the opt-in has not landed at the fake server when the notification is sent. A
   test-ordering dependence; look at what `OptInAsync` awaits.
 
+- **Watch: net8.0 cluster tests timing out at 10 s under the full suite** (`DisabledCommandsStillConnectCluster`,
+  `PubSubKeyNotificationTestsCluster.SubKeySpaceEvent_HandlesNewlineInField`,
+  `ARetiringServerIsNotSelectableEvenThoughItStillOwnsItsSlots`). Seen in 2 of 7 full net8.0 runs after the per-thread
+  operation cache (03bbb05a), 0 of 3 before it; 0 of 16 when the cluster tests run on their own, either build. Not
+  attributed - but if it recurs, compare with and without that commit first.
+
 - **Batch/transaction buffer packing**: write a batch's commands adjacently into one shared buffer, rather
   than one rented frame per command, and hand the transport one contiguous run. The abandoned v3-era RESPite
   spike implemented this fully (PR #2959, `marc/respite`, "WIP : RESPite overhaul" - still open but idle since 2026-08: `src/RESPite/RespBatch.cs`,
