@@ -425,9 +425,9 @@ namespace StackExchange.Redis
             {
                 case ConnectionType.Interactive:
                 case ConnectionType.Subscription when SharesSubscriptionConnection():
-                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null);
+                    return interactive ?? (create ? GetOrCreateBridge(ref interactive, ConnectionType.Interactive, log) : null);
                 case ConnectionType.Subscription:
-                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null);
+                    return subscription ?? (create ? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, log) : null);
                 default:
                     return null;
             }
@@ -453,8 +453,8 @@ namespace StackExchange.Redis
             }
 
             return (message.IsForSubscriptionBridge && !SharesSubscriptionConnection())
-                ? subscription ??= CreateBridge(ConnectionType.Subscription, null)
-                : interactive ??= CreateBridge(ConnectionType.Interactive, null);
+                ? subscription ?? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, null)
+                : interactive ?? GetOrCreateBridge(ref interactive, ConnectionType.Interactive, null);
         }
 
         /// <summary>
@@ -467,7 +467,7 @@ namespace StackExchange.Redis
             if (isDisposed) return false;
 
             // deliberately not via GetBridge: that consults the same expectation that got us here
-            var target = subscription ??= CreateBridge(ConnectionType.Subscription, null);
+            var target = subscription ?? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, null);
             if (target is null || ReferenceEquals(target, from)) return false;
 
             target.AcceptRerouted(message);
@@ -487,11 +487,11 @@ namespace StackExchange.Redis
                 case RedisCommand.SUNSUBSCRIBE:
                     if (!SharesSubscriptionConnection())
                     {
-                        return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null);
+                        return subscription ?? (create ? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, null) : null);
                     }
                     break;
             }
-            return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, null) : null);
+            return interactive ?? (create ? GetOrCreateBridge(ref interactive, ConnectionType.Interactive, null) : null);
         }
 
         public RedisFeatures GetFeatures() => new RedisFeatures(version);
@@ -1111,10 +1111,11 @@ namespace StackExchange.Redis
                             SubscribeToConfigurationChannel(bridge);
                         }
                     }
-                    else if (SupportsSubscriptions && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
+                    else if (bridge == interactive && !isResp3 && SupportsSubscriptions
+                        && Multiplexer.RawConfig.SharedSubscriptionConnection && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
                     {
-                        // interactive, and either we wanted to share it with pub/sub but didn't get RESP3, or we
-                        // never wanted to share it; either way pub/sub needs its own connection (idempotent)
+                        // interactive, and we wanted to share it with pub/sub under RESP3+, but we didn't get it; spin up
+                        // pub/sub (when not sharing, ActivateServer has already done so, as under RESP2)
                         Activate(ConnectionType.Subscription, null);
                     }
                     if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || shared))
@@ -1339,6 +1340,27 @@ namespace StackExchange.Redis
                 result.GetAwaiter().GetResult();
             }
             return default;
+        }
+
+        /// <summary>
+        /// Lazily creates (and starts connecting) the bridge in <paramref name="field"/>, safely against a concurrent
+        /// caller doing the same - e.g. <c>ActivateServer</c> on the caller's thread racing <c>OnFullyEstablished</c>
+        /// on an IO thread. A bridge connects as soon as it is created, so a plain <c>??=</c> that loses the race
+        /// leaks a second, unreferenced connection to the server.
+        /// </summary>
+        private PhysicalBridge? GetOrCreateBridge(ref PhysicalBridge? field, ConnectionType type, ILogger? log)
+        {
+            var existing = Volatile.Read(ref field);
+            if (existing is not null) return existing;
+
+            var created = CreateBridge(type, log);
+            if (created is null) return null;
+
+            existing = Interlocked.CompareExchange(ref field, created, null);
+            if (existing is null) return created;
+
+            created.Dispose(); // lost the race: use the winner, and close the connection we started
+            return existing;
         }
 
         private PhysicalBridge? CreateBridge(ConnectionType type, ILogger? log)
