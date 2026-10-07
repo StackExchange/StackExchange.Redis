@@ -12,30 +12,47 @@ namespace RESPite.Benchmark;
 public sealed class ContextApiBenchmark : BenchmarkBase<ContextApiBenchmark.Target>
 {
     /// <summary>
-    /// One caller's view: its database context, and - while a batch is being composed - that batch.
+    /// One caller: a keyspace target whose context is its database, or - while a batch is being
+    /// composed - that batch. The groups (<c>Strings</c>, <c>Lists</c>, ...) and <c>PingAsync</c> come from
+    /// the library's own extensions on <see cref="IRespKeyspaceTarget"/>, exactly as on a database.
     /// </summary>
     /// <remarks>
     /// A class, because the harness hands the same client to <see cref="PrepareBatch"/>, the operations and
-    /// <see cref="Flush"/> in turn, and the batch they share has to live somewhere between those calls.
+    /// <see cref="Flush"/> in turn. Both contexts are captured when the batch starts and ends, so the
+    /// operations never box the batch to ask it for one.
     /// </remarks>
-    public sealed class Target(RespDatabaseContext db)
+    public sealed class Target(RespDatabaseContext db) : IRespKeyspaceTarget
     {
+        private RespDatabaseContext _context = db;
+        private RespContext _raw = ((IRespTarget)db).Context;
+        private RespBatch _batch;
+
         public RespDatabaseContext Db { get; } = db;
 
-        public RespBatch Batch { get; set; }
+        public bool IsBatching { get; private set; }
 
-        public bool Batching { get; set; }
+        public RespDatabaseContext Context => _context;
 
-        // every operation goes through these, so a batched run and an unbatched one send the same commands
-        public RespStrings Strings => Batching ? Batch.Strings : Db.Strings;
-        public RespLists Lists => Batching ? Batch.Lists : Db.Lists;
-        public RespSets Sets => Batching ? Batch.Sets : Db.Sets;
-        public RespHashes Hashes => Batching ? Batch.Hashes : Db.Hashes;
-        public RespSortedSets SortedSets => Batching ? Batch.SortedSets : Db.SortedSets;
-        public RespStreams Streams => Batching ? Batch.Streams : Db.Streams;
-        public RespKeys Keys => Batching ? Batch.Keys : Db.Keys;
+        RespContext IRespTarget.Context => _raw;
 
-        public ValueTask PingAsync() => Batching ? Batch.PingAsync() : Db.PingAsync();
+        public void BeginBatch()
+        {
+            _batch = Db.BeginBatch();
+            IsBatching = true;
+            _context = _batch.Context;
+            _raw = ((IRespTarget)_context).Context;
+        }
+
+        /// <summary>Stop composing, and hand back the batch for the caller to execute.</summary>
+        public RespBatch EndBatch()
+        {
+            var batch = _batch;
+            _batch = default;
+            IsBatching = false;
+            _context = Db;
+            _raw = ((IRespTarget)Db).Context;
+            return batch;
+        }
     }
 
     private static readonly string withVersion = $"context API, SE.Redis {DatabaseApiBenchmark.GetLibVersion()}";
@@ -138,21 +155,13 @@ public sealed class ContextApiBenchmark : BenchmarkBase<ContextApiBenchmark.Targ
     // each caller batches on its own Target; the harness then drives it through PrepareBatch / Flush
     protected override Target CreateBatch(Target client) => new(client.Db);
 
-    protected override void PrepareBatch(Target client, int count)
-    {
-        client.Batch = client.Db.BeginBatch();
-        client.Batching = true;
-    }
+    protected override void PrepareBatch(Target client, int count) => client.BeginBatch();
 
     protected override async ValueTask Flush(Target client)
     {
-        if (!client.Batching) return;
-        var batch = client.Batch;
-        client.Batching = false;
-        using (batch)
-        {
-            await batch.ExecuteAsync().ConfigureAwait(false);
-        }
+        if (!client.IsBatching) return;
+        using var batch = client.EndBatch();
+        await batch.ExecuteAsync().ConfigureAwait(false);
     }
 
     [DisplayName("PING_BULK")]
