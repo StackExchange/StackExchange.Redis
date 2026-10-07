@@ -64,6 +64,96 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     private readonly object _writeLock = new();
 
     /// <summary>
+    /// Sends that found the write lock busy, waiting for the holder to write them; only used when
+    /// <see cref="CombineWrites"/> is on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Combining, not queueing behind.</b> With many more senders than cores, a lock taken once per command
+    /// convoys: the holder is descheduled mid-write and everybody spins and parks behind it, and measured at
+    /// 50 callers on 12 cores that was 59% of all thread time in <c>Monitor.Enter</c>. A sender that finds
+    /// the lock taken instead leaves its operation here and returns, and whoever holds the lock writes it
+    /// before letting go - so under contention one thread writes many commands per acquisition, and an
+    /// uncontended send is exactly what it was.
+    /// </para>
+    /// <para>
+    /// <b>Order is kept.</b> Every path that takes the lock drains this first, so an operation queued here is
+    /// written before anything its caller sends afterwards; and the holder drains again before releasing and
+    /// re-checks after, so one queued in the instant between its last drain and its release is not stranded.
+    /// <b>Nothing here has been written</b>: on close these fail definitely (never sent), and the timeout
+    /// sweep covers them as it covers <see cref="_pending"/>.
+    /// </para>
+    /// </remarks>
+    private readonly ConcurrentQueue<PendingEntry> _inbox = new();
+
+    /// <summary>Whether a send that finds the write lock busy hands its operation to the holder; see <see cref="_inbox"/>.</summary>
+    internal bool CombineWrites { get; set; }
+
+    /// <summary>Take the write lock, and write anything senders left for its holder first.</summary>
+    private void EnterWrite()
+    {
+        Monitor.Enter(_writeLock);
+        if (!_inbox.IsEmpty) DrainInboxLocked();
+    }
+
+    /// <summary>Write anything left for us, release the write lock, and make sure nothing was stranded.</summary>
+    private void ExitWrite()
+    {
+        if (!_inbox.IsEmpty) DrainInboxLocked();
+        Monitor.Exit(_writeLock);
+        if (!_inbox.IsEmpty) FinishCombining();
+    }
+
+    /// <summary>
+    /// A sender may have queued after the holder's last drain but before it released, and found the lock
+    /// still held; whoever gets here takes the lock back for it if nobody else has.
+    /// </summary>
+    private void FinishCombining()
+    {
+        while (!_inbox.IsEmpty && Monitor.TryEnter(_writeLock))
+        {
+            try
+            {
+                DrainInboxLocked();
+            }
+            finally
+            {
+                Monitor.Exit(_writeLock);
+            }
+        }
+    }
+
+    /// <summary>Write, in order, everything senders left for the lock holder. Caller holds the write lock.</summary>
+    private void DrainInboxLocked()
+    {
+        var closed = Volatile.Read(ref _closed) != 0;
+        while (_inbox.TryDequeue(out var entry))
+        {
+            var message = entry.Message;
+            if (closed)
+            {
+                // never written, so DEFINITELY not applied - unlike what Close faults out of _pending
+                message.TrySetException(entry.Token, ClosedFault(), definite: true);
+                continue;
+            }
+
+            if (!message.TryReserveRequest(entry.Token, out var payload)) continue; // completed meanwhile
+
+            try
+            {
+                message.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
+                _pending.Enqueue(entry);
+                Write(payload.Span);
+                Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
+            }
+            finally
+            {
+                message.ReleaseRequest();
+            }
+        }
+    }
+
+    /// <summary>
     /// The receive buffer, reference-counted so a reply can be <b>retained rather than copied</b>.
     /// </summary>
     /// <remarks>
@@ -226,10 +316,16 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// </remarks>
     internal int ExpirePending(TimeSpan olderThan)
     {
-        if (olderThan <= TimeSpan.Zero || _pending.IsEmpty) return 0;
+        if (olderThan <= TimeSpan.Zero || (_pending.IsEmpty && _inbox.IsEmpty)) return 0;
 
         var expired = 0;
         foreach (var entry in _pending)
+        {
+            if (entry.Message.TryTimeoutIfOlderThan(entry.Token, olderThan)) expired++;
+        }
+
+        // not yet written, but waiting all the same; a timed-out one is skipped when the holder reaches it
+        foreach (var entry in _inbox)
         {
             if (entry.Message.TryTimeoutIfOlderThan(entry.Token, olderThan)) expired++;
         }
@@ -259,7 +355,25 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         // queued, because by then nobody else can.
         if (Volatile.Read(ref _closed) != 0) return false;
 
-        lock (_writeLock)
+        if (CombineWrites)
+        {
+            if (!Monitor.TryEnter(_writeLock))
+            {
+                // busy: leave it for the holder, and make sure there still is one (see _inbox)
+                _inbox.Enqueue(new(message, message.Token));
+                FinishCombining();
+                _transport.Flush();
+                return true;
+            }
+
+            if (!_inbox.IsEmpty) DrainInboxLocked(); // anything queued before us goes first
+        }
+        else
+        {
+            Monitor.Enter(_writeLock);
+        }
+
+        try
         {
             if (!message.TryReserveRequest(message.Token, out var payload))
             {
@@ -282,6 +396,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             {
                 message.ReleaseRequest();
             }
+        }
+        finally
+        {
+            ExitWrite();
         }
 
         // OUTSIDE the lock. The bytes are already committed to the outbound buffer in queue order, so
@@ -336,7 +454,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         wrotePreamble = null;
         if (Volatile.Read(ref _closed) != 0) return false;
 
-        lock (_writeLock)
+        EnterWrite();
+        try
         {
             var head = preamble(state);
             wrotePreamble = head;
@@ -384,6 +503,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                     head.ReleaseRequest();
                 }
             }
+        }
+        finally
+        {
+            ExitWrite();
         }
 
         _transport.Flush();
@@ -435,7 +558,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         wroteFirst = false;
         if (Volatile.Read(ref _closed) != 0) return false;
 
-        lock (_writeLock)
+        EnterWrite();
+        try
         {
             if (!isFirstNeeded(state))
             {
@@ -484,6 +608,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 }
             }
         }
+        finally
+        {
+            ExitWrite();
+        }
 
         _transport.Flush();
         return true;
@@ -527,7 +655,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         wroteFirst = false;
         if (Volatile.Read(ref _closed) != 0) return false;
 
-        lock (_writeLock)
+        EnterWrite();
+        try
         {
             if (select(state) is { } head)
             {
@@ -579,6 +708,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 second.ReleaseRequest();
             }
         }
+        finally
+        {
+            ExitWrite();
+        }
 
         _transport.Flush();
         return true;
@@ -600,7 +733,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (second is null) throw new ArgumentNullException(nameof(second));
         if (Volatile.Read(ref _closed) != 0) return false;
 
-        lock (_writeLock)
+        EnterWrite();
+        try
         {
             if (!first.TryReserveRequest(first.Token, out var firstPayload)) return false;
             try
@@ -627,6 +761,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             {
                 first.ReleaseRequest();
             }
+        }
+        finally
+        {
+            ExitWrite();
         }
 
         _transport.Flush();
@@ -664,7 +802,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (count <= 0) return true;
         if (Volatile.Read(ref _closed) != 0) return false;
 
-        lock (_writeLock)
+        EnterWrite();
+        try
         {
             var received = Volatile.Read(ref _bytesReceived);
 
@@ -705,6 +844,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 }
             }
         }
+        finally
+        {
+            ExitWrite();
+        }
 
         _transport.Flush();
         return true;
@@ -732,7 +875,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (count <= 0) return true;
         if (Volatile.Read(ref _closed) != 0) return false;
 
-        lock (_writeLock)
+        EnterWrite();
+        try
         {
             var received = Volatile.Read(ref _bytesReceived);
             for (var i = 0; i < count; i++)
@@ -759,6 +903,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                     message.ReleaseRequest();
                 }
             }
+        }
+        finally
+        {
+            ExitWrite();
         }
 
         _transport.Flush();
@@ -1013,6 +1161,13 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         while (_pending.TryDequeue(out var entry))
         {
             entry.Message.TrySetException(entry.Token, reason, definite: false);
+        }
+
+        // and what never reached the socket: DEFINITE, since none of it was written. A sender racing this
+        // close can still enqueue after it; the holder's drain sees the connection closed and fails those too.
+        while (_inbox.TryDequeue(out var entry))
+        {
+            entry.Message.TrySetException(entry.Token, reason, definite: true);
         }
     }
 

@@ -977,7 +977,11 @@ namespace StackExchange.Redis
                 (in RespRedirect redirect, RespPayloadOperation operation)
                     => coreRef.TryGetTarget(out var core) && core.Follow(endpoint, in redirect, operation),
                 config.IncludeDetailInExceptions,
-                config.ResponseBufferPool);
+                config.ResponseBufferPool)
+            {
+                // before anything is written: the handshake is the first sender
+                CombineWrites = ConnectionMultiplexer.CombineWrites,
+            };
 
             // EVERYTHING from here to the hand-back can fail - a refused AUTH, a handshake timeout, a
             // multiplexer disposed mid-dial whose server lookup now throws - and every one of those used to

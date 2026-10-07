@@ -41,6 +41,18 @@ public partial class ConnectionMultiplexer
         /// for a workload that measures better without the split. Connections made after it is set use it.
         /// </remarks>
         SingleReadLoop = 4,
+
+        /// <summary>
+        /// Experimental: a send that finds the connection's write lock busy leaves its command for the lock
+        /// holder to write, rather than waiting for the lock.
+        /// </summary>
+        /// <remarks>
+        /// With many more concurrent callers than cores, a write lock taken once per command convoys: measured
+        /// at 50 callers on 12 cores, 59% of thread time was spent in <c>Monitor.Enter</c> and throughput was
+        /// half of 3.x, which never waits there (it queues to a backlog the holder writes). Combining does the
+        /// same inside the connection; an uncontended send is unchanged. Connections made after it is set use it.
+        /// </remarks>
+        CombineWrites = 8,
     }
 
     private static void SetAutodetectFeatureFlags()
@@ -128,6 +140,8 @@ public partial class ConnectionMultiplexer
     internal static bool DedicatedThreads => (s_featureFlags & FeatureFlags.DedicatedThreads) != 0;
 
     internal static bool SingleReadLoop => (s_featureFlags & FeatureFlags.SingleReadLoop) != 0;
+
+    internal static bool CombineWrites => (s_featureFlags & FeatureFlags.CombineWrites) != 0;
 
     /// <summary>
     /// Whether the connection of this type to this endpoint is read by a thread we own; <c>null</c> if there
