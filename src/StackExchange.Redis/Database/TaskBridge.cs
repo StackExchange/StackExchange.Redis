@@ -79,6 +79,9 @@ namespace StackExchange.Redis
                 return asyncState is null ? operation.AsTask(token) : new SourceBridge<T>(operation, token, asyncState).Task;
             }
 
+            // already a task of ours - a batched command (see RespOperationBatchExecutor) - so no second bridge
+            if (asyncState is null && RespPayloadOperation<T>.TryTakeDispatchedTask(pending) is { } task) return task;
+
             return new Bridge<T>(pending, asyncState).Task;
         }
 
@@ -100,6 +103,8 @@ namespace StackExchange.Redis
             {
                 return asyncState is null ? operation.AsTask(token) : new SourceVoidBridge(operation, token, asyncState).Task;
             }
+
+            if (asyncState is null && RespPayloadOperation<bool>.TryTakeDispatchedTask(pending) is { } task) return task;
 
             return new VoidBridge(pending, asyncState).Task;
         }

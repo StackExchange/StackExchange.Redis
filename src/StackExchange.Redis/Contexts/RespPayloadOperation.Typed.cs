@@ -79,6 +79,28 @@ namespace StackExchange.Redis
             return null;
         }
 
+        [ThreadStatic]
+        private static Task? t_dispatchedTask;
+
+        /// <summary>Note a task this thread has just handed back as a <c>ValueTask</c>, so the bridge can return it as-is.</summary>
+        internal static void NoteDispatchedTask(Task task) => t_dispatchedTask = task;
+
+        /// <summary>The task behind <paramref name="pending"/>, if it is the one this thread just noted.</summary>
+        internal static Task<TResult>? TryTakeDispatchedTask(ValueTask<TResult> pending)
+        {
+            var noted = t_dispatchedTask;
+            t_dispatchedTask = null;
+            return noted is Task<TResult> task && pending.Equals(new ValueTask<TResult>(task)) ? task : null;
+        }
+
+        /// <inheritdoc cref="TryTakeDispatchedTask(ValueTask{TResult})"/>
+        internal static Task? TryTakeDispatchedTask(ValueTask pending)
+        {
+            var noted = t_dispatchedTask;
+            t_dispatchedTask = null;
+            return noted is not null && pending.Equals(new ValueTask(noted)) ? noted : null;
+        }
+
         /// <inheritdoc cref="TryTakeDispatched(ValueTask{TResult}, out short)"/>
         internal static RespPayloadOperation<TResult>? TryTakeDispatched(ValueTask pending, out short token)
         {

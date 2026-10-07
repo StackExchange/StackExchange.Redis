@@ -106,9 +106,23 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// The operation is the awaitable for the parsed result, as on the endpoint executor: without this every
-        /// batched command went through the default's async parse-after-await, which boxes a state machine per
-        /// command once the batch is deep (see <see cref="RespPayloadOperation{TResult}"/>).
+        /// <para>
+        /// A typed operation, not the default's async parse-after-await, which boxed a state machine per command once
+        /// the batch was deep (see <see cref="RespPayloadOperation{TResult}"/>) - but handed out as a task:
+        /// </para>
+        /// <para>
+        /// <b>So its reply is parsed when it arrives, in parallel, rather than when it is awaited, in series.</b> Over
+        /// the operation, a <c>ValueTask</c> parses in <c>GetResult</c> - which is what makes a single send one object.
+        /// But a batch's results are awaited after <c>Execute</c>, one after another, so all of a run's parsing and
+        /// recycling landed on the caller's one thread, after the last reply: measured, the context batch carried
+        /// half the CPU per command of <c>IBatch</c> and still ran 10-15% slower, because <c>IBatch</c>'s tasks were
+        /// completed on the pool as each reply landed. Here every command's task is completed that way (see
+        /// <c>RespPayloadOperation&lt;T&gt;.AsTask</c>), for one task per command.
+        /// </para>
+        /// <para>
+        /// <b>Not double-wrapped for <c>IBatch</c>:</b> the task is noted for the thread, and the <c>IDatabase</c> bridge
+        /// hands that same task back rather than bridging the <c>ValueTask</c> over it.
+        /// </para>
         /// </remarks>
         internal override ValueTask<TResult> SendTypedAsync<TResult>(
             RespRequest request, IRespHandler<TResult> handler, CancellationToken cancellationToken)
@@ -128,8 +142,10 @@ namespace StackExchange.Redis
                 request.Dispose(); // copied; this reference is done
             }
 
-            operation.NoteDispatched();
-            return new ValueTask<TResult>(operation, operation.Token);
+            // a task, not the operation: see the remarks
+            var task = operation.AsTask(operation.Token);
+            RespPayloadOperation<TResult>.NoteDispatchedTask(task);
+            return new ValueTask<TResult>(task);
         }
 
         /// <inheritdoc/>
@@ -149,8 +165,9 @@ namespace StackExchange.Redis
                 request.Dispose();
             }
 
-            operation.NoteDispatched();
-            return new ValueTask(operation, operation.Token);
+            Task task = operation.AsTask(operation.Token); // a task, as SendTypedAsync
+            RespPayloadOperation<bool>.NoteDispatchedTask(task);
+            return new ValueTask(task);
         }
 
         /// <inheritdoc/>
