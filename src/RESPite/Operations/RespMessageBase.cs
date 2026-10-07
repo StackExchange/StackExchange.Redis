@@ -73,14 +73,15 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         Flag_Sent = 1 << 0,             // the request has been handed to a writer
         Flag_OutcomeKnown = 1 << 1,     // exactly one code path gets to set an outcome; this is the claim
         Flag_Complete = 1 << 2,         // the outcome is set and any follow-up has run
-        Flag_NoPulse = 1 << 3,          // nobody is blocked in Wait, so completing need not take the lock
+        Flag_NoPulse = 1 << 3,          // this life is in async mode (or its waiter left): Wait must not block
         Flag_Parser = 1 << 4,           // a parser was supplied
         Flag_MetadataParser = 1 << 5,   // the parser wants to see attributes/metadata itself
         Flag_InlineParser = 1 << 6,     // the parser is safe to run on the IO thread
         Flag_Indefinite = 1 << 7,       // the outcome does not prove the pipeline is done with us
         Flag_Queued = 1 << 8,           // accepted by an owner that will send it later - a backlog
         Flag_Awaited = 1 << 9,          // an async consumer attached a continuation; nobody is blocked on it
-        Flag_Sink = 1 << 10;            // a blocked synchronous caller will run this life's continuation
+        Flag_Sink = 1 << 10,            // a blocked synchronous caller will run this life's continuation
+        Flag_Waiting = 1 << 11;         // a synchronous caller is (or was) blocked in Wait: completing must pulse
 
     private const int FlagMask = 0xFFFF;
 
@@ -550,7 +551,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     private bool Complete(TResponse response, bool definite)
     {
-        var pulse = Mark(definite);
+        Mark(definite);
         OnFinished(null);
         if (HasFlag(Flag_Sink))
         {
@@ -573,13 +574,13 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             _asyncCore.SetResult(response);
         }
 
-        Pulse(pulse);
+        Pulse();
         return true;
     }
 
     private bool Fail(Exception exception, bool definite, bool inline = false)
     {
-        var pulse = Mark(definite);
+        Mark(definite);
         OnFinished(exception);
         if (inline || HasFlag(Flag_Sink))
         {
@@ -599,7 +600,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             _asyncCore.SetException(exception);
         }
 
-        Pulse(pulse);
+        Pulse();
         return true;
     }
 
@@ -623,22 +624,30 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// benchmarking allocations, not by testing behaviour.
     /// </para>
     /// </remarks>
-    private bool Mark(bool definite)
-    {
-        var pulse = !HasFlag(Flag_NoPulse);
-        SetFlag(definite ? (Flag_Complete | Flag_NoPulse) : (Flag_Complete | Flag_NoPulse | Flag_Indefinite));
-        return pulse;
-    }
+    private void Mark(bool definite)
+        => SetFlag(definite ? Flag_Complete : (Flag_Complete | Flag_Indefinite));
 
-    /// <summary>Wake a synchronous waiter, if there is one that has not already been told.</summary>
-    /// <param name="pulse">Whether anybody is waiting on the monitor.</param>
+    /// <summary>Wake a synchronous waiter, if there is one.</summary>
     /// <remarks>
+    /// <para>
     /// Strictly after the outcome is published, which is the opposite constraint from
     /// <see cref="OnFinished"/>: a waiter woken before the result exists would read one that is not there.
+    /// </para>
+    /// <para>
+    /// <b>Only when a waiter has said so</b> (<see cref="Flag_Waiting"/>). This used to pulse unless an async consumer
+    /// had attached - which meant every operation awaited <i>late</i>, after its reply (a batch's results, read once
+    /// it has executed), took the monitor on the reader thread, and that cost a quarter of context-batch throughput.
+    /// The two sides are a Dekker pair: the waiter sets the flag then reads the status, under the lock; this
+    /// publishes the status then reads the flag. With a full fence on each side at least one sees the other, and a
+    /// waiter that saw "pending" holds the lock until it is in <c>Monitor.Wait</c>, so the pulse cannot slip past it.
+    /// The flag read may land on the NEXT life if this one has already been consumed - a spurious pulse, which
+    /// <see cref="Wait"/> tolerates by re-checking the status.
+    /// </para>
     /// </remarks>
-    private void Pulse(bool pulse)
+    private void Pulse()
     {
-        if (!pulse) return;
+        Interlocked.MemoryBarrier(); // publish-then-read; see remarks
+        if (!HasFlag(Flag_Waiting)) return;
         lock (this)
         {
             Monitor.PulseAll(this);
@@ -703,28 +712,27 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         var timedOut = false;
         lock (this)
         {
-            switch (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending
-                ? Flag_Complete
-                : Volatile.Read(ref _state) & Flag_NoPulse)
-            {
-                case 0:
-                    // the expected branch: not complete, and whoever completes it will pulse
-                    if (timeout == TimeSpan.Zero)
-                    {
-                        Monitor.Wait(this);
-                    }
-                    else if (!Monitor.Wait(this, timeout))
-                    {
-                        timedOut = true;
-                        SetFlag(Flag_NoPulse); // we are leaving; nobody need wake us
-                    }
+            SetFlag(Flag_Waiting); // BEFORE reading the status: the completer's half of the pair is in Pulse
+            var started = timeout == TimeSpan.Zero ? 0 : Stopwatch.GetTimestamp();
 
+            // a loop, because a pulse is a hint: a late one from a previous life can arrive (see Pulse)
+            while (_asyncCore.GetStatus(token) == ValueTaskSourceStatus.Pending)
+            {
+                if (HasFlag(Flag_NoPulse)) ThrowWillNotPulse();
+                if (started == 0)
+                {
+                    Monitor.Wait(this);
+                    continue;
+                }
+
+                var remaining = timeout - TimeSpan.FromTicks((long)((Stopwatch.GetTimestamp() - started) * (TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency)));
+                if (remaining <= TimeSpan.Zero || !Monitor.Wait(this, remaining))
+                {
+                    if (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending) break; // won at the wire
+                    timedOut = true;
+                    SetFlag(Flag_NoPulse); // we are leaving; nobody need wake us
                     break;
-                case Flag_NoPulse:
-                    ThrowWillNotPulse();
-                    break;
-                default:
-                    break; // already complete
+                }
             }
         }
 

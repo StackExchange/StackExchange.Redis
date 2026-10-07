@@ -101,6 +101,66 @@ namespace StackExchange.Redis
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
             var operation = RespPayloadOperation.Rent();
+            return Enqueue(operation, in request, cancellationToken) ? new ValueTask<RespPayload>(operation, operation.Token) : default;
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// The operation is the awaitable for the parsed result, as on the endpoint executor: without this every
+        /// batched command went through the default's async parse-after-await, which boxes a state machine per
+        /// command once the batch is deep (see <see cref="RespPayloadOperation{TResult}"/>).
+        /// </remarks>
+        internal override ValueTask<TResult> SendTypedAsync<TResult>(
+            RespRequest request, IRespHandler<TResult> handler, CancellationToken cancellationToken)
+        {
+            if (typeof(TResult) == typeof(RespPayload)) return RespExecutor.AwaitUncached(this, request, handler, cancellationToken);
+            var operation = RespPayloadOperation<TResult>.Rent(handler, this);
+            try
+            {
+                if (!Enqueue(operation, in request, cancellationToken)) return new ValueTask<TResult>(default(TResult)!);
+            }
+            catch (Exception ex)
+            {
+                return new ValueTask<TResult>(Task.FromException<TResult>(ex)); // as the async default reported it
+            }
+            finally
+            {
+                request.Dispose(); // copied; this reference is done
+            }
+
+            operation.NoteDispatched();
+            return new ValueTask<TResult>(operation, operation.Token);
+        }
+
+        /// <inheritdoc/>
+        internal override ValueTask SendVoidAsync(RespRequest request, IRespHandler<bool> handler, CancellationToken cancellationToken)
+        {
+            var operation = RespPayloadOperation<bool>.Rent(handler, this);
+            try
+            {
+                if (!Enqueue(operation, in request, cancellationToken)) return default;
+            }
+            catch (Exception ex)
+            {
+                return new ValueTask(Task.FromException(ex));
+            }
+            finally
+            {
+                request.Dispose();
+            }
+
+            operation.NoteDispatched();
+            return new ValueTask(operation, operation.Token);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>Yes: <see cref="Enqueue"/> copies the request into the operation before returning.</remarks>
+        internal override bool CopiesRequestOnSend => true;
+
+        /// <summary>Attach the request to the operation and queue it for the run.</summary>
+        /// <returns>False if the command is fire-and-forget, and so already answered.</returns>
+        private bool Enqueue(RespPayloadOperation operation, in RespRequest request, CancellationToken cancellationToken)
+        {
             operation.Attach(request.Span, request.Flags, cancellationToken);
             operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
             operation.Slot = request.Slot;
@@ -121,10 +181,10 @@ namespace StackExchange.Redis
             if ((request.Flags & CommandFlags.FireAndForget) != 0)
             {
                 RespPayloadOperation.DiscardReply(operation);
-                return default;
+                return false;
             }
 
-            return new ValueTask<RespPayload>(operation, operation.Token);
+            return true;
         }
 
         /// <inheritdoc/>

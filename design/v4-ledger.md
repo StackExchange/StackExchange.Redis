@@ -93,6 +93,16 @@ Each has a default the work proceeds on until answered.
   is `Task`-backed - every one down-level, and 10 of 13 on net6+ - so a faulted one that the caller drops can still
   raise `UnobservedTaskException`. Dropping an un-awaited `ValueTask` is already misuse; low priority.
 
+- **A batched `IDatabase` command that never completes (rare; seen once in ~40 `--old --batch` benchmark runs,
+  0 in 24 targeted re-runs).** 2026-10-07, build before the typed batch executor: one caller of 50 stuck awaiting
+  command 61 of a 100-command `IBatch`; 0-60 had completed, the connection was healthy, no dispatch in flight. The
+  stuck `Task<bool>` was rooted only by the awaiting caller - its bridge, the internal box and the operation had all
+  let go of it - so the operation was never in the pending queue. Lead: `RespConnection.Send(IRespMessage[], count)`
+  silently skips an element whose `TryReserveRequest` fails (assumed "already completed, cancelled most likely");
+  that also happens if the request was released early, i.e. an operation recycled while still queued in a batch
+  (released twice and shared), whose reset would also drop its continuation. Unproven. Next: make the skip
+  observable (count/log/assert that a skipped element is complete) and re-run the batch matrix until it recurs.
+
 - **Batch/transaction buffer packing**: write a batch's commands adjacently into one shared buffer, rather
   than one rented frame per command, and hand the transport one contiguous run. The abandoned v3-era RESPite
   spike implemented this fully (PR #2959, `marc/respite`, "WIP : RESPite overhaul" - still open but idle since 2026-08: `src/RESPite/RespBatch.cs`,
