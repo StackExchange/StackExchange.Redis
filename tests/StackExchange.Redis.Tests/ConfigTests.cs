@@ -729,7 +729,13 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         };
         await using var conn = ConnectionMultiplexer.Connect(options);
         Assert.True(conn.IsConnected);
-        Assert.Equal(options.TryResp3() ? 1 : 2, count);
+
+        // waited for, not read at once: under RESP2 the subscription socket is dialled in the background once
+        // the interactive handshake is done, so Connect can return before its callback has run - which a slow
+        // net481 runner turned into "expected 2, actual 1" on CI. More than expected is still an immediate fail.
+        var expected = options.TryResp3() ? 1 : 2;
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref count) >= expected);
+        Assert.Equal(expected, Volatile.Read(ref count));
 
         // the callback ran once per socket the client opened, which is what this pins; the sockets themselves
         // belong to the connection layer, which does not hand them out for inspection
