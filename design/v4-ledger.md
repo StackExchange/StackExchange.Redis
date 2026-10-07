@@ -44,6 +44,12 @@ Each has a default the work proceeds on until answered.
   `RunContinuationsAsynchronously`, which survives a reset: across lives (the inline continuation recycled the
   instance before the `finally` restored it) and within one (TrySetCanceledInline flipped it before claiming).
   12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
+- **Retry: the two `WithRetry` overloads default differently.** `IDatabaseAsync.WithRetry()` resolves the
+  connection's configured policy (`MultiGroupOptions`/`ConfigurationOptions.RetryPolicy`); the context
+  overload (`DatabaseExtensions.cs`, `RespDatabaseContext.WithRetry`) falls straight to `RetryPolicy.Default`.
+- **Retry: stale comments.** `RetryDatabase.ExecuteAsync` says the policy "will live here in due course; for
+  now it is a straight pass-through" (it retries); `RespRetryExecutor`'s remarks say "Failover is not wired
+  up yet" (it is, via `GetFailoverSource()`).
 - **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`.
 
 ## Backlog (after the alpha)
@@ -88,6 +94,29 @@ Each has a default the work proceeds on until answered.
   `BlockBufferSerializer` remarks are the surviving trace).
   **Check first** whether the interpolated writer's reserved prologue - the `*N` count is back-filled into
   padding reserved ahead of each frame - still lets frames sit adjacently, or leaves gaps that cost a copy.
+- **Replace the method-replaying decorators with executor decorators.** Eager frames mean the "what to replay"
+  problem is solved below the API: `RedisDatabase` is a thin `IDatabase` over a `RespDatabaseContext`
+  (every member is `_inner.<Group>.XAsync(...)`), so `new RedisDatabase(ctx.WithExecutor(retry))` retries
+  the whole surface. Candidates: `RetryDatabase` + `RetryTransaction` (+ the `AutoDatabaseGenerator` /
+  `CapturedArgs` capture machinery), `KeyPrefixed*` (~2.6k lines; `RespContext` already prefixes at write),
+  and `MultiGroupDatabase` (same generator; `RespGroupExecutor` exists). What has to be settled first:
+  - **Batches/transactions through a retrying executor.** `RespRetryExecutor` forwards `CanWriteRuns`/
+    `CanWriteTransactions` but not `TrySendBatch`/`TrySendTransaction`, so a run is not retried as a unit.
+    Retrying one needs fresh pooled operations per attempt behind durable per-command tasks - what
+    `RetryTransaction` does today by replaying calls - and conditions re-evaluated per attempt.
+  - **Sync.** `RedisDatabase` sync members are `Wait(...Async)`, so they would *retry* (blocking through the
+    delays) rather than hit the executor's throwing `Send`. A decision, not a blocker: allow it, or keep
+    `WithRetry` async-only by refusing sync on the returned object.
+  - **Inners that are not context-backed.** `WithRetry`/`WithKeyPrefix` accept any `IDatabaseAsync`
+    (mocks, user decorators). Keep the old wrapper as the fallback, or require `IRespTarget`.
+  - **Unit of retry moves from method to frame.** Multi-send members (cluster fan-out splits, scan pages,
+    script load paths, `HashImport` chunks) retry per send rather than restarting the method; usually
+    better, but audit them. Scans gain retry they do not have today (`RetryDatabase` forwards them).
+  - **Prefix-specific:** stripping the prefix from keys in *replies*, `KeyRandom` refusal, script keys
+    (`RedisDatabase.Scripts` passes `withKeyPrefix: null`), and `WithKeyPrefix`'s own
+    `is KeyPrefixedDatabase` prefix-merge.
+  - **Feature reporting:** `GetFeatures` must still report `Retry`/prefix so nesting and batch rejection hold.
+  - Gains beyond code size: `asyncState` would work on a retrying database (the bridge task spans attempts).
 - **Trusted-callback completion mode** - test whether Respire's speed comes from completing callers inline
   on the reader with a watchdog; if so, offer it opt-in, default off. Read Respire's completion path first.
 
