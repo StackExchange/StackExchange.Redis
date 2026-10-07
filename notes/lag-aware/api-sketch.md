@@ -49,7 +49,12 @@ Rules, applied by `SelectPreferredGroup` / `UpdateState`:
   check (if any) answers `Healthy`. `Inconclusive` from the failback check means **not eligible**:
   "could not ask" must not let the group fail back onto a member that may be stale.
 - **If no member is eligible, select on liveness alone.** Every member lagging (a partition between
-  regions, say) must degrade to "serve from somewhere", never to "serve from nowhere".
+  regions, say) must degrade to "serve from somewhere", never to "serve from nowhere". This matters
+  more than it looks: measured, a member whose *incoming* sync has stopped answers lag 503 at any
+  tolerance. So when the active region dies, the survivor's lag check is likely to fail precisely
+  because its peer is gone (*inferred*: measured with sync paused, not with the peer killed). A strict
+  rule would refuse the failover that is needed most. In short: the failback check gates moving *away
+  from a live active member*; it never blocks replacing a dead one.
 - The failback check runs on the same `HealthCheckInterval` poll as liveness, but only for members
   that are not active (the active member's answer is never used).
 
@@ -173,7 +178,7 @@ could carry a group-wide default once credentials have a home in configuration. 
 | TFM | |
 | --- | --- |
 | `net8.0`, `net10.0` | everything |
-| `net472`, `netstandard2.0` | everything; JSON parsing for steps 2 and 3 by a small internal reader or a `System.Text.Json` package reference on those targets only (**open**, below) |
+| `net472`, `netstandard2.0` | everything; JSON (steps 2 and 3, and `error_code` for logging) via a `System.Text.Json` package reference on these targets only - in-box on `net8.0`+. *Decided 2026-10-07:* NRedisStack, which builds on SE.Redis, already depends on it |
 | `net461` | works with ambient trust; setting `CertificateValidation`/`TrustIssuer` throws `PlatformNotSupportedException` at creation, on the understanding that `ServerCertificateCustomValidationCallback` needs .NET Framework 4.7.1 (*unverified*; the build will say) |
 
 Test seam: an internal `Func<HttpMessageHandler>` on `LagAwareOptions`, reached via
@@ -181,11 +186,54 @@ Test seam: an internal `Func<HttpMessageHandler>` on `LagAwareOptions`, reached 
 `System.Net.Http` type enters the public API; Lettuce's public `HttpClient` constructor shows there is
 demand, and it can be made public later.
 
-## Open
+## Open questions, compared with the other clients
 
-1. **JSON on older targets:** a small internal reader (the shapes are tiny) or `System.Text.Json`.
-2. **Names:** `LagAware` follows Lettuce, Jedis and redis-py; `FailbackHealthCheck` is ours.
-3. **Credentials type:** `NetworkCredential` (in-box everywhere), or a dedicated type that could
-   later carry mTLS (redis-py supports client certificates for this call).
-4. **The all-lagging fallback** in 1: select on liveness alone, as proposed, or stay with the
-   current active member even if it is no longer healthy.
+Read from source 2026-10-07: Lettuce `114a3ef`, Jedis `bb5f01d`, redis-py `c3bb0e6`, go-redis
+`feature/multidb-integration` `9377b5b`. (Correction to the earlier survey: redis-py's sync client
+imports the same `LagAwareHealthCheck`, so it is not asyncio-only.)
+
+1. ~~**JSON on older targets**~~ *Decided:* `System.Text.Json`, see 5.
+
+2. **Names.**
+
+   | | the check | general abstraction | returning to the preferred database | failback-only check |
+   | --- | --- | --- | --- | --- |
+   | Lettuce | `LagAwareStrategy` (`databaseAvailability` / `lagAware` / `lagAwareWithTolerance`) | `HealthCheckStrategy` | `failbackSupported`, `failbackCheckInterval`, `gracePeriod` | none |
+   | Jedis | `LagAwareStrategy`, same factories | `HealthCheckStrategy` | same three as Lettuce | none |
+   | redis-py | `LagAwareHealthCheck` | `HealthCheck` | `auto_fallback_interval`, `grace_period` | none |
+   | go-redis | `LagAwareHealthCheck`, `NewLagAwareHealthCheck(WithLagAware...)` | `MultiDBHealthCheck` | `AutoFallbackInterval`, `GracePeriod` | `FailbackOnly() bool`, a marker on the check |
+
+   *Recommendation:* `LagAware` is universal, keep it, with `DatabaseAvailability` alongside as
+   Lettuce/Jedis have. Use "failback", not "fallback": it is our existing word (`FailbackDelay`) and
+   the Java clients'. `FailbackHealthCheck` as a separate slot rather than go-redis's marker, because
+   our member has one `HealthCheck` rather than a list, and a slot keeps liveness independent.
+
+3. **Credentials.**
+
+   | | type | rotates | client certificate to REST |
+   | --- | --- | --- | --- |
+   | Lettuce | `Supplier<RedisCredentials>`, read per request | yes | via `SslOptions` keystore (*inferred*) |
+   | Jedis | `Supplier<RedisCredentials>`, read per call | yes | via `SslOptions` keystore (*inferred*) |
+   | redis-py | `auth_basic: Tuple[str, str]` | no | `client_cert_file` / `client_key_file` / `client_key_password` |
+   | go-redis | `WithLagAwareBasicAuth(user, password)` | no | `WithLagAwareClientCert(PEM)` / `...FromFiles` |
+
+   *Recommendation:* keep the callback returning `NetworkCredential` (rotation parity with the Java
+   clients; in-box everywhere), and add client-certificate support as its own option, mirroring
+   `ConfigurationOptions`' existing `CertificateSelection` callback and PEM/PFX helpers, as every client
+   supports it. No dedicated credentials type needed.
+
+4. **When every member fails.**
+
+   | | active member's own lag check fails | everything unhealthy | "all lagging" special-cased |
+   | --- | --- | --- | --- |
+   | Lettuce | evicted | `RedisNoHealthyDatabaseException`, `AllDatabasesUnhealthyEvent`, retries forever | no |
+   | Jedis | evicted | `JedisTemporarilyNotAvailableException`, then `...PermanentlyNotAvailableException` | no |
+   | redis-py | evicted | `NoValidDatabaseException` inside `TemporaryUnavailableException` | no |
+   | go-redis | **kept** (PING judges it) | stays on a live active; otherwise `ErrTemporarilyNotAvailable`, then `ErrPermanentlyNotAvailable` | no; lagging candidates stay unselectable |
+
+   *Recommendation:* no client falls back to liveness alone, so the proposal in 1 has no precedent.
+   Keep it anyway, for the reason given there: once the active region is gone, the survivor's lag
+   check probably fails *because* the region is gone, and go-redis's rule would then refuse the
+   failover (*inferred* from its code and our paused-sync measurement, not tested). This is worth
+   measuring before it is built: isolate one member's region and read the survivor's lag check. It
+   needs `network_failure` or similar, which needs the same care `network_latency` taught.
