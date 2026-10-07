@@ -2,3 +2,6 @@
 StackExchange.Redis.ConfigurationOptions.SharedSubscriptionConnection.get -> bool
 StackExchange.Redis.ConfigurationOptions.SharedSubscriptionConnection.set -> void
 virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SharedSubscriptionConnection.get -> bool
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode

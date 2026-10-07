@@ -368,7 +368,6 @@ namespace StackExchange.Redis.Configuration
         /// <c>CLIENT</c> subcommand is not guaranteed to be answered as politely as a server would. A provider
         /// that recognizes a deployment which supports the feature should override this.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public virtual MaintenanceNotificationMode MaintenanceNotifications => MaintenanceNotificationMode.Disabled;
 
         /// <summary>
@@ -387,14 +386,12 @@ namespace StackExchange.Redis.Configuration
         /// fall back to a bare opt-in; nothing observed so far needs it.
         /// </para>
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public virtual MaintenanceEndpointType MaintenanceMovingEndpointType => MaintenanceEndpointType.Auto;
 
         /// <summary>
         /// Gets the value command timeouts are relaxed to during an announced disruption; 10 seconds, as the
         /// notification contract prescribes.
         /// </summary>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public virtual TimeSpan MaintenanceRelaxedTimeout => TimeSpan.FromSeconds(10);
 
         /// <summary>
@@ -408,7 +405,6 @@ namespace StackExchange.Redis.Configuration
         /// there is ample room for a legitimate window while a stuck one is bounded to half a minute. Return a
         /// value here to pin it regardless of the relaxed timeout.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public virtual TimeSpan? MaintenanceRelaxedWindowMax => null;
 
         /// <summary>
@@ -426,7 +422,6 @@ namespace StackExchange.Redis.Configuration
         /// to <see cref="TimeSpan.Zero"/> for that behaviour.
         /// </para>
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public virtual TimeSpan? MaintenancePostEventRelaxedDuration => null;
 
         /// <summary>

@@ -12,7 +12,6 @@ namespace StackExchange.Redis.Maintenance;
 /// <see cref="SlotMigrated"/>). Unrecognized types are dropped rather than surfaced, so no member here means
 /// "something we didn't understand".
 /// </remarks>
-[Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
 public enum MaintenanceNotificationType
 {
     /// <summary>

@@ -21,7 +21,6 @@ namespace StackExchange.Redis;
 /// connecting with TLS.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
 public enum MaintenanceEndpointType
 {
     /// <summary>

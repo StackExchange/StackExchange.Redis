@@ -13,8 +13,6 @@ If you are a Redis vendor and want to integrate support for ServerMaintenanceEve
 
 # Server-native maintenance notifications (Redis Enterprise and Redis Cloud)
 
-> These APIs are experimental, behind diagnostic id `SER010`; see [SER010](exp/SER010.md).
-
 Redis Enterprise and Redis Cloud can tell a client *directly* that a disruption is coming: a shard is migrating, a node is failing over, or the endpoint you are connected to is being replaced. These arrive as RESP3 push frames on the connection itself, and the client does not merely report them: it relaxes timeouts for the duration, re-reads the cluster topology when slots have moved, recovers sharded subscriptions that were stranded, and moves off an endpoint that is going away rather than waiting to be disconnected.
 
 ### What this feature is called
@@ -29,33 +27,28 @@ Server-side you may also see it discussed as *maintenance mode*, *shard migratio
 
 ## Do I need to configure anything?
 
-**Yes — for now.** In this release maintenance notifications are **purely opt-in**: nothing turns them on for you, whatever you connect to. You get them only by asking, with `maintNotifications=Auto` (or `Enabled`).
+Usually not. If you connect using the hostname your provider gave you, the matching options provider recognizes it and turns the feature on for you by default.
 
-> **This is temporary.** The intent is that the options providers enlist you automatically, so that connecting to a recognized Redis Cloud or Azure Managed Redis hostname turns the feature on without any configuration — exactly as the table below describes. That is held back only until the feature has been through formal acceptance testing, and is expected to land in a follow-up release. Until then, treat the "will be" column as a statement of direction, not of current behaviour.
+| You connect to | Recognized as | Notifications |
+|---|---|---|
+| `something.cloud.redislabs.com`, `.cloud.redis.io`, `.redislabs.com` | Redis Cloud | on (`Auto`) |
+| `something.redis.azure.net`, `.redisenterprise.cache.azure.net` | Azure Managed Redis | on (`Auto`) |
+| `defaults=enterprise`, `defaults=rediscloud`, `defaults=amr` | named explicitly | on (`Auto`) |
+| your own hostname, a CNAME, private DNS, or through a proxy | nothing | **off** |
+| a self-managed Redis Enterprise cluster | nothing (there is no DNS pattern to recognize) | **off** |
 
-| You connect to | Recognized as | Notifications now | Will be |
-|---|---|---|---|
-| `something.cloud.redislabs.com`, `.cloud.redis.io`, `.redislabs.com` | Redis Cloud | **off** unless asked | on (`Auto`) |
-| `something.redis.azure.net`, `.redisenterprise.cache.azure.net` | Azure Managed Redis | **off** unless asked | on (`Auto`) |
-| `defaults=enterprise`, `defaults=rediscloud`, `defaults=amr` | named explicitly | **off** unless asked | on (`Auto`) |
-| your own hostname, a CNAME, private DNS, or through a proxy | nothing | **off** | **off** |
-| a self-managed Redis Enterprise cluster | nothing (there is no DNS pattern to recognize) | **off** | **off** |
-
-Nothing fails when the feature is off: the connection works normally and you simply never receive a notification. So to use it today, ask for it explicitly. Either:
+The last two rows are the ones to know about, because nothing fails: the connection works normally and you simply never receive a notification. If your endpoint does not look like your provider's, say so explicitly. Either:
 
 ```csharp
-// change nothing except this feature
+// the whole deployment posture: prefer RESP3, skip the OSS config-broadcast channel, and ask for notifications
+var options = ConfigurationOptions.Parse("my-redis.internal.example.com:6379,defaults=enterprise");
+```
+
+or, to change nothing except this feature:
+
+```csharp
 var options = ConfigurationOptions.Parse("my-redis.internal.example.com:6379,maintNotifications=Auto");
 ```
-
-or, to take the whole deployment posture as well - prefer RESP3 and skip the OSS config-broadcast channel:
-
-```csharp
-var options = ConfigurationOptions.Parse(
-    "my-redis.internal.example.com:6379,defaults=enterprise,maintNotifications=Auto");
-```
-
-Note that `maintNotifications` is needed in *both* forms for now: while the feature is opt-in, naming a provider sets that provider's other defaults but does not turn notifications on. Once auto-enlistment lands, `defaults=enterprise` alone will be enough.
 
 `defaults=` accepts `rediscloud`, `enterprise`, `amr` and `azure`; see [Configuration](Configuration.md) for what each provider sets. It is also the right answer for a *hosted* deployment reached somewhere its own provider cannot see it, such as behind a CNAME or a private endpoint.
 
@@ -77,8 +70,8 @@ options.MaintenanceNotifications = MaintenanceNotificationMode.Auto;
 
 | Mode | Meaning |
 |---|---|
-| `Disabled` | never ask. **The default everywhere, for now** - see above |
-| `Auto` | ask, and carry on if the server says no. What the providers will select once auto-enlistment lands |
+| `Disabled` | never ask. The default unless a provider recognizes the endpoint - see above |
+| `Auto` | ask, and carry on if the server says no. What the Redis Cloud, Redis Enterprise and Azure Managed Redis providers select |
 | `Enabled` | **require** them: if the server will not deliver them, or the connection ends up on RESP2, the connection is **rejected** |
 
 `Auto` is the right choice almost always: asking costs one command during the handshake, and a server that accepts and then never sends anything costs nothing at all. `Enabled` exists for the case where running without advance warning is worse than not running: it turns a silent absence into a startup failure, which also makes it a useful way to prove the feature is live in a staging environment.
@@ -231,7 +224,7 @@ Alternatively set `MaintenanceNotifications = Enabled` in a test or staging envi
 
 So for now the connection succeeds *without* the feature and logs a warning saying so. Note this is the one case where `Enabled` does not reject the connection - it would otherwise be impossible to configure an explicit opt-in for a group at all. Expect this restriction to be lifted; if you are relying on maintenance notifications today, use a single-group connection.
 
-Redis Enterprise and Redis Cloud send them, subject to the feature being enabled on the cluster. Azure Managed Redis is configured to ask for them ahead of its own rollout, so the setting is harmless until their servers begin emitting. Redis Open Source, Valkey and other servers do not send them at all, and the setting is simply inert there: the opt-in is refused and the client carries on.
+Redis Enterprise and Redis Cloud send them, subject to the feature being enabled on the cluster. On Redis Enterprise there are *two* switches, and they are easy to conflate: a **cluster-level flag** decides whether the subcommand exists at all (`client_maint_notifications` for proxy-routed databases, `oss_cluster_client_maint_notifications` for `oss_cluster` ones), and the per-connection opt-in that `maintNotifications` controls asks one connection to receive them. With the flag off, `CLIENT MAINT_NOTIFICATIONS ON` is refused, which `Auto` absorbs silently and `Enabled` turns into a refused connection - so if `Enabled` rejects connections to a deployment you believe supports the feature, check the cluster flag before suspecting the client. Azure Managed Redis is configured to ask for them ahead of its own rollout, so the setting is harmless until their servers begin emitting. Redis Open Source, Valkey and other servers do not send them at all, and the setting is simply inert there: the opt-in is refused and the client carries on.
 
 # Azure Cache for Redis maintenance events (pub/sub)
 
