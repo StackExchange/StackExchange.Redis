@@ -44,9 +44,12 @@ Each has a default the work proceeds on until answered.
   `RunContinuationsAsynchronously`, which survives a reset: across lives (the inline continuation recycled the
   instance before the `finally` restored it) and within one (TrySetCanceledInline flipped it before claiming).
   12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
-- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`,
-  `RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeamWithADifferentScope` (`Injections` 2 not 1,
-  under full-suite load only; 5/5 in isolation - plausibly a reconnect re-sending the per-connection preamble).
+- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`.
+  (`RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeam...` was a startup race in the TEST, now
+  fixed: a pair sent while the post-connect drain holds the write slot goes sequential, which sends the
+  PREPARE without asking the gate; the connection-local gate rightly does not claim on being told, so the
+  next pair prepared again. Product behaviour is by design: at worst one redundant, idempotent PREPARE per
+  field-set per connection, only in that window.)
 
 ## Backlog (after the alpha)
 

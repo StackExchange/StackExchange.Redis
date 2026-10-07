@@ -79,12 +79,27 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
         internal int Injections;
         internal int Established;
 
+        // which connections were asked and told about, by server-side CLIENT ID - so a failure can say
+        // whether a second injection was a second socket or a second answer on the same one
+        private readonly System.Collections.Generic.List<string> _events = [];
+
+        internal string Describe()
+        {
+            lock (_events) return $"injections {Injections}, established {Established}: {string.Join("; ", _events)}";
+        }
+
+        private void Note(string what, IRespPreambleTarget connection)
+        {
+            lock (_events) _events.Add($"{what} client-id {(connection as RespClientConnection)?.ConnectionId}");
+        }
+
         internal readonly bool ClaimOnWrite;
 
         internal FieldSetGate(bool claimOnWrite) => ClaimOnWrite = claimOnWrite;
 
         public bool IsNeeded(IRespPreambleTarget connection)
         {
+            Note("asked", connection);
             if (!ClaimOnWrite) return Claimed(connection) ? false : Count();
             if (Claimed(connection)) return false;
             Claim(connection);
@@ -113,6 +128,7 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
         public void OnEstablished(IRespPreambleTarget connection)
         {
             Interlocked.Increment(ref Established);
+            Note("told", connection);
             if (!ClaimOnWrite) Claim(connection);
         }
     }
@@ -127,6 +143,15 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
         var prefix = Me();
         RedisKey k1 = prefix + ":1", k2 = prefix + ":2";
         await db.KeyDeleteAsync([k1, k2]);
+
+        // One more round trip before the probe. A command issued while the connection is still coming up is
+        // backlogged and written by the post-connect drain, and its reply can resume this method while that
+        // drain still holds the write slot. A pair sent in that window takes the sequential path, which
+        // sends the preamble without asking the gate (there is no settled connection to ask about) and
+        // only tells it afterwards - and a connection-local gate deliberately does not claim on being told.
+        // The next pair then prepares again: redundant and harmless, but two PREPAREs, which is not what this
+        // probe is measuring. By the time a second reply is back, the drain has long released the slot.
+        await ctx.PingAsync();
 
         var fieldSet = (RedisValue)(prefix + ":fs");
         var gate = new FieldSetGate(claimOnWrite: true);
@@ -152,13 +177,13 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
 
         // the point: the preamble went once, not once per command, and the second SET still worked - so the
         // gate's belief and the server's session state agree
-        Assert.Equal(1, gate.Injections);
+        Assert.True(gate.Injections == 1, gate.Describe());
 
         // and the confirm half of the contract really does run - this is the assertion an earlier draft of
         // this probe got wrong, by predicting OnEstablished was never called and "proving" it with a gate
         // that threw. It passed, which means the throw went somewhere unseen rather than that the call
         // never happened. Counting is the honest instrument; throwing on a background reply path is not.
-        Assert.Equal(1, gate.Established);
+        Assert.True(gate.Established == 1, gate.Describe());
         Assert.Equal("user0", await db.HashGetAsync(k1, "name"));
         Assert.Equal(30, (int)await db.HashGetAsync(k1, "age"));
         Assert.Equal("user1", await db.HashGetAsync(k2, "name"));
