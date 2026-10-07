@@ -118,6 +118,11 @@ Each has a default the work proceeds on until answered.
   most operations (266 B, plus request bytes) are allocated fresh. A larger or depth-adaptive pool (watch the 8-probe
   `TryTake`) would let the inline buffer stick and make the ArrayPool change pay.
 
+- **`MaintenanceOptInServerTests.SequenceIdsAdvanceAndCanBeRepeated` fails when its class runs alone** (5 of 5,
+  with and without the 2026-10-07 pool change; usually passes in the full suite): `SendShardNotification` reaches 0
+  connections where 1 opted in - the opt-in has not landed at the fake server when the notification is sent. A
+  test-ordering dependence; look at what `OptInAsync` awaits.
+
 - **Batch/transaction buffer packing**: write a batch's commands adjacently into one shared buffer, rather
   than one rented frame per command, and hand the transport one contiguous run. The abandoned v3-era RESPite
   spike implemented this fully (PR #2959, `marc/respite`, "WIP : RESPite overhaul" - still open but idle since 2026-08: `src/RESPite/RespBatch.cs`,
