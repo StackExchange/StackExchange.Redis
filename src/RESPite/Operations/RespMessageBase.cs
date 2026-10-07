@@ -68,6 +68,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     private ReadOnlyMemory<byte> _request;
     private object? _requestOwner;
     private int _requestRefCount;
+    private int _recycleWhenReleased; // see GetResult: the instance waits for its last request reference
 
     private const int
         Flag_Sent = 1 << 0,             // the request has been handed to a writer
@@ -308,7 +309,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// <param name="cancellationToken">Cancellation for this operation.</param>
     protected void SetRequest(ReadOnlyMemory<byte> request, object? owner, CancellationToken cancellationToken)
     {
-        Debug.Assert(_requestRefCount == 0, "the request is being set more than once");
+        Debug.Assert(_requestRefCount == 0, "the request is being set more than once - or a writer still holds the last life's");
         _diagnostics.OnCreated(); // per LIFE, not per instance: a recycled operation is a new command
 
         // Every life starts asynchronous, whatever the last one left behind. The two inline paths (a claimed sink,
@@ -411,7 +412,15 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             if (count == 0) return false;
             if (Interlocked.CompareExchange(ref _requestRefCount, count - 1, count) == count)
             {
-                if (count == 1) ReturnRequestBuffer();
+                if (count == 1)
+                {
+                    ReturnRequestBuffer();
+
+                    // the last reference of a life that has already been consumed: a writer that was still holding
+                    // its reservation when the result was taken, so the recycle waited for it (see GetResult)
+                    if (Interlocked.Exchange(ref _recycleWhenReleased, 0) != 0) OnRecyclable();
+                }
+
                 return true;
             }
         }
@@ -664,6 +673,13 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// </remarks>
     public TResponse GetResult(short token)
     {
+        // a stale or premature call fails WITHOUT touching this life: the reset below would otherwise destroy
+        // whichever life is current - release its request, drop its continuation, pool it a second time
+        if (token != _asyncCore.Version || _asyncCore.GetStatus(token) == ValueTaskSourceStatus.Pending)
+        {
+            return _asyncCore.GetResult(token); // throws: wrong version, or not yet complete
+        }
+
         var recyclable = IsRecyclable;
         try
         {
@@ -672,7 +688,40 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         finally
         {
             Reset();
-            if (recyclable) OnRecyclable();
+            if (recyclable) Recycle();
+        }
+    }
+
+    /// <summary>Hand the instance back to its pool - once nothing of this life still references it.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not while a writer holds a reservation.</b> A writer stages the bytes and then releases its reservation,
+    /// and between the two the reply can land and the result be taken - a preempted writer is all it needs. Pooled
+    /// at once, the instance could be rented for a new life whose <c>SetRequest</c> reset the count to one; the
+    /// writer's late release then took the NEW life's count to zero, nulled its request (returning a rented
+    /// buffer still in use), and a batch writing it skipped it as "already completed": an await that never
+    /// finished, once in ~40 batch benchmark runs. So whoever drops the last reference recycles: this, if the
+    /// writer is done; otherwise the writer, from its release.
+    /// </para>
+    /// <para>
+    /// After <see cref="Reset"/> completes, never during it, so a recycled instance is never one that is still
+    /// being cleared. The two sides are a fenced pair - this sets the flag then reads the count, the releaser
+    /// drops the count then exchanges the flag - so exactly one of them takes it.
+    /// </para>
+    /// </remarks>
+    private void Recycle()
+    {
+        // the common case: no writer left, and none can start - the version has moved, so a reservation fails
+        if (Volatile.Read(ref _requestRefCount) == 0)
+        {
+            OnRecyclable();
+            return;
+        }
+
+        Interlocked.Exchange(ref _recycleWhenReleased, 1);
+        if (Volatile.Read(ref _requestRefCount) == 0 && Interlocked.Exchange(ref _recycleWhenReleased, 0) != 0)
+        {
+            OnRecyclable();
         }
     }
 

@@ -70,6 +70,118 @@ public class RespConnectionTests
         }
     }
 
+    /// <summary>A transport that runs a callback once the bytes are staged, before the writer has let go of them.</summary>
+    private sealed class InterceptingTransport : DuplexTransport
+    {
+        private byte[] _out = new byte[1024];
+        private int _length;
+        private TransportReceiver? _receiver;
+
+        internal Action? OnWrite;
+
+        public override Memory<byte> GetMemory(int sizeHint = 0)
+        {
+            if (_length + Math.Max(sizeHint, 1) > _out.Length) Array.Resize(ref _out, _length + sizeHint + 1024);
+            return _out.AsMemory(_length);
+        }
+
+        public override void Advance(int count) => _length += count;
+
+        internal override void Write(ReadOnlySpan<byte> payload)
+        {
+            base.Write(payload);
+            OnWrite?.Invoke();
+        }
+
+        public override bool Flush() => true;
+
+        public override void Start(TransportReceiver receiver) => _receiver = receiver;
+
+        internal void Receive(string text) => _receiver!.OnReceived(Encoding.UTF8.GetBytes(text));
+
+        public override ValueTask DisposeAsync() => default;
+    }
+
+    /// <summary>Counts how often it is handed back for reuse.</summary>
+    private sealed class RecyclingMessage : RespMessageBase<string?>
+    {
+        internal int Recycled;
+
+        protected override string? Parse(ref RespReader reader)
+            => reader.TryGetSpan(out var span) ? Encoding.UTF8.GetString(span.ToArray()) : null;
+
+        protected override void OnRecyclable() => Recycled++;
+
+        /// <summary>Begin a new life, as a pooled operation does when it is rented again.</summary>
+        internal void Rearm(string command) => SetRequest(Encoding.UTF8.GetBytes(command), null, default);
+
+        internal static RecyclingMessage For(string command)
+        {
+            var message = new RecyclingMessage();
+            message.SetRequest(Encoding.UTF8.GetBytes(command), null, default);
+            return message;
+        }
+    }
+
+    [Fact]
+    public void AnOperationIsNotRecycledWhileItsWriterStillHoldsTheRequest()
+    {
+        // the writer is preempted after staging the bytes and before releasing its reservation; meanwhile the
+        // reply lands and the result is taken. Recycled then, the instance could be rented for a new life whose
+        // request the writer's late release would drop - and a batch would skip that command as "already
+        // completed": an await that never finished, seen once in ~40 batch benchmark runs.
+        var transport = new InterceptingTransport();
+        var connection = new RespConnection(transport);
+        var message = RecyclingMessage.For("*1\r\n$4\r\nPING\r\n");
+        transport.OnWrite = () =>
+        {
+            transport.OnWrite = null;
+            transport.Receive("+PONG\r\n");
+            Assert.Equal("PONG", message.GetResult(message.Token)); // this life is over...
+            Assert.Equal(0, message.Recycled); // ...but the writer has not let go of it yet
+        };
+
+        Assert.True(connection.Send(message));
+        Assert.Equal(1, message.Recycled); // the writer's release was the last reference, so it recycled
+    }
+
+    [Fact]
+    public void AStaleGetResultLeavesTheCurrentLifeAlone()
+    {
+        // GetResult reset the instance in a finally, even when the token was stale and the core threw - so one
+        // stray call destroyed whichever life was current: its request released, its continuation dropped
+        var transport = new InterceptingTransport();
+        var connection = new RespConnection(transport);
+        var message = RecyclingMessage.For("*1\r\n$4\r\nPING\r\n");
+        Assert.True(connection.Send(message));
+        transport.Receive("+PONG\r\n");
+        var stale = message.Token;
+        Assert.Equal("PONG", message.GetResult(stale));
+
+        message.Rearm("*1\r\n$4\r\nTIME\r\n");
+        var current = message.Token;
+        Assert.Throws<InvalidOperationException>(() => message.GetResult(stale));
+        Assert.Throws<InvalidOperationException>(() => message.GetResult(current)); // premature: also no reset
+
+        Assert.Equal(current, message.Token);
+        Assert.True(message.TryReserveRequest(current, out var payload, recordSent: false));
+        Assert.Equal("*1\r\n$4\r\nTIME\r\n", Encoding.UTF8.GetString(payload.ToArray()));
+        message.ReleaseRequest();
+    }
+
+    [Fact]
+    public void AnOperationWithNoWriterLeftIsRecycledWhenItsResultIsTaken()
+    {
+        var transport = new InterceptingTransport();
+        var connection = new RespConnection(transport);
+        var message = RecyclingMessage.For("*1\r\n$4\r\nPING\r\n");
+
+        Assert.True(connection.Send(message));
+        transport.Receive("+PONG\r\n");
+        Assert.Equal("PONG", message.GetResult(message.Token));
+        Assert.Equal(1, message.Recycled);
+    }
+
     private static (RespConnection Connection, FakeTransport Transport) Connect()
     {
         var transport = new FakeTransport();
