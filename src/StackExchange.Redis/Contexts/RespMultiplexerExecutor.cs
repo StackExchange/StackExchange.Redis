@@ -319,8 +319,15 @@ namespace StackExchange.Redis
                 return new ValueTask<TResult>(Task.FromException<TResult>(ex));
             }
 
+            // the router says it copies (so it may be handed a borrowed view); a target that does not copy is
+            // given an owned request instead, made here while the caller's frame is still alive
+            if (!target.CopiesRequestOnSend) request = request.ToOwned();
             return target.SendTypedAsync(request, handler, cancellationToken);
         }
+
+        /// <inheritdoc/>
+        /// <remarks>Always, because <see cref="SendTypedAsync{TResult}"/> makes the request owned for any target that does not.</remarks>
+        internal override bool CopiesRequestOnSend => true;
 
         /// <summary>Pick the endpoint for one command.</summary>
         /// <param name="request">The rendered request, carrying its combined slot.</param>

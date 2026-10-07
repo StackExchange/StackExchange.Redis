@@ -52,6 +52,7 @@ Each has a default the work proceeds on until answered.
 - **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`;
   `RedisBatchTests.AWatchConflictIsDistinctFromAFailedCondition` timed out once (fake transport) on a
   heavily loaded machine, 20/20 since.
+  `MultiGroupTests.BasicMultiGroupTests.PubSubOrderedRouted` (RESP3) failed once in a full run, 20/20 isolated.
   (`RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeam...` was a startup race in the TEST, now
   fixed: a pair sent while the post-connect drain holds the write slot goes sequential, which sends the
   PREPARE without asking the gate; the connection-local gate rightly does not claim on being told, so the

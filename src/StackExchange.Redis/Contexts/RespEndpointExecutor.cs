@@ -575,6 +575,10 @@ namespace StackExchange.Redis
             RespRequest request, IRespHandler<TResult> handler, CancellationToken cancellationToken)
             => SendTypedAsync(request, handler, Database, cancellationToken);
 
+        /// <inheritdoc/>
+        /// <remarks>Dispatch attaches the request to the operation, which copies or shares it before returning.</remarks>
+        internal override bool CopiesRequestOnSend => true;
+
         /// <summary>Send for a database that may not be this executor's own, completing with the parsed reply.</summary>
         /// <typeparam name="TResult">What the handler makes of the reply.</typeparam>
         /// <param name="request">The rendered request; consumed by this call on every path.</param>

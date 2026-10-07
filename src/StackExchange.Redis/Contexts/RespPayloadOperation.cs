@@ -482,9 +482,46 @@ namespace StackExchange.Redis
         /// </remarks>
         protected override void OnRecyclable() => Return(this);
 
-        /// <summary>Attach a rendered request, sharing its buffer where it owns one rather than copying it.</summary>
+        /// <summary>The operation's own request buffer, kept across pooled lives; see <see cref="Attach(in RespRequest, CancellationToken)"/>.</summary>
+        private byte[]? _requestBuffer;
+
+        /// <summary>Requests up to this size are copied into the operation; larger ones share the caller's buffer.</summary>
+        private const int InlineRequestLimit = 512;
+
+        /// <summary>Attach a rendered request: copied into the operation's own buffer when small, shared when large.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Small requests are copied, and that is the cheap option.</b> A request has to outlive its send - a
+        /// redirect resends it - so whatever holds the bytes lives until the reply. Holding them in the caller's
+        /// rented array meant one more object per command (the lease), and an array rented on the caller's
+        /// thread but returned on whichever thread completed the reply, which defeats the shared pool's
+        /// per-thread cache. Copying a typical 30-100 byte command into a buffer the operation keeps across
+        /// its pooled lives costs a memcpy, and lets the caller return its array at once, on its own thread.
+        /// </para>
+        /// <para>
+        /// <b>So the request may be borrowed.</b> Nothing of it is kept past this call on the small path, which
+        /// is what lets an executor that copies synchronously (<see cref="RespExecutorBase.CopiesRequestOnSend"/>)
+        /// be handed a view of the caller's frame instead of a lease. Large requests keep sharing, so a big value
+        /// is neither copied nor retained by a pooled operation; a borrowed large one is copied into a rented array.
+        /// </para>
+        /// </remarks>
         internal void Attach(in RespRequest request, CancellationToken cancellationToken)
         {
+            var span = request.Span;
+            if (span.Length <= InlineRequestLimit)
+            {
+                var buffer = _requestBuffer;
+                if (buffer is null || buffer.Length < span.Length)
+                {
+                    _requestBuffer = buffer = new byte[(span.Length + 63) & ~63];
+                }
+
+                span.CopyTo(buffer);
+                _flags = request.Flags;
+                SetRequest(new ReadOnlyMemory<byte>(buffer, 0, span.Length), owner: null, cancellationToken);
+                return;
+            }
+
             if (request.TryShare(out var memory, out var owner))
             {
                 _flags = request.Flags;

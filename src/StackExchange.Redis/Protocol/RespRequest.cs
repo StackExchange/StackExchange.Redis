@@ -123,6 +123,20 @@ namespace StackExchange.Redis.Protocol
         /// </remarks>
         public bool IsOwned => _lease is not null;
 
+        /// <summary>This request if it owns its bytes; otherwise an owned copy (a lease over a rented array).</summary>
+        /// <returns>A request that may outlive the frame a borrowed one was viewing.</returns>
+        /// <remarks>For a borrowed view handed to something that turns out to hold it past the call.</remarks>
+        internal RespRequest ToOwned()
+        {
+            if (_lease is not null) return this;
+
+            var span = Span;
+            var array = ArrayPool<byte>.Shared.Rent(Math.Max(span.Length, 1));
+            span.CopyTo(array);
+            return new RespRequest(
+                array, RefCountedBuffer.Adopt(array, array.Length), 0, span.Length, _keyMarks, Slot, ArgCount, Flags, Command, Database);
+        }
+
         /// <summary>Take a reference of our own on these bytes, rather than copying them.</summary>
         /// <param name="memory">The request bytes, valid until <paramref name="owner"/> is disposed.</param>
         /// <param name="owner">Disposing it releases the reference taken here, once.</param>

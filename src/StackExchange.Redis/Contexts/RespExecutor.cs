@@ -92,6 +92,17 @@ namespace StackExchange.Redis
             RespRequest request, IRespHandler<TResult> handler, CancellationToken cancellationToken)
             => RespExecutor.AwaitUncached(this, request, handler, cancellationToken);
 
+        /// <summary>
+        /// Whether <see cref="SendTypedAsync{TResult}"/> has finished with the request's bytes when it returns,
+        /// so it may be handed a BORROWED view of the caller's frame rather than a lease.
+        /// </summary>
+        /// <remarks>
+        /// True only where the operation copies the request during the call (see
+        /// <c>RespPayloadOperation.Attach</c>). The default holds the request across an await, and anything
+        /// that queues before sending - a batch, a transaction, retry - may read it later, so it is false.
+        /// </remarks>
+        internal virtual bool CopiesRequestOnSend => false;
+
         /// <summary>Whether this executor can honour a <see cref="CancellationToken"/> once a command is sent.</summary>
         /// <remarks>
         /// <para>
@@ -1112,6 +1123,21 @@ namespace StackExchange.Redis
                 if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
                 {
                     return AwaitFill(executor, fill, handler, cache, cancellationToken);
+                }
+            }
+
+            // An executor that copies the bytes during the call is handed a view of the frame, and the frame's
+            // array goes back to the pool here, on the thread that rented it: no lease, and nothing of the
+            // caller's kept for the round trip. Everything else gets the lease, as before.
+            if (executor.CopiesRequestOnSend && typeof(TResult) != typeof(RespPayload))
+            {
+                try
+                {
+                    return executor.SendTypedAsync(request.AsLookupKey(flags), handler, cancellationToken);
+                }
+                finally
+                {
+                    request.Dispose();
                 }
             }
 
