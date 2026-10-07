@@ -46,6 +46,7 @@ namespace StackExchange.Redis
         private List<Action<bool>?>? _verdicts;
         private bool _sent;
         private bool _watchConflict;
+        private readonly bool _reusable;
 
         /// <summary>Create a transaction over an executor.</summary>
         /// <param name="inner">The executor the transaction ultimately sends through.</param>
@@ -54,10 +55,16 @@ namespace StackExchange.Redis
         /// already rendered - so it defaults to a bare one, and a transaction with no conditions never
         /// touches it.
         /// </param>
-        internal RespTransactionExecutor(RespExecutorBase inner, RespContext? context = null)
+        /// <param name="reusable">
+        /// Whether executing leaves the transaction open for another. The shipped <see cref="ITransaction"/>
+        /// always was - commands and conditions added after <c>Execute</c> went into a fresh queue - so the
+        /// adapter over it asks for this; the SER014 <see cref="RespTransaction"/> does not.
+        /// </param>
+        internal RespTransactionExecutor(RespExecutorBase inner, RespContext? context = null, bool reusable = false)
         {
             _inner = inner ?? throw new ArgumentNullException(nameof(inner));
             _context = context ?? new RespContext();
+            _reusable = reusable;
         }
 
         /// <inheritdoc/>
@@ -221,7 +228,10 @@ namespace StackExchange.Redis
                 _queue = null;
                 _conditions = null;
                 _verdicts = null;
-                _sent = true;
+                _sent = !_reusable; // reusable: what is queued from here on is the next transaction
+
+                // per execution: a reused transaction must not report the previous run's conflict
+                _watchConflict = false;
             }
 
             var empty = queue is null || queue.Count == 0;

@@ -18,6 +18,7 @@ Each has a default the work proceeds on until answered.
 | D4 | **Post the v4-port findings to PR #3251?** Drafted (spin-before-park +2.6% on `incr-conc64` in #3251's own reader; read-size hint is a hypothesis; drain-per-wake does not pay). Outward-facing. | not posted |
 | D5 | **SER014 batch/transaction, unsettled parts:** conditions borrow the shipped `Condition` type (new spelling later?); whether `RespBatch`/`RespTransaction` stay structs. | as shipped in 2ca83a9d |
 | D6 | **Duplicate event ids, shipped in 3.x:** 116 (`RegisteringSlotMapNode` and `RequestingMaintenanceNotifications`) and 117 (`ActivatingUndialledServer` and `MaintenanceNotificationsAccepted`) each name two events. Renumbering one of each pair changes an id someone may filter on; leaving them leaves the ambiguity. | left as shipped |
+| D7 | **RESP3 subscriptions on the interactive connection.** Under RESP3, v4 subscribes (at minimum the config channel) on the interactive connection. Redis classes ANY connection with a subscription as pubsub (`flags=P`, whatever the RESP version) and gives it the pubsub output-buffer limit - default `32mb 8mb 60` - instead of normal's unlimited. So a deep pipeline or slow consumer gets the main connection killed: reproduced with 50 callers x 1000 `LRANGE 0 99` (10k of 50k, then closed; with `ConfigurationChannel = ""`, 50k/50k in 0.3 s). The limit is server-side only (`CONFIG SET`, global, usually blocked on managed services). Options: (a) subscriptions always on their own connection, as RESP2 - gives up the "halves the connections" RESP3 pitch in `docs/Resp3.md`; (b) keep sharing, document, and default the config channel off; (c) share only when the user opts in. | benchmark sets `ConfigurationChannel = ""` meanwhile |
 
 ## Pending work (no decision needed)
 
@@ -26,6 +27,10 @@ Each has a default the work proceeds on until answered.
   cluster connects stalled together). Suspected lost wake-up, fixed speculatively in d45eadf7 (announce
   "connected" only after the connection is published); not reproduced locally. Tests now print the connection
   log, with thread-pool stats, for any connect that uses half its timeout - read it if it recurs.
+- **A server-side close is silent.** When Redis closed the interactive connection for the output-buffer limit
+  (D7), nothing was logged and no `ConnectionFailed` fired; every pending command failed "The connection is
+  closed." Check what the transport reports on a peer close, that it raises the event and the reconnect
+  path, and that the failure says WHY (the server's reason is in its log, not on the wire).
 - **Absorb `main` by merging**, little and often; resolve each conflict by re-expressing the change in v4
   terms and say how in the merge message. Drift check: `git rev-list --count v4..origin/main`. The final
   landing on `main` must be a real merge, never a squash.
@@ -44,7 +49,9 @@ Each has a default the work proceeds on until answered.
   `RunContinuationsAsynchronously`, which survives a reset: across lives (the inline continuation recycled the
   instance before the `finally` restored it) and within one (TrySetCanceledInline flipped it before claiming).
   12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
-- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`.
+- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`;
+  `RedisBatchTests.AWatchConflictIsDistinctFromAFailedCondition` timed out once (fake transport) on a
+  heavily loaded machine, 20/20 since.
   (`RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeam...` was a startup race in the TEST, now
   fixed: a pair sent while the post-connect drain holds the write slot goes sequential, which sends the
   PREPARE without asking the gate; the connection-local gate rightly does not claim on being told, so the

@@ -33,7 +33,6 @@ namespace StackExchange.Redis
         private protected sealed override DatabaseFeatureFlags OwnFeatures => DatabaseFeatureFlags.Transaction;
 
         private readonly RespTransactionExecutor _executor;
-        private readonly List<ConditionResult> _conditions = [];
 
         private RedisTransaction(
             RespDatabaseContext queueing,
@@ -50,7 +49,7 @@ namespace StackExchange.Redis
             var inner = raw.Executor ?? throw new InvalidOperationException(
                 "This context has no executor, so there is nothing to run a transaction through.");
 
-            var executor = new RespTransactionExecutor(inner, raw);
+            var executor = new RespTransactionExecutor(inner, raw, reusable: true); // as the shipped ITransaction
             return new RedisTransaction(new RespDatabaseContext(raw.WithExecutor(executor)), executor, multiplexer, asyncState);
         }
 
@@ -66,7 +65,6 @@ namespace StackExchange.Redis
             condition.CheckCommands(Context.Raw.CommandMap);
 
             var result = new ConditionResult(condition);
-            _conditions.Add(result);
             _executor.AddCondition(condition, result.SetSatisfied);
             return result;
         }

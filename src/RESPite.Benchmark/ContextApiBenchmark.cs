@@ -69,7 +69,9 @@ public sealed class ContextApiBenchmark : BenchmarkBase<ContextApiBenchmark.Targ
         _connections = new ConnectionMultiplexer[connectionCount];
         for (var i = 0; i < connectionCount; i++)
         {
-            _connections[i] = ConnectionMultiplexer.Connect($"{HostName}:{Port}");
+            var options = ConfigurationOptions.Parse($"{HostName}:{Port}");
+            options.ConfigurationChannel = ""; // see DatabaseApiBenchmark.Create
+            _connections[i] = ConnectionMultiplexer.Connect(options);
         }
 
         _clients = new Target[ClientCount];

@@ -33,10 +33,21 @@ namespace StackExchange.Redis
         private readonly object _sync = new();
         private List<RespPayloadOperation>? _queue;
         private bool _sent;
+        private readonly bool _reusable;
 
-        internal RespOperationBatchExecutor(RespExecutorBase inner)
+        /// <summary>Create a batch over an executor.</summary>
+        /// <param name="inner">The executor the accumulated run is sent through.</param>
+        /// <param name="reusable">
+        /// Whether executing leaves the batch open for more. The shipped <see cref="IBatch"/> always was:
+        /// <c>Execute</c> took what was pending and anything queued afterwards went into the next run, so
+        /// code that holds one batch and executes it repeatedly is legitimate and must keep working. The
+        /// SER014 <see cref="RespBatch"/> is execute-or-discard, and copies of it share this queue, so it
+        /// stays one-shot.
+        /// </param>
+        internal RespOperationBatchExecutor(RespExecutorBase inner, bool reusable = false)
         {
             _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            _reusable = reusable;
         }
 
         /// <inheritdoc/>
@@ -185,7 +196,7 @@ namespace StackExchange.Redis
             {
                 queue = _queue;
                 _queue = null;
-                _sent = true;
+                _sent = !_reusable; // reusable: what is queued from here on is the next run
             }
 
             if (queue is null || queue.Count == 0) return;

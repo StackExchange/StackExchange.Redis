@@ -7,6 +7,36 @@ namespace StackExchange.Redis.Tests;
 [RunPerProtocol]
 public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
+    /// <summary>
+    /// As for a batch: executing a transaction leaves it open, and the commands and conditions added
+    /// afterwards make up the next one - each run judged on its own conditions, none carried over.
+    /// </summary>
+    [Fact]
+    public async Task ATransactionCanBeExecutedAgain()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+
+        var tran = db.CreateTransaction();
+        tran.AddCondition(Condition.KeyNotExists(key));
+        _ = tran.StringSetAsync(key, "first");
+        Assert.True(await tran.ExecuteAsync());
+
+        // the same condition now fails, so this run must not apply
+        var failed = tran.AddCondition(Condition.KeyNotExists(key));
+        _ = tran.StringSetAsync(key, "second");
+        Assert.False(await tran.ExecuteAsync());
+        Assert.False(failed.WasSatisfied);
+        Assert.Equal("first", await db.StringGetAsync(key));
+
+        // no condition this time: the failed one above belonged to the previous run, not to this one
+        _ = tran.StringSetAsync(key, "third");
+        Assert.True(await tran.ExecuteAsync());
+        Assert.Equal("third", await db.StringGetAsync(key));
+    }
+
     [Fact]
     public async Task BasicEmptyTran()
     {

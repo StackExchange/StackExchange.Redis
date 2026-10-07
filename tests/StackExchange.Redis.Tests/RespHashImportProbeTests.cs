@@ -90,20 +90,40 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
 
         private void Note(string what, IRespPreambleTarget connection)
         {
-            lock (_events) _events.Add($"{what} client-id {(connection as RespClientConnection)?.ConnectionId}");
+            lock (_events) _events.Add($"{what} client-id {(connection as RespClientConnection)?.ConnectionId} thread {Environment.CurrentManagedThreadId} inside {Volatile.Read(ref _inside)}");
         }
 
         internal readonly bool ClaimOnWrite;
 
         internal FieldSetGate(bool claimOnWrite) => ClaimOnWrite = claimOnWrite;
 
+        // how many IsNeeded calls are in progress: the library promises to ask inside the connection's write
+        // lock, so for one connection this should never be seen above 1
+        private int _inside;
+
         public bool IsNeeded(IRespPreambleTarget connection)
         {
-            Note("asked", connection);
-            if (!ClaimOnWrite) return Claimed(connection) ? false : Count();
-            if (Claimed(connection)) return false;
-            Claim(connection);
-            return Count();
+            Interlocked.Increment(ref _inside);
+            try
+            {
+                Note("asked", connection);
+                if (!ClaimOnWrite) return Claimed(connection) ? false : Count();
+                return TryClaim(connection) && Count(); // check-and-claim as one step, whatever the caller promises
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _inside);
+            }
+        }
+
+        private bool TryClaim(IRespPreambleTarget connection)
+        {
+            lock (_prepared)
+            {
+                if (_prepared.TryGetValue(connection, out _)) return false;
+                _prepared.Add(connection, Marker);
+                return true;
+            }
         }
 
         private bool Count()
@@ -214,6 +234,7 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
         const int Burst = 8;
 
         var counts = new int[2];
+        string? claimOnWriteStory = null;
         for (var mode = 0; mode < 2; mode++)
         {
             var claimOnWrite = mode == 1;
@@ -247,12 +268,13 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
 
             Assert.All(await Task.WhenAll(pending), Assert.True);
             counts[mode] = gate.Injections;
+            if (claimOnWrite) claimOnWriteStory = gate.Describe();
             Log($"{(claimOnWrite ? "claim-on-write" : "confirm-on-reply")}: {gate.Injections} preamble(s) for {Burst} commands");
         }
 
         // Claim-on-write is the deterministic half, and the one worth asserting: the claim happens inside
         // the write lock, so however the eight tasks interleave, exactly one preamble goes out.
-        Assert.Equal(1, counts[1]);
+        Assert.True(counts[1] == 1, claimOnWriteStory);
 
         // Confirm-on-reply is NOT asserted, and that is a correction rather than an omission. An earlier
         // version asserted it injected more, which held every time in isolation (8 for 8) and then failed

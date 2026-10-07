@@ -44,7 +44,7 @@ namespace StackExchange.Redis
             var inner = raw.Executor ?? throw new InvalidOperationException(
                 "This context has no executor, so there is nothing to batch through.");
 
-            var executor = new RespOperationBatchExecutor(inner);
+            var executor = new RespOperationBatchExecutor(inner, reusable: true); // as the shipped IBatch: see the parameter
             return new RedisBatch(new RespDatabaseContext(raw.WithExecutor(executor)), executor, multiplexer, asyncState);
         }
 
