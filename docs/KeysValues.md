@@ -16,7 +16,7 @@ When using pub/sub, we are dealing with *channels*; channels do not affect routi
 Keys
 ---
 
-StackExchange.Redis represents keys by the `RedisKey` type. The good news, though, is that this has implicit conversions to and from both `string` and `byte[]`, allowing both text and binary keys to be used without any complication. For example, the `StringIncrement` method takes a `RedisKey` as the first parameter, but *you don't need to know that*; for example:
+StackExchange.Redis represents keys by the `RedisKey` type. The good news, though, is that this has implicit conversions to and from both `string` and `byte[]`, allowing both text and binary keys to be used without any complication. For example, `db.Strings.IncrementAsync` takes a `RedisKey` as the first parameter, but *you don't need to know that*; for example:
 
 ```csharp
 string key = ...
@@ -95,20 +95,30 @@ Scripting
 - the inputs must keep keys and values separate (which inside the script become `KEYS` and `ARGV`, respectively)
 - the return format is not defined in advance: it is specific to your script
 
-Because of this, the `ScriptEvaluate` method accepts two separate input arrays: one `RedisKey[]` for the keys, one `RedisValue[]` for the values (both are optional, and are assumed to be empty if omitted). This is probably one of the few times that you'll actually need to type `RedisKey` or `RedisValue` in your code, and that is just because of array variance rules:
+Because of this, `db.Scripts.EvaluateAsync` accepts two separate inputs: the keys, as a `ReadOnlySpan<RedisKey>`, and the values, as a `ReadOnlySpan<RedisValue>` (both are optional, and are assumed to be empty if omitted). A collection expression is the simplest way to supply them, and the conversions apply to each element as usual:
 
 ```csharp
-var result = db.ScriptEvaluate(TransferScript,
-    new RedisKey[] { from, to }, new RedisValue[] { quantity });
+using RespResult result = await db.Scripts.EvaluateAsync(TransferScript,
+    [from, to], [quantity]);
 ```
 
 (where `TransferScript` is some `string` containing Lua, not shown for this example)
 
-The response uses the `RedisResult` type (this is unique to scripting; usually the API tries to represent the response as directly and clearly as possible). As before, `RedisResult` offers a range of conversion operations - more, in fact than `RedisValue`, because in addition to being interpreted as text, binary, primitives and nullable-primitives, the response can *also* be interpreted as *arrays* of such, for example:
+The response is a `RespResult` (this is unique to scripting and ad-hoc commands; usually the API tries to represent the response as directly and clearly as possible): a leased view over the raw reply, which you dispose when done, and read according to what your script returns:
 
 ```csharp
-string[] items = db.ScriptEvaluate(...);
+RedisValue value = result.ReadScalar().ReadRedisValue();  // a single value
+RedisResult tree = result.Read().ReadRedisResult();       // or any shape, as a RedisResult
 ```
+
+The original `IDatabase.ScriptEvaluate` takes `RedisKey[]`/`RedisValue[]` arrays and returns a `RedisResult` directly, which offers a range of conversion operations - more, in fact than `RedisValue`, because in addition to being interpreted as text, binary, primitives and nullable-primitives, the response can *also* be interpreted as *arrays* of such, for example:
+
+```csharp
+string?[]? items = (string?[]?)db.ScriptEvaluate(TransferScript,
+    new RedisKey[] { from, to }, new RedisValue[] { quantity });
+```
+
+See [Scripting](Scripting) for reading a `RespResult` in detail.
 
 Conclusion
 ---

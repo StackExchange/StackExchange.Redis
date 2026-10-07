@@ -17,11 +17,11 @@ efficient than creating arrays - or even working with raw memory for example mem
 
 ### Adding Vectors
 
-Add vectors to a vector set using `VectorSetAddAsync`:
+Add vectors to a vector set using `db.VectorSets.AddAsync`:
 
 ```csharp
-var db = conn.GetDatabase();
-var key = "product-embeddings";
+IDatabase db = conn.GetDatabase();
+RedisKey key = "product-embeddings";
 
 // Create a vector (e.g., from an ML model)
 var vector = new[] { 0.1f, 0.2f, 0.3f, 0.4f };
@@ -47,7 +47,7 @@ await db.VectorSets.AddAsync(key, request);
 
 ### Similarity Search
 
-Find similar vectors using `VectorSetSimilaritySearchAsync`:
+Find similar vectors using `db.VectorSets.SimilaritySearchAsync`:
 
 ```csharp
 // Search by an existing member
@@ -58,7 +58,7 @@ query.WithScores = true;
 using var results = await db.VectorSets.SimilaritySearchAsync(key, query);
 if (results is not null)
 {
-    foreach (var result in results.Value.Results)
+    foreach (var result in results.Span)
     {
         Console.WriteLine($"Member: {result.Member}, Score: {result.Score}");
     }
@@ -124,7 +124,7 @@ bool removed = await db.VectorSets.RemoveAsync(key, "product-123");
 var member = await db.VectorSets.RandomMemberAsync(key);
 
 // Get multiple random members
-var members = await db.VectorSets.RandomMembersAsync(key, count: 5);
+using var members = await db.VectorSets.RandomMembersAsync(key, count: 5);
 ```
 
 ## Range Queries
@@ -159,10 +159,10 @@ using var members = await db.VectorSets.RangeAsync(
 
 ### Enumerating Large Result Sets
 
-For large vector sets, use enumeration to process results in batches:
+For large vector sets, use enumeration to process results in batches; `pageSize` is how many members are fetched per round trip:
 
 ```csharp
-await foreach (var member in db.VectorSetRangeEnumerateAsync(key, count: 100))
+await foreach (var member in db.VectorSets.RangeEnumerateAsync(key, pageSize: 100))
 {
     Console.WriteLine($"Processing: {member}");
 }
@@ -174,7 +174,7 @@ if you exit the loop early, the client and server will stop processing and sendi
 ```csharp
 using var cts = new CancellationTokenSource(); // cancellation not shown
 
-await foreach (var member in db.VectorSetRangeEnumerateAsync(key, count: 100)
+await foreach (var member in db.VectorSets.RangeEnumerateAsync(key, pageSize: 100)
     .WithCancellation(cts.Token))
 {
     // ...
@@ -225,7 +225,7 @@ var query = VectorSetSimilaritySearchRequest.ByVector(queryVector.AsMemory());
 query.SearchExplorationFactor = 500;  // Higher = more accurate, slower
 query.Epsilon = 0.1;                  // Only return similarity >= 0.9
 query.UseExactSearch = true;          // Use linear scan instead of HNSW
-await db.VectorSets.SimilaritySearchAsync(key, query);
+using var results = await db.VectorSets.SimilaritySearchAsync(key, query);
 ```
 
 ## Working with Vector Data
@@ -238,7 +238,7 @@ Get the approximate vector for a member:
 using var vectorLease = await db.VectorSets.GetApproximateVectorAsync(key, "product-123");
 if (vectorLease != null)
 {
-    ReadOnlySpan<float> vector = vectorLease.Value.Span;
+    ReadOnlySpan<float> vector = vectorLease.Span;
     // Use the vector data
 }
 ```
@@ -268,7 +268,7 @@ Inspect HNSW graph connections:
 using var links = await db.VectorSets.GetLinksAsync(key, "product-123");
 if (links != null)
 {
-    foreach (var link in links.Value.Span)
+    foreach (var link in links.Span)
     {
         Console.WriteLine($"Linked to: {link}");
     }
@@ -278,7 +278,7 @@ if (links != null)
 using var linksWithScores = await db.VectorSets.GetLinksWithScoresAsync(key, "product-123");
 if (linksWithScores != null)
 {
-    foreach (var link in linksWithScores.Value.Span)
+    foreach (var link in linksWithScores.Span)
     {
         Console.WriteLine($"Linked to: {link.Member}, Score: {link.Score}");
     }
@@ -287,7 +287,7 @@ if (linksWithScores != null)
 
 ## Memory Management
 
-Vector operations return `Lease<T>` for efficient memory pooling. Always dispose leases:
+Vector operations return `ReadOnlyLease<T>` - a window over the pooled reply buffer - rather than a fresh array. Always dispose leases:
 
 ```csharp
 // Using statement (recommended)
@@ -318,7 +318,7 @@ var tasks = new List<Task<bool>>();
 foreach (var (member, vector) in vectorData)
 {
     var request = VectorSetAddRequest.Member(member, vector.AsMemory());
-    tasks.Add(batch.VectorSets.AddAsync(key, request));
+    tasks.Add(batch.VectorSets.AddAsync(key, request).AsTask()); // ValueTask: convert to collect them
 }
 
 batch.Execute();
@@ -338,7 +338,7 @@ Prefer enumeration for large result sets to avoid loading everything into memory
 
 ```csharp
 // Good: loads results in batches, processes items individually
-await foreach (var member in db.VectorSetRangeEnumerateAsync(key))
+await foreach (var member in db.VectorSets.RangeEnumerateAsync(key))
 {
     await ProcessMemberAsync(member);
 }
@@ -347,7 +347,7 @@ await foreach (var member in db.VectorSetRangeEnumerateAsync(key))
 using var allMembers1 = await db.VectorSets.RangeAsync(key);
 
 // Avoid: loads results in batches, but still loads everything into memory at once
-var allMembers2 = await db.VectorSetRangeEnumerateAsync(key).ToArrayAsync();
+var allMembers2 = await db.VectorSets.RangeEnumerateAsync(key).ToArrayAsync();
 ```
 
 ## Common Patterns

@@ -3,9 +3,48 @@ Ad-hoc commands
 
 If you are *shipping a library* of such commands rather than calling one, see [Extending the client](Extending), which starts here and goes on to a surface of your own.
 
-`IDatabase.ExecuteResp(Async)` and `IDatabase.Execute(Async)` let you send a command that doesn't (yet) have a dedicated API - typically for a module, or a brand-new server feature the client hasn't caught up with. `ExecuteResp` is the modern, low-allocation-friendly overload; `Execute` is the original, `object[]`/`ICollection<object>`-based overload, kept for compatibility.
+Sometimes you need to send a command that doesn't (yet) have a dedicated API - typically for a module, or a brand-new server feature the client hasn't caught up with. For new code, write it as an interpolated string and send it through the database's context: `db.Context.SendAsync<T>($"...")`. The `IDatabase` forms are `ExecuteResp(Async)`, the low-allocation-friendly overload, and `Execute(Async)`, the original `object[]`/`ICollection<object>`-based overload; both are covered further down, and neither is going away.
 
 Basic use
+---
+
+```csharp
+using ConnectionMultiplexer conn = /* init code */;
+IDatabase db = conn.GetDatabase();
+
+RedisKey key = "mykey";
+RedisValue value = await db.Context.SendAsync<RedisValue>($"GET {key}");
+```
+
+The interpolated string is never built as a `string`: each hole is written straight into a pooled buffer as UTF-8, so there is no argument array and no boxing. Literal text between the holes is split on whitespace, and the first token is the command name. Known command names go through the command map (renaming and disabling) like any built-in command.
+
+`SendAsync` hangs off `db.Context` rather than `db` itself: the context is what carries the database number, any key prefix, and the connection, and it is the same thing the command groups (`db.Strings`, ...) are built on.
+
+**The type of each hole decides whether it is a key.** A `RedisKey` hole is a key - it takes part in cluster slot routing, takes the key prefix of a `WithKeyPrefix` database, and is what a client-side cache invalidates on. `RedisValue`, numbers, and the rest are values. The trap is a key held as a `string`: `$"{someString}"` binds as a *value*, so it must be written `(RedisKey)someString`, or it silently loses its prefix and its slot:
+
+```csharp
+string name = "mykey";
+await db.Context.SendAsync<RedisValue>($"GET {(RedisKey)name}"); // a key: routed and prefixed
+await db.Context.SendAsync<RedisValue>($"GET {name}");           // NOT a key: no slot, no prefix
+```
+
+On a single non-clustered server with no key prefix the two behave identically, which is exactly why the second one survives testing.
+
+Name the reply type you want - `RedisValue`, `long`, `bool`, `double`, `string`, `ReadOnlyLease<T>`, or `RespResult` for the raw reply (see [Reading the result](#reading-the-result) below, and dispose it). `CommandFlags` and a `CancellationToken` follow the string:
+
+```csharp
+using RespResult reply = await db.Context.SendAsync<RespResult>(
+    $"HGETALL {key}", CommandFlags.None, cancellationToken: cancellationToken);
+```
+
+Two things worth knowing before you use this on a hot path or behind a retry policy:
+
+- literal tokens are parsed and encoded on every call, and the analyzer says so ([SER309](rules/SER309)); for a command you send often, declare it once as a `RespCommand` and use it as a hole - see [Extending the client](Extending#the-interpolated-string-is-not-a-string)
+- the client has no retry category for a command it does not know, so it assumes the worst and will not replay it; if a replay is safe, say so with `CommandFlags.CommandRetryReadOnly` (or `flags.WithRetryCategory(...)`) - see [Extending the client](Extending#say-whether-your-command-can-be-retried)
+
+If you are building more than an occasional call - a set of module commands, say - [Extending the client](Extending) takes this same call and gives it a surface of its own.
+
+`ExecuteResp`: the `IDatabase` form
 ---
 
 `ExecuteResp` takes the command name and a single `ReadOnlyMemory<RedisKeyOrValue>` of arguments, in whatever order the command itself expects them - it's the command, not the API, that decides where keys fall in the argument list (unlike [`ScriptEvaluateResp`](Scripting), where Lua's `KEYS`/`ARGV` never interleave, an arbitrary command can place keys anywhere, so a single ordered collection is used rather than two separate ones). Wrap each argument as a key or a value to match what the command expects at that position:
@@ -26,7 +65,7 @@ The `new RedisKeyOrValue[]` above is fine for occasional use, but allocates on e
 Reading the result
 ---
 
-`ExecuteResp` returns a `RespResult` - a leased, undecoded view over the raw reply, backed by a pooled buffer rather than a fresh allocation per call. This is the more general form of the low-allocation pattern also used by [`ScriptEvaluateResp`](Scripting) - it's how you'd fetch a large blob value via an ad-hoc command without materializing a `RedisResult` wrapper on every call:
+`ExecuteResp` returns a `RespResult` (as does `SendAsync<RespResult>`) - a leased, undecoded view over the raw reply, backed by a pooled buffer rather than a fresh allocation per call. This is the more general form of the low-allocation pattern also used by [`ScriptEvaluateResp`](Scripting) - it's how you'd fetch a large blob value via an ad-hoc command without materializing a `RedisResult` wrapper on every call:
 
 ```csharp
 // note: see "Leasing the argument buffer" below
@@ -47,12 +86,12 @@ Test the shape of a reply with the category tests (`IsScalar`, `IsAggregate`, `I
 Measured effect
 ---
 
-For a single scalar (blob) reply, reading it via `ExecuteResp`/`ScriptEvaluateResp` + `ReadLease()`/`CopyTo()` instead of the classic `Execute`/`ScriptEvaluate` + `(byte[])result` measured at roughly **50-95% less client-side allocation per call**, scaling up with the size of the blob (the old path always allocates a fresh array sized to the payload; the new path reuses a pooled one).
+The interpolated form reads its reply the same way - name `RespResult` as the reply type - and needs no argument array at all. For a single scalar (blob) reply, reading it via `ExecuteResp`/`ScriptEvaluateResp` + `ReadLease()`/`CopyTo()` instead of the classic `Execute`/`ScriptEvaluate` + `(byte[])result` measured at roughly **50-95% less client-side allocation per call**, scaling up with the size of the blob (the old path always allocates a fresh array sized to the payload; the new path reuses a pooled one).
 
 Leasing the argument buffer
 ---
 
-The examples above allocate a fresh `RedisKeyOrValue[]` per call, which rather defeats the point of an API whose main selling point is low allocation. On a hot path, rent the array from `ArrayPool<RedisKeyOrValue>.Shared` instead - and you can return it as soon as the call returns:
+The interpolated form has no argument collection, so this section is about `ExecuteResp`. The examples above allocate a fresh `RedisKeyOrValue[]` per call, which rather defeats the point of an API whose main selling point is low allocation. On a hot path, rent the array from `ArrayPool<RedisKeyOrValue>.Shared` instead - and you can return it as soon as the call returns:
 
 ```csharp
 var args = ArrayPool<RedisKeyOrValue>.Shared.Rent(1); // usually larger!
@@ -114,4 +153,4 @@ This last gap is known, and is expected to close in a future update: the same wo
 The original `Execute`/`ExecuteAsync` overload
 ---
 
-`Execute(string command, params object[] args)` / `Execute(string command, ICollection<object> args, CommandFlags flags)` predate `RedisKeyOrValue` and `ExecuteResp`. They accept a loosely-typed bag of `object`s (each boxed to `RedisKey`/`RedisValue`/etc. internally) and always return a fully-materialized `RedisResult`. They still work and aren't going away, but for new code prefer `ExecuteResp`/`ExecuteRespAsync` - typed `RedisKeyOrValue` args, no boxing, and low-allocation on the read side.
+`Execute(string command, params object[] args)` / `Execute(string command, ICollection<object> args, CommandFlags flags)` predate `RedisKeyOrValue` and `ExecuteResp`. They accept a loosely-typed bag of `object`s (each boxed to `RedisKey`/`RedisValue`/etc. internally) and always return a fully-materialized `RedisResult`. They still work and aren't going away, but for new code prefer `db.Context.SendAsync<T>($"...")`, or `ExecuteResp`/`ExecuteRespAsync` where you need the `IDatabase` form - typed `RedisKeyOrValue` args, no boxing, and low-allocation on the read side.

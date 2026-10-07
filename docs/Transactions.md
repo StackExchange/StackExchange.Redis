@@ -70,7 +70,7 @@ mixed together with other callers. So our example becomes:
 var newId = CreateNewId();
 var tran = db.CreateTransaction();
 tran.AddCondition(Condition.HashNotExists(custKey, "UniqueID"));
-tran.Hashes.SetAsync(custKey, "UniqueID", newId);
+_ = tran.Hashes.SetAsync(custKey, "UniqueID", newId);
 bool committed = tran.Execute();
 // ^^^ if true: it was applied; if false: it was rolled back
 ```
@@ -78,6 +78,8 @@ bool committed = tran.Execute();
 Note that the object returned from `CreateTransaction` only has access to the *async* methods - because the result of
 each operation will not be known until after `Execute` (or `ExecuteAsync`) has completed. If the operations are not applied, all the `Task`s
 will be marked as cancelled - otherwise, *after* the command has executed you can fetch the results of each as normal.
+
+The transaction carries the same command groups as the database (`tran.Strings`, `tran.Hashes`, ...), so commands are queued with the same spelling you would use outside it. There is also an experimental `db.BeginTransaction()` / `db.BeginBatch()` pair, where execution is explicit and leaving a `using` scope discards rather than sends; it is gated behind [SER014](exp/SER014) while its shape settles, so `CreateTransaction()` remains the one to reach for.
 
 The set of available *conditions* is not extensive, but covers the most common scenarios; please contact me (or better: submit a pull-request) if
 there are additional conditions that you would like to see.
@@ -111,11 +113,12 @@ EVAL "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset
 This can be used in StackExchange.Redis via:
 
 ```csharp
-var wasSet = (bool) db.ScriptEvaluate(@"if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-        new RedisKey[] { custKey }, new RedisValue[] { newId });
+using RespResult result = await db.Scripts.EvaluateAsync(@"if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
+        [custKey], [newId]);
+bool wasSet = (bool)result.ReadScalar().ReadRedisValue();
 ```
 
-(note that the response from `ScriptEvaluate` and `ScriptEvaluateAsync` is variable depending on your exact script; the response can be interpreted by casting - in this case as a `bool`)
+(note that the response is variable depending on your exact script, so `EvaluateAsync` hands back a `RespResult` for you to read - here as a single value, converted to `bool`. The original `IDatabase.ScriptEvaluate`/`ScriptEvaluateAsync` return a `RedisResult` instead, interpreted by casting: `(bool)db.ScriptEvaluate(...)`. See [Scripting](Scripting).)
 
 Don't await inside the transaction
 ---

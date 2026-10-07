@@ -8,7 +8,7 @@ There are three levels, and they are not alternatives so much as a progression. 
 | | you write | you get | since |
 |---|---|---|---|
 | **1. Ad-hoc** | `db.ExecuteResp("JSON.GET", args)` | one call, raw reply | 3.2 |
-| **2. Ad-hoc, interpolated** | `db.SendAsync<RedisValue>($"JSON.GET {key} {path}")` | typed reply, nothing allocated | 4.0 |
+| **2. Ad-hoc, interpolated** | `db.Context.SendAsync<RedisValue>($"JSON.GET {key} {path}")` | typed reply, nothing allocated | 4.0 |
 | **3. Your own surface** | `db.Json().GetAsync(key, path)` | your API, no `object[]`, no per-call allocation | 4.0 |
 
 Level 3 is what the rest of this page is about, but start at level 1: if a command is used once, it does not need a surface - and level 1 works on 3.2, so a library that must support both majors has somewhere to stand.
@@ -62,7 +62,7 @@ command needs no argument collection at all - and the reply comes back typed rat
 `RespResult` you have to read yourself:
 
 ```csharp
-RedisValue value = await db.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}");
+RedisValue value = await db.Context.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}");
 ```
 
 Each hole is written straight into a pooled buffer as UTF-8; `key` is a `RedisKey` so it is marked as a
@@ -126,7 +126,7 @@ RedisValue value = await db.Contoso().SubstringAsync(key, 0, 4);
 
 The contexts, the targets and `SendAsync` are all in the `StackExchange.Redis` namespace, which your callers already have. The second `using` above is the other half of the split: `StackExchange.Redis.Protocol` holds the request- and reply-building types - `RespCommand`, `RespRequestFrame`, `RespFragment`, `IRespArgument`, and `RespHandlers`/`IRespHandler<T>` for a reply shape the defaults do not cover. You name those when you write a command, and never otherwise.
 
-That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which. It is also why level 2 needs nothing extra - `db.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}")` names no protocol type, because the interpolated string is lowered into one rather than written as one.
+That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which. It is also why level 2 needs nothing extra - `db.Context.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}")` names no protocol type, because the interpolated string is lowered into one rather than written as one.
 
 > On C# 14 either accessor can be an extension **property** (`extension(in RespDatabaseContext context) { public ContosoCommands Contoso => new((RespContext)context); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses. The classic form above compiles everywhere.
 >

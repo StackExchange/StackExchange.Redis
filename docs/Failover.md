@@ -221,7 +221,8 @@ var batch = db.CreateBatch();
 var b1 = batch.Strings.SetAsync("key1", "value1");
 var b2 = batch.Strings.SetAsync("key2", "value2");
 batch.Execute();
-await Task.WhenAll(b1, b2);
+await b1;
+await b2;
 ```
 
 ## Working with ISubscriber
@@ -650,7 +651,7 @@ Only *transient* faults are retried — the same `RedisErrorKind`-based classifi
 
 Retrying is not free of consequence: replaying `INCR` after an ambiguous failure could double-count, whereas replaying `GET` is harmless; `SET` is "last wins", so: *usally* fine. Every command therefore carries a **retry category** describing its side-effects, and a policy only retries commands at or below its `MaxCommandRetryCategory`.
 
-For the built-in typed methods (`StringGet`, `StringSet`, `HashSet`, ...) the library assigns the appropriate category automatically, so retries "just work" within the default policy.
+For the built-in typed methods (`db.Strings.GetAsync`, `db.Strings.SetAsync`, `db.Hashes.SetAsync`, ...) the library assigns the appropriate category automatically, so retries "just work" within the default policy.
 
 The category can depend on a command's *arguments*, not just its name, and the typed methods take that into account: a plain `SET` is an unconditional overwrite ("last wins"), whereas `SET ... IFEQ` (or `NX`/`XX`) is a conditional write, since a replay either has no effect or fails rather than replacing a value written by someone else. The same applies to the server commands that cover several distinct operations under one name, so `CONFIG GET` is not categorized as though it were `CONFIG SET`.
 
@@ -669,11 +670,11 @@ The category prices the *ambiguity* of a replay, not the write itself. If we kno
 
 An explicit `CommandRetryNever` is still an absolute veto, as is an operation with no category at all (see below): certainty about *whether* it ran does not tell us that re-running it is meaningful.
 
-### Custom commands: `Execute` and `ScriptEvaluate`
+### Custom commands: ad-hoc commands and scripts
 
-The library cannot infer the side-effects of a command it doesn't recognise — and that includes arbitrary commands issued via `Execute`/`ExecuteAsync`, and Lua run via `ScriptEvaluate`/`ScriptEvaluateAsync` (whose effect depends entirely on the script). Such commands are therefore treated **pessimistically**: an uncategorised command defaults to `CommandRetryNever` and is *not* retried.
+The library cannot infer the side-effects of a command it doesn't recognise — and that includes arbitrary commands issued via `db.Context.SendAsync<T>($"...")` or `Execute`/`ExecuteAsync`, and Lua run via `db.Scripts.EvaluateAsync` or `ScriptEvaluate`/`ScriptEvaluateAsync` (whose effect depends entirely on the script). Such commands are therefore treated **pessimistically**: an uncategorised command defaults to `CommandRetryNever` and is *not* retried.
 
-Note that `Execute`/`ExecuteAsync` do try to *parse* the command name first, so `Execute("get", key)` is recognised as `GET` and picks up that command's category (read-only) automatically; only genuinely unrecognised command names fall back to `CommandRetryNever`.
+Note that `Execute`/`ExecuteAsync` (and `SendAsync`) do try to *parse* the command name first, so `Execute("get", key)` is recognised as `GET` and picks up that command's category (read-only) automatically; only genuinely unrecognised command names fall back to `CommandRetryNever`.
 
 The categories, from safest to most dangerous, are:
 
@@ -693,14 +694,16 @@ When possible when using ad-hoc commands or script, callers should supply the mo
 
 ```csharp
 // an arbitrary read-only command: safe to retry
-var result = await db.ExecuteAsync("LOLWUT", args: [], flags: CommandFlags.CommandRetryReadOnly);
+using var result = await db.Context.SendAsync<RespResult>($"LOLWUT", CommandFlags.CommandRetryReadOnly);
 
 // a Lua script that only reads: opt into retries
-var value = await db.ScriptEvaluateAsync(
+using var value = await db.Scripts.EvaluateAsync(
     "return redis.call('GET', KEYS[1])",
-    keys: [key],
+    [key],
     flags: CommandFlags.CommandRetryReadOnly);
 ```
+
+(`db.Scripts.EvaluateReadOnlyAsync` sends `EVAL_RO`/`EVALSHA_RO`, which is categorised read-only already. On `IDatabase`, the same two calls are `db.ExecuteAsync("LOLWUT", args: [], flags: ...)` and `db.ScriptEvaluateAsync(script, keys: [key], flags: ...)`.)
 
 Choose the category honestly — it describes what a *replay* would do. If a retry could double-apply a side-effect, use `CommandRetryWriteAccumulating` (or leave it uncategorised) rather than claiming it's a read.
 Conversely, if you want more-side-effecting operations retried across the board, raise the policy's `MaxCommandRetryCategory` instead of tagging each call.
@@ -993,8 +996,8 @@ public class CustomWriteProbe : KeyWriteHealthCheckProbe
         try
         {
             var value = Guid.NewGuid().ToString();
-            await database.StringSetAsync(key, value, expiry: context.ProbeTimeout);
-            bool isMatch = value == await database.StringGetAsync(key);
+            await database.Strings.SetAsync(key, value, expiry: context.ProbeTimeout);
+            bool isMatch = value == await database.Strings.GetAsync(key);
 
             return isMatch ? HealthCheckResult.Healthy : HealthCheckResult.Unhealthy;
         }

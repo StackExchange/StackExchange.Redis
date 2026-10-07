@@ -163,7 +163,9 @@ var wasSet = await db.Strings.SetAsync(key, newValue, when: digestCondition);
 
 ## Lock Operations
 
-StackExchange.Redis automatically uses CAS/CAD for lock operations when Redis 8.4+ is available, providing better performance and atomicity:
+StackExchange.Redis automatically uses CAS/CAD for lock operations when Redis 8.4+ is available, providing better performance and atomicity.
+The lock helpers are composite operations rather than single commands, so they have no grouped equivalent and remain on `IDatabase`; they
+mix freely with the grouped API on the same `db`:
 
 ```csharp
 var lockKey = "resource:lock";
@@ -215,7 +217,7 @@ async Task<bool> UpdateUserProfileAsync(string userId, Func<UserProfile, UserPro
         return false; // User doesn't exist
     }
 
-    var currentProfile = JsonSerializer.Deserialize<UserProfile>(currentJson!);
+    var currentProfile = JsonSerializer.Deserialize<UserProfile>(currentJson.ToString());
     var updatedProfile = updateFunc(currentProfile);
     var updatedJson = JsonSerializer.Serialize(updatedProfile);
 

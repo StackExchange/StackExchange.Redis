@@ -35,7 +35,7 @@ Accessing a redis database is as simple as:
 IDatabase db = redis.GetDatabase();
 ```
 
-The object returned from `GetDatabase` is a cheap pass-thru object, and does not need to be stored. Note that redis supports multiple databases (although this is not supported on "cluster"); this can be optionally specified in the call to `GetDatabase`. Additionally, if you plan to make use of the asynchronous API and you require the [`Task.AsyncState`][2] to have a value, this can also be specified:
+The object returned from `GetDatabase` is a cheap pass-thru object, and does not need to be stored. Note that redis supports multiple databases (although this is not supported on "cluster"); this can be optionally specified in the call to `GetDatabase`. Additionally, if you plan to make use of the `Task`-returning members of the original `IDatabase` API and you require the [`Task.AsyncState`][2] to have a value, this can also be specified (the command groups return `ValueTask`, which has no async-state):
 
 ```csharp
 int databaseNumber = ...
@@ -156,7 +156,7 @@ The fire-and-forget usage is accessed by the optional `CommandFlags flags` param
 await db.Strings.IncrementAsync(pageKey, flags: CommandFlags.FireAndForget);
 ```
 
-A third mechanism exists and is deliberately not shown here: the **synchronous** members of the original `IDatabase` API - `await db.Strings.GetAsync(key)` and friends - which block the calling thread until the reply arrives. They still work, and for a console tool or a startup path they are fine. On a server they are the single most common cause of the timeouts this library gets reported, because the thread you block is one the reply may need: see [Sync over async](SyncOverAsync), and [The original `IDatabase` API](LegacyApi) for the mapping.
+A third mechanism exists and is deliberately not shown here: the **synchronous** members of the original `IDatabase` API - `db.StringGet(key)` and friends - which block the calling thread until the reply arrives. They still work, and for a console tool or a startup path they are fine. On a server they are the single most common cause of the timeouts this library gets reported, because the thread you block is one the reply may need: see [Sync over async](SyncOverAsync), and [The original `IDatabase` API](LegacyApi) for the mapping.
 
   [1]: https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/task-parallel-library-tpl
   [2]: https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.asyncstate
