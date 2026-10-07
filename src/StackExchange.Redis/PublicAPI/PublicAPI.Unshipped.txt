@@ -1,1 +1,4 @@
 ﻿#nullable enable
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
