@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 public class TrackSubscriptions(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
     private static IRespHandler<long> Confirmation
-        => NewCoreHandlers.Get<long>(typeof(PubSub), "SubscriptionConfirmationHandler");
+        => PrivateHandlers.Get<long>(typeof(PubSub), "SubscriptionConfirmationHandler");
 
     [Theory]
     [InlineData("*3\r\n$9\r\nsubscribe\r\n$7\r\nchannel\r\n:1\r\n", 1)] // SUBSCRIBE response with count 1

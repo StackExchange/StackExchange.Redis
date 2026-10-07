@@ -24,7 +24,7 @@ namespace StackExchange.Redis.Tests;
 [RunPerProtocol]
 public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
-    private static RespNewCore CoreFor(IConnectionMultiplexer conn) => RespNewCoreFixture.CoreFor(conn);
+    private static RespConnectionManager CoreFor(IConnectionMultiplexer conn) => RespConnectionManagerFixture.CoreFor(conn);
 
     /// <summary>Under RESP3 nothing opens a second socket for subscribing; under RESP2 the multiplexer opens one up front.</summary>
     /// <remarks>
@@ -39,7 +39,7 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         await using var conn = Create(shared: false);
         var core = CoreFor(conn);
 
-        var db = RespNewCoreFixture.Wrap(conn, -1, null);
+        var db = RespConnectionManagerFixture.Wrap(conn, -1, null);
         await db.PingAsync(); // an ordinary connection exists and has handshaken
 
         var expected = TestContext.Current.GetProtocol() == RedisProtocol.Resp3 ? 0 : 1;
@@ -56,7 +56,7 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         await using var conn = Create(shared: false);
         var core = CoreFor(conn);
 
-        var db = RespNewCoreFixture.Wrap(conn, -1, null);
+        var db = RespConnectionManagerFixture.Wrap(conn, -1, null);
         await db.PingAsync(); // handshake completes, so the protocol is KNOWN rather than assumed
 
         var endpoint = conn.GetEndPoints()[0];
@@ -93,7 +93,7 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
     /// </para>
     /// </remarks>
     [Fact]
-    public async Task ASubscriptionOnTheNewCoreReceivesDeliveries()
+    public async Task ASubscriptionOnTheConnectionManagerReceivesDeliveries()
     {
         // Only under the engine flag, and that is the claim narrowing to where it is true rather than a
         // test being hidden. The assertion is "exactly one subscriber, and the delivery came from this
@@ -106,14 +106,14 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         var muxer = TestMultiplexer.Unwrap(conn);
 
         // the multiplexer's OWN core, not the fixture's. Liveness is asked of whichever core owns a
-        // subscription, and the registry asks `server.Multiplexer.NewCore` - so a subscription placed on
+        // subscription, and the registry asks `server.Multiplexer.Connections` - so a subscription placed on
         // a second, test-only core is owned by something the registry cannot see, reads as live nowhere,
         // and gets subscribed a second time by the heartbeat. Two instances can never agree about this;
         // the fixture's core is for asserting about COMMANDS, where there is no shared registry to
         // disagree with.
-        var core = muxer.NewCore;
+        var core = muxer.Connections;
 
-        var db = RespNewCoreFixture.Wrap(conn, -1, null);
+        var db = RespConnectionManagerFixture.Wrap(conn, -1, null);
         await db.PingAsync(); // the protocol is known rather than assumed, so the socket decision is real
 
         // Unique per RUN, not merely per test: the assertion below is that exactly one subscriber exists,
@@ -134,7 +134,7 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         // on ITS connection, so the publish below reports two receivers and the assertion that exactly
         // one exists - the whole proof that the delivery came from the new core - fails for a reason that
         // has nothing to do with the new core.
-        subscription.OnSubscribedViaNewCore(((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint));
+        subscription.OnSubscribed(((IInternalConnectionMultiplexer)conn).GetServerEndPoint(endpoint));
         await core.SubscriptionContext(endpoint).SendAsync($"{RedisCommand.SUBSCRIBE}{channel}");
 
         Assert.Equal(1, await conn.GetSubscriber().PublishAsync(channel, "delivered"));
@@ -151,7 +151,7 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         await using var conn = Create(shared: false);
         var core = CoreFor(conn);
 
-        var db = RespNewCoreFixture.Wrap(conn, -1, null);
+        var db = RespConnectionManagerFixture.Wrap(conn, -1, null);
         await db.PingAsync();
 
         var endpoint = conn.GetEndPoints()[0];

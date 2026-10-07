@@ -6,7 +6,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. One name/value pair, as a pair of windows over the reply that produced it.
+/// One name/value pair, as a pair of windows over the reply that produced it.
 /// </summary>
 /// <remarks>
 /// <para>

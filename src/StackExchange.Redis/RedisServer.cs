@@ -72,7 +72,7 @@ namespace StackExchange.Redis
         /// server command and the database commands it is meant to describe are ordered by one connection
         /// rather than racing two - see design notes D2.4, and 9b-xi for what that was costing.
         /// <para>
-        /// <c>NewCore</c> rather than <c>NewCoreIfCreated</c>, and the difference is load-bearing because
+        /// <c>Connections</c> rather than <c>ConnectionsIfCreated</c>, and the difference is load-bearing because
         /// the context this feeds is MEMOISED. Asking "if created" meant an <c>IServer</c> touched before
         /// anything else - which <c>GetServer(...).Ping()</c> is, in test after test - got the v3
         /// executor and kept it for the life of the object, so half the point of D2.4 came and went
@@ -80,7 +80,7 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         private RespExecutorBase ServerExecutor()
-            => multiplexer.NewCore.ServerExecutor(server.EndPoint);
+            => multiplexer.Connections.ServerExecutor(server.EndPoint);
 
         /// <inheritdoc/>
         /// <remarks>
@@ -112,13 +112,13 @@ namespace StackExchange.Redis
         /// <typeparam name="T">The result type.</typeparam>
         /// <param name="pending">The operation to wait for.</param>
         /// <remarks>
-        /// <inheritdoc cref="TransitionalSync" path="/remarks/para[2]"/>
+        /// <inheritdoc cref="SyncWait" path="/remarks/para[2]"/>
         /// </remarks>
-        private T Wait<T>(ValueTask<T> pending) => TransitionalSync.Wait(pending, multiplexer, Context.Raw.Executor);
+        private T Wait<T>(ValueTask<T> pending) => SyncWait.Wait(pending, multiplexer, Context.Raw.Executor);
 
         /// <inheritdoc cref="Wait{T}(ValueTask{T})"/>
         /// <param name="pending">The operation to wait for.</param>
-        private void Wait(ValueTask pending) => TransitionalSync.Wait(pending, multiplexer);
+        private void Wait(ValueTask pending) => SyncWait.Wait(pending, multiplexer);
 
         int IServer.DatabaseCount => server.Databases;
 
@@ -444,7 +444,7 @@ namespace StackExchange.Redis
                     token.ThrowIfCancellationRequested();
                     return OnePage(await pending.ForAwait());
                 },
-                _ => OnePage(TransitionalSync.Wait(new ValueTask<RedisKey[]>(pending), multiplexer, null)),
+                _ => OnePage(SyncWait.Wait(new ValueTask<RedisKey[]>(pending), multiplexer, null)),
                 0,
                 int.MaxValue,
                 pageOffset,

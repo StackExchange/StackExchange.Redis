@@ -13,7 +13,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis.Caching
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A client-side cache built as two independent lookups rather than a cross-indexed
+    /// A client-side cache built as two independent lookups rather than a cross-indexed
     /// structure.
     /// </summary>
     /// <remarks>

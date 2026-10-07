@@ -512,7 +512,7 @@ internal sealed partial class ServerEndPoint
 
         var drained = !HasCallerWork();
         // the handoff exists to stop using a connection before the server closes it
-        var recycled = Multiplexer.NewCoreIfCreated?.RecycleConnections(EndPoint) == true;
+        var recycled = Multiplexer.ConnectionsIfCreated?.RecycleConnections(EndPoint) == true;
         if (recycled) Interlocked.Increment(ref _handoffRecycles);
         Multiplexer.Trace(
             $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"

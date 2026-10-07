@@ -134,7 +134,7 @@ namespace StackExchange.Redis
         }
 
         public bool IsConnecting => false; // the new core dials on demand and reports only whether it is connected
-        public bool IsConnected => Multiplexer.NewCoreIfCreated?.IsConnected(EndPoint) == true;
+        public bool IsConnected => Multiplexer.ConnectionsIfCreated?.IsConnected(EndPoint) == true;
         // ...and where there is no second socket, SupportsSubscriptions is the term that would otherwise
         // go missing: in v3 a bridge for a disabled SUBSCRIBE never connected, so the answer was no by
         // construction, where sharing one connection has to say no on purpose.
@@ -190,16 +190,16 @@ namespace StackExchange.Redis
         }
 
         internal Exception? LastException
-            => Multiplexer.NewCoreIfCreated?.LastConnectFault(EndPoint, ConnectionType.Interactive)
-            ?? Multiplexer.NewCoreIfCreated?.LastConnectFault(EndPoint, ConnectionType.Subscription);
+            => Multiplexer.ConnectionsIfCreated?.LastConnectFault(EndPoint, ConnectionType.Interactive)
+            ?? Multiplexer.ConnectionsIfCreated?.LastConnectFault(EndPoint, ConnectionType.Subscription);
 
         internal BridgeState InteractiveConnectionState
-            => Multiplexer.NewCoreIfCreated?.IsInteractiveConnected(EndPoint) == true ? BridgeState.ConnectedEstablished : BridgeState.Disconnected;
+            => Multiplexer.ConnectionsIfCreated?.IsInteractiveConnected(EndPoint) == true ? BridgeState.ConnectedEstablished : BridgeState.Disconnected;
 
         internal BridgeState SubscriptionConnectionState
-            => Multiplexer.NewCoreIfCreated?.IsSubscriptionConnected(EndPoint) == true ? BridgeState.ConnectedEstablished : InteractiveConnectionState;
+            => Multiplexer.ConnectionsIfCreated?.IsSubscriptionConnected(EndPoint) == true ? BridgeState.ConnectedEstablished : InteractiveConnectionState;
 
-        public long OperationCount => Multiplexer.NewCoreIfCreated?.OperationCount(EndPoint) ?? 0;
+        public long OperationCount => Multiplexer.ConnectionsIfCreated?.OperationCount(EndPoint) ?? 0;
 
         public bool RequiresReadMode => serverType == ServerType.Cluster && IsReplica;
 
@@ -220,7 +220,7 @@ namespace StackExchange.Redis
                 // ...and tell the core's own topology, which learns roles only from its handshakes and
                 // dials lazily: without this the replica of an ordinary standalone pair is never dialled, so
                 // its role is never learned, so a DemandReplica read has no replica to choose and goes to the
-                // primary. See RespNewCore.OnRole.
+                // primary. See RespConnectionManager.OnRole.
                 if (changed) PublishRole();
             }
         }
@@ -256,7 +256,7 @@ namespace StackExchange.Redis
         /// find out what the protocol is.
         /// </remarks>
         public RedisProtocol? Protocol
-            => Multiplexer?.NewCoreIfCreated?.ObservedProtocol(EndPoint);
+            => Multiplexer?.ConnectionsIfCreated?.ObservedProtocol(EndPoint);
 
         public int WriteEverySeconds
         {
@@ -350,7 +350,7 @@ namespace StackExchange.Redis
         /// property, and is excluded by the same test, since both set the internal-call flag.
         /// </remarks>
         internal bool HasCallerWork()
-            => Multiplexer.NewCoreIfCreated?.HasCallerWork(EndPoint) == true;
+            => Multiplexer.ConnectionsIfCreated?.HasCallerWork(EndPoint) == true;
 
         /// <summary>
         /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in
@@ -404,7 +404,7 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             // the connections belong to the new core, which drops this endpoint's when the multiplexer retires
-            // the server (RespNewCore.RetireEndpointAsync) and all of them when it is disposed
+            // the server (RespConnectionManager.RetireEndpointAsync) and all of them when it is disposed
             isDisposed = true;
         }
 
@@ -537,7 +537,7 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         private void PublishSelectable()
-            => Multiplexer.NewCoreIfCreated?.OnSelectable(
+            => Multiplexer.ConnectionsIfCreated?.OnSelectable(
                 EndPoint,
                 (unselectableReasons & ~UnselectableFlags.DidNotRespond) == UnselectableFlags.None);
 
@@ -545,10 +545,10 @@ namespace StackExchange.Redis
         /// <remarks>
         /// The core learns roles from its own handshakes and dials lazily, so an endpoint it has not needed
         /// has no role - and a <c>DemandReplica</c> read then has no replica to choose. See
-        /// <c>RespNewCore.OnRole</c>, which says the rest.
+        /// <c>RespConnectionManager.OnRole</c>, which says the rest.
         /// </remarks>
         private void PublishRole()
-            => Multiplexer?.NewCoreIfCreated?.OnRole(EndPoint, isReplica);
+            => Multiplexer?.ConnectionsIfCreated?.OnRole(EndPoint, isReplica);
 
         public override string ToString() => Format.ToString(EndPoint);
 
@@ -620,8 +620,8 @@ namespace StackExchange.Redis
         {
             var counters = new ServerCounters(EndPoint);
             // filled from the core, which is where the queues, sockets and op counts are - see
-            // RespNewCore.BacklogCount
-            if (Multiplexer.NewCoreIfCreated is { } core)
+            // RespConnectionManager.BacklogCount
+            if (Multiplexer.ConnectionsIfCreated is { } core)
             {
                 core.AddCounters(EndPoint, ConnectionType.Interactive, counters.Interactive);
                 core.AddCounters(EndPoint, ConnectionType.Subscription, counters.Subscription);
@@ -631,13 +631,13 @@ namespace StackExchange.Redis
         }
 
         internal BridgeStatus GetBridgeStatus(ConnectionType connectionType)
-            => Multiplexer.NewCoreIfCreated?.ConnectionStatus(EndPoint, connectionType) ?? BridgeStatus.Zero;
+            => Multiplexer.ConnectionsIfCreated?.ConnectionStatus(EndPoint, connectionType) ?? BridgeStatus.Zero;
 
         internal string GetProfile()
         {
             var sb = new StringBuilder(Format.ToString(EndPoint)).Append(": ");
             sb.Append("Circular op-count snapshot; int:");
-            var core = Multiplexer.NewCoreIfCreated;
+            var core = Multiplexer.ConnectionsIfCreated;
             if (core is null) sb.Append(" n/a");
             else core.AppendProfile(EndPoint, ConnectionType.Interactive, sb);
             sb.Append("; sub:");
@@ -706,10 +706,10 @@ namespace StackExchange.Redis
             var usable = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond);
 
             return usable
-                && (allowDisconnected || Multiplexer.NewCoreIfCreated?.IsConnected(EndPoint) == true);
+                && (allowDisconnected || Multiplexer.ConnectionsIfCreated?.IsConnected(EndPoint) == true);
         }
 
-        internal void OnNewCoreConnected(string source)
+        internal void OnConnected(string source)
         {
             CompletePendingConnectionMonitors(source);
             Multiplexer.OnConnectionRestored(EndPoint, ConnectionType.Interactive, source);
@@ -826,7 +826,7 @@ namespace StackExchange.Redis
             // written to a connection that would never carry it, never completed, and the endpoint ran out
             // the whole connect timeout (`ConnectFailTimeoutTests.NoticesConnectFail`). See design notes 9n.
             // Nothing to prove on a connection the core does not hold: not available, rather than a guess
-            return TryTraceViaNewCore() ?? Task.FromResult(false);
+            return TryTraceAsync() ?? Task.FromResult(false);
         }
 
         /// <summary>Prove this endpoint answers, on the core's connection.</summary>
@@ -835,9 +835,9 @@ namespace StackExchange.Redis
         /// Declines unless the core actually HAS this endpoint connected: a tracer is a question about a
         /// connection, and sending it on one that has not been dialled would turn the question into a dial.
         /// </remarks>
-        private Task<bool>? TryTraceViaNewCore()
+        private Task<bool>? TryTraceAsync()
         {
-            if (Multiplexer.NewCoreIfCreated is not { } core) return null;
+            if (Multiplexer.ConnectionsIfCreated is not { } core) return null;
             if (!core.IsConnected(EndPoint)) return null;
 
             return Traced(core.ServerContext(EndPoint).PingAsync(CommandFlags.NoRedirect));
@@ -919,7 +919,7 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.DEBUG, null, this); // close enough
             }
 
-            Multiplexer.NewCoreIfCreated?.SimulateConnectionFailure(EndPoint, failureType);
+            Multiplexer.ConnectionsIfCreated?.SimulateConnectionFailure(EndPoint, failureType);
         }
 
         public void SetLatency(DateTime startTime)

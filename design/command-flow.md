@@ -141,7 +141,7 @@ is chosen at the call site and knows nothing about the command it is parsing for
   RESP2 delivers messages as ordinary arrays.
 - **Timeouts.** Nothing arrives to tell you a reply is late, so this is the one thing that happens on a
   clock rather than in response to something. The multiplexer heartbeat calls
-  `RespNewCore.OnHeartbeat`, which asks each endpoint to expire its backlog and then sweeps the written
+  `RespConnectionManager.OnHeartbeat`, which asks each endpoint to expire its backlog and then sweeps the written
   queue (`RespConnection.ExpirePending`), against the configured timeout raised by any maintenance
   window. A swept operation is completed but **stays in the pending queue**, because replies are matched
   to that queue positionally. The fault itself is built by `ExceptionFactory`, the same place the shipped

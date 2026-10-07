@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The vectorsets commands.
+/// The vectorsets commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class VectorSets
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The vector-set group: <c>target.VectorSets.AddAsync(...)</c>.
+/// The vector-set group: <c>target.VectorSets.AddAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

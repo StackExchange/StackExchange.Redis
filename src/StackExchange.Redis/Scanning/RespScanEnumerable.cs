@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. An <see cref="IAsyncEnumerable{T}"/> over a cursor scan, driven by the raw page API.
+/// An <see cref="IAsyncEnumerable{T}"/> over a cursor scan, driven by the raw page API.
 /// </summary>
 /// <typeparam name="T">The element type of the scan.</typeparam>
 /// <remarks>

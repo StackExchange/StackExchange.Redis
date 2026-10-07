@@ -3,7 +3,7 @@
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The publish/subscribe commands.
+/// The publish/subscribe commands.
 /// </summary>
 /// <remarks>
 /// <inheritdoc cref="HyperLogLog" path="/remarks/para[1]"/>
@@ -14,7 +14,7 @@ public static partial class PubSub
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The pub/sub group: <c>target.PubSub.PublishAsync(...)</c>.
+/// The pub/sub group: <c>target.PubSub.PublishAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

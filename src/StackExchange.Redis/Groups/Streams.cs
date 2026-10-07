@@ -5,7 +5,7 @@ using RESPite;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The stream commands and the shapes they answer with.
+/// The stream commands and the shapes they answer with.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -33,7 +33,7 @@ public static partial class Streams
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The stream command group: <c>target.Streams.LengthAsync(...)</c>.
+/// The stream command group: <c>target.Streams.LengthAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// A group is a context plus a name, and nothing else - it exists so the commands have something to hang
@@ -57,7 +57,7 @@ public readonly struct RespStreams
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. Reaches the command groups from a database or a context.
+/// Reaches the command groups from a database or a context.
 /// </summary>
 /// <remarks>
 /// <b>One class, assembled from the group files.</b> Each group declares its own accessor beside its own

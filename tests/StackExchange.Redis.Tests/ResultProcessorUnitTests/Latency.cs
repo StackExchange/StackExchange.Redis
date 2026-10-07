@@ -11,10 +11,10 @@ public class Latency(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
     // Diagnostics.LatencyHandler, over the shipped LatencyLatestEntry/LatencyHistoryEntry.TryParseEntry
     private static IRespHandler<LatencyLatestEntry[]> Latest
-        => NewCoreHandlers.Get<LatencyLatestEntry[]>(typeof(Diagnostics), "LatencyHandler", "Latest");
+        => PrivateHandlers.Get<LatencyLatestEntry[]>(typeof(Diagnostics), "LatencyHandler", "Latest");
 
     private static IRespHandler<LatencyHistoryEntry[]> History
-        => NewCoreHandlers.Get<LatencyHistoryEntry[]>(typeof(Diagnostics), "LatencyHandler", "History");
+        => PrivateHandlers.Get<LatencyHistoryEntry[]>(typeof(Diagnostics), "LatencyHandler", "History");
 
     [Theory]
     [InlineData("*0\r\n", 0)] // empty array

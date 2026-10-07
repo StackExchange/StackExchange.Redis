@@ -6,7 +6,7 @@ using RESPite;
 namespace StackExchange.Redis.Caching
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. How a client-side cache behaves: how long an entry may be served, and what to do
+    /// How a client-side cache behaves: how long an entry may be served, and what to do
     /// as it ages.
     /// </summary>
     /// <remarks>
@@ -151,7 +151,7 @@ namespace StackExchange.Redis.Caching
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A per-context override of how stale an answer the caller will accept.
+    /// A per-context override of how stale an answer the caller will accept.
     /// </summary>
     /// <remarks>
     /// The one piece of cache configuration that cannot be added to the existing surface:

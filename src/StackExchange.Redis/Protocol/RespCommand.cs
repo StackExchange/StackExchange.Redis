@@ -6,7 +6,7 @@ using RESPite;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A command resolved once, for use as the first hole of an interpolated command.
+    /// A command resolved once, for use as the first hole of an interpolated command.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -100,7 +100,7 @@ namespace StackExchange.Redis.Protocol
             ?? (_resp is null ? _command.ToString() : Encoding.UTF8.GetString(_resp).Replace("\r\n", "|"));
     }
 
-    /// <summary>EXPERIMENTAL SPIKE. Resolving a command name once.</summary>
+    /// <summary>Resolving a command name once.</summary>
     public static class RespCommands
     {
         /// <summary>

@@ -5,7 +5,7 @@ using RESPite;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Appending to a command already being built, so a conditional fragment is
+    /// Appending to a command already being built, so a conditional fragment is
     /// written the same way as the command itself.
     /// </summary>
     /// <remarks>

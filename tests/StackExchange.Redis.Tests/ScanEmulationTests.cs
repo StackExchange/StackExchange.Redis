@@ -28,7 +28,7 @@ public class ScanEmulationTests
         new HashSet<string> { "HSCAN", "SSCAN", "ZSCAN" }, available: false);
 
     private static IDatabase Target(FakeExecutor executor)
-        => new TransitionalDatabase(
+        => new RedisDatabase(
             new RespDatabaseContext(new RespContext(NoScan).WithExecutor(executor)), null!, null);
 
     [Fact]

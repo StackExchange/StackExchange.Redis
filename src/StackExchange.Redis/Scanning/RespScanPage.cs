@@ -7,7 +7,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. One page of a cursor scan: the items, and where to resume.
+/// One page of a cursor scan: the items, and where to resume.
 /// </summary>
 /// <typeparam name="T">The element type of the scan.</typeparam>
 /// <remarks>

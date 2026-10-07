@@ -58,7 +58,7 @@ namespace StackExchange.Redis
         internal ConfigurationOptions RawConfig { get; }
 
         /// <summary>
-        /// EXPERIMENTAL SPIKE. The client-side cache for this connection, if <see cref="ConfigurationOptions.ClientCache"/>
+        /// The client-side cache for this connection, if <see cref="ConfigurationOptions.ClientCache"/>
         /// asked for one; <see langword="null"/> otherwise.
         /// </summary>
         /// <remarks>
@@ -68,7 +68,7 @@ namespace StackExchange.Redis
         internal RespClientCache? ClientCache { get; }
 
         /// <summary>
-        /// EXPERIMENTAL SPIKE. The rendered <c>SCRIPT LOAD</c> for every script this connection has sent.
+        /// The rendered <c>SCRIPT LOAD</c> for every script this connection has sent.
         /// </summary>
         /// <remarks>
         /// <para>
@@ -683,7 +683,7 @@ namespace StackExchange.Redis
                 killMe = null;
                 Interlocked.Increment(ref muxer._connectCompletedCount);
 
-                await muxer.ConnectNewCoreAsync().ForAwait();
+                await muxer.ConnectEndpointsAsync().ForAwait();
 
                 if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
                 {
@@ -717,8 +717,8 @@ namespace StackExchange.Redis
         /// multiplexer connected, against the same servers, and a second opinion could only disagree with it.
         /// </para>
         /// </remarks>
-        private Task ConnectNewCoreAsync()
-            => NewCore.ConnectEagerlyAsync(RawConfig.ConnectMode);
+        private Task ConnectEndpointsAsync()
+            => Connections.ConnectEagerlyAsync(RawConfig.ConnectMode);
 
         private static void Validate([NotNull] ConfigurationOptions? config)
         {
@@ -810,7 +810,7 @@ namespace StackExchange.Redis
                 killMe = null;
                 Interlocked.Increment(ref muxer._connectCompletedCount);
 
-                muxer.ConnectNewCoreAsync().Wait(muxer.SyncConnectTimeout(true));
+                muxer.ConnectEndpointsAsync().Wait(muxer.SyncConnectTimeout(true));
 
                 if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
                 {
@@ -1161,8 +1161,8 @@ namespace StackExchange.Redis
             await server.RetireAsync(reason, drainTimeout ?? TimeSpan.FromSeconds(5), log).ForAwait();
 
             // ...and the new core's connection to it, which would otherwise reconnect and resurrect the
-            // server it belongs to; see RespNewCore.RetireEndpointAsync
-            if (NewCoreIfCreated is { } core) await core.RetireEndpointAsync(server.EndPoint).ForAwait();
+            // server it belongs to; see RespConnectionManager.RetireEndpointAsync
+            if (ConnectionsIfCreated is { } core) await core.RetireEndpointAsync(server.EndPoint).ForAwait();
 
             lock (servers)
             {
@@ -1448,23 +1448,23 @@ namespace StackExchange.Redis
         /// <c>RedisDatabase</c>, and every member has moved; the old database went with the old core.
         /// </remarks>
         private IDatabase Surface(int database, object? asyncState)
-            => new TransitionalDatabase(NewCore.GetDatabase(database), this, asyncState);
+            => new RedisDatabase(Connections.GetDatabase(database), this, asyncState);
 
-        private RespNewCore? _newCore;
+        private RespConnectionManager? _newCore;
 
         /// <summary>Pulse the core, which is what makes its timeout claim (<c>HeartbeatDriven</c>) true.</summary>
         /// <remarks>
         /// Only one that exists: a core not yet built has nothing in flight, and the loser of a racing
-        /// construction (see <see cref="NewCore"/>) holds nothing to time out.
+        /// construction (see <see cref="Connections"/>) holds nothing to time out.
         /// </remarks>
-        private void PulseCores() => NewCoreIfCreated?.OnHeartbeat();
+        private void PulseCores() => ConnectionsIfCreated?.OnHeartbeat();
 
         /// <summary>The new core, but only if something has already built it.</summary>
         /// <remarks>
         /// For callers that want to act on it WITHOUT bringing it into existence - asking whether it holds
         /// a connection should not be the thing that gives it one.
         /// </remarks>
-        internal RespNewCore? NewCoreIfCreated => Volatile.Read(ref _newCore);
+        internal RespConnectionManager? ConnectionsIfCreated => Volatile.Read(ref _newCore);
 
         /// <summary>The new core over this multiplexer, created on first use.</summary>
         /// <remarks>
@@ -1473,14 +1473,14 @@ namespace StackExchange.Redis
         /// locking: it holds nothing until something sends through it, so the one that does not win has
         /// nothing to release.
         /// </remarks>
-        internal RespNewCore NewCore
+        internal RespConnectionManager Connections
         {
             get
             {
                 var existing = Volatile.Read(ref _newCore);
                 if (existing is not null) return existing;
 
-                var created = new RespNewCore(this);
+                var created = new RespConnectionManager(this);
                 return Interlocked.CompareExchange(ref _newCore, created, null) ?? created;
             }
         }
@@ -1760,14 +1760,14 @@ namespace StackExchange.Redis
             // node never reaches here, which is what keeps it undialled.
             if (server.Multiplexer.RawConfig.ConnectMode == ConnectMode.Eager)
             {
-                server.Multiplexer.NewCore.DialEndpointSoon(server.EndPoint);
+                server.Multiplexer.Connections.DialEndpointSoon(server.EndPoint);
             }
 
             if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
             {
                 // the configuration channel is subscribed by CONNECTING rather than by anyone asking for it -
                 // see the method's own notes, including its known cost
-                server.Multiplexer.NewCore.DialSubscriptionSocketForConfigurationChannel(server.EndPoint);
+                server.Multiplexer.Connections.DialSubscriptionSocketForConfigurationChannel(server.EndPoint);
             }
         }
 
@@ -1925,7 +1925,7 @@ namespace StackExchange.Redis
                             if (RawConfig.ConnectMode == ConnectMode.Discover && !dialledOne)
                             {
                                 dialledOne = true;
-                                NewCore.DialEndpointSoon(server.EndPoint);
+                                Connections.DialEndpointSoon(server.EndPoint);
                             }
 
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
@@ -1974,7 +1974,7 @@ namespace StackExchange.Redis
                         // connections sends nothing and reports success, which is how
                         // MaintenanceTopologyRefreshTests and PeriodicTopologyRefreshTests came to count
                         // zero CLUSTER commands for a pass that was supposed to re-read the topology.
-                        if (NewCoreIfCreated is { HasAnyInteractiveConnection: true } refreshing)
+                        if (ConnectionsIfCreated is { HasAnyInteractiveConnection: true } refreshing)
                         {
                             await refreshing.RefreshTopologyAsync(log).ForAwait();
                         }
@@ -2231,7 +2231,7 @@ namespace StackExchange.Redis
                 // `create` defaulted to true, so these two commands alone were what dialled the v3
                 // interactive bridge at all, and every endpoint held two sockets where one was doing the
                 // work - which ClusterTests.ConnectUsesSingleSocket reads directly off the counters.
-                if (NewCoreIfCreated is { } core
+                if (ConnectionsIfCreated is { } core
                     && core.IsInteractiveConnected(server.EndPoint)
                     && server.ClusterConfiguration is not null)
                 {
@@ -2717,7 +2717,7 @@ namespace StackExchange.Redis
                 // this core first: it has no QUIT to send, and what it owes is commands that may not have
                 // reached the wire yet. Blocking here rather than awaiting, because this is the
                 // synchronous close - the same bound as the quits below.
-                if (NewCoreIfCreated is { } core)
+                if (ConnectionsIfCreated is { } core)
                 {
                     core.DrainAsync(RawConfig.AsyncTimeout).Wait(RawConfig.AsyncTimeout);
                 }
@@ -2750,7 +2750,7 @@ namespace StackExchange.Redis
                 // MISSING here while Close had it, so every `await using` - which is to say every caller
                 // that disposes asynchronously - dropped whatever the new core still owed. It shows up as a
                 // fire-and-forget command issued immediately before disposal never happening at all.
-                if (NewCoreIfCreated is { } core)
+                if (ConnectionsIfCreated is { } core)
                 {
                     try
                     {
@@ -2798,7 +2798,7 @@ namespace StackExchange.Redis
             // server can name. Asking must not dial: while both cores existed this asked a v3 bridge first,
             // and creating one here connected it - a whole v3 handshake on a third socket just to answer a
             // question
-            => NewCoreIfCreated?.ConnectionId(endpoint, type);
+            => ConnectionsIfCreated?.ConnectionId(endpoint, type);
 
         internal uint UpdateLatency()
         {

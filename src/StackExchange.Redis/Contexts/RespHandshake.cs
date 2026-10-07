@@ -42,7 +42,7 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <b>Carried out raw rather than parsed here, because parsing it needs a <c>ServerEndPoint</c></b> -
         /// <c>ClusterConfiguration</c> is built against the server that answered and the selection strategy -
-        /// and the handshake deliberately has neither. <c>RespNewCore.Publish</c> is where this core's
+        /// and the handshake deliberately has neither. <c>RespConnectionManager.Publish</c> is where this core's
         /// findings are written onto the modelled server object, so that is where it is turned into one.
         /// </remarks>
         internal string? ClusterNodes { get; } = clusterNodes;
@@ -82,7 +82,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Brings a fresh connection up to the state a command can be issued on.
+    /// Brings a fresh connection up to the state a command can be issued on.
     /// </summary>
     /// <remarks>
     /// <para>

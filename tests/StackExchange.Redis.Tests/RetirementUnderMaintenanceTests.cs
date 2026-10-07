@@ -109,7 +109,7 @@ public class RetirementUnderMaintenanceTests(ITestOutputHelper log)
         // the distinction being tested would be vacuous...
         // There is nothing to accumulate, and that is the better answer rather
         // than a weaker one. This core will not aim anything at a node it has dialled and found
-        // unreachable - see `RespNewCore.IsKnownDown` - so the "busy with our probes, idle of caller
+        // unreachable - see `RespConnectionManager.IsKnownDown` - so the "busy with our probes, idle of caller
         // work" state the shipped core has to reason its way out of never arises: the node is simply
         // idle. Asserted rather than skipped, because "nothing is queued on a node we know is gone"
         // is a property worth pinning, and everything after this point still has to hold.

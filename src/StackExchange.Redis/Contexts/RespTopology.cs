@@ -427,7 +427,7 @@ namespace StackExchange.Redis
 
         /// <summary>Told whenever a role is learned or changes, so the answer does not stay in here.</summary>
         /// <remarks>
-        /// <b>The other half of the push <c>RespNewCore.OnRole</c> makes inbound.</b> Roles arrive here from
+        /// <b>The other half of the push <c>RespConnectionManager.OnRole</c> makes inbound.</b> Roles arrive here from
         /// three places - a <c>ROLE</c> reply, the owners in a <c>CLUSTER SLOTS</c> reply, and the primary a
         /// <c>-MOVED</c> names - and every one of them is news the rest of the client cannot get any other
         /// way now the v3 <c>INFO replication</c> sweep is gone.

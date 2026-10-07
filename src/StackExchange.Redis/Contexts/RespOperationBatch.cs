@@ -9,7 +9,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. An executor that accumulates commands and sends them as one run.
+    /// An executor that accumulates commands and sends them as one run.
     /// </summary>
     /// <remarks>
     /// <para>

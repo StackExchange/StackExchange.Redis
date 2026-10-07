@@ -6,7 +6,7 @@ namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 public class RoleTests(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
     // ROLE is read by Diagnostics.RoleHandler, over RespParsers.ParseRole
-    private static IRespHandler<Role?> RoleHandler => NewCoreHandlers.Get<Role?>(typeof(Diagnostics), "RoleHandler");
+    private static IRespHandler<Role?> RoleHandler => PrivateHandlers.Get<Role?>(typeof(Diagnostics), "RoleHandler");
 
     [Fact]
     public void Role_Master_NoReplicas()

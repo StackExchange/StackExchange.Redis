@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The strings commands.
+/// The strings commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class Strings
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The string-command group: <c>target.Strings.SetAsync(...)</c>.
+/// The string-command group: <c>target.Strings.SetAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

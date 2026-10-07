@@ -46,13 +46,13 @@ public class AutoConfigure(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 
     private static string Bulk(string payload) => $"${payload.Length}\r\n{payload}\r\n";
 
-    private static object? Replication(string resp) => NewCoreHandlers.ParseBoxed(typeof(RespHandshake), "ReplicationHandler", resp);
+    private static object? Replication(string resp) => PrivateHandlers.ParseBoxed(typeof(RespHandshake), "ReplicationHandler", resp);
 
-    private static object? Product(string resp) => NewCoreHandlers.ParseBoxed(typeof(RespHandshake), "ProductHandler", resp);
+    private static object? Product(string resp) => PrivateHandlers.ParseBoxed(typeof(RespHandshake), "ProductHandler", resp);
 
-    private static IRespHandler<Version?> ServerVersion => NewCoreHandlers.Get<Version?>(typeof(RespHandshake), "ServerVersionHandler");
+    private static IRespHandler<Version?> ServerVersion => PrivateHandlers.Get<Version?>(typeof(RespHandshake), "ServerVersionHandler");
 
-    private static IRespHandler<string?> ConfigSetting => NewCoreHandlers.Get<string?>(typeof(RespHandshake), "ConfigSettingHandler");
+    private static IRespHandler<string?> ConfigSetting => PrivateHandlers.Get<string?>(typeof(RespHandshake), "ConfigSettingHandler");
 
     [Fact]
     public void ClientId_Integer_Success()
@@ -68,8 +68,8 @@ public class AutoConfigure(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         // INFO replication, as DiscoverReplicationAsync reads it
         var reply = Replication(Bulk(ReplicationInfo));
 
-        Assert.False(NewCoreHandlers.Property<bool?>(reply, "IsReplica"));
-        Assert.Null(NewCoreHandlers.Property<EndPoint?>(reply, "Primary")); // a primary names no master_host
+        Assert.False(PrivateHandlers.Property<bool?>(reply, "IsReplica"));
+        Assert.Null(PrivateHandlers.Property<EndPoint?>(reply, "Primary")); // a primary names no master_host
     }
 
     [Fact]
@@ -78,8 +78,8 @@ public class AutoConfigure(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var info = "# Replication\r\nrole:slave\r\nmaster_host:10.0.0.1\r\nmaster_port:6379\r\nmaster_link_status:up\r\n";
         var reply = Replication(Bulk(info));
 
-        Assert.True(NewCoreHandlers.Property<bool?>(reply, "IsReplica"));
-        var primary = Assert.IsType<IPEndPoint>(NewCoreHandlers.Property<EndPoint?>(reply, "Primary"));
+        Assert.True(PrivateHandlers.Property<bool?>(reply, "IsReplica"));
+        var primary = Assert.IsType<IPEndPoint>(PrivateHandlers.Property<EndPoint?>(reply, "Primary"));
         Assert.Equal("10.0.0.1", primary.Address.ToString());
         Assert.Equal(6379, primary.Port);
     }
@@ -91,9 +91,9 @@ public class AutoConfigure(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var resp = Bulk(ServerInfo);
 
         var product = Product(resp);
-        Assert.Equal(ProductVariant.Redis, NewCoreHandlers.Property<ProductVariant>(product, "Variant"));
-        Assert.Equal("7.2.4", NewCoreHandlers.Property<string>(product, "ProductVersion"));
-        Assert.Equal(ServerType.Standalone, NewCoreHandlers.Property<ServerType?>(product, "ServerType"));
+        Assert.Equal(ProductVariant.Redis, PrivateHandlers.Property<ProductVariant>(product, "Variant"));
+        Assert.Equal("7.2.4", PrivateHandlers.Property<string>(product, "ProductVersion"));
+        Assert.Equal(ServerType.Standalone, PrivateHandlers.Property<ServerType?>(product, "ServerType"));
 
         Assert.Equal(new Version(7, 2, 4), Execute(resp, ServerVersion));
     }
@@ -105,11 +105,11 @@ public class AutoConfigure(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // the shipped processor threw here only for want of a connection; the handlers say "nothing known"
         var replication = Replication(resp);
-        Assert.Null(NewCoreHandlers.Property<bool?>(replication, "IsReplica"));
-        Assert.Null(NewCoreHandlers.Property<EndPoint?>(replication, "Primary"));
+        Assert.Null(PrivateHandlers.Property<bool?>(replication, "IsReplica"));
+        Assert.Null(PrivateHandlers.Property<EndPoint?>(replication, "Primary"));
 
         var product = Product(resp);
-        Assert.Null(NewCoreHandlers.Property<ServerType?>(product, "ServerType"));
+        Assert.Null(PrivateHandlers.Property<ServerType?>(product, "ServerType"));
 
         Assert.Null(Execute(resp, ServerVersion));
     }

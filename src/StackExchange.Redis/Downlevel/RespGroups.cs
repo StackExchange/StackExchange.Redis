@@ -4,7 +4,7 @@ using RESPite;
 namespace StackExchange.Redis.Downlevel
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The command groups as <b>methods</b>, for compilers older than C# 14.
+    /// The command groups as <b>methods</b>, for compilers older than C# 14.
     /// </summary>
     /// <remarks>
     /// <para>

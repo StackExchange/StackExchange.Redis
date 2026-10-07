@@ -9,7 +9,7 @@ public class Info(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
     // INFO is read by Diagnostics.InfoHandler, over Diagnostics.ParseInfo
     private static IRespHandler<IGrouping<string, KeyValuePair<string, string>>[]> InfoHandler
-        => NewCoreHandlers.Get<IGrouping<string, KeyValuePair<string, string>>[]>(typeof(Diagnostics), "InfoHandler");
+        => PrivateHandlers.Get<IGrouping<string, KeyValuePair<string, string>>[]>(typeof(Diagnostics), "InfoHandler");
 
     [Fact]
     public void SingleSection_Success()

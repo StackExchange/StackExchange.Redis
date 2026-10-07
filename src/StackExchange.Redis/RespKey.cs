@@ -7,7 +7,7 @@ using RESPite;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. A key the writer <b>borrows</b>, rather than one it owns.
+/// A key the writer <b>borrows</b>, rather than one it owns.
 /// </summary>
 /// <remarks>
 /// <para>

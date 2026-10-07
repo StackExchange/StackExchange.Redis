@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The geospatial commands.
+/// The geospatial commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class Geospatial
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The geospatial group: <c>target.Geospatial.AddAsync(...)</c>.
+/// The geospatial group: <c>target.Geospatial.AddAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

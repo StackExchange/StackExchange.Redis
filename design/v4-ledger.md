@@ -30,9 +30,9 @@ Each has a default the work proceeds on until answered.
   terms and say how in the merge message. Drift check: `git rev-list --count v4..origin/main`. The final
   landing on `main` must be a real merge, never a squash.
 - **Two-core leftovers:**
-  - `Subscription._onNewCore` / `IsOwnedByNewCore` / `NewCoreOwnsAnySubscription` now mean only "something
+  - `Subscription._subscribed` / `IsSubscribed` / `AnySubscribed` now mean only "something
     subscribed this"; collapsing them changes the never-sent case - look, don't delete.
-  - ~30 `NewCoreIfCreated?.` null-tolerances; `ServerEndPoint.IsConnecting => false`.
+  - ~30 `ConnectionsIfCreated?.` null-tolerances; `ServerEndPoint.IsConnecting => false`.
   - Topology flows both ways between `RespTopology` and `ServerSelectionStrategy` ("phase D").
 - **Subscription re-aim waits for its in-flight send to fail** (instant on Linux, ~2s on Windows, a connect
   timeout for a dropped SYN). Fixing it means de-duplicating a subscription that lands on two nodes. Not urgent.

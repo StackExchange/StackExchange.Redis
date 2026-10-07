@@ -6,7 +6,7 @@ using RESPite;
 namespace StackExchange.Redis.Caching
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Tying a client-side cache to the connection whose invalidations keep it honest.
+    /// Tying a client-side cache to the connection whose invalidations keep it honest.
     /// </summary>
     internal static class RespCacheConnectionExtensions
     {

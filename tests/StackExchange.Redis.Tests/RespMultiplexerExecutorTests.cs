@@ -213,7 +213,7 @@ public class RespMultiplexerExecutorTests
         var slot = ServerSelectionStrategy.GetHashSlot((RedisKey)"user:1");
         router.BySlot[slot] = new Endpoint("owner", "$2\r\nok\r\n");
 
-        var db = new TransitionalDatabase(context, null!, null);
+        var db = new RedisDatabase(context, null!, null);
         Assert.True(db.IsConnected("user:1"));
         Assert.Equal(0, router.SlotLookups); // standalone: no hashing even for the routing question
 

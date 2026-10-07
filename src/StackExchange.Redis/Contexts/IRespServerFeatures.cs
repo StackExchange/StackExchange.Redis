@@ -1,7 +1,7 @@
 ﻿namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Answers "what can the server that would receive this actually do?" - the one
+    /// Answers "what can the server that would receive this actually do?" - the one
     /// question a <see cref="RespContext"/> cannot answer for itself.
     /// </summary>
     /// <remarks>

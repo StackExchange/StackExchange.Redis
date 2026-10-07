@@ -3,7 +3,7 @@
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Turns a reply into a result - the <c>ResultProcessor</c> half.
+    /// Turns a reply into a result - the <c>ResultProcessor</c> half.
     /// </summary>
     /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
     public interface IRespHandler<TResult>

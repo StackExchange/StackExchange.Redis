@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The sets commands.
+/// The sets commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class Sets
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The set-command group: <c>target.Sets.AddAsync(...)</c>.
+/// The set-command group: <c>target.Sets.AddAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// The smallest group so far, and the one where the variadic hole does most of the work: nearly every

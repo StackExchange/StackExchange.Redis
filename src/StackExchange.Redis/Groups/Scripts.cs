@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The scripts commands.
+/// The scripts commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class Scripts
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The scripting command group: <c>target.Scripts.EvaluateAsync(...)</c>.
+/// The scripting command group: <c>target.Scripts.EvaluateAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. An <see cref="IAsyncEnumerable{T}"/> over <b>keyset</b> pagination: take a page,
+/// An <see cref="IAsyncEnumerable{T}"/> over <b>keyset</b> pagination: take a page,
 /// then ask again from the last item with the start excluded.
 /// </summary>
 /// <remarks>

@@ -55,8 +55,8 @@ namespace StackExchange.Redis
                 MaintenanceNotificationReader.ReadMaintenanceNotification(
                     multiplexer,
                     multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false),
-                    isConnected: multiplexer.NewCoreIfCreated?.IsConnected(endpoint) == true,
-                    currentAddress: multiplexer.NewCoreIfCreated?.RemoteAddress(endpoint),
+                    isConnected: multiplexer.ConnectionsIfCreated?.IsConnected(endpoint) == true,
+                    currentAddress: multiplexer.ConnectionsIfCreated?.RemoteAddress(endpoint),
                     kind,
                     ref reader);
 

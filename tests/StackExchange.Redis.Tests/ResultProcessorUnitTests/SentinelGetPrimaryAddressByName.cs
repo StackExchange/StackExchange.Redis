@@ -7,7 +7,7 @@ public class SentinelGetPrimaryAddressByName(ITestOutputHelper log) : ResultProc
 {
     // SentinelCommands.PrimaryAddressHandler
     private static IRespHandler<System.Net.EndPoint?> PrimaryAddress
-        => NewCoreHandlers.Get<System.Net.EndPoint?>(typeof(SentinelCommands), "PrimaryAddressHandler");
+        => PrivateHandlers.Get<System.Net.EndPoint?>(typeof(SentinelCommands), "PrimaryAddressHandler");
 
     [Fact]
     public void ValidHostAndPort_Success()

@@ -14,7 +14,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Something that can issue a rendered request.
+    /// Something that can issue a rendered request.
     /// </summary>
     /// <remarks>
     /// <b>Internal.</b> Dispatch is an implementation concern; the public surface is the context and the
@@ -562,7 +562,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Sending a request, with or without a client-side cache.
+    /// Sending a request, with or without a client-side cache.
     /// </summary>
     /// <remarks>
     /// The cache is an <b>optional participant in the send</b>, not the entry point. The call site is
@@ -970,7 +970,7 @@ namespace StackExchange.Redis
                 // NOTE: no in-flight wait here. Coalescing means waiting on someone else's Task, and doing
                 // that from a synchronous caller is the sync-over-async problem this design avoids
                 // elsewhere; sync callers therefore still send their own copy, exactly as before. Sync is
-                // deprioritised (see TransitionalDatabase), so this is a deliberate gap rather than an
+                // deprioritised (see RedisDatabase), so this is a deliberate gap rather than an
                 // oversight - it closes when the executor gains a synchronous wait.
                 if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
                 {

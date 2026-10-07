@@ -8,7 +8,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The root a caller holds for a reply whose contents are <b>windows over the reply
+/// The root a caller holds for a reply whose contents are <b>windows over the reply
 /// buffer</b> rather than materialised objects: one disposable object at the top, uncounted struct views
 /// inside it.
 /// </summary>

@@ -46,7 +46,7 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
 
     private static RespDatabaseContext NewContext(IConnectionMultiplexer conn, int db)
     {
-        return TestMultiplexer.Unwrap(conn).NewCore.GetDatabase(db);
+        return TestMultiplexer.Unwrap(conn).Connections.GetDatabase(db);
     }
 
     private async Task<IConnectionMultiplexer> RequireHashImportAsync()

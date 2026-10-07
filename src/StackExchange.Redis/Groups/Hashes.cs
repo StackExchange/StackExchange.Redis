@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The hashes commands.
+/// The hashes commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class Hashes
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The hash-command group: <c>target.Hashes.GetAsync(...)</c>.
+/// The hash-command group: <c>target.Hashes.GetAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

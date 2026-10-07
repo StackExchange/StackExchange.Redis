@@ -4,7 +4,7 @@ using RESPite;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Implemented by a type that knows how to write itself as one or more RESP
+    /// Implemented by a type that knows how to write itself as one or more RESP
     /// arguments, so that it can be used directly in a command hole: <c>$"{cmd}{key}{myArgument}"</c>.
     /// </summary>
     /// <remarks>
@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Protocol
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Implemented by a type that knows how to write itself as one or more RESP
+    /// Implemented by a type that knows how to write itself as one or more RESP
     /// arguments <b>given a format specifier</b>: <c>$"{radius:km}"</c>.
     /// </summary>
     /// <remarks>

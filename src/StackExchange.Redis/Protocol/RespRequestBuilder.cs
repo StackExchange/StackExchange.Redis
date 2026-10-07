@@ -11,7 +11,7 @@ using RESPite;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Renders a RESP command from an interpolated string, folding the cluster slot and
+    /// Renders a RESP command from an interpolated string, folding the cluster slot and
     /// marking which arguments were keys as it writes.
     /// </summary>
     /// <remarks>

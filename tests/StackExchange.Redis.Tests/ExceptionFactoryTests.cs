@@ -130,9 +130,9 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
             // the socket and pipe byte counts exist only on the core that has a socket to poll and a pipe
             // to measure, and this test hands in a detached ServerEndPoint with no bridge
             Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive", ex.Message);
-            var fromNewCore = conn.UnderlyingMultiplexer.NewCoreIfCreated
+            var fromManager = conn.UnderlyingMultiplexer.ConnectionsIfCreated
                 ?.ConnectionStatus(server.EndPoint, ConnectionType.Interactive) is not null;
-            if (!fromNewCore)
+            if (!fromManager)
             {
                 Assert.Contains("in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
             }
@@ -231,9 +231,9 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
                     // the same question GetBridgeStatus asks: does that core have an executor for this
                     // endpoint at all? Not whether it is connected - an endpoint it tried and failed to
                     // reach still has one, and still supplies the status that replaces the absent bridge's.
-                    var fromNewCore = ((ConnectionMultiplexer)conn).NewCoreIfCreated
+                    var fromManager = ((ConnectionMultiplexer)conn).ConnectionsIfCreated
                         ?.ConnectionStatus(server.EndPoint, ConnectionType.Interactive) is not null;
-                    if (!fromNewCore)
+                    if (!fromManager)
                     {
                         Assert.Contains("in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
                     }

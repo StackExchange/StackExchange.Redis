@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The hyperloglog commands.
+/// The hyperloglog commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class HyperLogLog
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The HyperLogLog group: <c>target.HyperLogLog.AddAsync(...)</c>.
+/// The HyperLogLog group: <c>target.HyperLogLog.AddAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// Three commands, and the whole group would be unremarkable but for <c>PFCOUNT</c>: it rewrites the

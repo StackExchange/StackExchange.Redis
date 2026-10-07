@@ -6,7 +6,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Turns a reply into a <see cref="RespReply"/> that <b>holds the reply's
+    /// Turns a reply into a <see cref="RespReply"/> that <b>holds the reply's
     /// buffer</b>, rather than copying anything out of it.
     /// </summary>
     /// <typeparam name="TReply">The reply shape to construct.</typeparam>

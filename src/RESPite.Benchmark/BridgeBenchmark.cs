@@ -4,7 +4,7 @@ using StackExchange.Redis;
 
 namespace RESPite.Benchmark;
 
-public sealed class BridgeBenchmark(string[] args) : OldCoreBenchmarkBase(args)
+public sealed class BridgeBenchmark(string[] args) : DatabaseApiBenchmarkBase(args)
 {
     public override string ToString() => "bridge SE.Redis";
     protected override IConnectionMultiplexer Create(int port)

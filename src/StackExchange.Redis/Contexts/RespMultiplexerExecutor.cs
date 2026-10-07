@@ -7,7 +7,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Routes a command to an endpoint, by slot when that means anything.
+    /// Routes a command to an endpoint, by slot when that means anything.
     /// </summary>
     /// <remarks>
     /// <para>

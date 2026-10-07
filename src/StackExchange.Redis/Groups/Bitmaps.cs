@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The bitmaps commands.
+/// The bitmaps commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class Bitmaps
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The bitmap-command group: <c>target.Bitmaps.CountAsync(...)</c>.
+/// The bitmap-command group: <c>target.Bitmaps.CountAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -48,7 +48,7 @@ public static partial class Bitmaps
 /// someone storing a value wanted.
 /// </para>
 /// <para>
-/// The adapters in <c>TransitionalDatabase.Bitmaps.cs</c> keep the old <c>StringBitXxx</c> names
+/// The adapters in <c>RedisDatabase.Bitmaps.cs</c> keep the old <c>StringBitXxx</c> names
 /// working, so the regrouping costs existing callers nothing.
 /// </para>
 /// </remarks>

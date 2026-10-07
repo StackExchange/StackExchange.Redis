@@ -2,7 +2,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The keyword arguments the command surface writes, pre-framed.
+    /// The keyword arguments the command surface writes, pre-framed.
     /// </summary>
     /// <remarks>
     /// <para>

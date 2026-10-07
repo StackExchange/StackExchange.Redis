@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The sortedsets commands.
+/// The sortedsets commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class SortedSets
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The sorted-set command group: <c>target.SortedSets.AddAsync(...)</c>.
+/// The sorted-set command group: <c>target.SortedSets.AddAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

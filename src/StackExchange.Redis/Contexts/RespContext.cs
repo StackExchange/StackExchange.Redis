@@ -10,7 +10,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Transient state for a RESP operation: everything the writer needs in order to
+    /// Transient state for a RESP operation: everything the writer needs in order to
     /// render a command. Supplied to an interpolated string handler as the receiver of the call.
     /// </summary>
     /// <remarks>

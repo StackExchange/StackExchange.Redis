@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Tests;
 /// </remarks>
 public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(output)
 {
-    private static TransitionalDatabase Transitional(IDatabase db) => Assert.IsType<TransitionalDatabase>(db);
+    private static RedisDatabase AsRedisDatabase(IDatabase db) => Assert.IsType<RedisDatabase>(db);
 
     [Fact]
     public async Task AnUndialledEndpointIsDeferredRatherThanDisconnected()
@@ -34,7 +34,7 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
             configuration: TestConfig.Current.ClusterServersAndPorts,
             connectMode: ConnectMode.Discover,
             log: Writer);
-        var db = Transitional(conn.GetDatabase());
+        var db = AsRedisDatabase(conn.GetDatabase());
         await db.PingAsync();
 
         // the keyless question must land on something live, not round-robin onto an undialled node
@@ -44,7 +44,7 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
         // Keys hash across all six nodes, and one PING dialled one of them - so the sample MUST contain
         // Deferred, and that is the assertion that matters. Without it this test would pass against a
         // build that had lost the distinction entirely and called everything Connected.
-        var core = ((ConnectionMultiplexer)conn).NewCore;
+        var core = ((ConnectionMultiplexer)conn).Connections;
         Log($"router={db.RouterKindForTest} routesBySlot={core.RoutesBySlotForTest} topology={core.TopologyStateForTest}");
         for (var i = 0; i < 4; i++)
         {
@@ -83,7 +83,7 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
     public async Task ADemandThatNoServerCanSatisfyIsUnroutable()
     {
         await using var conn = Create(log: Writer);
-        var db = Transitional(conn.GetDatabase());
+        var db = AsRedisDatabase(conn.GetDatabase());
         await db.PingAsync();
 
         Assert.NotEqual(RespConnectionState.Unroutable, db.GetConnectionState(Me()));
@@ -102,14 +102,14 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
     /// cluster's own view - a map that disagreed would send every key to a node that answers MOVED.
     /// </remarks>
     [Fact]
-    public async Task TheNewCoreFillsAndRoutesFromItsOwnSlotMap()
+    public async Task TheConnectionManagerFillsAndRoutesFromItsOwnSlotMap()
     {
         Skip.IfNoCluster();
         await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
-        var db = Transitional(conn.GetDatabase());
+        var db = AsRedisDatabase(conn.GetDatabase());
         await db.PingAsync();
 
-        var core = ((ConnectionMultiplexer)conn).NewCore;
+        var core = ((ConnectionMultiplexer)conn).Connections;
         Assert.True(core.RoutesBySlotForTest, "the cluster was not detected");
         Assert.True(core.HasSlotMapForTest, "the new core did not fill a slot map of its own");
 
@@ -150,14 +150,14 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
     /// </para>
     /// </remarks>
     [Fact]
-    public async Task TheNewCoreRoutesAReplicaPreferenceFromItsOwnMap()
+    public async Task TheConnectionManagerRoutesAReplicaPreferenceFromItsOwnMap()
     {
         Skip.IfNoCluster();
         await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
-        var db = Transitional(conn.GetDatabase());
+        var db = AsRedisDatabase(conn.GetDatabase());
         await db.PingAsync();
 
-        var core = ((ConnectionMultiplexer)conn).NewCore;
+        var core = ((ConnectionMultiplexer)conn).Connections;
         Assert.True(core.HasSlotMapForTest, "the new core did not fill a slot map of its own");
 
         var config = conn.GetServer(conn.GetEndPoints()[0]).ClusterConfiguration;
@@ -215,15 +215,15 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
     /// </para>
     /// </remarks>
     [Fact]
-    public async Task TheNewCoreLearnsBothStandaloneRolesFromOneConnection()
+    public async Task TheConnectionManagerLearnsBothStandaloneRolesFromOneConnection()
     {
         await using var conn = Create(
             configuration: TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort,
             log: Writer);
-        var db = Transitional(conn.GetDatabase());
+        var db = AsRedisDatabase(conn.GetDatabase());
         await db.PingAsync();
 
-        var core = ((ConnectionMultiplexer)conn).NewCore;
+        var core = ((ConnectionMultiplexer)conn).Connections;
         var primary = conn.GetEndPoints().First(x => Format.ToString(x).EndsWith(TestConfig.Current.PrimaryPort.ToString()));
         var replica = conn.GetEndPoints().First(x => Format.ToString(x).EndsWith(TestConfig.Current.ReplicaPort.ToString()));
 
@@ -262,10 +262,10 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
     {
         using var server = new InProcessTestServer(Output) { ServerType = ServerType.Cluster };
         await using var conn = await server.ConnectAsync();
-        var db = Transitional(conn.GetDatabase());
+        var db = AsRedisDatabase(conn.GetDatabase());
         await db.PingAsync();
 
-        var core = ((ConnectionMultiplexer)conn).NewCore;
+        var core = ((ConnectionMultiplexer)conn).Connections;
         Log($"topology={core.TopologyStateForTest} hasMap={core.HasSlotMapForTest}");
         Assert.Equal(nameof(RespClusterState.Yes), core.TopologyStateForTest);
         Assert.True(core.HasSlotMapForTest, "a cluster that answered CLUSTER SLOTS should have left a map");
@@ -307,7 +307,7 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
             configuration: $"{TestConfig.Current.ClusterServersAndPorts},configChannel=",
             connectMode: ConnectMode.Lazy,
             log: Writer);
-        var core = ((ConnectionMultiplexer)conn).NewCore;
+        var core = ((ConnectionMultiplexer)conn).Connections;
 
         // nothing has been sent, so nothing has dialled
         Assert.False(core.HasSlotMapForTest, "no command has been issued, so nothing should have connected");
@@ -355,7 +355,7 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
             configuration: TestConfig.Current.ClusterServersAndPorts,
             connectMode: ConnectMode.Lazy,
             log: Writer);
-        var core = ((ConnectionMultiplexer)conn).NewCore;
+        var core = ((ConnectionMultiplexer)conn).Connections;
 
         Assert.False(await core.ConnectEagerlyAsync(ConnectMode.Lazy), "Lazy should open nothing");
         Assert.Equal(0, core.ConnectedEndpointCountForTest);
@@ -385,10 +385,10 @@ public class RespConnectionStateTests(ITestOutputHelper output) : TestBase(outpu
     {
         Skip.IfNoCluster();
         await using var conn = Create(allowAdmin: true, configuration: TestConfig.Current.ClusterServersAndPorts, log: Writer);
-        var db = Transitional(conn.GetDatabase());
+        var db = AsRedisDatabase(conn.GetDatabase());
         await db.PingAsync();
 
-        var core = ((ConnectionMultiplexer)conn).NewCore;
+        var core = ((ConnectionMultiplexer)conn).Connections;
         Assert.True(core.HasSlotMapForTest, "the cluster was not mapped");
 
         // a slot this core knows the owner of

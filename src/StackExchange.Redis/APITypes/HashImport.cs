@@ -249,7 +249,7 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     private async Task SafeDiscardAsync(ServerEndPoint server, int db)
     {
         // nothing was prepared on a core that was never created, so there is nothing to discard
-        if (server.Multiplexer.NewCoreIfCreated is not { } core) return;
+        if (server.Multiplexer.ConnectionsIfCreated is not { } core) return;
 
         // on the connection the PREPARE went out on, which is where the gate claimed it. The claim goes first, so
         // it never outlives the server's own copy; the DISCARD is fire-and-forget, as it always was.

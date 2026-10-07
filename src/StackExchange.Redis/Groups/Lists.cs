@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The lists commands.
+/// The lists commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class Lists
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The list-command group: <c>target.Lists.LeftPushAsync(...)</c>.
+/// The list-command group: <c>target.Lists.LeftPushAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

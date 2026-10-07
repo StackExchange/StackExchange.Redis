@@ -5,7 +5,7 @@ using RESPite;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. An already-framed run of one or more RESP bulk strings, written verbatim.
+    /// An already-framed run of one or more RESP bulk strings, written verbatim.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -149,7 +149,7 @@ namespace StackExchange.Redis.Protocol
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Declares the tokens a generated <see cref="RespFragment"/> property should emit.
+    /// Declares the tokens a generated <see cref="RespFragment"/> property should emit.
     /// Omit the tokens to infer a single token from the member name, as <c>AsciiHashAttribute</c> does.
     /// </summary>
     [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]

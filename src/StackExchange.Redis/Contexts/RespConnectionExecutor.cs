@@ -10,7 +10,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. An executor that talks to a <see cref="RespConnection"/> directly.
+    /// An executor that talks to a <see cref="RespConnection"/> directly.
     /// </summary>
     /// <remarks>
     /// <para>

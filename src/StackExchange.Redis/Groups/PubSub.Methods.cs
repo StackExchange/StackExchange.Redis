@@ -32,7 +32,7 @@ public static partial class PubSub
     /// it folds a key. That is what sharded pub/sub requires - <c>SPUBLISH</c> is delivered by the shard
     /// owning the channel's slot and by nobody else - and it is harmless for ordinary <c>PUBLISH</c>,
     /// which any node will propagate across the cluster bus. The shipped path instead prefers whichever
-    /// server this client already holds a subscription on; see the note in <c>TransitionalDatabase</c>.
+    /// server this client already holds a subscription on; see the note in <c>RedisDatabase</c>.
     /// </para>
     /// </remarks>
     public static ValueTask<long> PublishAsync(this in RespPubSub pubsub, RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
@@ -101,7 +101,7 @@ public static partial class PubSub
     /// </para>
     /// <para>
     /// <b>The context decides the connection, not this.</b> Under RESP2 a subscription needs its own
-    /// socket and under RESP3 it does not, which is <c>RespNewCore.SubscriptionContext</c>'s business;
+    /// socket and under RESP3 it does not, which is <c>RespConnectionManager.SubscriptionContext</c>'s business;
     /// what arrives here is already the right one.
     /// </para>
     /// <para>

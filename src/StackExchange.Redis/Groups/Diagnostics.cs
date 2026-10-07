@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The commands that ask a server about itself.
+/// The commands that ask a server about itself.
 /// </summary>
 /// <remarks>
 /// <inheritdoc cref="HyperLogLog" path="/remarks/para[1]"/>
@@ -14,7 +14,7 @@ public static partial class Diagnostics
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The diagnostic group: <c>server.Diagnostics.LatencyDoctorAsync()</c>.
+/// The diagnostic group: <c>server.Diagnostics.LatencyDoctorAsync()</c>.
 /// </summary>
 /// <remarks>
 /// <para>

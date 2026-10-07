@@ -31,8 +31,8 @@ public partial class ConnectionMultiplexer
         var libName = GetFullLibraryName(); // note this also checks SetClientLibrary
         if (string.IsNullOrWhiteSpace(libName) || !CommandMap.IsAvailable(RedisCommand.CLIENT)) return; // disabled on no lib name
 
-        // every connection there is; see RespNewCore.SetLibraryName
-        NewCoreIfCreated?.SetLibraryName(libName);
+        // every connection there is; see RespConnectionManager.SetLibraryName
+        ConnectionsIfCreated?.SetLibraryName(libName);
     }
 
     internal string GetFullLibraryName()

@@ -33,7 +33,7 @@ public class RespPreambleDatabaseTests(ITestOutputHelper output) : TestBase(outp
         // leave the one interactive connection SELECTed on the other database
         await conn.GetDatabase(other).StringSetAsync(Me() + ":elsewhere", "x");
 
-        var context = TestMultiplexer.Unwrap(conn).NewCore.GetDatabase(db.Database);
+        var context = TestMultiplexer.Unwrap(conn).Connections.GetDatabase(db.Database);
         var preamble = context.Raw.Render($"{RedisCommand.ECHO}{(RedisValue)"preamble"}");
         var request = context.Raw.Render($"{RedisCommand.SET}{key}{(RedisValue)"here"}");
         ValueTask<bool> sent;

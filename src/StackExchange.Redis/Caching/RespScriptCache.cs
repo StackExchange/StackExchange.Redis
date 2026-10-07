@@ -9,7 +9,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis.Caching
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The rendered <c>SCRIPT LOAD</c> for a script, and its hash, kept so the body is
+    /// The rendered <c>SCRIPT LOAD</c> for a script, and its hash, kept so the body is
     /// encoded once rather than once per call.
     /// </summary>
     /// <remarks>

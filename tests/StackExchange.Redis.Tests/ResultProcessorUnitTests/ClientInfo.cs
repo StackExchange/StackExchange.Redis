@@ -7,7 +7,7 @@ public class ClientInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
     // CLIENT LIST is read by Diagnostics.ClientListHandler, which reuses the shipped ClientInfo.TryParse
     private static IRespHandler<StackExchange.Redis.ClientInfo[]> ClientList
-        => NewCoreHandlers.Get<StackExchange.Redis.ClientInfo[]>(typeof(Diagnostics), "ClientListHandler");
+        => PrivateHandlers.Get<StackExchange.Redis.ClientInfo[]>(typeof(Diagnostics), "ClientListHandler");
 
     [Fact]
     public void SingleClient_Success()

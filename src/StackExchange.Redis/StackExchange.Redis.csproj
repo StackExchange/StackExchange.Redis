@@ -35,10 +35,10 @@
     <!-- for debugging low-level parsing problems; absolutely do not us in production -->
     <!--<DefineConstants Condition="'$(Configuration)' == 'Debug'">$(DefineConstants);PARSE_DETAIL</DefineConstants>-->
   
-    <!-- SER352 reports how much of TransitionalDatabase is still generated throwing stubs. It is meant to
+    <!-- SER352 reports how much of RedisDatabase is still generated throwing stubs. It is meant to
          be seen on every Release build, but the repo builds with TreatWarningsAsErrors, which would make it
          fatal and block the very work it is tracking. So: loud, not fatal, for as long as the transition
-         runs. Delete this line to make shipping an incomplete TransitionalDatabase impossible; the warning
+         runs. Delete this line to make shipping an incomplete RedisDatabase impossible; the warning
          disappears by itself when the count reaches zero. -->
     <WarningsNotAsErrors>$(WarningsNotAsErrors);SER352</WarningsNotAsErrors>
 </PropertyGroup>
@@ -88,7 +88,7 @@
     <Compile Update="Groups\Streams.*.cs" DependentUpon="Streams.cs" />
     <Compile Update="Groups\Strings.*.cs" DependentUpon="Strings.cs" />
     <Compile Update="Groups\VectorSets.*.cs" DependentUpon="VectorSets.cs" />
-    <Compile Update="Transitional\TransitionalDatabase.*.cs" DependentUpon="TransitionalDatabase.cs" />
+    <Compile Update="Database\RedisDatabase.*.cs" DependentUpon="RedisDatabase.cs" />
   </ItemGroup>
 
   <ItemGroup>

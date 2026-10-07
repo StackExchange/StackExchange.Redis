@@ -7,7 +7,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Sends to whichever member of a connection group is currently active.
+    /// Sends to whichever member of a connection group is currently active.
     /// </summary>
     /// <remarks>
     /// <para>

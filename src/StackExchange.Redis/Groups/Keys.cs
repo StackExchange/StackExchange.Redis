@@ -9,7 +9,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The keys commands.
+/// The keys commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +35,7 @@ public static partial class Keys
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The key-command group: <c>target.Keys.DeleteAsync(...)</c>.
+/// The key-command group: <c>target.Keys.DeleteAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

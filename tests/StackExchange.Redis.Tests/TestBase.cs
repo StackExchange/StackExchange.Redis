@@ -273,7 +273,7 @@ public abstract class TestBase : IDisposable
 
     /// <summary>
     /// How a test reaches a database. Virtual so a fixture subclass can run the SAME tests against a
-    /// different <see cref="IDatabase"/> implementation - see <c>TransitionalStringTests</c>, which points
+    /// different <see cref="IDatabase"/> implementation - see <c>StringTests</c>, which points
     /// it at the new RESP context surface.
     /// </summary>
     /// <remarks>

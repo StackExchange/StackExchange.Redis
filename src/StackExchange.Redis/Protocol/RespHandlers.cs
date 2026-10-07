@@ -7,7 +7,7 @@ using RESPite.Messages;
 
 namespace StackExchange.Redis.Protocol
 {
-    /// <summary>EXPERIMENTAL SPIKE. Reply handlers for the prototype command surface.</summary>
+    /// <summary>Reply handlers for the prototype command surface.</summary>
     public static class RespHandlers
     {
         /// <summary>Reads a bulk string reply as a <see cref="RedisValue"/>; null stays null.</summary>

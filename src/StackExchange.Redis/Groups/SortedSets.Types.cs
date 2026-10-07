@@ -11,7 +11,7 @@ namespace StackExchange.Redis;
 // commands that write them rather than in a shared namespace.
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The option tokens of <c>ZADD</c>: up to six of them, in the order the server
+/// The option tokens of <c>ZADD</c>: up to six of them, in the order the server
 /// documents.
 /// </summary>
 /// <remarks>
@@ -74,7 +74,7 @@ internal readonly struct RespSortedSetOptions : IRespArgument
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. A <c>ZRANGESTORE</c> bound, which brackets an inclusive LEXICAL bound where the
+/// A <c>ZRANGESTORE</c> bound, which brackets an inclusive LEXICAL bound where the
 /// read commands leave it bare.
 /// </summary>
 /// <remarks>
@@ -112,7 +112,7 @@ internal readonly struct RespRangeStoreBound : IRespArgument
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The <c>AGGREGATE mode</c> pair, which writes two arguments or none.
+/// The <c>AGGREGATE mode</c> pair, which writes two arguments or none.
 /// </summary>
 /// <remarks>
 /// <c>SUM</c> is the server's own default, so it renders as nothing at all - the same arrangement as
@@ -146,7 +146,7 @@ internal readonly struct RespAggregate(Aggregate aggregate) : IRespArgument
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The <c>LIMIT offset count</c> triple, which writes three arguments or none.
+/// The <c>LIMIT offset count</c> triple, which writes three arguments or none.
 /// </summary>
 /// <remarks>
 /// <c>(0, -1)</c> is "everything", which is the server's own behaviour without the operand - so the

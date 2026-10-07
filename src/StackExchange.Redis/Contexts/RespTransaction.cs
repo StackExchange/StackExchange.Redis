@@ -12,7 +12,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Accumulates commands and sends them inside <c>MULTI</c>/<c>EXEC</c>.
+    /// Accumulates commands and sends them inside <c>MULTI</c>/<c>EXEC</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -334,7 +334,7 @@ namespace StackExchange.Redis
         /// <b>Consumed exactly once, which is the rule for anything backed by an
         /// <c>IValueTaskSource</c></b> - the source is not released until its result is taken, and a pooled
         /// one that is never released can hand a stale token to the next caller. The same rule, and the same
-        /// reason, as <c>TransitionalSync.Wait</c>'s deliberately non-droppable <c>GetAwaiter().GetResult()</c>.
+        /// reason, as <c>SyncWait.Wait</c>'s deliberately non-droppable <c>GetAwaiter().GetResult()</c>.
         /// </remarks>
         private static void DiscardExec(ValueTask<bool> exec)
         {

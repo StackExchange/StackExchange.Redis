@@ -6,7 +6,7 @@ using RESPite;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. An <see cref="IBufferWriter{T}"/> that turns what <c>MessageWriter</c> already
+    /// An <see cref="IBufferWriter{T}"/> that turns what <c>MessageWriter</c> already
     /// writes into a <see cref="RespRequestFrame"/> - so the existing <c>Message</c> surface can feed the new
     /// pipeline without rewriting any of it.
     /// </summary>

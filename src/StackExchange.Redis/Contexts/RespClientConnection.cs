@@ -43,7 +43,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The connection the client uses: one that knows what a reply <i>means</i>.
+    /// The connection the client uses: one that knows what a reply <i>means</i>.
     /// </summary>
     /// <remarks>
     /// <para>

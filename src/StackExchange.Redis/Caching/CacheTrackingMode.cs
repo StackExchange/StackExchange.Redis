@@ -4,7 +4,7 @@ using RESPite;
 namespace StackExchange.Redis.Caching
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. How the server decides which keys to tell us about.
+    /// How the server decides which keys to tell us about.
     /// </summary>
     /// <remarks>
     /// <para>

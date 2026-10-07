@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The integration half of the proof is <c>TransitionalStringTests</c>/<c>TransitionalBitTests</c>, which
+/// The integration half of the proof is <c>StringTests</c>/<c>BitTests</c>, which
 /// re-run the existing suites through the new surface and so check <b>semantics</b> against real servers.
 /// These check the other half: the exact bytes, including the cases a server would accept either way and
 /// the ones a test against a server cannot distinguish - which argument order was used, whether a default

@@ -129,7 +129,7 @@ public class RespConnectionExecutorTests
     {
         // no result box and no second mechanism: Wait blocks on the same value-task core the async path
         // awaits. Driven through the executor directly because the context surface is async-only - the
-        // sync bridge above it is TransitionalDatabase's business, not this layer's.
+        // sync bridge above it is RedisDatabase's business, not this layer's.
         var (context, transport, connection) = Connect();
         var executor = new RespConnectionExecutor(connection, 0);
 

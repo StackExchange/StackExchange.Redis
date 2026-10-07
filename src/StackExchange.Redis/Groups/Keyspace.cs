@@ -6,7 +6,7 @@ using RESPite;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The keyspace of one server: the commands that ask about or act on <b>a node's
+/// The keyspace of one server: the commands that ask about or act on <b>a node's
 /// keys as a whole</b>, rather than on a key.
 /// </summary>
 /// <remarks>
@@ -47,7 +47,7 @@ public readonly struct RespKeyspace
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. Reaches the server-scoped command groups from a server.
+/// Reaches the server-scoped command groups from a server.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -79,7 +79,7 @@ public static partial class RespServerExtensions
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The keyspace commands: <c>server.Keyspace.CountAsync(0)</c>.
+/// The keyspace commands: <c>server.Keyspace.CountAsync(0)</c>.
 /// </summary>
 /// <remarks>
 /// Here rather than in a single surface-wide class, so that a group is one place - the same arrangement

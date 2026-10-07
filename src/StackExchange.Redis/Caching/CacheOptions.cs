@@ -7,7 +7,7 @@ using RESPite;
 namespace StackExchange.Redis.Caching
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Everything about a client-side cache that is settled once, when the connection
+    /// Everything about a client-side cache that is settled once, when the connection
     /// is made.
     /// </summary>
     /// <remarks>

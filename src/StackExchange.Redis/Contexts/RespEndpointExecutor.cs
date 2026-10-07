@@ -12,7 +12,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. One endpoint: owns its connection's whole life, not just its use.
+    /// One endpoint: owns its connection's whole life, not just its use.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -2279,7 +2279,7 @@ namespace StackExchange.Redis
                 // GetServer answering from whichever node HAD connected.
                 if (!IsSubscriptionEndpoint && connection is RespClientConnection { Server: { } established })
                 {
-                    established.OnNewCoreConnected($"{_endpoint} connected on the new core");
+                    established.OnConnected($"{_endpoint} connected on the new core");
                 }
 
                 return connection;

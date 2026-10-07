@@ -8,7 +8,7 @@ public class SentinelGetReplicaAddresses(ITestOutputHelper log) : ResultProcesso
 {
     // SentinelCommands.AddressesHandler - shared by SENTINEL SENTINELS and SENTINEL REPLICAS
     private static IRespHandler<System.Net.EndPoint[]> Addresses
-        => NewCoreHandlers.Get<System.Net.EndPoint[]>(typeof(SentinelCommands), "AddressesHandler");
+        => PrivateHandlers.Get<System.Net.EndPoint[]>(typeof(SentinelCommands), "AddressesHandler");
 
     [Fact]
     public void SingleReplica_Success()

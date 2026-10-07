@@ -1,7 +1,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. What a routing question can say about reaching a server, beyond yes and no.
+    /// What a routing question can say about reaching a server, beyond yes and no.
     /// </summary>
     /// <remarks>
     /// <para>

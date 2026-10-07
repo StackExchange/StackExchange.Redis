@@ -7,7 +7,7 @@ using RESPite.Buffers;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A rendered RESP frame, plus the routing and invalidation metadata that was
+    /// A rendered RESP frame, plus the routing and invalidation metadata that was
     /// folded while it was being written.
     /// </summary>
     public struct RespRequestFrame : IDisposable
@@ -369,7 +369,7 @@ namespace StackExchange.Redis.Protocol
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. Offset and length of a payload within a <see cref="RespRequestFrame"/>'s buffer.
+    /// Offset and length of a payload within a <see cref="RespRequestFrame"/>'s buffer.
     /// </summary>
     /// <remarks>
     /// Deliberately not <c>System.Range</c>: down-level that has to be a source polyfill, and the polyfill

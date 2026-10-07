@@ -1594,7 +1594,7 @@ namespace StackExchange.Redis
         public Tunnel? Tunnel { get; set; }
 
         /// <summary>
-        /// EXPERIMENTAL SPIKE. Enables a client-side cache on this connection, and says how it is built.
+        /// Enables a client-side cache on this connection, and says how it is built.
         /// </summary>
         /// <remarks>
         /// <para>

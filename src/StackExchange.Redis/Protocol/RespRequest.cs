@@ -8,7 +8,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A rendered RESP request, detached from its builder: the bytes to send, and - the
+    /// A rendered RESP request, detached from its builder: the bytes to send, and - the
     /// same bytes - the cache key, without ever being copied into a <c>byte[]</c> or a <c>string</c>.
     /// </summary>
     /// <remarks>

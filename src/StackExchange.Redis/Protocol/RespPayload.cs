@@ -8,7 +8,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis.Protocol
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A cached response body, held as a pooled blob rather than as parsed objects, so
+    /// A cached response body, held as a pooled blob rather than as parsed objects, so
     /// that a cache hit costs a reference-count bump and a parse - and no allocation.
     /// </summary>
     /// <remarks>

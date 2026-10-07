@@ -24,7 +24,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
     private static RespDatabaseContext NewSurface(IConnectionMultiplexer conn, int db, RespClientCache? cache = null)
     {
         // a context over the core's own connections, with the cache the test asks for (or none)
-        return new RespDatabaseContext(TestMultiplexer.Unwrap(conn).NewCore.GetDatabase(db).Raw.WithCache(cache));
+        return new RespDatabaseContext(TestMultiplexer.Unwrap(conn).Connections.GetDatabase(db).Raw.WithCache(cache));
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await using var conn = Create();
 
         var classic = conn.GetDatabase();
-        var surface = new TransitionalDatabase(NewSurface(conn, classic.Database), conn, null);
+        var surface = new RedisDatabase(NewSurface(conn, classic.Database), conn, null);
 
         RedisKey key = Me();
         Assert.Equal(await classic.IdentifyEndpointAsync(key), await surface.IdentifyEndpointAsync(key));
@@ -55,7 +55,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         await using var conn = Create();
 
         var classic = conn.GetDatabase();
-        var surface = new TransitionalDatabase(NewSurface(conn, classic.Database), conn, null);
+        var surface = new RedisDatabase(NewSurface(conn, classic.Database), conn, null);
 
         RedisKey key = Me();
         Assert.Equal(classic.IsConnected(key), surface.IsConnected(key));

@@ -555,7 +555,7 @@ public static partial class Lists
 
         if (pending.IsCompletedSuccessfully)
         {
-            pending.GetAwaiter().GetResult(); // consume it; see TransitionalDatabase.Wait
+            pending.GetAwaiter().GetResult(); // consume it; see RedisDatabase.Wait
             return new ValueTask<T>(value);
         }
 

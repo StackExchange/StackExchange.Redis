@@ -382,7 +382,7 @@ namespace StackExchange.Redis
                     && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold
                     && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
                 {
-                    var stormLog = multiplexer.NewCoreIfCreated?.GetStormLog(
+                    var stormLog = multiplexer.ConnectionsIfCreated?.GetStormLog(
                         server.EndPoint, message.IsForSubscriptionBridge ? ConnectionType.Subscription : ConnectionType.Interactive);
                     if (string.IsNullOrWhiteSpace(stormLog)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
                     else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, stormLog);

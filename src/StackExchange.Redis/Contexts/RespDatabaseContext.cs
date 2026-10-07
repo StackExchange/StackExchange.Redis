@@ -130,7 +130,7 @@ namespace StackExchange.Redis
         public IDatabase AsDatabase(IConnectionMultiplexer multiplexer, object? asyncState = null)
         {
             if (multiplexer is null) throw new ArgumentNullException(nameof(multiplexer));
-            return new TransitionalDatabase(this, multiplexer, asyncState);
+            return new RedisDatabase(this, multiplexer, asyncState);
         }
     }
 }

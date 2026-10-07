@@ -31,16 +31,6 @@ public partial class ConnectionMultiplexer
         /// </remarks>
         DedicatedThreads = 2,
 
-        /// <summary>Retired: the switch between the old and new database surface, which no longer exist as two.</summary>
-        /// <remarks>
-        /// Kept only so an existing <c>SetFeatureFlag("NewDatabaseSurface", ...)</c> call still parses; it has no
-        /// effect. The new core is the only core from the v4 alpha - the old one has been deleted.
-        /// </remarks>
-        NewDatabaseSurface = 4,
-
-        /// <summary>Retired, as <see cref="NewDatabaseSurface"/>: the switch between the old and new connection engine.</summary>
-        NewCoreEngine = 8,
-
         /// <summary>
         /// Read and parse on one loop, rather than filling from the socket on one task and parsing on another.
         /// </summary>
@@ -50,7 +40,7 @@ public partial class ConnectionMultiplexer
         /// few percent where there is almost nothing to parse; this restores the single loop, for comparison or
         /// for a workload that measures better without the split. Connections made after it is set use it.
         /// </remarks>
-        SingleReadLoop = 16,
+        SingleReadLoop = 4,
     }
 
     private static void SetAutodetectFeatureFlags()
@@ -149,9 +139,9 @@ public partial class ConnectionMultiplexer
     /// asking about <see cref="ConnectionType.Subscription"/> answers about the shared one.
     /// </remarks>
     bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endpoint, ConnectionType connectionType)
-        => NewCoreIfCreated?.IsDedicatedThread(endpoint, connectionType, writer: false);
+        => ConnectionsIfCreated?.IsDedicatedThread(endpoint, connectionType, writer: false);
 
     /// <summary>As <c>IsSyncReader</c>, for the writer.</summary>
     bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endpoint, ConnectionType connectionType)
-        => NewCoreIfCreated?.IsDedicatedThread(endpoint, connectionType, writer: true);
+        => ConnectionsIfCreated?.IsDedicatedThread(endpoint, connectionType, writer: true);
 }

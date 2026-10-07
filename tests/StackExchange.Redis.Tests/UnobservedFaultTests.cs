@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Tests;
 /// <remarks>
 /// v3 marked every faulted command task observed as it faulted; down-level, with <c>ThrowUnobservedTaskExceptions</c>
 /// enabled, an unobserved fault takes the process down. v4's transitional surface handed out
-/// <c>ValueTask.AsTask()</c>, which does not, until <c>TransitionalAsyncState</c> bridged through a task of its own.
+/// <c>ValueTask.AsTask()</c>, which does not, until <c>TaskBridge</c> bridged through a task of its own.
 /// </remarks>
 [Collection(NonParallelCollection.Name)]
 public class UnobservedFaultTests

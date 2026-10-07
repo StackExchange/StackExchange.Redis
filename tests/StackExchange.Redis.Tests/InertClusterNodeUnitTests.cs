@@ -109,7 +109,7 @@ public class InertClusterNodeUnitTests(ITestOutputHelper log)
         // node that is being dialled right now, so it would not notice the regression it exists to catch
         var mux = (ConnectionMultiplexer)conn;
         _ = mux.GetServerEndPoint(idle, ServerProvenance.ClusterTopology, activate: false);
-        Assert.Equal(0, mux.NewCoreIfCreated?.ConnectionCount(idle) ?? 0);
+        Assert.Equal(0, mux.ConnectionsIfCreated?.ConnectionCount(idle) ?? 0);
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class InertClusterNodeUnitTests(ITestOutputHelper log)
 
         var mux = (ConnectionMultiplexer)conn;
         var inert = mux.GetServerEndPoint(idle, ServerProvenance.ClusterTopology, activate: false);
-        Assert.Equal(0, mux.NewCoreIfCreated?.ConnectionCount(idle) ?? 0);
+        Assert.Equal(0, mux.ConnectionsIfCreated?.ConnectionCount(idle) ?? 0);
 
         var connected = inert.OnConnectedAsync();
         Assert.NotSame(connected, await Task.WhenAny(connected, Task.Delay(250)));

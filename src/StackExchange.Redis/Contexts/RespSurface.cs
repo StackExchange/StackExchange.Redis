@@ -10,7 +10,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The root of the context-based surface: one member, from which everything else
+    /// The root of the context-based surface: one member, from which everything else
     /// hangs as extension members.
     /// </summary>
     /// <remarks>
@@ -48,7 +48,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A target whose commands are routed by <b>key</b>: a database, a batch, a
+    /// A target whose commands are routed by <b>key</b>: a database, a batch, a
     /// transaction.
     /// </summary>
     /// <remarks>
@@ -78,7 +78,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A target whose commands are pinned to <b>one endpoint</b>: a server.
+    /// A target whose commands are pinned to <b>one endpoint</b>: a server.
     /// </summary>
     /// <remarks>
     /// The counterpart to <see cref="IRespKeyspaceTarget"/>, and the reason <c>IServer</c> keeps a context
@@ -99,7 +99,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// EXPERIMENTAL SPIKE. The command surface, as extension members.
+    /// The command surface, as extension members.
     /// </summary>
     /// <remarks>
     /// <para>

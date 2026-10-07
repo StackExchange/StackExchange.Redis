@@ -7,7 +7,7 @@ using StackExchange.Redis.Caching;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. "Table 2": Redis key bytes to a generation ticket, the only structure a server
+    /// "Table 2": Redis key bytes to a generation ticket, the only structure a server
     /// invalidation touches.
     /// </summary>
     /// <remarks>

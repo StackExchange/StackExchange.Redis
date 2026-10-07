@@ -5,7 +5,7 @@ using RESPite.Messages;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// EXPERIMENTAL SPIKE. A <c>-MOVED</c> or <c>-ASK</c> reply, read out of the frame.
+    /// A <c>-MOVED</c> or <c>-ASK</c> reply, read out of the frame.
     /// </summary>
     /// <remarks>
     /// <para>

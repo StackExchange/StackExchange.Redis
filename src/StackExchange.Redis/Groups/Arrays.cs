@@ -10,7 +10,7 @@ using StackExchange.Redis.Protocol;
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The arrays commands.
+/// The arrays commands.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -36,7 +36,7 @@ public static partial class Arrays
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The array group: <c>target.Arrays.GetAsync(...)</c>.
+/// The array group: <c>target.Arrays.GetAsync(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>

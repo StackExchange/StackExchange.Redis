@@ -3,7 +3,7 @@
 namespace StackExchange.Redis;
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The <c>CONFIG</c> commands.
+/// The <c>CONFIG</c> commands.
 /// </summary>
 /// <remarks>
 /// <inheritdoc cref="HyperLogLog" path="/remarks/para[1]"/>
@@ -14,7 +14,7 @@ public static partial class Config
 }
 
 /// <summary>
-/// EXPERIMENTAL SPIKE. The configuration group: <c>server.Config.RewriteAsync()</c>.
+/// The configuration group: <c>server.Config.RewriteAsync()</c>.
 /// </summary>
 /// <remarks>
 /// <para>
