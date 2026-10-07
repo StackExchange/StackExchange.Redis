@@ -21,9 +21,6 @@ internal static class Program
                         benchmarks.Add(new DatabaseApiBenchmark(args));
                         break;
 #if NEWCORE
-                    case "--bridge":
-                        benchmarks.Add(new BridgeBenchmark(args));
-                        break;
                     case "--new":
                         benchmarks.Add(new ContextApiBenchmark(args));
                         break;

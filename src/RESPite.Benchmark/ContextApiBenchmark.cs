@@ -1,92 +1,100 @@
-﻿#if NEWCORE
+#if NEWCORE
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
-using RESPite.Connections;
-using RESPite.Messages;
-using StackExchange.Redis.Protocol;
+using StackExchange.Redis;
 
 namespace RESPite.Benchmark;
 
-public sealed class ContextApiBenchmark : BenchmarkBase<RespContext>
+/// <summary>The same operations as <see cref="DatabaseApiBenchmark"/>, through the grouped context API.</summary>
+public sealed class ContextApiBenchmark : BenchmarkBase<ContextApiBenchmark.Target>
 {
-    public override string ToString() => "new IO core";
+    /// <summary>
+    /// One caller's view: its database context, and - while a batch is being composed - that batch.
+    /// </summary>
+    /// <remarks>
+    /// A class, because the harness hands the same client to <see cref="PrepareBatch"/>, the operations and
+    /// <see cref="Flush"/> in turn, and the batch they share has to live somewhere between those calls.
+    /// </remarks>
+    public sealed class Target(RespDatabaseContext db)
+    {
+        public RespDatabaseContext Db { get; } = db;
 
-    private readonly RespConnectionPool _connectionPool;
+        public RespBatch Batch { get; set; }
 
-    private readonly RespContext[] _clients;
-    private readonly (string Key, byte[] Value)[] _pairs;
+        public bool Batching { get; set; }
 
-    protected override RespContext GetClient(int index) => _clients[index];
+        // every operation goes through these, so a batched run and an unbatched one send the same commands
+        public RespStrings Strings => Batching ? Batch.Strings : Db.Strings;
+        public RespLists Lists => Batching ? Batch.Lists : Db.Lists;
+        public RespSets Sets => Batching ? Batch.Sets : Db.Sets;
+        public RespHashes Hashes => Batching ? Batch.Hashes : Db.Hashes;
+        public RespSortedSets SortedSets => Batching ? Batch.SortedSets : Db.SortedSets;
+        public RespStreams Streams => Batching ? Batch.Streams : Db.Streams;
+        public RespKeys Keys => Batching ? Batch.Keys : Db.Keys;
 
-    protected override Task DeleteAsync(RespContext client, string key) => client.DelAsync(key).AsTask();
+        public ValueTask PingAsync() => Batching ? Batch.PingAsync() : Db.PingAsync();
+    }
 
-    // cancellation is now per-call rather than per-context, and is not yet honoured by the pipeline
-    protected override RespContext WithCancellation(RespContext client, CancellationToken cancellationToken)
-        => client;
+    private static readonly string withVersion = $"context API, SE.Redis {DatabaseApiBenchmark.GetLibVersion()}";
+    public override string ToString() => withVersion;
 
-    protected override Task InitAsync(RespContext client) => client.PingAsync().AsTask();
+    private readonly ConnectionMultiplexer[] _connections;
+    private readonly Target[] _clients;
+    private readonly KeyValuePair<RedisKey, RedisValue>[] _pairs;
 
     public ContextApiBenchmark(string[] args) : base(args)
     {
-        _clients = new RespContext[ClientCount];
+        // as for the classic API: a multiplexer per client unless +m shares one
+        var connectionCount = Multiplexed ? 1 : ClientCount;
+        _connections = new ConnectionMultiplexer[connectionCount];
+        for (var i = 0; i < connectionCount; i++)
+        {
+            _connections[i] = ConnectionMultiplexer.Connect($"{HostName}:{Port}");
+        }
 
-        _connectionPool = new(count: Multiplexed ? 1 : ClientCount);
-        _connectionPool.ConnectionError += (_, e) => Program.WriteException(e.Exception, e.Operation);
-        _pairs = new (string, byte[])[10];
+        _clients = new Target[ClientCount];
+        for (var i = 0; i < ClientCount; i++)
+        {
+            _clients[i] = new Target(_connections[i % connectionCount].GetDatabase().Context);
+        }
 
+        _pairs = new KeyValuePair<RedisKey, RedisValue>[10];
         for (var i = 0; i < 10; i++)
         {
-            _pairs[i] = ($"key:__rand_int__{i}", Payload);
-        }
-
-        if (Multiplexed)
-        {
-            var conn = _connectionPool.GetConnection().Synchronized();
-            var ctx = conn.Context;
-            for (int i = 0; i < ClientCount; i++) // init all
-            {
-                _clients[i] = ctx;
-            }
-        }
-        else
-        {
-            for (int i = 0; i < ClientCount; i++) // init all
-            {
-                var conn = _connectionPool.GetConnection();
-                if (PipelineDepth > 1)
-                {
-                    conn = conn.Synchronized();
-                }
-
-                _clients[i] = conn.Context;
-            }
+            _pairs[i] = new($"key:__rand_int__{i}", Payload);
         }
     }
+
+    public override int ConnectionCount => _connections.Length;
+
+    protected override Target GetClient(int index) => _clients[index];
+
+    protected override Task DeleteAsync(Target client, string key) => client.Keys.DeleteAsync(key).AsTask();
+
+    protected override Task InitAsync(Target client) => client.PingAsync().AsTask();
 
     public override void Dispose()
     {
-        _connectionPool.Dispose();
-        foreach (var client in _clients)
+        foreach (var connection in _connections)
         {
-            client.Connection.Dispose();
+            connection.Dispose();
         }
     }
 
-    protected override async Task OnCleanupAsync(RespContext client)
+    protected override async Task OnCleanupAsync(Target client)
     {
         foreach (var pair in _pairs)
         {
-            await client.DelAsync(pair.Key).ConfigureAwait(false);
+            await client.Keys.DeleteAsync(pair.Key).ConfigureAwait(false);
         }
     }
 
     public override async Task RunAll()
     {
         await InitAsync().ConfigureAwait(false);
-        // await RunAsync(PingInline).ConfigureAwait(false);
         await RunAsync(null, PingBulk).ConfigureAwait(false);
 
         await RunAsync(GetSetKey, Set, GetName(Get)).ConfigureAwait(false);
@@ -127,107 +135,128 @@ public sealed class ContextApiBenchmark : BenchmarkBase<RespContext>
         await CleanupAsync().ConfigureAwait(false);
     }
 
-    protected override RespContext CreateBatch(RespContext client) => client.CreateBatch(PipelineDepth).Context;
+    // each caller batches on its own Target; the harness then drives it through PrepareBatch / Flush
+    protected override Target CreateBatch(Target client) => new(client.Db);
 
-    protected override ValueTask Flush(RespContext client)
+    protected override void PrepareBatch(Target client, int count)
     {
-        if (client.Connection is RespBatch batch)
-        {
-            return new(batch.FlushAsync());
-        }
-
-        return default;
+        client.Batch = client.Db.BeginBatch();
+        client.Batching = true;
     }
 
-    protected override void PrepareBatch(RespContext client, int count)
+    protected override async ValueTask Flush(Target client)
     {
-        if (client.Connection is RespBatch batch)
+        if (!client.Batching) return;
+        var batch = client.Batch;
+        client.Batching = false;
+        using (batch)
         {
-            batch.EnsureCapacity(count);
+            await batch.ExecuteAsync().ConfigureAwait(false);
         }
     }
-
-    [DisplayName("PING_INLINE")]
-    // ReSharper disable once UnusedMember.Local
-    private ValueTask<RespParsers.ResponseSummary> PingInline(RespContext ctx) => ctx.PingInlineAsync(Payload);
 
     [DisplayName("PING_BULK")]
-    private ValueTask<RespParsers.ResponseSummary> PingBulk(RespContext ctx) => ctx.PingAsync(Payload);
+    private ValueTask<bool> PingBulk(Target client) => Done(client.PingAsync());
 
     [DisplayName("INCR")]
-    private ValueTask<int> Incr(RespContext ctx) => ctx.IncrAsync(CounterKey);
+    private ValueTask<long> Incr(Target client) => client.Strings.IncrementAsync(CounterKey);
 
     [DisplayName("GET")]
-    private ValueTask<RespParsers.ResponseSummary> Get(RespContext ctx) => ctx.GetAsync(GetSetKey);
+    private async ValueTask<int> Get(Target client)
+    {
+        using var lease = await client.Strings.GetLeaseAsync(GetSetKey).ConfigureAwait(false);
+        return lease?.Length ?? -1;
+    }
 
     [DisplayName("SET")]
-    private ValueTask<RespParsers.ResponseSummary> Set(RespContext ctx) => ctx.SetAsync(GetSetKey, Payload);
+    private ValueTask<bool> Set(Target client) => client.Strings.SetAsync(GetSetKey, Payload);
 
     [DisplayName("LPUSH")]
-    private ValueTask<int> LPush(RespContext ctx) => ctx.LPushAsync(ListKey, Payload);
+    private ValueTask<long> LPush(Target client) => client.Lists.LeftPushAsync(ListKey, Payload);
 
     [DisplayName("RPUSH")]
-    private ValueTask<int> RPush(RespContext ctx) => ctx.RPushAsync(ListKey, Payload);
-
-    [DisplayName("LRANGE_100")]
-    private ValueTask<RespParsers.ResponseSummary> LRange100(RespContext ctx) => ctx.LRangeAsync(ListKey, 0, 99);
-
-    [DisplayName("LRANGE_300")]
-    private ValueTask<RespParsers.ResponseSummary> LRange300(RespContext ctx) => ctx.LRangeAsync(ListKey, 0, 299);
-
-    [DisplayName("LRANGE_500")]
-    private ValueTask<RespParsers.ResponseSummary> LRange500(RespContext ctx) => ctx.LRangeAsync(ListKey, 0, 499);
-
-    [DisplayName("LRANGE_600")]
-    private ValueTask<RespParsers.ResponseSummary> LRange600(RespContext ctx) => ctx.LRangeAsync(ListKey, 0, 599);
+    private ValueTask<long> RPush(Target client) => client.Lists.RightPushAsync(ListKey, Payload);
 
     [DisplayName("LPOP")]
-    private ValueTask<RespParsers.ResponseSummary> LPop(RespContext ctx) => ctx.LPopAsync(ListKey);
+    private ValueTask<RedisValue> LPop(Target client) => client.Lists.LeftPopAsync(ListKey);
 
     [DisplayName("RPOP")]
-    private ValueTask<RespParsers.ResponseSummary> RPop(RespContext ctx) => ctx.RPopAsync(ListKey);
+    private ValueTask<RedisValue> RPop(Target client) => client.Lists.RightPopAsync(ListKey);
 
     [DisplayName("SADD")]
-    private ValueTask<int> SAdd(RespContext ctx) => ctx.SAddAsync(SetKey, "element:__rand_int__");
-
-    [DisplayName("HSET")]
-    private ValueTask<int> HSet(RespContext ctx) => ctx.HSetAsync(HashKey, "element:__rand_int__", Payload);
-
-    [DisplayName("ZADD")]
-    private ValueTask<int> ZAdd(RespContext ctx) => ctx.ZAddAsync(SortedSetKey, 0, "element:__rand_int__");
-
-    [DisplayName("ZPOPMIN")]
-    private ValueTask<RespParsers.ResponseSummary> ZPopMin(RespContext ctx) => ctx.ZPopMinAsync(SortedSetKey);
+    private ValueTask<bool> SAdd(Target client) => client.Sets.AddAsync(SetKey, "element:__rand_int__");
 
     [DisplayName("SPOP")]
-    private ValueTask<RespParsers.ResponseSummary> SPop(RespContext ctx) => ctx.SPopAsync(SetKey);
+    private ValueTask<RedisValue> SPop(Target client) => client.Sets.PopAsync(SetKey);
+
+    [DisplayName("HSET")]
+    private ValueTask<bool> HSet(Target client) => client.Hashes.SetAsync(HashKey, "element:__rand_int__", Payload);
+
+    [DisplayName("ZADD")]
+    private ValueTask<bool> ZAdd(Target client) => client.SortedSets.AddAsync(SortedSetKey, "element:__rand_int__", 0);
+
+    [DisplayName("ZPOPMIN")]
+    private async ValueTask<int> ZPopMin(Target client)
+        => (await client.SortedSets.PopAsync(SortedSetKey).ConfigureAwait(false)).HasValue ? 1 : 0;
 
     [DisplayName("MSET"), Description("10 keys")]
-    private ValueTask<bool> MSet(RespContext ctx) => ctx.MSetAsync(_pairs);
+    private ValueTask<bool> MSet(Target client) => client.Strings.SetAsync(_pairs);
 
-    private async ValueTask LRangeInit650(RespContext ctx)
+    [DisplayName("XADD")]
+    private ValueTask<RedisValue> XAdd(Target client) => client.Streams.AddAsync(StreamKey, "myfield", Payload);
+
+    [DisplayName("LRANGE_100")]
+    private ValueTask<int> LRange100(Target client) => Count(client, 99);
+
+    [DisplayName("LRANGE_300")]
+    private ValueTask<int> LRange300(Target client) => Count(client, 299);
+
+    [DisplayName("LRANGE_500")]
+    private ValueTask<int> LRange500(Target client) => Count(client, 499);
+
+    [DisplayName("LRANGE_600")]
+    private ValueTask<int> LRange600(Target client) => Count(client, 599);
+
+    private async ValueTask<int> Count(Target client, long stop)
     {
-        await ctx.DelAsync(ListKey).ConfigureAwait(false);
-        await ctx.LPushAsync(ListKey, Payload, 650);
-        if (await ctx.LLenAsync(ListKey).ConfigureAwait(false) != 650)
+        using var lease = await client.Lists.RangeAsync(ListKey, 0, stop).ConfigureAwait(false);
+        return lease.Length;
+    }
+
+    private static async ValueTask<bool> Done(ValueTask pending)
+    {
+        await pending.ConfigureAwait(false);
+        return true;
+    }
+
+    private async ValueTask LRangeInit650(Target client)
+    {
+        await client.Keys.DeleteAsync(ListKey).ConfigureAwait(false);
+        using (var batch = client.Db.BeginBatch())
+        {
+            for (int i = 0; i < 650; i++)
+            {
+                _ = batch.Lists.LeftPushAsync(ListKey, Payload);
+            }
+
+            await batch.ExecuteAsync().ConfigureAwait(false);
+        }
+
+        if (await client.Lists.LengthAsync(ListKey).ConfigureAwait(false) != 650)
         {
             throw new InvalidOperationException();
         }
     }
 
-    [DisplayName("XADD")]
-    private ValueTask<RespParsers.ResponseSummary> XAdd(RespContext ctx) =>
-        ctx.XAddAsync(StreamKey, "*", "myfield", Payload);
-
     protected override async Task RunBasicLoopAsync(int clientId)
     {
         // The purpose of this is to represent a more realistic loop using natural code
         // rather than code that is drowning in test infrastructure.
-        var client = GetClient(clientId);
+        var db = GetClient(clientId).Db;
         var depth = PipelineDepth;
         int tickCount = 0; // this is just so we don't query DateTime.
-        long previousValue = (await client.GetInt32Async(CounterKey).ConfigureAwait(false)) ?? 0,
-            currentValue = previousValue;
+        var tmp = await db.Strings.GetAsync(CounterKey).ConfigureAwait(false);
+        long previousValue = tmp.IsNull ? 0 : (long)tmp, currentValue = previousValue;
         var watch = Stopwatch.StartNew();
         long previousMillis = watch.ElapsedMilliseconds;
 
@@ -271,25 +300,26 @@ public sealed class ContextApiBenchmark : BenchmarkBase<RespContext>
         {
             while (true)
             {
-                currentValue = await client.IncrAsync(CounterKey).ConfigureAwait(false);
+                currentValue = await db.Strings.IncrementAsync(CounterKey).ConfigureAwait(false);
 
                 if (++tickCount >= 1000 && Tick()) break; // only check whether to output every N iterations
             }
         }
         else
         {
-            ValueTask<int>[] pending = new ValueTask<int>[depth];
-            await using var batch = client.CreateBatch(depth);
-            var ctx = batch.Context;
+            var pending = new ValueTask<long>[depth];
             while (true)
             {
-                for (int i = 0; i < depth; i++)
+                using (var batch = db.BeginBatch())
                 {
-                    pending[i] = ctx.IncrAsync(CounterKey);
+                    for (int i = 0; i < depth; i++)
+                    {
+                        pending[i] = batch.Strings.IncrementAsync(CounterKey);
+                    }
+
+                    await batch.ExecuteAsync().ConfigureAwait(false);
                 }
 
-                await batch.FlushAsync().ConfigureAwait(false);
-                batch.EnsureCapacity(depth); // batches don't assume re-use
                 for (var i = 0; i < depth; i++)
                 {
                     currentValue = await pending[i].ConfigureAwait(false);
@@ -297,139 +327,6 @@ public sealed class ContextApiBenchmark : BenchmarkBase<RespContext>
 
                 tickCount += depth;
                 if (tickCount >= 1000 && Tick()) break; // only check whether to output every N iterations
-            }
-        }
-    }
-}
-
-internal static partial class RedisCommands
-{
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary Ping(this RespContext ctx);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary SPop(this RespContext ctx, string key);
-
-    [RespCommand]
-    internal static partial int SAdd(this RespContext ctx, string key, string payload);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary Set(this RespContext ctx, string key, byte[] payload);
-
-    [RespCommand]
-    internal static partial int LLen(this RespContext ctx, string key);
-
-    [RespCommand]
-    internal static partial int LPush(this RespContext ctx, string key, byte[] payload);
-
-    [RespCommand(Formatter = LPushFormatter.Name)]
-    internal static partial int LPush(this RespContext ctx, string key, byte[] payload, int count);
-
-    private sealed class LPushFormatter : IRespFormatter<(string Key, byte[] Payload, int Count)>
-    {
-        public const string Name = $"{nameof(LPushFormatter)}.{nameof(Instance)}";
-        private LPushFormatter() { }
-        public static readonly LPushFormatter Instance = new();
-
-        public void Format(
-            scoped ReadOnlySpan<byte> command,
-            ref RespWriter writer,
-            in (string Key, byte[] Payload, int Count) request)
-        {
-            writer.WriteCommand(command, request.Count + 1);
-            writer.WriteKey(request.Key);
-            for (int i = 0; i < request.Count; i++)
-            {
-                // duplicate for lazy bulk load
-                writer.WriteBulkString(request.Payload);
-            }
-        }
-    }
-
-    [RespCommand]
-    internal static partial int RPush(this RespContext ctx, string key, byte[] payload);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary LPop(this RespContext ctx, string key);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary RPop(this RespContext ctx, string key);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary
-        LRange(this RespContext ctx, string key, int start, int stop);
-
-    [RespCommand]
-    internal static partial int HSet(this RespContext ctx, string key, string field, byte[] payload);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary Ping(this RespContext ctx, byte[] payload);
-
-    [RespCommand]
-    internal static partial int Incr(this RespContext ctx, string key);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary Del(this RespContext ctx, string key);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary ZPopMin(this RespContext ctx, string key);
-
-    [RespCommand]
-    internal static partial int ZAdd(this RespContext ctx, string key, double score, string payload);
-
-    [RespCommand("get")]
-    internal static partial int? GetInt32(this RespContext ctx, string key);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary XAdd(
-        this RespContext ctx,
-        string key,
-        string id,
-        string field,
-        byte[] value);
-
-    [RespCommand]
-    internal static partial RespParsers.ResponseSummary Get(this RespContext ctx, string key);
-
-    [RespCommand(Formatter = PairsFormatter.Name)] // custom command formatter
-    internal static partial bool MSet(this RespContext ctx, (string, byte[])[] pairs);
-
-    internal static RespParsers.ResponseSummary PingInline(this RespContext ctx, byte[] payload)
-        => ctx.Command("ping"u8, payload, InlinePingFormatter.Instance).Wait(RespParsers.ResponseSummary.Parser);
-
-    internal static ValueTask<RespParsers.ResponseSummary> PingInlineAsync(this RespContext ctx, byte[] payload)
-        => ctx.Command("ping"u8, payload, InlinePingFormatter.Instance)
-            .Send(RespParsers.ResponseSummary.Parser);
-
-    private sealed class InlinePingFormatter : IRespFormatter<byte[]>
-    {
-        private InlinePingFormatter() { }
-        public static readonly InlinePingFormatter Instance = new();
-
-        public void Format(scoped ReadOnlySpan<byte> command, ref RespWriter writer, in byte[] request)
-        {
-            writer.WriteRaw(command);
-            writer.WriteRaw(" "u8);
-            writer.WriteRaw(request);
-            writer.WriteRaw("\r\n"u8);
-        }
-    }
-
-    private sealed class PairsFormatter : IRespFormatter<(string Key, byte[] Value)[]>
-    {
-        public const string Name = $"{nameof(PairsFormatter)}.{nameof(Instance)}";
-        public static readonly PairsFormatter Instance = new PairsFormatter();
-
-        public void Format(
-            scoped ReadOnlySpan<byte> command,
-            ref RespWriter writer,
-            in (string Key, byte[] Value)[] request)
-        {
-            writer.WriteCommand(command, 2 * request.Length);
-            foreach (var pair in request)
-            {
-                writer.WriteKey(pair.Key);
-                writer.WriteBulkString(pair.Value);
             }
         }
     }

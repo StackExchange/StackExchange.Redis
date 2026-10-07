@@ -18,8 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- VersionOverride because central package management pins this to 2.13.17 for TestConsoleBaseline -->
-    <PackageReference Include="StackExchange.Redis" VersionOverride="3.3.0" />
+    <!-- the central version: the current shipped v3 -->
+    <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
 
 </Project>

@@ -15,8 +15,10 @@
     <WarningsAsErrors Condition="'$(Configuration)'=='Debug'">false</WarningsAsErrors>
     <SignAssembly>false</SignAssembly>
     <Copyright>2025 - $([System.DateTime]::Now.Year) Marc Gravell</Copyright>
-    <!-- for for example: dotnet build /p:TargetVer=3 -->
-    <TargetVer>3</TargetVer>
+    <!-- which StackExchange.Redis to benchmark, e.g. dotnet build /p:TargetVer=3
+         1: the v1 StrongName package; 2: the last v2 package; 3: the current v3 package (the central
+         default); 4 (default): this repository's source, with the new-core benchmarks (NEWCORE) -->
+    <TargetVer Condition="'$(TargetVer)'==''">4</TargetVer>
     <NoWarn>$(NoWarn);StringToRedisValue</NoWarn>
   </PropertyGroup>
   
@@ -33,12 +35,19 @@
   </PropertyGroup>
   <!-- v2 builds -->
   <ItemGroup Condition="'$(TargetVer)'=='2'">
+    <PackageReference Include="StackExchange.Redis" VersionOverride="2.13.17"/>
+  </ItemGroup>
+  <!-- v3 builds: the central package version -->
+  <ItemGroup Condition="'$(TargetVer)'=='3'">
     <PackageReference Include="StackExchange.Redis"/>
   </ItemGroup>
-  <!-- v3 builds -->
-  <ItemGroup Condition="'$(TargetVer)'=='3'">
+  <!-- v4 builds: this repository -->
+  <ItemGroup Condition="'$(TargetVer)'=='4'">
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
   </ItemGroup>
+  <PropertyGroup Condition="'$(TargetVer)'=='4'">
+    <DefineConstants>$(DefineConstants);NEWCORE</DefineConstants>
+  </PropertyGroup>
 <!-- 
   <ItemGroup Condition="'$(TargetVer)'=='2'">
     <ProjectReference Include="..\RESPite.StackExchange.Redis\RESPite.StackExchange.Redis.csproj"/>

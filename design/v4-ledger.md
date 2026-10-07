@@ -102,12 +102,6 @@ Each has a default the work proceeds on until answered.
   spellings today. `docs/LegacyApi.md` already exists as the old-to-new page ("the prefix became a
   group"): extend it into the reference that maps the old API's gist onto the new one, and link it from
   the migrated pages.
-- **Package book-keeping.** `Directory.Packages.props` pins `StackExchange.Redis` at 2.13.17; make the
-  default the current v3 release. Then `RESPite.Benchmark` (`TargetVer`): v2 via `VersionOverride`, v3 via
-  the default package reference, and v4 (new, the default) via the project reference - which must also
-  define `NEWCORE`. Today `TargetVer=3` is the project reference but nothing defines `NEWCORE`, so
-  `ContextApiBenchmark`/`BridgeBenchmark` are silently compiled out. Check the other baselines
-  (`*Baseline` projects, `CoreBench.Baseline`'s 3.3.0 override) against the new default.
 - **Replace the method-replaying decorators with executor decorators.** Eager frames mean the "what to replay"
   problem is solved below the API: `RedisDatabase` is a thin `IDatabase` over a `RespDatabaseContext`
   (every member is `_inner.<Group>.XAsync(...)`), so `new RedisDatabase(ctx.WithExecutor(retry))` retries
