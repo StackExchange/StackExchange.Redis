@@ -131,6 +131,11 @@ Each has a default the work proceeds on until answered.
   thread theft from the socket read, but head-of-line blocking of every caller on the connection behind any
   continuation, up to 500 ms. Connection model: multiplexed, one connection by default
   (`RespireOptions.Connections`, round-robin when raised), plus a small dedicated pool for blocking commands.
+  **Harm measured** (RespFest work league, `results/work-league-20261007`, RespFest f341e8e local): callers
+  spin N us of CPU after each reply. Respire 1.12M / 38k / 9.4k ops/s at 0 / 20 / 100 us - pinned to the
+  serial 1/N ceiling, p50 6.7 ms at 100 us; v3 394k / 303k / 91k and v4 935k / 327k / 89k scale with cores.
+  So inline completion is out as a default; the only variant still worth a trial is batching pool wakes
+  per parse pass with continuations kept asynchronous.
 
 ## Status
 
