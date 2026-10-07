@@ -121,7 +121,16 @@ Each has a default the work proceeds on until answered.
   - **Feature reporting:** `GetFeatures` must still report `Retry`/prefix so nesting and batch rejection hold.
   - Gains beyond code size: `asyncState` would work on a retrying database (the bridge task spans attempts).
 - **Trusted-callback completion mode** - test whether Respire's speed comes from completing callers inline
-  on the reader with a watchdog; if so, offer it opt-in, default off. Read Respire's completion path first.
+  on the reader with a watchdog; if so, offer it opt-in, default off. **Mechanism confirmed** (2026-10-07,
+  Respire 0.7.14 @ ee842696, `Networking/CompletionScheduler.cs`): completion cores are
+  `RunContinuationsAsynchronously = false`; each receive drain's replies (up to 256) go to ONE runner that
+  completes them serially, in wire order, inline. Busy socket: the runner is a pool work item. Idle socket:
+  the receive loop posts its next read and then runs the batch on its own thread (`RunWhileAwaiting`). A
+  watcher hands the undelivered tail to a fresh runner after a hard-coded 500 ms with no progress
+  (`StalledDeliveryThreshold`, internal), logging a warning; ordering is lost from that point. So: no
+  thread theft from the socket read, but head-of-line blocking of every caller on the connection behind any
+  continuation, up to 500 ms. Connection model: multiplexed, one connection by default
+  (`RespireOptions.Connections`, round-robin when raised), plus a small dedicated pool for blocking commands.
 
 ## Status
 
