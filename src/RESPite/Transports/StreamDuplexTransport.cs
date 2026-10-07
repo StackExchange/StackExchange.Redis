@@ -180,8 +180,19 @@ internal sealed class StreamDuplexTransport : DuplexTransport
         var free = new Stack<byte[]>(FillDepth);
         var filled = new Queue<Fill>(FillDepth);
         var sync = new object();
-        using var hasFilled = new SemaphoreSlim(0, FillDepth + 1); // +1: the filler's final wake
-        using var hasFree = new SemaphoreSlim(FillDepth, FillDepth);
+        var hasFilled = new SingleWaiterSemaphore(0); // the parser waits on this, and the filler's final wake
+        var hasFree = new SingleWaiterSemaphore(FillDepth); // the filler waits on this
+
+        // ONE registration for the connection's life wakes both waiters at shutdown, where a token per wait was a
+        // registration (and an allocation) on every hand-off; a cancelled semaphore answers false, now and after
+        using var shutdownRegistration = _shutdown.Token.Register(
+            static state =>
+            {
+                var (filled, freed) = ((SingleWaiterSemaphore, SingleWaiterSemaphore))state!;
+                filled.Cancel();
+                freed.Cancel();
+            },
+            (hasFilled, hasFree));
 
         // the filler's own stop, linked to shutdown: ending the parser must stop the filler without cancelling the
         // transport's token, which the writer also uses and DisposeAsync owns
@@ -199,7 +210,7 @@ internal sealed class StreamDuplexTransport : DuplexTransport
             {
                 while (!stop.IsCancellationRequested)
                 {
-                    await hasFree.WaitAsync(stop).ConfigureAwait(false);
+                    if (!await hasFree.WaitAsync().ConfigureAwait(false)) break; // stopping
 
                     byte[] buffer;
                     lock (sync) buffer = free.Pop();
@@ -243,11 +254,12 @@ internal sealed class StreamDuplexTransport : DuplexTransport
                 var acquired = false;
                 for (var i = 0; i < FillSpin && !acquired; i++)
                 {
-                    acquired = hasFilled.Wait(0);
+                    acquired = hasFilled.TryWait();
                     if (!acquired) Thread.SpinWait(20);
                 }
 
-                if (!acquired) await hasFilled.WaitAsync(_shutdown.Token).ConfigureAwait(false);
+                // false only at shutdown, which is what the cancelled wait used to throw for, and handled the same way
+                if (!acquired && !await hasFilled.WaitAsync().ConfigureAwait(false)) throw new OperationCanceledException();
 
                 // one permit, so one buffer
                 Fill next;
@@ -287,7 +299,8 @@ internal sealed class StreamDuplexTransport : DuplexTransport
             // stop the filler before reclaiming anything it might still be reading into
             try
             {
-                stopFiller.Cancel();
+                stopFiller.Cancel(); // a pending read
+                hasFree.Cancel(); // and a filler waiting for a buffer
             }
             catch (ObjectDisposedException)
             {
