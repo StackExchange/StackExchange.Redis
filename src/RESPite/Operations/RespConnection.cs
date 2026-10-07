@@ -915,18 +915,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
     private void Write(ReadOnlySpan<byte> payload)
     {
-        // loop rather than assume one span is enough: IBufferWriter only promises *at least* the hint,
-        // and a large request against a block-backed transport will span several
-        while (!payload.IsEmpty)
-        {
-            var destination = _transport.GetSpan(payload.Length);
-            if (destination.IsEmpty) throw new InvalidOperationException("The transport offered no space.");
-
-            var take = Math.Min(destination.Length, payload.Length);
-            payload.Slice(0, take).CopyTo(destination);
-            _transport.Advance(take);
-            payload = payload.Slice(take);
-        }
+        // one call rather than a GetSpan/Advance loop: the transport can stage a whole payload in a single
+        // hold of its own lock (which a large request against a block-backed transport still spans several of)
+        _transport.Write(payload);
     }
 
     /// <inheritdoc/>

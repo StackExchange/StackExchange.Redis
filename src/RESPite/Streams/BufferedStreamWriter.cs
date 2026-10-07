@@ -98,6 +98,19 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
     public abstract Span<byte> GetSpan(int sizeHint = 0);
 
+    /// <summary>Stage a complete payload; see <c>DuplexTransport.Write</c>.</summary>
+    public virtual void Write(ReadOnlySpan<byte> payload)
+    {
+        while (!payload.IsEmpty)
+        {
+            var destination = GetSpan(payload.Length);
+            var take = Math.Min(destination.Length, payload.Length);
+            payload.Slice(0, take).CopyTo(destination);
+            Advance(take);
+            payload = payload.Slice(take);
+        }
+    }
+
     [Conditional("DEBUG")]
     public virtual void DebugSetLog(Action<string> log) { }
 
@@ -150,7 +163,49 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
     /// <summary>
     /// Activate the writer if necessary, and indicate that all committed data can be consumed, even incomplete pages.
     /// </summary>
-    public override void Flush() => OnActivate(StateFlags.Flush);
+    /// <remarks>
+    /// <para>
+    /// <b>Lock-free when there is nothing to change</b>, which under load is nearly always: the writer is
+    /// already active with a flush pending, and taking the lock to set a flag that is already set was one of
+    /// three writer-lock acquisitions per command.
+    /// </para>
+    /// <para>
+    /// It cannot lose a wake-up. A producer commits its bytes under the lock BEFORE reading the flags, and the
+    /// writer finds itself out of data and clears <see cref="StateFlags.ActiveWriter"/> in one hold of the same
+    /// lock. Either the commit came first, and the writer sees the bytes; or it came after the clear, and this
+    /// read sees the writer idle and wakes it.
+    /// </para>
+    /// </remarks>
+    public override void Flush()
+    {
+        const StateFlags Busy = StateFlags.ActiveWriter | StateFlags.Flush;
+        if ((_stateFlags & (Busy | StateFlags.Closed)) == Busy) return;
+        OnActivate(StateFlags.Flush);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>One lock hold for the whole payload, where a <c>GetSpan</c>/<c>Advance</c> pair took two per segment.</remarks>
+    public override void Write(ReadOnlySpan<byte> payload)
+    {
+        bool lockTaken = false;
+        try
+        {
+            TakeLock(ref lockTaken);
+            ThrowIfComplete();
+            while (!payload.IsEmpty)
+            {
+                var destination = _buffer.GetUncommittedMemory(payload.Length).Span;
+                var take = Math.Min(destination.Length, payload.Length);
+                payload.Slice(0, take).CopyTo(destination);
+                _buffer.Commit(take);
+                payload = payload.Slice(take);
+            }
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
+    }
 
     public override void Complete(Exception? exception = null)
     {

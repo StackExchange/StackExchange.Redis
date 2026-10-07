@@ -68,6 +68,9 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     public override void Advance(int count) => _writer.Advance(count);
 
     /// <inheritdoc/>
+    internal override void Write(ReadOnlySpan<byte> payload) => _writer.Write(payload);
+
+    /// <inheritdoc/>
     public override bool Flush()
     {
         _writer.Flush();

@@ -39,6 +39,26 @@ public abstract class DuplexTransport : IBufferWriter<byte>, IAsyncDisposable
     /// survive it.</summary>
     public abstract void Advance(int count);
 
+    /// <summary>Stage a complete payload: copy it in and commit it.</summary>
+    /// <remarks>
+    /// A convenience over <see cref="GetSpan"/>/<see cref="Advance"/> for a caller that already has the bytes,
+    /// and a seam for a transport that can do it more cheaply than a pair of calls per segment - the stream
+    /// transport takes its lock once here, where the pair took it twice per segment.
+    /// </remarks>
+    internal virtual void Write(ReadOnlySpan<byte> payload)
+    {
+        while (!payload.IsEmpty)
+        {
+            var destination = GetSpan(payload.Length);
+            if (destination.IsEmpty) throw new InvalidOperationException("The transport offered no space.");
+
+            var take = Math.Min(destination.Length, payload.Length);
+            payload.Slice(0, take).CopyTo(destination);
+            Advance(take);
+            payload = payload.Slice(take);
+        }
+    }
+
     /// <summary>Hand everything staged since the last flush to the wire, as one send where the
     /// transport allows. Returns false if the transport is closed (staged bytes are dropped).</summary>
     public abstract bool Flush();

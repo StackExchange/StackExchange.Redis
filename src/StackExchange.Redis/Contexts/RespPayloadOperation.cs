@@ -49,6 +49,15 @@ namespace StackExchange.Redis
 
         private protected const int PoolSize = 128; // a power of two: slots are chosen by masking
 
+        /// <summary>How many slots a rent or return looks at before giving up.</summary>
+        /// <remarks>
+        /// The pool is lossy by design, and both of its failure modes used to be a full scan: an empty pool
+        /// (deep pipelines) read all 128 slots on every rent, and a full one (shallow ones) all 128 on every
+        /// return - measured at 3% of CPU for the return alone. Each thread starts at its own slot, so a few
+        /// probes find the free or filled slot when there is one nearby, and miss cheaply when there is not.
+        /// </remarks>
+        private const int Probes = 8;
+
         /// <summary>Where this thread starts looking, so threads do not all contend for the same first slots.</summary>
         private static int StartSlot() => Environment.CurrentManagedThreadId * 7;
 
@@ -72,7 +81,7 @@ namespace StackExchange.Redis
             where T : class
         {
             var start = StartSlot();
-            for (var n = 0; n < pool.Length; n++)
+            for (var n = 0; n < Probes; n++)
             {
                 var i = (start + n) & (pool.Length - 1);
 
@@ -96,7 +105,7 @@ namespace StackExchange.Redis
             where T : class
         {
             var start = StartSlot();
-            for (var n = 0; n < pool.Length; n++)
+            for (var n = 0; n < Probes; n++)
             {
                 var i = (start + n) & (pool.Length - 1);
 
