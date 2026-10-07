@@ -147,6 +147,8 @@ namespace StackExchange.Redis
                 {
                     if (socket is null)
                     {
+                        // event 94, as v3's "no endpoint": there is nothing to connect to
+                        log?.LogErrorNoEndpoint(new ArgumentNullException(nameof(connectTo), "The tunnel supplied neither an endpoint to dial nor a stream."));
                         throw new RedisConnectionException(
                             ConnectionFailureType.UnableToConnect,
                             CommandFlags.CommandRetryNever,
@@ -190,6 +192,13 @@ namespace StackExchange.Redis
                         splitReadAndParse: !ConnectionMultiplexer.SingleReadLoop),
                     (socket?.RemoteEndPoint as IPEndPoint)?.Address,
                     encrypted);
+            }
+            catch (ObjectDisposedException ex) when (socket is not null)
+            {
+                // event 97, as v3: the socket was shut down underneath the connect - a timeout or a disposal
+                log?.LogErrorSocketShutdown(ex, new(endpoint));
+                socket.Dispose();
+                throw;
             }
             catch
             {

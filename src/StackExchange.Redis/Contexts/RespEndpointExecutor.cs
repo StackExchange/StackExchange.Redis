@@ -1350,9 +1350,53 @@ namespace StackExchange.Redis
             if (connection is null || connection.IsClosed) return;
 
             timeoutMilliseconds = EffectiveTimeout(timeoutMilliseconds);
-            if (timeoutMilliseconds > 0) connection.ExpirePending(TimeSpan.FromMilliseconds(timeoutMilliseconds));
+            var expired = timeoutMilliseconds > 0 ? connection.ExpirePending(TimeSpan.FromMilliseconds(timeoutMilliseconds)) : 0;
+
+            if (IsDeadSocket(connection, expired, timeoutMilliseconds, out var silentMilliseconds))
+            {
+                // Event 90 and the recovery it reports, as v3's heartbeat had them: commands are timing out AND
+                // nothing at all has arrived for four timeouts' worth of time. That is a half-open connection -
+                // writes still "succeed" into the socket buffer, and on Linux TCP retransmission keeps the socket
+                // open for ~15 minutes before anything fails. TCP keep-alive does not help: it only probes an IDLE
+                // connection, and this one has requests outstanding. So the connection is declared dead here,
+                // which fails it like any other loss and starts the reconnect.
+                Server?.Multiplexer.Logger?.LogWarningDeadSocketDetected(silentMilliseconds / 1000, expired);
+                DropConnection();
+                return;
+            }
 
             KeepAlive();
+        }
+
+        // what the dead-socket check last saw: which connection, how many bytes it had received, and when that
+        // count last moved. Heartbeat-only state, so no lock: OnHeartbeat is not re-entered for one executor.
+        private RespConnection? _readWatchConnection;
+        private long _readWatchBytes;
+        private int _readWatchTick;
+
+        /// <summary>
+        /// Whether this heartbeat timed commands out on a connection that has received nothing for four
+        /// timeouts' worth of time - v3's rule, and its multiplier.
+        /// </summary>
+        /// <remarks>
+        /// Measured on the EFFECTIVE timeout, as v3 did: a maintenance window that relaxes the timeout must also
+        /// relax this, or it would tear down the very connection the window exists to keep. "Received" is any
+        /// inbound byte, push or reply, so a subscription connection that is merely quiet never qualifies: it
+        /// has to be timing commands out as well.
+        /// </remarks>
+        private bool IsDeadSocket(RespConnection connection, int expired, int timeoutMilliseconds, out long silentMilliseconds)
+        {
+            var now = Environment.TickCount;
+            var received = connection.BytesReceived;
+            if (!ReferenceEquals(connection, _readWatchConnection) || received != _readWatchBytes)
+            {
+                _readWatchConnection = connection;
+                _readWatchBytes = received;
+                _readWatchTick = now;
+            }
+
+            silentMilliseconds = unchecked(now - _readWatchTick);
+            return expired > 0 && timeoutMilliseconds > 0 && silentMilliseconds > (long)timeoutMilliseconds * 4;
         }
 
         private int _lastWriteTickCount = Environment.TickCount;
@@ -2222,6 +2266,9 @@ namespace StackExchange.Redis
                     if (drain) _writeSlotHeld = true;
                 }
 
+                // event 70: v3 flushed what the handshake and the backlog had queued as its last handshake step, and
+                // this is where the same thing happens here - the connection is published and what waited for it goes
+                Server?.Multiplexer.Logger?.LogInformationFlushingOutboundBuffer(new(Server));
                 if (drain) ReleaseWrites(); // drains in arrival order, then frees or hands on the slot
 
                 // "Connected" is announced HERE, after the connection is published, and never from inside

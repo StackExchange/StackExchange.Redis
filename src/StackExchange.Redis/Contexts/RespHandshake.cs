@@ -5,6 +5,7 @@ using System.IO;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using RESPite.Messages;
 using StackExchange.Redis.Protocol;
 
@@ -105,6 +106,19 @@ namespace StackExchange.Redis
     /// </remarks>
     internal static class RespHandshake
     {
+        /// <summary>Event 71, v3's per-reply handshake log: which connection, which command, and what came back.</summary>
+        /// <remarks>
+        /// v3 raised it from <c>ResultProcessor</c> for every reply to a logged handshake message, naming the bridge as
+        /// <c>endpoint/ConnectionType</c>. The processors are gone, so it is raised here, per handshake step, with a
+        /// summary of the reply this core parsed rather than a raw RESP overview - the fact, not the bytes.
+        /// </remarks>
+        private static void LogResponse(ILogger? log, ServerEndPoint? server, ConnectionType connectionType, string commandAndKey, string result)
+        {
+            if (log is null) return;
+            var name = server is null ? null : Format.ToString(server.EndPoint) + "/" + connectionType;
+            log.LogInformationResponse(name, commandAndKey, result);
+        }
+
         /// <summary>Authenticate, negotiate a protocol, name the connection, and select a database.</summary>
         /// <param name="context">The context over the new connection.</param>
         /// <param name="user">The user, for ACL logins; null for a password-only login.</param>
@@ -143,6 +157,7 @@ namespace StackExchange.Redis
         /// The server this connection reached: what was learned is logged against it, and the round-trip
         /// time is recorded on it. Null to do neither.
         /// </param>
+        /// <param name="connectionType">Which of the endpoint's connections this is; names it in event 71, as v3's bridge name did.</param>
         /// <returns>What the connection ended up speaking, and what it turned out to be.</returns>
         internal static async Task<RespHandshakeResult> PerformAsync(
             RespDatabaseContext context,
@@ -159,7 +174,8 @@ namespace StackExchange.Redis
             string? libraryVersion = null,
             Action<Exception>? onAuthSuspect = null,
             CancellationToken cancellationToken = default,
-            ServerEndPoint? server = null)
+            ServerEndPoint? server = null,
+            ConnectionType connectionType = ConnectionType.Interactive)
         {
             // v3's "Auto-configured (SOURCE) ..." events, by the same ids, each written where the fact
             // is learned and naming the command that taught it - which is what makes them worth reading
@@ -185,12 +201,16 @@ namespace StackExchange.Redis
                 {
                     if (user is { Length: > 0 })
                     {
+                        log?.LogInformationAuthenticatingUserPassword(new(server!));
                         await context.SendAsync($"{RedisCommand.AUTH}{(RedisValue)user}{(RedisValue)password}").ConfigureAwait(false);
                     }
                     else
                     {
+                        log?.LogInformationAuthenticatingPassword(new(server!));
                         await context.SendAsync($"{RedisCommand.AUTH}{(RedisValue)password}").ConfigureAwait(false);
                     }
+
+                    LogResponse(log, server, connectionType, "AUTH", "OK");
                 }
                 catch (RedisServerException ex)
                 {
@@ -267,6 +287,7 @@ namespace StackExchange.Redis
                     // for RESP2 would be asking to be upgraded against the caller's wishes; asking for 2
                     // is a discovery request that cannot change the protocol.
                     var protover = preferResp3 ? 3 : 2;
+                    if (helloCarriesCredentials) log?.LogInformationAuthenticatingViaHello(new(server!));
                     var hello = helloCarriesCredentials
                         ? await context.SendAsync(
                                 $"{RedisCommand.HELLO}{protover}{RespLiterals.Auth}{(RedisValue)(user is { Length: > 0 } ? user : RedisLiterals.@default)}{(RedisValue)password!}",
@@ -294,6 +315,14 @@ namespace StackExchange.Redis
                         {
                             log.LogInformationAutoConfiguredHelloRole(new(server!), helloReplica ? "replica" : "primary");
                         }
+
+                        if (hello.ConnectionId is { } helloId) log.LogInformationAutoConfiguredHelloConnectionId(new(server!), helloId);
+
+                        // v3 raised this from its SENTINEL probe; this core learns it from HELLO's mode, and a
+                        // consumer filtering on 77 is asking "is this endpoint a sentinel", which is still answered
+                        if (hello.Mode is ServerType.Sentinel) log.LogInformationAutoConfiguredSentinelServerType(new(server!));
+
+                        LogResponse(log, server, connectionType, "HELLO", $"proto={hello.Proto}, mode={hello.Mode?.ToString() ?? "-"}, version={hello.Version?.ToString() ?? "-"}, role={(hello.IsReplica is { } r ? (r ? "replica" : "primary") : "-")}, id={hello.ConnectionId?.ToString() ?? "-"}");
                     }
                 }
                 catch (RedisServerException)
@@ -324,6 +353,7 @@ namespace StackExchange.Redis
                         serverType = await context.SendAsync(
                             $"{RedisCommand.CLUSTER}{RespLiterals.Info}",
                             handler: ClusterInfoHandler.Instance).ConfigureAwait(false);
+                        LogResponse(log, server, connectionType, "CLUSTER INFO", serverType.ToString());
                     }
                     catch (RedisServerException)
                     {
@@ -519,10 +549,12 @@ namespace StackExchange.Redis
                     // from its tracer - `MultiGroupMultiplexer` ranks groups by it, and without a sample
                     // every server reads as "not yet measured"
                     var started = DateTime.UtcNow;
+                    log?.LogInformationSendingCriticalTracer(new(server!), "CLIENT ID");
                     connectionId = await context.SendAsync<long>(
                         $"{RedisCommand.CLIENT}{RespLiterals.Id}").ConfigureAwait(false);
                     server?.SetLatency(started);
                     log?.LogInformationAutoConfiguredClientConnectionId(new(server!), connectionId.GetValueOrDefault());
+                    LogResponse(log, server, connectionType, "CLIENT ID", connectionId.GetValueOrDefault().ToString(CultureInfo.InvariantCulture));
                 }
                 catch (RedisServerException)
                 {
@@ -538,6 +570,7 @@ namespace StackExchange.Redis
             if (database > 0)
             {
                 await context.SendAsync($"{RedisCommand.SELECT}{database}").ConfigureAwait(false);
+                LogResponse(log, server, connectionType, "SELECT " + database.ToString(CultureInfo.InvariantCulture), "OK");
             }
 
             return new RespHandshakeResult(protocol, serverType, version, knowServerType, connectionId, roleFromHello, clusterNodes, slots);
@@ -741,6 +774,7 @@ namespace StackExchange.Redis
             }
 
             server.OnMaintenanceNotificationsRequested();
+            server.Multiplexer.Logger?.LogInformationRequestingMaintenanceNotifications(new(server), server.Multiplexer.RawConfig.MaintenanceNotifications);
 
             var endpointType = server.MaintenanceMovingEndpointTypeLiteral(
                 connected.RemoteAddress, connected.IsEncrypted);
@@ -1058,6 +1092,7 @@ namespace StackExchange.Redis
                     && server.ServerType is not (ServerType.Sentinel or ServerType.Twemproxy))
                 {
                     server.ServerType = mode;
+                    server.Multiplexer.Logger?.LogInformationAutoConfiguredInfoServerType(new(server), mode);
                 }
             }
             catch (RedisServerException)
@@ -1328,13 +1363,17 @@ namespace StackExchange.Redis
         /// <param name="mode">What the server says it is, if it said.</param>
         /// <param name="version">The version it reported, if it did.</param>
         /// <param name="isReplica">What it said this server's role is, when it said.</param>
+        /// <param name="connectionId">What it said this connection's id is, when it said.</param>
         /// <remarks>
         /// A struct rather than a tuple: the library must not reference <c>System.ValueTuple</c>, which
         /// would add a facade dependency on the down-level targets - asserted by
         /// <c>SanityCheckTests.ValueTupleNotReferenced</c>, which is how this was caught.
         /// </remarks>
-        private readonly struct HelloReply(int proto, ServerType? mode, Version? version, bool? isReplica)
+        private readonly struct HelloReply(int proto, ServerType? mode, Version? version, bool? isReplica, long? connectionId = null)
         {
+            /// <summary>What the reply said this connection's id is, when it said.</summary>
+            internal long? ConnectionId { get; } = connectionId;
+
             internal int Proto { get; } = proto;
 
             internal ServerType? Mode { get; } = mode;
@@ -1398,6 +1437,7 @@ namespace StackExchange.Redis
                 ServerType? mode = null;
                 Version? version = null;
                 bool? isReplica = null;
+                long? connectionId = null;
 
                 var count = reader.AggregateLength();
                 for (var i = 0; i < count; i++)
@@ -1407,12 +1447,17 @@ namespace StackExchange.Redis
                     var isMode = !isProto && reader.Is("mode"u8);
                     var isVersion = !isProto && !isMode && reader.Is("version"u8);
                     var isRole = !isProto && !isMode && !isVersion && reader.Is("role"u8);
+                    var isId = !isProto && !isMode && !isVersion && !isRole && reader.Is("id"u8);
                     if (!reader.TryMoveNext()) break;
                     i++;
 
                     if (isProto && reader.IsScalar && reader.TryReadInt64(out var value))
                     {
                         proto = (int)value;
+                    }
+                    else if (isId && reader.IsScalar && reader.TryReadInt64(out var id))
+                    {
+                        connectionId = id;
                     }
                     else if (isVersion && reader.IsScalar)
                     {
@@ -1442,7 +1487,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-                return new HelloReply(proto, mode, version, isReplica);
+                return new HelloReply(proto, mode, version, isReplica, connectionId);
             }
         }
 

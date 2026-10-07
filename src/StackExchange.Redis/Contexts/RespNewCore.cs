@@ -1017,7 +1017,8 @@ namespace StackExchange.Redis
                     ServerEndPoint.ClientInfoSanitize(Utils.GetLibVersion()),
                     _multiplexer.SetAuthSuspect,
                     cancellationToken,
-                    server: server).ConfigureAwait(false);
+                    server: server,
+                    connectionType: subscription ? ConnectionType.Subscription : ConnectionType.Interactive).ConfigureAwait(false);
 
                 // recorded BEFORE the connection is handed back, for the same reason the topology is: the
                 // endpoint executor publishes it and drains its backlog the moment this returns, and a

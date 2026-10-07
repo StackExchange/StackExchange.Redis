@@ -2151,7 +2151,9 @@ namespace StackExchange.Redis
                     healthy = standaloneCount != 0 || clusterCount != 0 || sentinelCount != 0;
                     if (first && !healthy && attemptsLeft > 0)
                     {
-                        // nothing to reset: the new core's endpoint executors retry on their own policy
+                        // nothing to reset by hand - the endpoint executors retry on their own policy - but this IS the
+                        // retry v3 announced with event 38, so it is still said
+                        log?.LogInformationResettingFailingConnections();
                         log?.LogInformationRetryingAttempts(attemptsLeft);
                     }
                     // WTF("?: " + attempts);

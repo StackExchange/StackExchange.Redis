@@ -17,7 +17,7 @@ Each has a default the work proceeds on until answered.
 | D3 | **When to cut the first alpha**, and who presses the button: a GitHub Release tagged `v4.0.N-alpha` on `v4` runs `release.yml`. The release dry run (`gh workflow run release.yml --ref v4`) has not been run - it needs your permission. | wait for green `v4` CI, then ask |
 | D4 | **Post the v4-port findings to PR #3251?** Drafted (spin-before-park +2.6% on `incr-conc64` in #3251's own reader; read-size hint is a hypothesis; drain-per-wake does not pay). Outward-facing. | not posted |
 | D5 | **SER014 batch/transaction, unsettled parts:** conditions borrow the shipped `Condition` type (new spelling later?); whether `RespBatch`/`RespTransaction` stay structs. | as shipped in 2ca83a9d |
-| D6 | **Event 71** (handshake reply dump at Information) is not ported. | stays unported |
+| D6 | **Duplicate event ids, shipped in 3.x:** 116 (`RegisteringSlotMapNode` and `RequestingMaintenanceNotifications`) and 117 (`ActivatingUndialledServer` and `MaintenanceNotificationsAccepted`) each name two events. Renumbering one of each pair changes an id someone may filter on; leaving them leaves the ambiguity. | left as shipped |
 
 ## Pending work (no decision needed)
 
