@@ -97,6 +97,17 @@ Each has a default the work proceeds on until answered.
 - **Prose still says "the new core".** The rename pass (a1673a96) renamed types and members only; comments
   and docs still say "the new core" / "old core" where there is now one. A wording pass to "the connection
   manager" (or just "the core") - noisy, so its own commit.
+- **Docs prefer the new API.** Migrate the existing `docs/*.md` pages to lead with the grouped
+  context API (`db.Strings.GetAsync`) rather than `IDatabase` (`db.StringGetAsync`); ~15 pages use the old
+  spellings today. `docs/LegacyApi.md` already exists as the old-to-new page ("the prefix became a
+  group"): extend it into the reference that maps the old API's gist onto the new one, and link it from
+  the migrated pages.
+- **Package book-keeping.** `Directory.Packages.props` pins `StackExchange.Redis` at 2.13.17; make the
+  default the current v3 release. Then `RESPite.Benchmark` (`TargetVer`): v2 via `VersionOverride`, v3 via
+  the default package reference, and v4 (new, the default) via the project reference - which must also
+  define `NEWCORE`. Today `TargetVer=3` is the project reference but nothing defines `NEWCORE`, so
+  `ContextApiBenchmark`/`BridgeBenchmark` are silently compiled out. Check the other baselines
+  (`*Baseline` projects, `CoreBench.Baseline`'s 3.3.0 override) against the new default.
 - **Replace the method-replaying decorators with executor decorators.** Eager frames mean the "what to replay"
   problem is solved below the API: `RedisDatabase` is a thin `IDatabase` over a `RespDatabaseContext`
   (every member is `_inner.<Group>.XAsync(...)`), so `new RedisDatabase(ctx.WithExecutor(retry))` retries
