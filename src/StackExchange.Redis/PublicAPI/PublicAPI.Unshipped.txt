@@ -1,1 +1,4 @@
 ﻿#nullable enable
+StackExchange.Redis.ConfigurationOptions.SharedSubscriptionConnection.get -> bool
+StackExchange.Redis.ConfigurationOptions.SharedSubscriptionConnection.set -> void
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SharedSubscriptionConnection.get -> bool

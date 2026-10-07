@@ -123,8 +123,8 @@ service while the real fix is made. It is not a licence to keep the blocking cal
 
 Two caveats worth knowing before you enable it:
 
-- it costs a reader and a writer thread **for each node you connect to** (not RESP2 pub/sub connections, which
-  stay on the thread-pool; RESP3 does not use separate pub/sub connections), so think about it before enabling
+- it costs a reader and a writer thread **for each node you connect to** (not pub/sub connections, which stay on
+  the thread-pool - unless RESP3 is sharing the interactive connection with pub/sub via `SharedSubscriptionConnection`), so think about it before enabling
   it against a very wide cluster, where that scales with the number of shards;
 - it is deliberately opt-in, and set process-wide at startup rather than per-connection.
 

@@ -185,6 +185,7 @@ namespace StackExchange.Redis
                 MaintenanceRelaxedWindowMax = "maintRelaxedWindowMax",
                 MaintenancePostEventRelaxedDuration = "maintPostEventRelaxed",
                 HighIntegrity = "highIntegrity",
+                SharedSubscriptionConnection = "sharedSubscriptionConnection",
                 TcpKeepAlive = "tcpKeepAlive";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
@@ -229,6 +230,7 @@ namespace StackExchange.Redis
                 MaintenanceRelaxedWindowMax,
                 MaintenancePostEventRelaxedDuration,
                 HighIntegrity,
+                SharedSubscriptionConnection,
                 TcpKeepAlive,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
@@ -290,6 +292,8 @@ namespace StackExchange.Redis
             MaintenanceRelaxedWindowMaxHasValue = 1UL << 38,
             MaintenancePostEventRelaxedDurationHasValue = 1UL << 39,
             TopologyRefreshSecondsHasValue = 1UL << 41,
+            SharedSubscriptionConnectionHasValue = 1UL << 42,
+            SharedSubscriptionConnectionValue = 1UL << 43,
         }
 
         private OptionFlags optionFlags;
@@ -494,6 +498,23 @@ namespace StackExchange.Redis
         {
             get => HasValue(OptionFlags.HighIntegrityHasValue) ? IsSet(OptionFlags.HighIntegrityValue) : Defaults.HighIntegrity;
             set => SetBooleanWithValue(OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue, value);
+        }
+
+        /// <summary>
+        /// A Boolean value that specifies whether, under RESP3, pub/sub should share the interactive connection rather than
+        /// using a dedicated subscription connection. Has no effect under RESP2, which always requires a separate connection.
+        /// </summary>
+        /// <remarks>
+        /// Sharing halves the number of connections, but the server classifies any connection with an active subscription
+        /// (including the library's own configuration channel) as a pub/sub client, which by default applies much stricter
+        /// output-buffer limits (<c>client-output-buffer-limit pubsub 32mb 8mb 60</c>). A large reply, or a burst of pipelined
+        /// replies, can then cause the server to close the connection - taking all in-flight commands with it. Only enable this
+        /// if replies are known to be small, or the server's pub/sub output-buffer limits have been relaxed.
+        /// </remarks>
+        public bool SharedSubscriptionConnection
+        {
+            get => HasValue(OptionFlags.SharedSubscriptionConnectionHasValue) ? IsSet(OptionFlags.SharedSubscriptionConnectionValue) : Defaults.SharedSubscriptionConnection;
+            set => SetBooleanWithValue(OptionFlags.SharedSubscriptionConnectionHasValue, OptionFlags.SharedSubscriptionConnectionValue, value);
         }
 
         /// <summary>
@@ -1241,6 +1262,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.DefaultDatabase, OptionFlags.DefaultDatabaseHasValue, in defaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, OptionFlags.SetClientLibraryHasValue, OptionFlags.SetClientLibraryValue);
             Append(sb, OptionKeys.HighIntegrity, OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue);
+            Append(sb, OptionKeys.SharedSubscriptionConnection, OptionFlags.SharedSubscriptionConnectionHasValue, OptionFlags.SharedSubscriptionConnectionValue);
             if (HasValue(OptionFlags.ProtocolHasValue)) Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
             // only when the caller set it *and* it can be named: an inferred provider must not be baked into
             // the string, or re-parsing would pin a choice that was only ever a guess from the endpoints
@@ -1494,6 +1516,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.HighIntegrity:
                             HighIntegrity = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.SharedSubscriptionConnection:
+                            SharedSubscriptionConnection = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.TcpKeepAlive:
                             TcpKeepAlive = OptionKeys.ParseBoolean(key, value);

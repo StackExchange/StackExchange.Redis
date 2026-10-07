@@ -466,7 +466,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.True(conn.IsConnected);
         var servers = conn.GetServerSnapshot();
         Assert.True(servers[0].IsConnected);
-        if (!TestContext.Current.IsResp3())
+        if (!servers[0].SharesSubscriptionConnection())
         {
             Assert.False(servers[0].IsSubscriberConnected);
         }
@@ -702,10 +702,13 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(result, options);
     }
 
-    [Fact]
-    public async Task BeforeSocketConnect()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BeforeSocketConnect(bool sharedSubscriptionConnection)
     {
         var options = Parse(TestConfig.Current.PrimaryServerAndPort);
+        options.SharedSubscriptionConnection = sharedSubscriptionConnection;
         int count = 0;
         options.BeforeSocketConnect = (endpoint, connType, socket) =>
         {
@@ -716,7 +719,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         };
         await using var conn = ConnectionMultiplexer.Connect(options);
         Assert.True(conn.IsConnected);
-        Assert.Equal(options.TryResp3() ? 1 : 2, count);
+        Assert.Equal(sharedSubscriptionConnection && options.TryResp3() ? 1 : 2, count);
 
         var endpoint = conn.GetServerSnapshot()[0];
         var interactivePhysical = endpoint.GetBridge(ConnectionType.Interactive)?.TryConnect(null);
@@ -895,6 +898,26 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         var parsed = Parse(cs);
         Assert.Equal(expected, parsed.HighIntegrity);
+    }
+
+    [Theory]
+    [InlineData(null, false, "dummy")]
+    [InlineData(false, false, "dummy,sharedSubscriptionConnection=False")]
+    [InlineData(true, true, "dummy,sharedSubscriptionConnection=True")]
+    public void CheckSharedSubscriptionConnection(bool? assigned, bool expected, string cs)
+    {
+        var options = Parse("dummy");
+        if (assigned.HasValue) options.SharedSubscriptionConnection = assigned.Value;
+
+        Assert.Equal(expected, options.SharedSubscriptionConnection);
+        Assert.Equal(cs, RemoveTestDefaults(options.ToString()));
+
+        var clone = options.Clone();
+        Assert.Equal(expected, clone.SharedSubscriptionConnection);
+        Assert.Equal(cs, RemoveTestDefaults(clone.ToString()));
+
+        var parsed = Parse(cs);
+        Assert.Equal(expected, parsed.SharedSubscriptionConnection);
     }
 
     [Theory]

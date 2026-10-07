@@ -185,6 +185,12 @@ namespace StackExchange.Redis.Configuration
         public virtual bool HighIntegrity => false;
 
         /// <summary>
+        /// A Boolean value that specifies whether, under RESP3, pub/sub should share the interactive connection rather than
+        /// using a dedicated subscription connection; see <see cref="ConfigurationOptions.SharedSubscriptionConnection"/>.
+        /// </summary>
+        public virtual bool SharedSubscriptionConnection => false;
+
+        /// <summary>
         /// The number of times to repeat the initial connect cycle if no servers respond promptly.
         /// </summary>
         public virtual int ConnectRetry => 3;
