@@ -175,9 +175,9 @@ namespace StackExchange.Redis
         /// <summary>Queue commands, and send them as one run when executed.</summary>
         /// <param name="context">The context to batch over.</param>
         [Experimental(Experiments.Batching, UrlFormat = Experiments.UrlFormat)]
-        public static RespBatch BeginBatch(this in RespDatabaseContext context) => new(context);
+        public static RespBatch BeginBatch(this RespDatabaseContext context) => new(context);
 
-        /// <inheritdoc cref="BeginBatch(in RespDatabaseContext)"/>
+        /// <inheritdoc cref="BeginBatch(RespDatabaseContext)"/>
         /// <typeparam name="TTarget">The kind of target.</typeparam>
         /// <param name="target">The target to batch over.</param>
         [Experimental(Experiments.Batching, UrlFormat = Experiments.UrlFormat)]
@@ -187,9 +187,9 @@ namespace StackExchange.Redis
         /// <summary>Queue commands, and send them inside <c>MULTI</c>/<c>EXEC</c> when executed.</summary>
         /// <param name="context">The context to run the transaction over.</param>
         [Experimental(Experiments.Batching, UrlFormat = Experiments.UrlFormat)]
-        public static RespTransaction BeginTransaction(this in RespDatabaseContext context) => new(context);
+        public static RespTransaction BeginTransaction(this RespDatabaseContext context) => new(context);
 
-        /// <inheritdoc cref="BeginTransaction(in RespDatabaseContext)"/>
+        /// <inheritdoc cref="BeginTransaction(RespDatabaseContext)"/>
         /// <typeparam name="TTarget">The kind of target.</typeparam>
         /// <param name="target">The target to run the transaction over.</param>
         [Experimental(Experiments.Batching, UrlFormat = Experiments.UrlFormat)]
@@ -197,7 +197,7 @@ namespace StackExchange.Redis
             => new(target.Context);
 
         /// <summary>The checks both kinds share: something to send through, able to send a run, not nested.</summary>
-        internal static RespContext Validate(in RespDatabaseContext source, string kind)
+        internal static RespContext Validate(RespDatabaseContext source, string kind)
         {
             var raw = source.Raw;
             var executor = raw.Executor ?? throw new InvalidOperationException(

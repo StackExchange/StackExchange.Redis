@@ -129,9 +129,9 @@ public static class ContosoExtensions
     /// what carries the local differences (the key prefix, the database), so the commands must come off
     /// it; the target overload below is sugar that forwards to whatever context the target holds.
     /// </remarks>
-    public static ContosoCommands Contoso(this in RespDatabaseContext context) => new(context.Raw);
+    public static ContosoCommands Contoso(this RespDatabaseContext context) => new(context.Raw);
 
-    /// <inheritdoc cref="Contoso(in RespDatabaseContext)"/>
+    /// <inheritdoc cref="Contoso(RespDatabaseContext)"/>
     public static ContosoCommands Contoso<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget
         => target.Context.Contoso();
 

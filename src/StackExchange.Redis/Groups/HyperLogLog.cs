@@ -61,7 +61,7 @@ public readonly struct RespHyperLogLog
 
 public static partial class RespDatabaseExtensions
 {
-    extension(in RespDatabaseContext context)
+    extension(RespDatabaseContext context)
     {
         /// <summary>The HyperLogLog commands.</summary>
         public RespHyperLogLog HyperLogLog => new(context.Raw);
@@ -70,6 +70,6 @@ public static partial class RespDatabaseExtensions
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The HyperLogLog commands.</summary>
-        public RespHyperLogLog HyperLogLog => target.Context.HyperLogLog;
+        public RespHyperLogLog HyperLogLog => new(target.Context.Raw);
     }
 }

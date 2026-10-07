@@ -24,8 +24,8 @@ public static partial class Arrays
     /// <param name="index">The slot to write.</param>
     /// <param name="value">The value to store.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> SetAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex index, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> SetAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex index, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<bool>(
             $"{RedisCommand.ARSET}{key}{index}{value}", flags, cancellationToken: cancellationToken);
 
@@ -35,8 +35,8 @@ public static partial class Arrays
     /// <param name="index">The first slot to write.</param>
     /// <param name="values">The values to store.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> SetAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex index, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> SetAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex index, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => values.IsEmpty
             ? default
             : arrays.Context.SendAsync<long>(
@@ -47,7 +47,7 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="entries">The index/value pairs to store.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b><c>ARMSET</c>, not <c>ARSET</c>, and the difference silently corrupts.</b> <c>ARSET</c> takes one
     /// index followed by consecutive values; <c>ARMSET</c> takes index/value <i>pairs</i>. Rendering these
@@ -55,7 +55,7 @@ public static partial class Arrays
     /// 0, 1 and 2 became five consecutive values written from index 0, and the reply said 5 where the
     /// caller expected 3. Nothing errors; the array is simply wrong afterwards.
     /// </remarks>
-    public static ValueTask<long> SetAsync(this in RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayEntry> entries, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long> SetAsync(this RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayEntry> entries, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => entries.IsEmpty
             ? default
             : arrays.Context.SendAsync<long>(
@@ -66,8 +66,8 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="index">The slot to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisValue> GetAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisValue> GetAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<RedisValue>(
             $"{RedisCommand.ARGET}{key}{index}", flags, cancellationToken: cancellationToken);
 
@@ -76,8 +76,8 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="indices">The slots to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ReadOnlyLease<RedisValue>> GetAsync(this in RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayIndex> indices, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ReadOnlyLease<RedisValue>> GetAsync(this RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayIndex> indices, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => indices.IsEmpty
             ? new(ReadOnlyLease<RedisValue>.Empty)
             : arrays.Context.SendAsync<ReadOnlyLease<RedisValue>>(
@@ -89,8 +89,8 @@ public static partial class Arrays
     /// <param name="start">The first slot.</param>
     /// <param name="end">The last slot.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ReadOnlyLease<RedisValue>> GetRangeAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ReadOnlyLease<RedisValue>> GetRangeAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<ReadOnlyLease<RedisValue>>(
             $"{RedisCommand.ARGETRANGE}{key}{start}{end}", flags, cancellationToken: cancellationToken);
 
@@ -98,8 +98,8 @@ public static partial class Arrays
     /// <param name="arrays">The array command group.</param>
     /// <param name="key">The array.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisArrayIndex> LengthAsync(this in RespArrays arrays, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisArrayIndex> LengthAsync(this RespArrays arrays, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<RedisArrayIndex>(
             $"{RedisCommand.ARLEN}{key}", flags, cancellationToken: cancellationToken);
 
@@ -107,8 +107,8 @@ public static partial class Arrays
     /// <param name="arrays">The array command group.</param>
     /// <param name="key">The array.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisArrayIndex> CountAsync(this in RespArrays arrays, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisArrayIndex> CountAsync(this RespArrays arrays, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<RedisArrayIndex>(
             $"{RedisCommand.ARCOUNT}{key}", flags, cancellationToken: cancellationToken);
 
@@ -117,8 +117,8 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="index">The slot to clear.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> DeleteAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> DeleteAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<bool>(
             $"{RedisCommand.ARDEL}{key}{index}", flags, cancellationToken: cancellationToken);
 
@@ -127,8 +127,8 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="indices">The slots to clear.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> DeleteAsync(this in RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayIndex> indices, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> DeleteAsync(this RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayIndex> indices, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => indices.IsEmpty
             ? default
             : arrays.Context.SendAsync<long>(
@@ -140,8 +140,8 @@ public static partial class Arrays
     /// <param name="start">The first slot.</param>
     /// <param name="end">The last slot.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisArrayIndex> DeleteRangeAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisArrayIndex> DeleteRangeAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<RedisArrayIndex>(
             $"{RedisCommand.ARDELRANGE}{key}{start}{end}", flags, cancellationToken: cancellationToken);
 
@@ -150,8 +150,8 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="ranges">The ranges to clear.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisArrayIndex> DeleteRangeAsync(this in RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayRange> ranges, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisArrayIndex> DeleteRangeAsync(this RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayRange> ranges, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => ranges.IsEmpty
             ? default
             : arrays.Context.SendAsync<RedisArrayIndex>(
@@ -164,8 +164,8 @@ public static partial class Arrays
     /// <param name="end">The last slot.</param>
     /// <param name="limit">The most entries to return; zero for no limit.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ReadOnlyLease<RedisArrayEntry>> ScanAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ReadOnlyLease<RedisArrayEntry>> ScanAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         var cmd = ScanCommand(arrays.Context, key, start, end, limit);
         return arrays.Context.SendAsync<ReadOnlyLease<RedisArrayEntry>>(ref cmd, flags, cancellationToken: cancellationToken);
@@ -187,14 +187,14 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="request">The bounds, the predicates, and the switches.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>The request decides the reply's shape</b>, which is why the handler is chosen here rather than
     /// fixed: <see cref="ArrayGrepRequest.IncludeValues"/> asks for <c>WITHVALUES</c> and turns a flat run
     /// of indices into index/value pairs. Same fork the shipped path makes, from the same property.
     /// </remarks>
     public static ValueTask<ReadOnlyLease<RedisArrayEntry>> GrepAsync(
-        this in RespArrays arrays,
+        this RespArrays arrays,
         RedisKey key,
         ArrayGrepRequest request,
         CommandFlags flags = CommandFlags.None,
@@ -209,7 +209,7 @@ public static partial class Arrays
     /// <inheritdoc cref="GrepAsync"/>
     /// <remarks><inheritdoc cref="GrepAsync" path="/remarks"/></remarks>
     internal static ValueTask<RedisArrayEntry[]> GrepArray(
-        this in RespArrays arrays,
+        this RespArrays arrays,
         RedisKey key,
         ArrayGrepRequest request,
         CommandFlags flags = CommandFlags.None,
@@ -276,9 +276,9 @@ public static partial class Arrays
     /// <param name="operation">The aggregate to compute.</param>
     /// <param name="operand">The value to match; only for <see cref="ArrayOperation.Match"/>.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<RedisValue> OperationAsync(
-        this in RespArrays arrays,
+        this RespArrays arrays,
         RedisKey key,
         RedisArrayIndex start,
         RedisArrayIndex end,
@@ -300,19 +300,19 @@ public static partial class Arrays
     /// <param name="maxLength">The length to hold.</param>
     /// <param name="value">The value to append.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisArrayIndex> RingAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex maxLength, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisArrayIndex> RingAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex maxLength, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<RedisArrayIndex>(
             $"{RedisCommand.ARRING}{key}{maxLength}{value}", flags, cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="Arrays.RingAsync(in RespArrays, RedisKey, RedisArrayIndex, RedisValue, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Arrays.RingAsync(RespArrays, RedisKey, RedisArrayIndex, RedisValue, CommandFlags, CancellationToken)"/>
     /// <param name="arrays">The array command group.</param>
     /// <param name="key">The array.</param>
     /// <param name="maxLength">The length to hold.</param>
     /// <param name="values">The values to append.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisArrayIndex> RingAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex maxLength, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisArrayIndex> RingAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex maxLength, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => values.IsEmpty
             ? default
             : arrays.Context.SendAsync<RedisArrayIndex>(
@@ -322,8 +322,8 @@ public static partial class Arrays
     /// <param name="arrays">The array command group.</param>
     /// <param name="key">The array.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisArrayIndex?> NextAsync(this in RespArrays arrays, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisArrayIndex?> NextAsync(this RespArrays arrays, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<RedisArrayIndex?>(
             $"{RedisCommand.ARNEXT}{key}", flags, cancellationToken: cancellationToken);
 
@@ -332,18 +332,18 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="value">The value to store.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisArrayIndex> InsertAsync(this in RespArrays arrays, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisArrayIndex> InsertAsync(this RespArrays arrays, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<RedisArrayIndex>(
             $"{RedisCommand.ARINSERT}{key}{value}", flags, cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="Arrays.InsertAsync(in RespArrays, RedisKey, RedisValue, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Arrays.InsertAsync(RespArrays, RedisKey, RedisValue, CommandFlags, CancellationToken)"/>
     /// <param name="arrays">The array command group.</param>
     /// <param name="key">The array.</param>
     /// <param name="values">The values to store.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisArrayIndex> InsertAsync(this in RespArrays arrays, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisArrayIndex> InsertAsync(this RespArrays arrays, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => values.IsEmpty
             ? default
             : arrays.Context.SendAsync<RedisArrayIndex>(
@@ -354,8 +354,8 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="index">The slot to seek to.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> SeekAsync(this in RespArrays arrays, RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> SeekAsync(this RespArrays arrays, RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<bool>(
             $"{RedisCommand.ARSEEK}{key}{index}", flags, cancellationToken: cancellationToken);
 
@@ -365,8 +365,8 @@ public static partial class Arrays
     /// <param name="count">How many to return.</param>
     /// <param name="reverse">Whether to return them newest-first.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ReadOnlyLease<RedisValue>> LastItemsAsync(this in RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ReadOnlyLease<RedisValue>> LastItemsAsync(this RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         var cmd = LastItemsCommand(arrays.Context, key, count, reverse);
         return arrays.Context.SendAsync<ReadOnlyLease<RedisValue>>(ref cmd, flags, cancellationToken: cancellationToken);
@@ -384,8 +384,8 @@ public static partial class Arrays
     /// <param name="key">The array.</param>
     /// <param name="full">Whether to ask for the fuller report.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ArrayInfo> InfoAsync(this in RespArrays arrays, RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ArrayInfo> InfoAsync(this RespArrays arrays, RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<ArrayInfo>(
             $"{RedisCommand.ARINFO}{key}{RespLiterals.Full.When(full)}",
             flags,
@@ -410,36 +410,36 @@ public static partial class Arrays
         }
     }
 
-    /// <inheritdoc cref="Arrays.GetAsync(in RespArrays, RedisKey, ReadOnlySpan{RedisArrayIndex}, CommandFlags, CancellationToken)"/>
-    /// <remarks><inheritdoc cref="Arrays.ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
-    internal static ValueTask<RedisValue[]> GetArray(this in RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayIndex> indices, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <inheritdoc cref="Arrays.GetAsync(RespArrays, RedisKey, ReadOnlySpan{RedisArrayIndex}, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="Arrays.ScanArray(RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
+    internal static ValueTask<RedisValue[]> GetArray(this RespArrays arrays, RedisKey key, ReadOnlySpan<RedisArrayIndex> indices, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => indices.IsEmpty
             ? new(Array.Empty<RedisValue>())
             : arrays.Context.SendAsync<RedisValue[]>(
                 $"{RedisCommand.ARMGET}{key}{indices}", flags, cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="Arrays.GetRangeAsync(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, CommandFlags, CancellationToken)"/>
-    /// <remarks><inheritdoc cref="Arrays.ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
-    internal static ValueTask<RedisValue[]> GetRangeArray(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <inheritdoc cref="Arrays.GetRangeAsync(RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="Arrays.ScanArray(RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
+    internal static ValueTask<RedisValue[]> GetRangeArray(this RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => arrays.Context.SendAsync<RedisValue[]>(
             $"{RedisCommand.ARGETRANGE}{key}{start}{end}", flags, cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="Arrays.ScanAsync(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Arrays.ScanAsync(RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags, CancellationToken)"/>
     /// <remarks>
     /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> promises an array and is not going anywhere,
     /// so this is how that signature is served from the new core. Internal because the array is the
     /// <i>old</i> spelling: new code reaches for the lease, and nothing outside this assembly should be
     /// able to choose otherwise.
     /// </remarks>
-    internal static ValueTask<RedisArrayEntry[]> ScanArray(this in RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    internal static ValueTask<RedisArrayEntry[]> ScanArray(this RespArrays arrays, RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int? limit = null, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         var cmd = ScanCommand(arrays.Context, key, start, end, limit);
         return arrays.Context.SendAsync<RedisArrayEntry[]>(ref cmd, flags, cancellationToken: cancellationToken);
     }
 
-    /// <inheritdoc cref="Arrays.LastItemsAsync(in RespArrays, RedisKey, int, bool, CommandFlags, CancellationToken)"/>
-    /// <remarks><inheritdoc cref="Arrays.ScanArray(in RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
-    internal static ValueTask<RedisValue[]> LastItemsArray(this in RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <inheritdoc cref="Arrays.LastItemsAsync(RespArrays, RedisKey, int, bool, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="Arrays.ScanArray(RespArrays, RedisKey, RedisArrayIndex, RedisArrayIndex, int?, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
+    internal static ValueTask<RedisValue[]> LastItemsArray(this RespArrays arrays, RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         var cmd = LastItemsCommand(arrays.Context, key, count, reverse);
         return arrays.Context.SendAsync<RedisValue[]>(ref cmd, flags, cancellationToken: cancellationToken);

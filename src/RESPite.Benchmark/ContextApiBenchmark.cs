@@ -55,7 +55,7 @@ public sealed class ContextApiBenchmark : BenchmarkBase<ContextApiBenchmark.Targ
         }
     }
 
-    private static readonly string withVersion = $"context API, SE.Redis {DatabaseApiBenchmark.GetLibVersion()}";
+    private static readonly string withVersion = $"RespDatabaseContext API, SE.Redis {DatabaseApiBenchmark.GetLibVersion()}";
     public override string ToString() => withVersion;
 
     private readonly ConnectionMultiplexer[] _connections;

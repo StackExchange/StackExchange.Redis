@@ -23,8 +23,8 @@ public static partial class Geospatial
     /// <param name="key">The key to write.</param>
     /// <param name="value">The member and its position.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> AddAsync(this in RespGeospatial geo, RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> AddAsync(this RespGeospatial geo, RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => geo.Context.SendAsync<bool>(
             $"{RedisCommand.GEOADD}{key}{(RedisValue)value.Longitude}{(RedisValue)value.Latitude}{value.Member}",
             flags,
@@ -35,8 +35,8 @@ public static partial class Geospatial
     /// <param name="key">The key to write.</param>
     /// <param name="values">The members and their positions.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> AddAsync(this in RespGeospatial geo, RedisKey key, ReadOnlySpan<GeoEntry> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> AddAsync(this RespGeospatial geo, RedisKey key, ReadOnlySpan<GeoEntry> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         if (values.IsEmpty) return new ValueTask<long>(0L);
 
@@ -66,8 +66,8 @@ public static partial class Geospatial
     /// <param name="key">The key to write.</param>
     /// <param name="member">The member to remove.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> RemoveAsync(this in RespGeospatial geo, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> RemoveAsync(this RespGeospatial geo, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => geo.Context.SendAsync<bool>(
             $"{RedisCommand.ZREM}{key}{member}", flags, cancellationToken: cancellationToken);
 
@@ -78,9 +78,9 @@ public static partial class Geospatial
     /// <param name="member2">The second member.</param>
     /// <param name="unit">The unit to answer in.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<double?> DistanceAsync(
-        this in RespGeospatial geo,
+        this RespGeospatial geo,
         RedisKey key,
         RedisValue member1,
         RedisValue member2,
@@ -97,8 +97,8 @@ public static partial class Geospatial
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to locate.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<string?> HashAsync(this in RespGeospatial geo, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<string?> HashAsync(this RespGeospatial geo, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => geo.Context.SendAsync(
             $"{RedisCommand.GEOHASH}{key}{member}",
             flags,
@@ -110,8 +110,8 @@ public static partial class Geospatial
     /// <param name="key">The key to read.</param>
     /// <param name="members">The members to locate.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ReadOnlyLease<string?>> HashAsync(this in RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ReadOnlyLease<string?>> HashAsync(this RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => geo.Context.SendAsync(
             $"{RedisCommand.GEOHASH}{key}{members}",
             flags,
@@ -123,8 +123,8 @@ public static partial class Geospatial
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to locate.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<GeoPosition?> PositionAsync(this in RespGeospatial geo, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<GeoPosition?> PositionAsync(this RespGeospatial geo, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => geo.Context.SendAsync(
             $"{RedisCommand.GEOPOS}{key}{member}",
             flags,
@@ -136,8 +136,8 @@ public static partial class Geospatial
     /// <param name="key">The key to read.</param>
     /// <param name="members">The members to locate.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ReadOnlyLease<GeoPosition?>> PositionAsync(this in RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ReadOnlyLease<GeoPosition?>> PositionAsync(this RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => geo.Context.SendAsync(
             $"{RedisCommand.GEOPOS}{key}{members}",
             flags,
@@ -154,9 +154,9 @@ public static partial class Geospatial
     /// <param name="order">Which direction to sort the results in, or null to leave them unordered.</param>
     /// <param name="options">Which extra fields to ask for; they decide the reply's shape.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<ReadOnlyLease<GeoRadiusResult>> SearchAsync(
-        this in RespGeospatial geo,
+        this RespGeospatial geo,
         RedisKey key,
         RedisValue member,
         GeoSearchShape shape,
@@ -166,22 +166,22 @@ public static partial class Geospatial
         GeoRadiusOptions options = GeoRadiusOptions.Default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => SearchCore(in geo, default, key, member, double.NaN, double.NaN, shape, count, demandClosest, false, order, options, flags, GeoResultHandler.Lease(options));
+        => SearchCore(geo, default, key, member, double.NaN, double.NaN, shape, count, demandClosest, false, order, options, flags, GeoResultHandler.Lease(options));
 
     /// <summary>GEOSEARCH from a coordinate.</summary>
     /// <param name="geo">The geospatial command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="longitude">The longitude to search around.</param>
     /// <param name="latitude">The latitude to search around.</param>
-    /// <param name="shape"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='shape']"/></param>
-    /// <param name="count"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='count']"/></param>
-    /// <param name="demandClosest"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='demandClosest']"/></param>
-    /// <param name="order"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='order']"/></param>
-    /// <param name="options"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='options']"/></param>
+    /// <param name="shape"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='shape']"/></param>
+    /// <param name="count"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='count']"/></param>
+    /// <param name="demandClosest"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='demandClosest']"/></param>
+    /// <param name="order"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='order']"/></param>
+    /// <param name="options"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='options']"/></param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<ReadOnlyLease<GeoRadiusResult>> SearchAsync(
-        this in RespGeospatial geo,
+        this RespGeospatial geo,
         RedisKey key,
         double longitude,
         double latitude,
@@ -192,22 +192,22 @@ public static partial class Geospatial
         GeoRadiusOptions options = GeoRadiusOptions.Default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => SearchCore(in geo, default, key, RedisValue.Null, longitude, latitude, shape, count, demandClosest, false, order, options, flags, GeoResultHandler.Lease(options));
+        => SearchCore(geo, default, key, RedisValue.Null, longitude, latitude, shape, count, demandClosest, false, order, options, flags, GeoResultHandler.Lease(options));
 
     /// <summary>GEOSEARCHSTORE from a member: the same search, written to a key.</summary>
     /// <param name="geo">The geospatial command group.</param>
     /// <param name="destination">The key to write the matches to.</param>
     /// <param name="sourceKey">The key to read.</param>
-    /// <param name="member"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='member']"/></param>
-    /// <param name="shape"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='shape']"/></param>
-    /// <param name="count"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='count']"/></param>
-    /// <param name="demandClosest"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='demandClosest']"/></param>
-    /// <param name="order"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='order']"/></param>
+    /// <param name="member"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='member']"/></param>
+    /// <param name="shape"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='shape']"/></param>
+    /// <param name="count"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='count']"/></param>
+    /// <param name="demandClosest"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='demandClosest']"/></param>
+    /// <param name="order"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='order']"/></param>
     /// <param name="storeDistances">Whether to store the distance as the score, rather than the position.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<long> SearchAndStoreAsync(
-        this in RespGeospatial geo,
+        this RespGeospatial geo,
         RedisKey destination,
         RedisKey sourceKey,
         RedisValue member,
@@ -218,23 +218,23 @@ public static partial class Geospatial
         bool storeDistances = false,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => SearchCore(in geo, destination, sourceKey, member, double.NaN, double.NaN, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags, RespHandlers.Int64);
+        => SearchCore(geo, destination, sourceKey, member, double.NaN, double.NaN, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags, RespHandlers.Int64);
 
     /// <summary>GEOSEARCHSTORE from a coordinate.</summary>
     /// <param name="geo">The geospatial command group.</param>
-    /// <param name="destination"><inheritdoc cref="Geospatial.SearchAndStoreAsync(in RespGeospatial, RedisKey, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, bool, CommandFlags, CancellationToken)" path="/param[@name='destination']"/></param>
+    /// <param name="destination"><inheritdoc cref="Geospatial.SearchAndStoreAsync(RespGeospatial, RedisKey, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, bool, CommandFlags, CancellationToken)" path="/param[@name='destination']"/></param>
     /// <param name="sourceKey">The key to read.</param>
-    /// <param name="longitude"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, double, double, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='longitude']"/></param>
-    /// <param name="latitude"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, double, double, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='latitude']"/></param>
-    /// <param name="shape"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='shape']"/></param>
-    /// <param name="count"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='count']"/></param>
-    /// <param name="demandClosest"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='demandClosest']"/></param>
-    /// <param name="order"><inheritdoc cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='order']"/></param>
-    /// <param name="storeDistances"><inheritdoc cref="Geospatial.SearchAndStoreAsync(in RespGeospatial, RedisKey, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, bool, CommandFlags, CancellationToken)" path="/param[@name='storeDistances']"/></param>
+    /// <param name="longitude"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, double, double, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='longitude']"/></param>
+    /// <param name="latitude"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, double, double, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='latitude']"/></param>
+    /// <param name="shape"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='shape']"/></param>
+    /// <param name="count"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='count']"/></param>
+    /// <param name="demandClosest"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='demandClosest']"/></param>
+    /// <param name="order"><inheritdoc cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)" path="/param[@name='order']"/></param>
+    /// <param name="storeDistances"><inheritdoc cref="Geospatial.SearchAndStoreAsync(RespGeospatial, RedisKey, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, bool, CommandFlags, CancellationToken)" path="/param[@name='storeDistances']"/></param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<long> SearchAndStoreAsync(
-        this in RespGeospatial geo,
+        this RespGeospatial geo,
         RedisKey destination,
         RedisKey sourceKey,
         double longitude,
@@ -246,18 +246,18 @@ public static partial class Geospatial
         bool storeDistances = false,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => SearchCore(in geo, destination, sourceKey, RedisValue.Null, longitude, latitude, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags, RespHandlers.Int64);
+        => SearchCore(geo, destination, sourceKey, RedisValue.Null, longitude, latitude, shape, count, demandClosest, storeDistances, order, GeoRadiusOptions.None, flags, RespHandlers.Int64);
 
     /// <summary>
-    /// <see cref="Geospatial.HashAsync(in RespGeospatial, RedisKey, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/> for the
+    /// <see cref="Geospatial.HashAsync(RespGeospatial, RedisKey, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/> for the
     /// old <see cref="IDatabase"/> shape, which promises an array the caller owns.
     /// </summary>
     /// <param name="geo">The geospatial command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="members">The members to locate.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    internal static ValueTask<string?[]> HashArray(this in RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    internal static ValueTask<string?[]> HashArray(this RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => geo.Context.SendAsync(
             $"{RedisCommand.GEOHASH}{key}{members}",
             flags,
@@ -265,15 +265,15 @@ public static partial class Geospatial
             cancellationToken: cancellationToken);
 
     /// <summary>
-    /// <see cref="Geospatial.PositionAsync(in RespGeospatial, RedisKey, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/> for
+    /// <see cref="Geospatial.PositionAsync(RespGeospatial, RedisKey, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/> for
     /// the old <see cref="IDatabase"/> shape, which promises an array the caller owns.
     /// </summary>
     /// <param name="geo">The geospatial command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="members">The members to locate.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    internal static ValueTask<GeoPosition?[]> PositionArray(this in RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    internal static ValueTask<GeoPosition?[]> PositionArray(this RespGeospatial geo, RedisKey key, ReadOnlySpan<RedisValue> members, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => geo.Context.SendAsync(
             $"{RedisCommand.GEOPOS}{key}{members}",
             flags,
@@ -281,7 +281,7 @@ public static partial class Geospatial
             cancellationToken: cancellationToken);
 
     /// <summary>
-    /// <see cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)"/>
+    /// <see cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)"/>
     /// for the old <see cref="IDatabase"/> shape, with the two origins folded into one signature.
     /// </summary>
     /// <param name="geo">The geospatial command group.</param>
@@ -296,7 +296,7 @@ public static partial class Geospatial
     /// <param name="options">Which extra fields to ask for.</param>
     /// <param name="flags">Command flags.</param>
     internal static ValueTask<GeoRadiusResult[]> SearchArray(
-        this in RespGeospatial geo,
+        this RespGeospatial geo,
         RedisKey key,
         RedisValue member,
         double longitude,
@@ -307,7 +307,7 @@ public static partial class Geospatial
         Order? order,
         GeoRadiusOptions options,
         CommandFlags flags)
-        => SearchCore(in geo, default, key, member, longitude, latitude, shape, count, demandClosest, false, order, options, flags, GeoResultHandler.Array(options));
+        => SearchCore(geo, default, key, member, longitude, latitude, shape, count, demandClosest, false, order, options, flags, GeoResultHandler.Array(options));
 
     /// <summary>
     /// <c>GEOSEARCH</c> where the server has it, <c>GEORADIUS</c>/<c>GEORADIUSBYMEMBER</c> where it
@@ -327,7 +327,7 @@ public static partial class Geospatial
     /// <remarks>
     /// <para>
     /// Internal, and deliberately not on the group's own surface:
-    /// <see cref="Geospatial.SearchAsync(in RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)"/>
+    /// <see cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)"/>
     /// is what callers want, and it takes a box as readily as a circle. This exists so that a caller
     /// of the <b>old</b> method keeps working against a server older than 6.2.
     /// </para>
@@ -339,7 +339,7 @@ public static partial class Geospatial
     /// </para>
     /// </remarks>
     internal static ValueTask<GeoRadiusResult[]> RadiusArray(
-        this in RespGeospatial geo,
+        this RespGeospatial geo,
         RedisKey key,
         RedisValue member,
         double longitude,
@@ -361,7 +361,7 @@ public static partial class Geospatial
             // GEORADIUS is exactly a circular GEOSEARCH; note the count rule differs between the two
             // old spellings and the new one, so the old one is preserved here rather than widened
             return SearchCore(
-                in geo,
+                geo,
                 default,
                 key,
                 member,
@@ -423,7 +423,7 @@ public static partial class Geospatial
 
     /// <summary>The one renderer for GEOSEARCH and GEOSEARCHSTORE.</summary>
     private static ValueTask<TResult> SearchCore<TResult>(
-        in RespGeospatial geo,
+        RespGeospatial geo,
         in RedisKey destination,
         in RedisKey sourceKey,
         in RedisValue member,

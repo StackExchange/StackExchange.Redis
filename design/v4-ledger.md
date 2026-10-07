@@ -44,7 +44,9 @@ Each has a default the work proceeds on until answered.
   `RunContinuationsAsynchronously`, which survives a reset: across lives (the inline continuation recycled the
   instance before the `finally` restored it) and within one (TrySetCanceledInline flipped it before claiming).
   12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
-- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`.
+- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`,
+  `RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeamWithADifferentScope` (`Injections` 2 not 1,
+  under full-suite load only; 5/5 in isolation - plausibly a reconnect re-sending the per-connection preamble).
 
 ## Backlog (after the alpha)
 
@@ -97,11 +99,6 @@ Each has a default the work proceeds on until answered.
 - **Prose still says "the new core".** The rename pass (a1673a96) renamed types and members only; comments
   and docs still say "the new core" / "old core" where there is now one. A wording pass to "the connection
   manager" (or just "the core") - noisy, so its own commit.
-- **Docs prefer the new API.** Migrate the existing `docs/*.md` pages to lead with the grouped
-  context API (`db.Strings.GetAsync`) rather than `IDatabase` (`db.StringGetAsync`); ~15 pages use the old
-  spellings today. `docs/LegacyApi.md` already exists as the old-to-new page ("the prefix became a
-  group"): extend it into the reference that maps the old API's gist onto the new one, and link it from
-  the migrated pages.
 - **Replace the method-replaying decorators with executor decorators.** Eager frames mean the "what to replay"
   problem is solved below the API: `RedisDatabase` is a thin `IDatabase` over a `RespDatabaseContext`
   (every member is `_inner.<Group>.XAsync(...)`), so `new RedisDatabase(ctx.WithExecutor(retry))` retries

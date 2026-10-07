@@ -69,7 +69,7 @@ public readonly struct RespHashes
 
 public static partial class RespDatabaseExtensions
 {
-    extension(in RespDatabaseContext context)
+    extension(RespDatabaseContext context)
     {
         /// <summary>The hash commands.</summary>
         public RespHashes Hashes => new(context.Raw);
@@ -78,6 +78,6 @@ public static partial class RespDatabaseExtensions
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The hash commands.</summary>
-        public RespHashes Hashes => target.Context.Hashes;
+        public RespHashes Hashes => new(target.Context.Raw);
     }
 }

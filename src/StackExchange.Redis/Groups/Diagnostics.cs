@@ -41,7 +41,7 @@ public readonly struct RespDiagnostics
 
 public static partial class RespServerExtensions
 {
-    extension(in RespServerContext context)
+    extension(RespServerContext context)
     {
         /// <summary>The commands that ask this server about itself.</summary>
         public RespDiagnostics Diagnostics => new(context.Raw);

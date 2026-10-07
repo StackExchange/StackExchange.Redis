@@ -23,8 +23,8 @@ public static partial class Bitmaps
     /// <param name="key">The key to read.</param>
     /// <param name="offset">The bit offset.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> GetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> GetAsync(this RespBitmaps bitmaps, RedisKey key, long offset, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => bitmaps.Context.SendAsync<bool>(
             $"{RedisCommand.GETBIT}{key}{offset}", flags, cancellationToken: cancellationToken);
 
@@ -34,8 +34,8 @@ public static partial class Bitmaps
     /// <param name="offset">The bit offset; the value is zero-extended up to it.</param>
     /// <param name="bit">The bit to set.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> SetAsync(this in RespBitmaps bitmaps, RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> SetAsync(this RespBitmaps bitmaps, RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => bitmaps.Context.SendAsync<bool>(
             $"{RedisCommand.SETBIT}{key}{offset}{bit}", flags, cancellationToken: cancellationToken);
 
@@ -46,7 +46,7 @@ public static partial class Bitmaps
     /// <param name="end">The inclusive end of the range; negative counts back from the end.</param>
     /// <param name="indexType">Whether the range is in bytes or in bits.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// The index type is a token on the wire and nothing at all when it is the default, which is
     /// exactly what a zero-argument <see cref="RespFragment"/> spells - so the whole command is one
@@ -54,7 +54,7 @@ public static partial class Bitmaps
     /// because it is the server's own default, and older servers do not accept the token at all.
     /// </remarks>
     public static ValueTask<long> CountAsync(
-        this in RespBitmaps bitmaps,
+        this RespBitmaps bitmaps,
         RedisKey key,
         long start = 0,
         long end = -1,
@@ -78,14 +78,14 @@ public static partial class Bitmaps
     /// </param>
     /// <param name="indexType">Whether the range is in bytes or in bits.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// An open-ended range and a bit index cannot be combined: the server takes the BYTE/BIT token only
     /// <i>after</i> an explicit end, so there is nowhere to put it. Dropping it silently would
     /// reinterpret <paramref name="start"/> as a byte offset, which is why this says so instead.
     /// </remarks>
     public static ValueTask<long> PositionAsync(
-        this in RespBitmaps bitmaps,
+        this RespBitmaps bitmaps,
         RedisKey key,
         bool bit,
         long start = 0,
@@ -120,7 +120,7 @@ public static partial class Bitmaps
     /// <param name="destination">The key to write the result to.</param>
     /// <param name="keys">The source keys.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>One method where the old surface has two.</b> The <c>(first, second)</c> overload exists only
@@ -135,7 +135,7 @@ public static partial class Bitmaps
     /// </para>
     /// </remarks>
     public static ValueTask<long> OperationAsync(
-        this in RespBitmaps bitmaps,
+        this RespBitmaps bitmaps,
         Bitwise operation,
         RedisKey destination,
         ReadOnlySpan<RedisKey> keys,
@@ -159,7 +159,7 @@ public static partial class Bitmaps
     /// <param name="key">The key to operate on.</param>
     /// <param name="operations">The sub-operations, in order; the reply has one element per operation.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// The one command in this group that cannot be a single interpolated expression, and not because
@@ -182,36 +182,36 @@ public static partial class Bitmaps
     /// </para>
     /// </remarks>
     public static ValueTask<ReadOnlyLease<long?>> FieldAsync(
-        this in RespBitmaps bitmaps,
+        this RespBitmaps bitmaps,
         RedisKey key,
         ReadOnlySpan<BitFieldOperation> operations,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => FieldCore<ReadOnlyLease<long?>>(in bitmaps, key, operations, ReadOnlyLease<long?>.Empty, flags);
+        => FieldCore<ReadOnlyLease<long?>>(bitmaps, key, operations, ReadOnlyLease<long?>.Empty, flags);
 
-    /// <inheritdoc cref="Bitmaps.FieldAsync(in RespBitmaps, RedisKey, ReadOnlySpan{BitFieldOperation}, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Bitmaps.FieldAsync(RespBitmaps, RedisKey, ReadOnlySpan{BitFieldOperation}, CommandFlags, CancellationToken)"/>
     /// <param name="bitmaps">The bitmap command group.</param>
     /// <param name="key">The key to operate on.</param>
     /// <param name="operations">The sub-operations, in order.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// The writable-lease sibling, for <c>IDatabase.StringBitField</c>; see
-    /// <see cref="Strings.GetWritableLease(in RespStrings, RedisKey, CommandFlags, CancellationToken)"/>.
+    /// <see cref="Strings.GetWritableLease(RespStrings, RedisKey, CommandFlags, CancellationToken)"/>.
     /// </remarks>
     internal static ValueTask<Lease<long?>> FieldWritableLease(
-        this in RespBitmaps bitmaps,
+        this RespBitmaps bitmaps,
         RedisKey key,
         ReadOnlySpan<BitFieldOperation> operations,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => FieldCore<Lease<long?>>(in bitmaps, key, operations, Lease<long?>.Empty, flags);
+        => FieldCore<Lease<long?>>(bitmaps, key, operations, Lease<long?>.Empty, flags);
 
     /// <summary>
     /// The command both BITFIELD shapes send; they differ only in which lease the reply becomes.
     /// </summary>
     private static ValueTask<TResult> FieldCore<TResult>(
-        in RespBitmaps bitmaps,
+        RespBitmaps bitmaps,
         RedisKey key,
         ReadOnlySpan<BitFieldOperation> operations,
         TResult empty,
@@ -248,13 +248,13 @@ public static partial class Bitmaps
     /// <param name="key">The key to operate on.</param>
     /// <param name="operation">The sub-operation.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// The same bytes as the span form with one element, unwrapped from the array the server always
     /// replies with - so the common case costs neither a lease nor a disposal. <see langword="null"/>
     /// means the operation was skipped by <c>OVERFLOW FAIL</c>.
     /// </remarks>
-    public static ValueTask<long?> FieldAsync(this in RespBitmaps bitmaps, RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long?> FieldAsync(this RespBitmaps bitmaps, RedisKey key, BitFieldOperation operation, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         // deliberately NOT a one-element span: BitFieldOperation holds a RedisValue, so it cannot be
         // stackalloc'd, and the span-from-a-single-value constructor does not exist on every target

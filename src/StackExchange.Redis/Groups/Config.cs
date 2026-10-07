@@ -40,7 +40,7 @@ public readonly struct RespConfig
 
 public static partial class RespServerExtensions
 {
-    extension(in RespServerContext context)
+    extension(RespServerContext context)
     {
         /// <summary>The <c>CONFIG</c> commands of this server.</summary>
         public RespConfig Config => new(context.Raw);

@@ -6,7 +6,7 @@ namespace RESPite.Benchmark;
 
 public sealed class DatabaseApiBenchmark(string[] args) : DatabaseApiBenchmarkBase(args)
 {
-    private static readonly string withVersion = $"classic SE.Redis {GetLibVersion()}";
+    private static readonly string withVersion = $"IDatabase API, SE.Redis {GetLibVersion()}";
     public override string ToString() => withVersion;
 
     protected override IConnectionMultiplexer Create(int port)

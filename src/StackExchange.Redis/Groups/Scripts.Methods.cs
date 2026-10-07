@@ -26,7 +26,7 @@ public static partial class Scripts
     /// <param name="keys">The keys the script accesses; these route the command.</param>
     /// <param name="args">Everything else the script needs.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// The hash is computed here rather than taken from the server's reply, which is what lets the body
@@ -42,16 +42,16 @@ public static partial class Scripts
     /// </para>
     /// </remarks>
     public static ValueTask<RespResult> EvaluateAsync(
-        this in RespScripts scripts,
+        this RespScripts scripts,
         string script,
         ReadOnlySpan<RedisKey> keys = default,
         ReadOnlySpan<RedisValue> args = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => Evaluate(in scripts, script, keys, args, flags, readOnly: false, RespHandlers.Result);
+        => Evaluate(scripts, script, keys, args, flags, readOnly: false, RespHandlers.Result);
 
     private static ValueTask<TResult> Evaluate<TResult>(
-        in RespScripts scripts,
+        RespScripts scripts,
         string script,
         ReadOnlySpan<RedisKey> keys,
         ReadOnlySpan<RedisValue> args,
@@ -208,7 +208,7 @@ public static partial class Scripts
     /// <param name="keys">The keys the script accesses; these route the command.</param>
     /// <param name="args">Everything else the script needs.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// A separate method rather than a flag on <c>Evaluate</c>, because it is a separate command with a
@@ -222,13 +222,13 @@ public static partial class Scripts
     /// </para>
     /// </remarks>
     public static ValueTask<RespResult> EvaluateReadOnlyAsync(
-        this in RespScripts scripts,
+        this RespScripts scripts,
         string script,
         ReadOnlySpan<RedisKey> keys = default,
         ReadOnlySpan<RedisValue> args = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => Evaluate(in scripts, script, keys, args, flags, readOnly: true, RespHandlers.Result);
+        => Evaluate(scripts, script, keys, args, flags, readOnly: true, RespHandlers.Result);
 
     /// <summary>Render the EVALSHA and send it behind the preamble.</summary>
     private static ValueTask<TResult> SendPair<TResult>(
@@ -327,7 +327,7 @@ public static partial class Scripts
     /// <param name="args">Everything else the script needs.</param>
     /// <param name="readOnly">Whether to use the read-only form, which requires 7.0 or later.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>No preamble, and that is the caller's problem by design.</b> Every other entry point here can
     /// recover from a script the server has forgotten, because it holds the body and can re-load it. A
@@ -335,17 +335,17 @@ public static partial class Scripts
     /// which is exactly what <c>IDatabase.ScriptEvaluate(byte[] hash, ...)</c> has always done.
     /// </remarks>
     public static ValueTask<RespResult> EvaluateHashAsync(
-        this in RespScripts scripts,
+        this RespScripts scripts,
         scoped ReadOnlySpan<byte> hash,
         ReadOnlySpan<RedisKey> keys = default,
         ReadOnlySpan<RedisValue> args = default,
         bool readOnly = false,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => EvaluateHash(in scripts, hash, keys, args, readOnly, flags, RespHandlers.Result, cancellationToken);
+        => EvaluateHash(scripts, hash, keys, args, readOnly, flags, RespHandlers.Result, cancellationToken);
 
     private static ValueTask<TResult> EvaluateHash<TResult>(
-        in RespScripts scripts,
+        RespScripts scripts,
         scoped ReadOnlySpan<byte> hash,
         ReadOnlySpan<RedisKey> keys,
         ReadOnlySpan<RedisValue> args,
@@ -367,7 +367,7 @@ public static partial class Scripts
     /// <param name="scripts">The script command group.</param>
     /// <param name="script">The Lua source.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <returns>The SHA1 as lower-case hex, exactly as the server reported it.</returns>
     /// <remarks>
     /// Hex rather than bytes, because that is what every consumer of the answer keys on - the endpoint's
@@ -376,7 +376,7 @@ public static partial class Scripts
     /// node returns the same answer.
     /// </remarks>
     internal static ValueTask<string?> LoadHex(
-        this in RespScripts scripts,
+        this RespScripts scripts,
         string script,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -418,23 +418,23 @@ public static partial class Scripts
     /// shapes cannot drift.
     /// </remarks>
     internal static ValueTask<RedisResult> EvaluateResult(
-        this in RespScripts scripts,
+        this RespScripts scripts,
         string script,
         ReadOnlySpan<RedisKey> keys,
         ReadOnlySpan<RedisValue> args,
         bool readOnly,
         CommandFlags flags)
-        => Evaluate(in scripts, script, keys, args, flags, readOnly, RedisResultHandler.Instance);
+        => Evaluate(scripts, script, keys, args, flags, readOnly, RedisResultHandler.Instance);
 
     /// <inheritdoc cref="EvaluateResult"/>
     internal static ValueTask<RedisResult> EvaluateHashResult(
-        this in RespScripts scripts,
+        this RespScripts scripts,
         scoped ReadOnlySpan<byte> hash,
         ReadOnlySpan<RedisKey> keys,
         ReadOnlySpan<RedisValue> args,
         bool readOnly,
         CommandFlags flags)
-        => EvaluateHash(in scripts, hash, keys, args, readOnly, flags, RedisResultHandler.Instance, default);
+        => EvaluateHash(scripts, hash, keys, args, readOnly, flags, RedisResultHandler.Instance, default);
 
     /// <summary>
     /// EVAL or EVALSHA exactly as the shipped <c>IDatabase.ScriptEvaluate</c> sends it: one command, no
@@ -454,14 +454,14 @@ public static partial class Scripts
     /// </para>
     /// </remarks>
     internal static ValueTask<RedisResult> EvaluateDirectResult(
-        this in RespScripts scripts,
+        this RespScripts scripts,
         RedisValue scriptOrHash,
         ReadOnlySpan<RedisKey> keys,
         ReadOnlySpan<RedisValue> args,
         bool isHash,
         bool readOnly,
         CommandFlags flags)
-        => EvaluateDirect(in scripts, scriptOrHash, keys, args, isHash, readOnly, flags, RedisResultHandler.Instance);
+        => EvaluateDirect(scripts, scriptOrHash, keys, args, isHash, readOnly, flags, RedisResultHandler.Instance);
 
     /// <inheritdoc cref="EvaluateDirectResult"/>
     /// <remarks>
@@ -469,17 +469,17 @@ public static partial class Scripts
     /// surface's own low-allocation shape and so wants the same uncached send, not a different one.
     /// </remarks>
     internal static ValueTask<RespResult> EvaluateDirectResp(
-        this in RespScripts scripts,
+        this RespScripts scripts,
         RedisValue scriptOrHash,
         ReadOnlySpan<RedisKey> keys,
         ReadOnlySpan<RedisValue> args,
         bool isHash,
         bool readOnly,
         CommandFlags flags)
-        => EvaluateDirect(in scripts, scriptOrHash, keys, args, isHash, readOnly, flags, RespHandlers.Result);
+        => EvaluateDirect(scripts, scriptOrHash, keys, args, isHash, readOnly, flags, RespHandlers.Result);
 
     private static ValueTask<TResult> EvaluateDirect<TResult>(
-        in RespScripts scripts,
+        RespScripts scripts,
         RedisValue scriptOrHash,
         ReadOnlySpan<RedisKey> keys,
         ReadOnlySpan<RedisValue> args,
@@ -522,26 +522,26 @@ public static partial class Scripts
     /// <summary>SCRIPT FLUSH: discard every script this server has cached.</summary>
     /// <param name="scripts">The scripting command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Server-scoped, unlike the rest of this group.</b> A script cache belongs to one node, so this
     /// empties the node that was asked and nothing else - which is also why <c>IServer</c> is where it is
     /// exposed, and why it is guarded by admin mode there.
     /// </remarks>
-    public static ValueTask FlushAsync(this in RespScripts scripts, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask FlushAsync(this RespScripts scripts, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => scripts.Context.SendAsync($"{RedisCommand.SCRIPT}{RespLiterals.Flush}", flags, cancellationToken: cancellationToken);
 
     /// <summary>SCRIPT EXISTS: whether this server already holds a script, by its hash.</summary>
     /// <param name="scripts">The scripting command group.</param>
     /// <param name="hash">The script's SHA1, hex-encoded.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>One hash, one answer.</b> The command is variadic and replies with one flag per hash asked
     /// about, but <c>IServer</c> asks about exactly one - so this does too, rather than handing back a
     /// one-element array for the caller to unwrap.
     /// </remarks>
-    public static ValueTask<bool> ExistsAsync(this in RespScripts scripts, RedisValue hash, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<bool> ExistsAsync(this RespScripts scripts, RedisValue hash, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => scripts.Context.SendAsync(
             $"{RedisCommand.SCRIPT}{RespLiterals.Exists}{hash}",
             flags.WithRetryCategory(RespServerRetry.NodeLocalRead),

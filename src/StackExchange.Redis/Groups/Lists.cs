@@ -70,7 +70,7 @@ public readonly struct RespLists
 
 public static partial class RespDatabaseExtensions
 {
-    extension(in RespDatabaseContext context)
+    extension(RespDatabaseContext context)
     {
         /// <summary>The list commands.</summary>
         public RespLists Lists => new(context.Raw);
@@ -79,6 +79,6 @@ public static partial class RespDatabaseExtensions
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The list commands.</summary>
-        public RespLists Lists => target.Context.Lists;
+        public RespLists Lists => new(target.Context.Raw);
     }
 }

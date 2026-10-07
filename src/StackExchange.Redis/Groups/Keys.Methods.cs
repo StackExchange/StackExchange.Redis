@@ -23,8 +23,8 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to remove.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> DeleteAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> DeleteAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<bool>(
             $"{RedisCommand.DEL}{key}", flags, cancellationToken: cancellationToken);
 
@@ -32,8 +32,8 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="targets">The keys to remove.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> DeleteAsync(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> DeleteAsync(this RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => targets.IsEmpty
             ? new ValueTask<long>(0L)
             : keys.Context.SendAsync<long>(
@@ -43,22 +43,22 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to remove.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// A separate method rather than a flag on <c>Delete</c>: the difference is visible to the server
     /// operator rather than to the caller, and hiding it behind an option would make the choice
     /// invisible at the call site, which is where it is made.
     /// </remarks>
-    public static ValueTask<bool> UnlinkAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<bool> UnlinkAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<bool>(
             $"{RedisCommand.UNLINK}{key}", flags, cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="Keys.UnlinkAsync(in RespKeys, RedisKey, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Keys.UnlinkAsync(RespKeys, RedisKey, CommandFlags, CancellationToken)"/>
     /// <param name="keys">The key command group.</param>
     /// <param name="targets">The keys to remove.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> UnlinkAsync(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> UnlinkAsync(this RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => targets.IsEmpty
             ? new ValueTask<long>(0L)
             : keys.Context.SendAsync<long>(
@@ -68,8 +68,8 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to test.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> ExistsAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> ExistsAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<bool>(
             $"{RedisCommand.EXISTS}{key}", flags, cancellationToken: cancellationToken);
 
@@ -77,8 +77,8 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="targets">The keys to test.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> ExistsAsync(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> ExistsAsync(this RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => targets.IsEmpty
             ? new ValueTask<long>(0L)
             : keys.Context.SendAsync<long>(
@@ -90,7 +90,7 @@ public static partial class Keys
     /// <param name="expiry">When it should expire.</param>
     /// <param name="when">The condition under which the deadline applies.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// One method over four commands, as in the hash group: whether the deadline is absolute or
     /// relative, and whether it is in seconds or milliseconds, are properties of the
@@ -99,7 +99,7 @@ public static partial class Keys
     /// different reply, and <see cref="Expiration.Persist"/> is rejected rather than silently rerouted.
     /// </remarks>
     public static ValueTask<bool> ExpireAsync(
-        this in RespKeys keys,
+        this RespKeys keys,
         RedisKey key,
         Expiration expiry,
         ExpireWhen when = ExpireWhen.Always,
@@ -153,8 +153,8 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to make permanent.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> PersistAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> PersistAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<bool>(
             $"{RedisCommand.PERSIST}{key}", flags, cancellationToken: cancellationToken);
 
@@ -162,18 +162,18 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to ask about.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Never cached</b>, and it is the clearest case in the library: the answer counts down, so it is
     /// already wrong by the time it is stored, and no correction is coming because the server announces
     /// expiry to nobody. Contrast <see cref="ExpireTimeAsync"/>, which names an instant and does not drift.
     /// <para>
     /// "No such key" and "no deadline" both read as null - the caller asked how long is left, and the
-    /// answer is "no deadline" either way. <see cref="Keys.ExistsAsync(in RespKeys, RedisKey, CommandFlags, CancellationToken)"/>
+    /// answer is "no deadline" either way. <see cref="Keys.ExistsAsync(RespKeys, RedisKey, CommandFlags, CancellationToken)"/>
     /// distinguishes them.
     /// </para>
     /// </remarks>
-    public static ValueTask<TimeSpan?> TimeToLiveAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<TimeSpan?> TimeToLiveAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         // PTTL can be DISABLED in the command map - a deployment that only permits second precision, which
         // the test suite exercises directly - and the shipped surface falls back to TTL rather than
@@ -204,13 +204,13 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to ask about.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// Cacheable where <see cref="TimeToLiveAsync"/> is not: an instant does not drift, so this only becomes
     /// wrong once the key actually expires - the same exposure every cached read of a volatile key
     /// already has, and what <see cref="CachePolicy.TimeToLive"/> exists to bound.
     /// </remarks>
-    public static ValueTask<DateTime?> ExpireTimeAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<DateTime?> ExpireTimeAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<DateTime?>(
             $"{RedisCommand.PEXPIRETIME}{key}", flags, cancellationToken: cancellationToken);
 
@@ -220,9 +220,9 @@ public static partial class Keys
     /// <param name="newKey">The name to give it.</param>
     /// <param name="when">Whether an existing destination may be replaced.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<bool> RenameAsync(
-        this in RespKeys keys,
+        this RespKeys keys,
         RedisKey key,
         RedisKey newKey,
         When when = When.Always,
@@ -244,22 +244,22 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to touch.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Never cached.</b> The point of the command is the side effect on the server's idle/LRU
     /// bookkeeping, so answering it locally would skip the only thing it was called for - and the reply
     /// it happens to return would then be a cached statement about existence with nothing to correct it.
     /// </remarks>
-    public static ValueTask<bool> TouchAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<bool> TouchAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<bool>(
             $"{RedisCommand.TOUCH}{key}", flags.NeverCached(), cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="Keys.TouchAsync(in RespKeys, RedisKey, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Keys.TouchAsync(RespKeys, RedisKey, CommandFlags, CancellationToken)"/>
     /// <param name="keys">The key command group.</param>
     /// <param name="targets">The keys to touch.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> TouchAsync(this in RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> TouchAsync(this RespKeys keys, ReadOnlySpan<RedisKey> targets, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => targets.IsEmpty
             ? new ValueTask<long>(0L)
             : keys.Context.SendAsync<long>(
@@ -269,7 +269,7 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="pattern">The glob to match.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>The fallback for a server with no <c>SCAN</c></b>, which is the only reason to send it: it
@@ -282,19 +282,19 @@ public static partial class Keys
     /// to be the cursor-paged one, not this.
     /// </para>
     /// </remarks>
-    internal static ValueTask<RedisKey[]> MatchingArray(this in RespKeys keys, RedisValue pattern, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    internal static ValueTask<RedisKey[]> MatchingArray(this RespKeys keys, RedisValue pattern, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync($"{RedisCommand.KEYS}{pattern}", flags, RespHandlers.KeyArray, cancellationToken);
 
     /// <summary>RANDOMKEY.</summary>
     /// <param name="keys">The key command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Never cached</b>, for both available reasons at once: the answer is meant to differ each time,
     /// and the command names no key, so nothing could ever invalidate an entry for it. Either one alone
     /// would be enough.
     /// </remarks>
-    public static ValueTask<RedisKey> RandomAsync(this in RespKeys keys, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<RedisKey> RandomAsync(this RespKeys keys, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<RedisKey>(
             $"{RedisCommand.RANDOMKEY}", flags.NeverCached(), cancellationToken: cancellationToken);
 
@@ -302,8 +302,8 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to inspect.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisType> TypeAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisType> TypeAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<RedisType>(
             $"{RedisCommand.TYPE}{key}", flags, cancellationToken: cancellationToken);
 
@@ -314,13 +314,13 @@ public static partial class Keys
     /// <param name="destinationDatabase">The database to copy into; -1 for the current one.</param>
     /// <param name="replace">Whether an existing destination may be overwritten.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// The two optional operands are holes rather than branches: an absent <c>DB</c> and an absent
     /// <c>REPLACE</c> are zero-argument fragments, so one interpolated string covers all four shapes.
     /// </remarks>
     public static ValueTask<bool> CopyAsync(
-        this in RespKeys keys,
+        this RespKeys keys,
         RedisKey source,
         RedisKey destination,
         int? destinationDatabase = null,
@@ -339,8 +339,8 @@ public static partial class Keys
     /// <param name="key">The key to move.</param>
     /// <param name="database">The database to move it into.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> MoveAsync(this in RespKeys keys, RedisKey key, int database, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> MoveAsync(this RespKeys keys, RedisKey key, int database, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<bool>(
             $"{RedisCommand.MOVE}{key}{database}", flags, cancellationToken: cancellationToken);
 
@@ -348,7 +348,7 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to serialise.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// A pooled lease rather than a <c>byte[]</c>, like every other payload on this surface: the caller
@@ -365,7 +365,7 @@ public static partial class Keys
     /// by <see cref="CacheOptions.MaxPayloadBytes"/>.
     /// </para>
     /// </remarks>
-    public static ValueTask<ReadOnlyLease<byte>?> DumpAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<ReadOnlyLease<byte>?> DumpAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<ReadOnlyLease<byte>?>(
             $"{RedisCommand.DUMP}{key}", flags, cancellationToken: cancellationToken);
 
@@ -373,14 +373,14 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to inspect.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>The one of the four that is cacheable.</b> The encoding only changes when the value does - a
     /// listpack becoming a quicklist, an intset becoming a hashtable - and a write to the key is exactly
     /// what invalidation reports. The other three answer questions that change <i>without</i> the key
     /// being written, so nothing would ever tell the cache it was stale; see their remarks.
     /// </remarks>
-    public static ValueTask<string?> EncodingAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<string?> EncodingAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<string?>(
             $"{RedisCommand.OBJECT}{RespLiterals.Encoding}{key}", flags, cancellationToken: cancellationToken);
 
@@ -388,13 +388,13 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to inspect.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Never cached.</b> Shared integers have a process-wide reference count that moves when
     /// <i>other</i> keys are written, so this answer can go stale with no write to this key at all -
     /// and a write to this key is the only thing invalidation reports.
     /// </remarks>
-    public static ValueTask<long?> RefCountAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long?> RefCountAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<long?>(
             $"{RedisCommand.OBJECT}{RespLiterals.RefCount}{key}",
             flags.NeverCached(),
@@ -404,13 +404,13 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to inspect.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Never cached</b>, for the sharpest version of the reason: the counter moves on every
     /// <i>read</i>, so caching it would freeze the very number that reading it is meant to observe.
     /// Requires an LFU <c>maxmemory-policy</c>; the server errors otherwise.
     /// </remarks>
-    public static ValueTask<long?> FrequencyAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long?> FrequencyAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync<long?>(
             $"{RedisCommand.OBJECT}{RespLiterals.Freq}{key}",
             flags.NeverCached(),
@@ -420,7 +420,7 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to inspect.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>Never cached</b>, for the same reason as <c>PTTL</c>: it changes with the clock, so a cached
@@ -432,7 +432,7 @@ public static partial class Keys
     /// the two are indistinguishable at the call site - a plausible answer, wrong by a thousand.
     /// </para>
     /// </remarks>
-    public static ValueTask<TimeSpan?> IdleTimeAsync(this in RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<TimeSpan?> IdleTimeAsync(this RespKeys keys, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => keys.Context.SendAsync(
             $"{RedisCommand.OBJECT}{RespLiterals.IdleTime}{key}",
             flags.NeverCached(),
@@ -463,7 +463,7 @@ public static partial class Keys
     /// <param name="value">The serialised value, as <c>DUMP</c> returned it.</param>
     /// <param name="expiry">How long the key should live; no expiry when omitted.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>A span where <c>IDatabase.KeyRestore</c> takes a <c>byte[]</c>.</b> The payload is written
     /// straight into the frame, so nothing about this command needs an array: the shipped signature's
@@ -471,7 +471,7 @@ public static partial class Keys
     /// to hand them over.
     /// </remarks>
     public static ValueTask RestoreAsync(
-        this in RespKeys keys,
+        this RespKeys keys,
         RedisKey key,
         scoped ReadOnlySpan<byte> value,
         TimeSpan? expiry = null,
@@ -492,7 +492,7 @@ public static partial class Keys
     /// <param name="timeout">How long the destination may take before the move is abandoned.</param>
     /// <param name="options">Whether to keep the source copy, and whether to overwrite the destination.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>Host and port, not an <c>EndPoint</c>.</b> The shipped signature takes one and immediately picks
@@ -507,7 +507,7 @@ public static partial class Keys
     /// </para>
     /// </remarks>
     public static ValueTask MigrateAsync(
-        this in RespKeys keys,
+        this RespKeys keys,
         RedisKey key,
         string host,
         int port,
@@ -529,13 +529,13 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to describe.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// A diagnostic, and the reply is a human-readable line rather than anything structured - so it stays a
     /// <see cref="RedisValue"/> rather than growing a parsed shape that the server is free to change.
     /// </remarks>
     public static ValueTask<RedisValue> DebugObjectAsync(
-        this in RespKeys keys,
+        this RespKeys keys,
         RedisKey key,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)

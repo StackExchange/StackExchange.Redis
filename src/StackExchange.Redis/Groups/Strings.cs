@@ -69,7 +69,7 @@ public readonly struct RespStrings
 
 public static partial class RespDatabaseExtensions
 {
-    extension(in RespDatabaseContext context)
+    extension(RespDatabaseContext context)
     {
         /// <summary>The string commands.</summary>
         public RespStrings Strings => new(context.Raw);
@@ -78,6 +78,6 @@ public static partial class RespDatabaseExtensions
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The string commands.</summary>
-        public RespStrings Strings => target.Context.Strings;
+        public RespStrings Strings => new(target.Context.Raw);
     }
 }

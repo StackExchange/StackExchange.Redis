@@ -15,15 +15,15 @@ public static partial class Config
     /// <summary>CONFIG REWRITE: write the running configuration back to the config file.</summary>
     /// <param name="config">The configuration command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask RewriteAsync(this in RespConfig config, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask RewriteAsync(this RespConfig config, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => config.Context.SendAsync($"{RedisCommand.CONFIG}{RespLiterals.Rewrite}", flags, cancellationToken: cancellationToken);
 
     /// <summary>CONFIG RESETSTAT: zero the statistics <c>INFO</c> reports.</summary>
     /// <param name="config">The configuration command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask ResetStatisticsAsync(this in RespConfig config, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask ResetStatisticsAsync(this RespConfig config, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => config.Context.SendAsync($"{RedisCommand.CONFIG}{RespLiterals.ResetStat}", flags, cancellationToken: cancellationToken);
 
     /// <summary>CONFIG SET: change one setting on this server.</summary>
@@ -31,13 +31,13 @@ public static partial class Config
     /// <param name="setting">The setting to change.</param>
     /// <param name="value">Its new value.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>No retry category of its own</b>, deliberately: bare <c>CONFIG</c> is already categorised as
     /// server-admin, which is what a setting change is, and the shipped spelling adds nothing either.
     /// </remarks>
     public static ValueTask SetAsync(
-        this in RespConfig config,
+        this RespConfig config,
         RedisValue setting,
         RedisValue value,
         CommandFlags flags = CommandFlags.None,
@@ -49,7 +49,7 @@ public static partial class Config
     /// <param name="config">The configuration command group.</param>
     /// <param name="pattern">Which settings to read; every setting when omitted.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>Internal, because the array of string pairs is the OLD spelling</b> - the same reason
@@ -68,7 +68,7 @@ public static partial class Config
     /// </para>
     /// </remarks>
     internal static ValueTask<KeyValuePair<string, string>[]> GetArray(
-        this in RespConfig config,
+        this RespConfig config,
         RedisValue pattern = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)

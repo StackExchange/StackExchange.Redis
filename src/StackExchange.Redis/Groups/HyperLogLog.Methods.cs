@@ -22,8 +22,8 @@ public static partial class HyperLogLog
     /// <param name="key">The key to write.</param>
     /// <param name="value">The element to observe.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> AddAsync(this in RespHyperLogLog log, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> AddAsync(this RespHyperLogLog log, RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => log.Context.SendAsync<bool>(
             $"{RedisCommand.PFADD}{key}{value}", flags, cancellationToken: cancellationToken);
 
@@ -32,13 +32,13 @@ public static partial class HyperLogLog
     /// <param name="key">The key to write.</param>
     /// <param name="values">The elements to observe.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// An empty run is <b>not</b> short-circuited, unlike <c>SADD</c>: <c>PFADD key</c> with no
     /// elements is a request in its own right - it creates an empty structure and reports whether it
     /// had to - so there is a real answer to give and nothing to guess.
     /// </remarks>
-    public static ValueTask<bool> AddAsync(this in RespHyperLogLog log, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<bool> AddAsync(this RespHyperLogLog log, RedisKey key, ReadOnlySpan<RedisValue> values, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => log.Context.SendAsync<bool>(
             $"{RedisCommand.PFADD}{key}{values}", flags, cancellationToken: cancellationToken);
 
@@ -46,9 +46,9 @@ public static partial class HyperLogLog
     /// <param name="log">The HyperLogLog command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks><inheritdoc cref="RespHyperLogLog" path="/remarks"/></remarks>
-    public static ValueTask<long> LengthAsync(this in RespHyperLogLog log, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long> LengthAsync(this RespHyperLogLog log, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => log.Context.SendAsync<long>(
             $"{RedisCommand.PFCOUNT}{key}", CountFlags(log.Context, in key, flags), cancellationToken: cancellationToken);
 
@@ -56,9 +56,9 @@ public static partial class HyperLogLog
     /// <param name="log">The HyperLogLog command group.</param>
     /// <param name="keys">The keys to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks><inheritdoc cref="RespHyperLogLog" path="/remarks"/></remarks>
-    public static ValueTask<long> LengthAsync(this in RespHyperLogLog log, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long> LengthAsync(this RespHyperLogLog log, ReadOnlySpan<RedisKey> keys, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         // routing follows the first key, as the old surface does; with no keys there is nothing to
         // route on, and the server will reject the arity anyway
@@ -72,8 +72,8 @@ public static partial class HyperLogLog
     /// <param name="destination">The key to write the union to; it is included in the union.</param>
     /// <param name="sourceKeys">The keys to fold in.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask MergeAsync(this in RespHyperLogLog log, RedisKey destination, ReadOnlySpan<RedisKey> sourceKeys, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask MergeAsync(this RespHyperLogLog log, RedisKey destination, ReadOnlySpan<RedisKey> sourceKeys, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => log.Context.SendAsync(
             $"{RedisCommand.PFMERGE}{destination}{sourceKeys}", flags, cancellationToken: cancellationToken);
 

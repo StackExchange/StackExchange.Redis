@@ -74,7 +74,7 @@ public readonly struct RespArrays
 
 public static partial class RespDatabaseExtensions
 {
-    extension(in RespDatabaseContext context)
+    extension(RespDatabaseContext context)
     {
         /// <summary>The array commands.</summary>
         public RespArrays Arrays => new(context.Raw);
@@ -83,6 +83,6 @@ public static partial class RespDatabaseExtensions
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The array commands.</summary>
-        public RespArrays Arrays => target.Context.Arrays;
+        public RespArrays Arrays => new(target.Context.Raw);
     }
 }

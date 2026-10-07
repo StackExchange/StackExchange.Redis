@@ -33,7 +33,7 @@ public static partial class Keys
     /// <param name="by">An external pattern to sort by, rather than the elements themselves.</param>
     /// <param name="get">Patterns to fetch for each element, in place of the element.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// On the <b>key</b> group rather than a group of its own, and not on the three element groups
@@ -49,7 +49,7 @@ public static partial class Keys
     /// </para>
     /// </remarks>
     public static ValueTask<ReadOnlyLease<RespValue>> SortAsync(
-        this in RespKeys keys,
+        this RespKeys keys,
         RedisKey key,
         long skip = 0,
         long take = -1,
@@ -59,7 +59,7 @@ public static partial class Keys
         ReadOnlySpan<RedisValue> get = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => SortCore<ReadOnlyLease<RespValue>>(in keys, default, key, skip, take, order, sortType, by, get, flags);
+        => SortCore<ReadOnlyLease<RespValue>>(keys, default, key, skip, take, order, sortType, by, get, flags);
 
     /// <summary>SORT ... STORE: the same sort, written to a key as a list; the reply is its length.</summary>
     /// <param name="keys">The key command group.</param>
@@ -72,14 +72,14 @@ public static partial class Keys
     /// <param name="by"><inheritdoc cref="SortAsync" path="/param[@name='by']"/></param>
     /// <param name="get"><inheritdoc cref="SortAsync" path="/param[@name='get']"/></param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// Always <c>SORT</c>, never <c>SORT_RO</c>: a destination makes this a write however read-only
     /// the sort itself is, which is also why the retry category is raised here and nowhere else in
     /// the pair.
     /// </remarks>
     public static ValueTask<long> SortAndStoreAsync(
-        this in RespKeys keys,
+        this RespKeys keys,
         RedisKey destination,
         RedisKey key,
         long skip = 0,
@@ -92,7 +92,7 @@ public static partial class Keys
         CancellationToken cancellationToken = default)
     {
         if (destination.IsNull) throw new ArgumentNullException(nameof(destination));
-        return SortCore<long>(in keys, destination, key, skip, take, order, sortType, by, get, flags);
+        return SortCore<long>(keys, destination, key, skip, take, order, sortType, by, get, flags);
     }
 
     /// <summary>
@@ -109,7 +109,7 @@ public static partial class Keys
     /// <param name="get"><inheritdoc cref="SortAsync" path="/param[@name='get']"/></param>
     /// <param name="flags">Command flags.</param>
     internal static ValueTask<RedisValue[]> SortArray(
-        this in RespKeys keys,
+        this RespKeys keys,
         RedisKey key,
         long skip,
         long take,
@@ -118,11 +118,11 @@ public static partial class Keys
         RedisValue by,
         ReadOnlySpan<RedisValue> get,
         CommandFlags flags)
-        => SortCore<RedisValue[]>(in keys, default, key, skip, take, order, sortType, by, get, flags);
+        => SortCore<RedisValue[]>(keys, default, key, skip, take, order, sortType, by, get, flags);
 
     /// <summary>The one renderer; the destination is what makes it a write.</summary>
     private static ValueTask<TResult> SortCore<TResult>(
-        in RespKeys keys,
+        RespKeys keys,
         in RedisKey destination,
         in RedisKey key,
         long skip,

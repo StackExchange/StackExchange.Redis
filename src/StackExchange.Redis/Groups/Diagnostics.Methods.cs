@@ -18,13 +18,13 @@ public static partial class Diagnostics
     /// <summary>LATENCY DOCTOR: the server's own prose report on its latency.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Node-local and read-only</b>, which is what the retry category says: the answer belongs to the
     /// server that was asked, so re-issuing it elsewhere would answer a different question rather than
     /// the same one again.
     /// </remarks>
-    public static ValueTask<string?> LatencyDoctorAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<string?> LatencyDoctorAsync(this RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync<string?>(
             $"{RedisCommand.LATENCY}{RespLiterals.Doctor}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), cancellationToken: cancellationToken);
 
@@ -32,7 +32,7 @@ public static partial class Diagnostics
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="eventNames">The events to forget; every event when empty.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>The empty case is a different command, not a degenerate one.</b> <c>LATENCY RESET</c> with no
     /// event names resets everything, so it cannot be short-circuited to zero the way an empty
@@ -40,7 +40,7 @@ public static partial class Diagnostics
     /// were reset.
     /// </remarks>
     public static ValueTask<long> LatencyResetAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         ReadOnlySpan<RedisValue> eventNames = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -54,10 +54,10 @@ public static partial class Diagnostics
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="eventName">The event to report on.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks><inheritdoc cref="LatencyDoctorAsync" path="/remarks"/></remarks>
     public static ValueTask<LatencyHistoryEntry[]> LatencyHistoryAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         RedisValue eventName,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -70,10 +70,10 @@ public static partial class Diagnostics
     /// <summary>LATENCY LATEST: the most recent spike for each event, with that event's worst.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks><inheritdoc cref="LatencyDoctorAsync" path="/remarks"/></remarks>
     public static ValueTask<LatencyLatestEntry[]> LatencyLatestAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
@@ -85,32 +85,32 @@ public static partial class Diagnostics
     /// <summary>MEMORY DOCTOR: the server's own prose report on its memory use.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks><inheritdoc cref="LatencyDoctorAsync" path="/remarks"/></remarks>
-    public static ValueTask<string?> MemoryDoctorAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<string?> MemoryDoctorAsync(this RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync<string?>(
             $"{RedisCommand.MEMORY}{RespLiterals.Doctor}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), cancellationToken: cancellationToken);
 
     /// <summary>MEMORY MALLOC-STATS: the allocator's own report, verbatim.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<string?> MemoryAllocatorStatsAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<string?> MemoryAllocatorStatsAsync(this RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync<string?>(
             $"{RedisCommand.MEMORY}{RespLiterals.MallocStats}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), cancellationToken: cancellationToken);
 
     /// <summary>MEMORY PURGE: ask the allocator to release what it can.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask MemoryPurgeAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask MemoryPurgeAsync(this RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
             $"{RedisCommand.MEMORY}{RespLiterals.Purge}", flags.WithRetryCategory(RespServerRetry.NodeLocalAdmin), cancellationToken: cancellationToken);
 
     /// <summary>MEMORY STATS: the allocator's report, as the nested reply the server sends.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Handed back as a <see cref="RedisResult"/> rather than modelled</b>, which is what the shipped
     /// surface does and is right here: the reply is an open-ended, version-dependent key/value tree whose
@@ -118,7 +118,7 @@ public static partial class Diagnostics
     /// caller indexes what it recognises.
     /// </remarks>
     public static ValueTask<RedisResult> MemoryStatsAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
@@ -130,14 +130,14 @@ public static partial class Diagnostics
     /// <summary>LASTSAVE: when the last successful save of the dataset finished.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Converted here rather than by a handler</b>, because the reply is a plain unix-seconds integer
     /// and inventing a <c>DateTime</c> handler for one command would put the conversion further from the
     /// command that needs it. The fast path stays allocation-free: a synchronously-completed send is
     /// converted inline rather than awaited.
     /// </remarks>
-    public static ValueTask<DateTime> LastSaveAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<DateTime> LastSaveAsync(this RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         var pending = diagnostics.Context.SendAsync<long>(
             $"{RedisCommand.LASTSAVE}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), cancellationToken: cancellationToken);
@@ -153,15 +153,15 @@ public static partial class Diagnostics
     /// <summary>COMMAND COUNT: how many commands this server knows.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> CommandCountAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> CommandCountAsync(this RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync<long>($"{RedisCommand.COMMAND}{RespLiterals.Count}", flags, cancellationToken: cancellationToken);
 
     /// <summary>SHUTDOWN: ask the server to stop, with or without saving first.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="mode">Whether to save, not save, or leave it to the server's configuration.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>A command whose success looks like a failure</b>: a server that obeys stops, so the socket
     /// closes and there is no <c>+OK</c> to read. The caller of this still sees that as a connection
@@ -171,7 +171,7 @@ public static partial class Diagnostics
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="mode"/> is not a known mode.</exception>
     internal static ValueTask ShutdownAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         ShutdownMode mode = ShutdownMode.Default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -190,7 +190,7 @@ public static partial class Diagnostics
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="type">Which kind of save to ask for.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>Three commands rather than one with a mode</b>, because that is what the server has, and the
@@ -205,7 +205,7 @@ public static partial class Diagnostics
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="type"/> is not a known save type.</exception>
     internal static ValueTask SaveAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         SaveType type,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -229,7 +229,7 @@ public static partial class Diagnostics
     /// <summary>ROLE: what this server is, and who is on the other side of the relationship.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>Null when the reply could not be read</b>, which is the shipped behaviour and the right one:
@@ -247,7 +247,7 @@ public static partial class Diagnostics
     /// </para>
     /// </remarks>
     internal static ValueTask<Role?> RoleAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
@@ -256,7 +256,7 @@ public static partial class Diagnostics
     /// <summary>CLIENT LIST: every connection this server currently has, including this one.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>In the diagnostic group rather than a <c>Client</c> one</b>, because that is what the question
@@ -270,7 +270,7 @@ public static partial class Diagnostics
     /// </para>
     /// </remarks>
     internal static ValueTask<ClientInfo[]> ClientListArray(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
@@ -280,7 +280,7 @@ public static partial class Diagnostics
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="filter">The filter, already rendered - it begins with <c>KILL</c>.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>Here under protest, as <see cref="ClientListArray"/> says: this is administration, not
@@ -300,7 +300,7 @@ public static partial class Diagnostics
     /// </para>
     /// </remarks>
     internal static ValueTask<long> ClientKillCount(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         ReadOnlySpan<RedisValue> filter,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -313,7 +313,7 @@ public static partial class Diagnostics
     /// <summary>CLUSTER NODES: the answering node's own view of the cluster, as the text it sends.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Raw, because parsing it needs a server</b>: <c>ClusterConfiguration</c> is built against the node
     /// that answered and the selection strategy, neither of which a context has. <c>RedisServer</c> parses it
@@ -322,7 +322,7 @@ public static partial class Diagnostics
     /// A node-local read: the answer is that node's belief, so it is safe to replay against that node.
     /// </remarks>
     internal static ValueTask<string?> ClusterNodesRaw(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
@@ -334,13 +334,13 @@ public static partial class Diagnostics
     /// <summary>CLUSTER SLOTS: the answering node's slot map.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// The handshake's parser, so the public call and topology discovery cannot read the same reply two
     /// ways. Internal for the reason <see cref="ClusterNodesRaw"/> gives.
     /// </remarks>
     internal static ValueTask<ClusterSlotsResult?> ClusterSlots(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
@@ -353,7 +353,7 @@ public static partial class Diagnostics
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="address">The address to close, as the server spells it.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Separate from <see cref="ClientKillCount"/> because the wire form is, and so is the reply.</b>
     /// The positional spelling predates the filters, answers <c>+OK</c> rather than a count, and is the
@@ -361,7 +361,7 @@ public static partial class Diagnostics
     /// <c>ADDR</c>, which would change what a caller's existing code reaches.
     /// </remarks>
     internal static ValueTask ClientKillAddress(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         RedisValue address,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -374,14 +374,14 @@ public static partial class Diagnostics
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="command">The command and its arguments, as they would be sent.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Internal, because <see cref="RedisKey"/><c>[]</c> is the old spelling</b> - as with
     /// <c>Config.GetArray</c>. The answer is also the server's opinion about a command this client may
     /// not model at all, which is a surface question worth deciding on its own rather than during a port.
     /// </remarks>
     internal static ValueTask<RedisKey[]> CommandGetKeysArray(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         ReadOnlySpan<RedisValue> command,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -394,7 +394,7 @@ public static partial class Diagnostics
     /// <param name="category">List only the commands in an ACL category.</param>
     /// <param name="pattern">List only the commands matching a glob.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>At most one filter</b>, because <c>FILTERBY</c> takes one and the server would reject two. The
@@ -407,7 +407,7 @@ public static partial class Diagnostics
     /// </remarks>
     /// <exception cref="ArgumentException">More than one filter was given.</exception>
     internal static ValueTask<string[]> CommandListArray(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         RedisValue? moduleName = null,
         RedisValue? category = null,
         RedisValue? pattern = null,
@@ -453,41 +453,41 @@ public static partial class Diagnostics
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="message">What to send; the same thing comes back.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisValue> EchoAsync(this in RespDiagnostics diagnostics, RedisValue message, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisValue> EchoAsync(this RespDiagnostics diagnostics, RedisValue message, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync<RedisValue>($"{RedisCommand.ECHO}{message}", flags, cancellationToken: cancellationToken);
 
     /// <summary>TIME: the server's own clock.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// The reply is a two-element array - seconds, then microseconds - so unlike <see cref="LastSaveAsync"/>
     /// this one needs a reader rather than an arithmetic conversion. The microseconds are kept: asking a
     /// server for its clock and rounding the answer to the second defeats most of the reasons to ask.
     /// </remarks>
-    public static ValueTask<DateTime> TimeAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<DateTime> TimeAsync(this RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync($"{RedisCommand.TIME}", flags.WithRetryCategory(RespServerRetry.NodeLocalRead), ServerTimeHandler.Instance, cancellationToken);
 
     /// <summary>SLOWLOG RESET: discard the recorded slow commands.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask ResetSlowLogAsync(this in RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask ResetSlowLogAsync(this RespDiagnostics diagnostics, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync($"{RedisCommand.SLOWLOG}{RespLiterals.Reset}", flags, cancellationToken: cancellationToken);
 
     /// <summary>SLOWLOG GET: the commands the server recorded as slow, newest first.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="count">How many entries to ask for; the server's own default when not positive.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>A non-positive <paramref name="count"/> omits the argument</b> rather than sending zero, which
     /// is the shipped behaviour and is not the same thing: <c>SLOWLOG GET 0</c> asks for no entries,
     /// where <c>SLOWLOG GET</c> asks for as many as the server volunteers.
     /// </remarks>
     public static ValueTask<CommandTrace[]> SlowLogAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         int count = 0,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -507,10 +507,10 @@ public static partial class Diagnostics
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="section">One section, or every section when omitted.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks><inheritdoc cref="LatencyDoctorAsync" path="/remarks"/></remarks>
     public static ValueTask<string?> InfoRawAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         RedisValue section = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -524,7 +524,7 @@ public static partial class Diagnostics
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="section">One section, or every section when omitted.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>The grouping is the whole of the parse</b>, and it is shared with the shipped processor rather
     /// than written twice: <c>INFO</c> is a text format with its own quirks - <c>#</c> headers, blank
@@ -532,7 +532,7 @@ public static partial class Diagnostics
     /// deployment's own description of itself. See <see cref="ParseInfo"/>.
     /// </remarks>
     public static ValueTask<IGrouping<string, KeyValuePair<string, string>>[]> InfoAsync(
-        this in RespDiagnostics diagnostics,
+        this RespDiagnostics diagnostics,
         RedisValue section = default,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)

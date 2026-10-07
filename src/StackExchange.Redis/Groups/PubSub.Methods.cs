@@ -18,7 +18,7 @@ public static partial class PubSub
     /// <param name="channel">The channel to publish to.</param>
     /// <param name="message">The payload.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>The channel picks the command</b>, which is why there is one method rather than two:
@@ -35,7 +35,7 @@ public static partial class PubSub
     /// server this client already holds a subscription on; see the note in <c>RedisDatabase</c>.
     /// </para>
     /// </remarks>
-    public static ValueTask<long> PublishAsync(this in RespPubSub pubsub, RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long> PublishAsync(this RespPubSub pubsub, RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         // asked BEFORE the frame is rendered, because the builder binds to the context it renders through;
         // and asked with the UNPREFIXED channel, because that is the key the subscription registry holds -
@@ -54,13 +54,13 @@ public static partial class PubSub
     /// <param name="pubsub">The pub/sub command group.</param>
     /// <param name="pattern">Only report channels matching this, or everything when omitted.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>The answer is one node's</b>, not the deployment's: a cluster propagates a publish across the
     /// bus, but each node only knows the subscribers attached to it. Asking a different node is asking a
     /// different question.
     /// </remarks>
-    public static ValueTask<RedisChannel[]> ChannelsAsync(this in RespPubSub pubsub, RedisChannel pattern = default, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<RedisChannel[]> ChannelsAsync(this RespPubSub pubsub, RedisChannel pattern = default, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         // the names come back prefixed, and a caller never used the prefixed form - it belongs to the
         // wire, exactly as it does on the way out
@@ -73,25 +73,25 @@ public static partial class PubSub
     /// <summary>PUBSUB NUMPAT: how many pattern subscriptions this server is serving.</summary>
     /// <param name="pubsub">The pub/sub command group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks><inheritdoc cref="ChannelsAsync" path="/remarks"/></remarks>
-    public static ValueTask<long> PatternCountAsync(this in RespPubSub pubsub, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long> PatternCountAsync(this RespPubSub pubsub, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => pubsub.Context.SendAsync<long>($"{RedisCommand.PUBSUB}{RespLiterals.NumPat}", flags, cancellationToken: cancellationToken);
 
     /// <summary>PUBSUB NUMSUB: how many subscribers this server has for one channel.</summary>
     /// <param name="pubsub">The pub/sub command group.</param>
     /// <param name="channel">The channel to count.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks><inheritdoc cref="ChannelsAsync" path="/remarks"/></remarks>
-    public static ValueTask<long> SubscriberCountAsync(this in RespPubSub pubsub, RedisChannel channel, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long> SubscriberCountAsync(this RespPubSub pubsub, RedisChannel channel, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => pubsub.Context.SendAsync($"{RedisCommand.PUBSUB}{RespLiterals.NumSub}{channel}", flags, NumSubHandler.Instance, cancellationToken);
 
     /// <summary>SUBSCRIBE, PSUBSCRIBE or SSUBSCRIBE, chosen by what kind of channel this is.</summary>
     /// <param name="pubsub">The pub/sub command group.</param>
     /// <param name="channel">The channel or pattern to subscribe to.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>Internal: subscribing is not a command, it is a registration</b>, and the thing that owns the
@@ -110,7 +110,7 @@ public static partial class PubSub
     /// </para>
     /// </remarks>
     internal static ValueTask<long> SubscribeAsync(
-        this in RespPubSub pubsub,
+        this RespPubSub pubsub,
         RedisChannel channel,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -124,10 +124,10 @@ public static partial class PubSub
     /// <param name="pubsub">The pub/sub command group.</param>
     /// <param name="channel">The channel or pattern to stop receiving.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks><inheritdoc cref="SubscribeAsync" path="/remarks"/></remarks>
     internal static ValueTask<long> UnsubscribeAsync(
-        this in RespPubSub pubsub,
+        this RespPubSub pubsub,
         RedisChannel channel,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)

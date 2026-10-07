@@ -24,12 +24,12 @@ public static partial class VectorSets
     /// <param name="key">The key to write.</param>
     /// <param name="request">What to add, and how the index should treat it.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// The request object rather than a dozen parameters, as the old surface has it: most of them are
     /// index-construction knobs that are set once for a deployment and never touched again.
     /// </remarks>
-    public static ValueTask<bool> AddAsync(this in RespVectorSets sets, RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<bool> AddAsync(this RespVectorSets sets, RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         if (request is null) throw new ArgumentNullException(nameof(request));
 
@@ -54,26 +54,26 @@ public static partial class VectorSets
     /// <param name="key">The key to search.</param>
     /// <param name="query">What to search for, and what to report about each match.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// The reply's shape follows the query: scores and attributes are separate trailing elements per
     /// match, except in RESP3 with both asked for, where they arrive as a sub-array instead. The
     /// handler reads that structurally rather than being told the protocol, so it does not need one.
     /// </remarks>
     public static ValueTask<ReadOnlyLease<VectorSetSimilaritySearchResult>?> SimilaritySearchAsync(
-        this in RespVectorSets sets,
+        this RespVectorSets sets,
         RedisKey key,
         VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => SimilaritySearchCore(in sets, key, query, flags, SimilarityHandler.Lease(query));
+        => SimilaritySearchCore(sets, key, query, flags, SimilarityHandler.Lease(query));
 
     /// <summary>VCARD: how many members the set holds.</summary>
     /// <param name="sets">The vector-set command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> LengthAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> LengthAsync(this RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<long>(
             $"{RedisCommand.VCARD}{key}", flags, cancellationToken: cancellationToken);
 
@@ -81,8 +81,8 @@ public static partial class VectorSets
     /// <param name="sets">The vector-set command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<int> DimensionAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<int> DimensionAsync(this RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync(
             $"{RedisCommand.VDIM}{key}", flags, Int32Handler.Instance, cancellationToken: cancellationToken);
 
@@ -91,8 +91,8 @@ public static partial class VectorSets
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to look for.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> ContainsAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> ContainsAsync(this RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<bool>(
             $"{RedisCommand.VISMEMBER}{key}{member}", flags, cancellationToken: cancellationToken);
 
@@ -101,8 +101,8 @@ public static partial class VectorSets
     /// <param name="key">The key to write.</param>
     /// <param name="member">The member to remove.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> RemoveAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> RemoveAsync(this RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<bool>(
             $"{RedisCommand.VREM}{key}{member}", flags, cancellationToken: cancellationToken);
 
@@ -110,8 +110,8 @@ public static partial class VectorSets
     /// <param name="sets">The vector-set command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<RedisValue> RandomMemberAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<RedisValue> RandomMemberAsync(this RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<RedisValue>(
             $"{RedisCommand.VRANDMEMBER}{key}", flags, cancellationToken: cancellationToken);
 
@@ -120,8 +120,8 @@ public static partial class VectorSets
     /// <param name="key">The key to read.</param>
     /// <param name="count">How many to take; negative to allow the same member more than once.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
             $"{RedisCommand.VRANDMEMBER}{key}{count}", flags, cancellationToken: cancellationToken);
 
@@ -130,8 +130,8 @@ public static partial class VectorSets
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<string?> GetAttributesJsonAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<string?> GetAttributesJsonAsync(this RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<string?>(
             $"{RedisCommand.VGETATTR}{key}{member}", flags, cancellationToken: cancellationToken);
 
@@ -141,9 +141,9 @@ public static partial class VectorSets
     /// <param name="member">The member to annotate.</param>
     /// <param name="attributesJson">The attributes, as JSON.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<bool> SetAttributesJsonAsync(
-        this in RespVectorSets sets,
+        this RespVectorSets sets,
         RedisKey key,
         RedisValue member,
 #if NET8_0_OR_GREATER
@@ -162,12 +162,12 @@ public static partial class VectorSets
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// Approximate because quantization is lossy: what comes back is what the index holds, not what
     /// was written, unless the set was built with <see cref="VectorSetQuantization.None"/>.
     /// </remarks>
-    public static ValueTask<ReadOnlyLease<float>?> GetApproximateVectorAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<ReadOnlyLease<float>?> GetApproximateVectorAsync(this RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync(
             $"{RedisCommand.VEMB}{key}{member}", flags, Float32Handler.Lease, cancellationToken: cancellationToken);
 
@@ -176,8 +176,8 @@ public static partial class VectorSets
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ReadOnlyLease<RedisValue>?> GetLinksAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ReadOnlyLease<RedisValue>?> GetLinksAsync(this RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync(
             $"{RedisCommand.VLINKS}{key}{member}", flags, LinkHandler.MembersLease, cancellationToken: cancellationToken);
 
@@ -186,8 +186,8 @@ public static partial class VectorSets
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<ReadOnlyLease<VectorSetLink>?> GetLinksWithScoresAsync(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<ReadOnlyLease<VectorSetLink>?> GetLinksWithScoresAsync(this RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         var cmd = GetLinksWithScoresCommand(sets.Context, key, member);
         return sets.Context.SendAsync(ref cmd, flags, LinkHandler.ScoredLease, cancellationToken);
@@ -197,8 +197,8 @@ public static partial class VectorSets
     /// <param name="sets">The vector-set command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<VectorSetInfo?> InfoAsync(this in RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<VectorSetInfo?> InfoAsync(this RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync(
             $"{RedisCommand.VINFO}{key}", flags, InfoHandler.Instance, cancellationToken: cancellationToken);
 
@@ -210,13 +210,13 @@ public static partial class VectorSets
     /// <param name="count">How many to return, or -1 for all of them.</param>
     /// <param name="exclude">Which bounds to treat as exclusive.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// Deliberately not called a scan: the server has no <c>VSCAN</c>, and if one arrives it should be
     /// free to take the name.
     /// </remarks>
     public static ValueTask<ReadOnlyLease<RespValue>> RangeAsync(
-        this in RespVectorSets sets,
+        this RespVectorSets sets,
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,
@@ -266,7 +266,7 @@ public static partial class VectorSets
     /// </para>
     /// </remarks>
     public static IAsyncEnumerable<RedisValue> RangeEnumerateAsync(
-        this in RespVectorSets sets,
+        this RespVectorSets sets,
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,
@@ -279,7 +279,7 @@ public static partial class VectorSets
     /// <summary>The concrete walk, which is <b>both</b> sequences at once.</summary>
     /// <remarks><inheritdoc cref="Sets.ScanCore" path="/remarks"/></remarks>
     internal static RespKeysetEnumerable<RedisValue> RangeEnumerateCore(
-        this in RespVectorSets sets,
+        this RespVectorSets sets,
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,
@@ -354,8 +354,8 @@ public static partial class VectorSets
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    internal static ValueTask<Lease<float>?> GetApproximateVectorWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    internal static ValueTask<Lease<float>?> GetApproximateVectorWritableLease(this RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync(
             $"{RedisCommand.VEMB}{key}{member}", flags, Float32Handler.Writable, cancellationToken: cancellationToken);
 
@@ -364,8 +364,8 @@ public static partial class VectorSets
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    internal static ValueTask<Lease<RedisValue>?> GetLinksWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    internal static ValueTask<Lease<RedisValue>?> GetLinksWritableLease(this RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync(
             $"{RedisCommand.VLINKS}{key}{member}", flags, LinkHandler.MembersWritable, cancellationToken: cancellationToken);
 
@@ -374,8 +374,8 @@ public static partial class VectorSets
     /// <param name="key">The key to read.</param>
     /// <param name="member">The member to read.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    internal static ValueTask<Lease<VectorSetLink>?> GetLinksWithScoresWritableLease(this in RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    internal static ValueTask<Lease<VectorSetLink>?> GetLinksWithScoresWritableLease(this RespVectorSets sets, RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         var cmd = GetLinksWithScoresCommand(sets.Context, key, member);
         return sets.Context.SendAsync(ref cmd, flags, LinkHandler.ScoredWritable, cancellationToken);
@@ -386,16 +386,16 @@ public static partial class VectorSets
     /// <param name="key">The key to search.</param>
     /// <param name="query">What to search for.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     internal static ValueTask<Lease<VectorSetSimilaritySearchResult>?> SimilaritySearchWritableLease(
-        this in RespVectorSets sets,
+        this RespVectorSets sets,
         RedisKey key,
         VectorSetSimilaritySearchRequest query,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => SimilaritySearchCore(in sets, key, query, flags, SimilarityHandler.Writable(query));
+        => SimilaritySearchCore(sets, key, query, flags, SimilarityHandler.Writable(query));
 
-    /// <inheritdoc cref="VectorSets.RangeAsync(in RespVectorSets, RedisKey, RedisValue, RedisValue, long, Exclude, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="VectorSets.RangeAsync(RespVectorSets, RedisKey, RedisValue, RedisValue, long, Exclude, CommandFlags, CancellationToken)"/>
     /// <param name="sets">The vector-set command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="start">The lower bound.</param>
@@ -403,9 +403,9 @@ public static partial class VectorSets
     /// <param name="count">How many to return, or -1 for all of them.</param>
     /// <param name="exclude">Which bounds to treat as exclusive.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     internal static ValueTask<Lease<RedisValue>?> RangeWritableLease(
-        this in RespVectorSets sets,
+        this RespVectorSets sets,
         RedisKey key,
         RedisValue start = default,
         RedisValue end = default,
@@ -424,19 +424,19 @@ public static partial class VectorSets
                 $"{RedisCommand.VRANGE}{key}{from}{to}{count}", flags, ValueLeaseHandler.Writable, cancellationToken: cancellationToken);
     }
 
-    /// <inheritdoc cref="VectorSets.RandomMembersAsync(in RespVectorSets, RedisKey, long, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="VectorSets.RandomMembersAsync(RespVectorSets, RedisKey, long, CommandFlags, CancellationToken)"/>
     /// <param name="sets">The vector-set command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="count">How many to take.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    internal static ValueTask<RedisValue[]> RandomMembersArray(this in RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    internal static ValueTask<RedisValue[]> RandomMembersArray(this RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<RedisValue[]>(
             $"{RedisCommand.VRANDMEMBER}{key}{count}", flags, cancellationToken: cancellationToken);
 
     /// <summary>The one renderer for VSIM; the handler is what differs between the two shapes.</summary>
     private static ValueTask<TResult> SimilaritySearchCore<TResult>(
-        in RespVectorSets sets,
+        RespVectorSets sets,
         in RedisKey key,
         VectorSetSimilaritySearchRequest query,
         CommandFlags flags,

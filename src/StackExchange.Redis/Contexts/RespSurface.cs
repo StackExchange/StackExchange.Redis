@@ -165,7 +165,7 @@ namespace StackExchange.Redis
             /// <c>PING</c>; completes when the server has answered.
             /// </summary>
             /// <param name="flags">Command flags.</param>
-            /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+            /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
             /// <remarks>
             /// <b>No result, where <c>IRedis.Ping</c> answers a <see cref="TimeSpan"/>.</b> Most callers
             /// ping to find out whether the server answers at all, and paying for a measurement to throw
@@ -181,7 +181,7 @@ namespace StackExchange.Redis
             /// <c>PING</c>, timed: how long the round trip took.
             /// </summary>
             /// <param name="flags">Command flags.</param>
-            /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+            /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
             /// <remarks>
             /// <para>
             /// <b>The handler is the clock</b>, and is therefore allocated per call - the one place on this

@@ -1159,7 +1159,7 @@ namespace StackExchange.Redis
         /// makes and would be lost by simply awaiting it in an <c>async</c> wrapper.
         /// </para>
         /// </remarks>
-        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
         public static ValueTask SendAsync(
             this RespContext context,
             [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,
@@ -1180,7 +1180,7 @@ namespace StackExchange.Redis
         /// <param name="request">The command, written as an interpolated string.</param>
         /// <param name="flags">The command's flags.</param>
         /// <param name="handler">Reads the reply; the inbuilt handler for <typeparamref name="TResult"/> when omitted.</param>
-        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
         /// <remarks>
         /// One line each, forwarding to the <see cref="RespContext"/> implementation. They exist because a
         /// typed context is now the thing callers hold, and an interpolated-string handler is built from
@@ -1199,7 +1199,7 @@ namespace StackExchange.Redis
         /// <param name="context">The context to send through.</param>
         /// <param name="request">The command, written as an interpolated string.</param>
         /// <param name="flags">The command's flags.</param>
-        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
         public static ValueTask SendAsync(
             this RespDatabaseContext context,
             [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,
@@ -1213,7 +1213,7 @@ namespace StackExchange.Redis
         /// <param name="request">The command, written as an interpolated string.</param>
         /// <param name="flags">The command's flags.</param>
         /// <param name="handler">Reads the reply; the inbuilt handler for <typeparamref name="TResult"/> when omitted.</param>
-        /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+        /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
         public static ValueTask<TResult> SendAsync<TResult>(
             this RespServerContext context,
             [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,

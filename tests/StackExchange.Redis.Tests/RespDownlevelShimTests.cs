@@ -96,9 +96,9 @@ public class RespDownlevelShimTests
     [Fact]
     public void EveryContextGroupHasAMethodShim()
     {
-        var accessors = AccessorNames(typeof(RespDatabaseContext).MakeByRefType());
+        var accessors = AccessorNames(typeof(RespDatabaseContext));
         Assert.NotEmpty(accessors);
-        Assert.Equal(accessors, ShimNames(typeof(RespDatabaseContext).MakeByRefType()));
+        Assert.Equal(accessors, ShimNames(typeof(RespDatabaseContext)));
     }
 
     /// <summary>And the shim really does reach a command, not merely exist.</summary>

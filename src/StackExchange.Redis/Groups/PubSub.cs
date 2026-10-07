@@ -44,7 +44,7 @@ public readonly struct RespPubSub
 
 public static partial class RespDatabaseExtensions
 {
-    extension(in RespDatabaseContext context)
+    extension(RespDatabaseContext context)
     {
         /// <summary>The pub/sub commands.</summary>
         public RespPubSub PubSub => new(context.Raw);
@@ -53,7 +53,7 @@ public static partial class RespDatabaseExtensions
 
 public static partial class RespServerExtensions
 {
-    extension(in RespServerContext context)
+    extension(RespServerContext context)
     {
         /// <summary>
         /// The pub/sub commands of this server.

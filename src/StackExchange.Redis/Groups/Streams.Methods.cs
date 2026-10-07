@@ -37,7 +37,7 @@ public static partial class Streams
     /// bounds, since <c>XREVRANGE</c> takes them the other way round.
     /// </param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <returns>
     /// A reply that must be disposed. Everything reachable from it - entries, ids, fields - points
     /// into its buffer and dies with it; <c>ToArray()</c> is the way to keep the contents.
@@ -49,7 +49,7 @@ public static partial class Streams
     /// instead, and allocates the reply object and nothing else.
     /// </remarks>
     public static ValueTask<RespRangeReply> RangeAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue? minId = null,
         RedisValue? maxId = null,
@@ -62,7 +62,7 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, RangeReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="Streams.RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Streams.RangeAsync(RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)"/>
     /// <remarks>
     /// <para>
     /// <b>Permanent, not scaffolding.</b> <c>IDatabase</c> promises <see cref="StreamEntry"/><c>[]</c> and
@@ -79,7 +79,7 @@ public static partial class Streams
     /// </para>
     /// </remarks>
     internal static ValueTask<StreamEntry[]> RangeArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue? minId = null,
         RedisValue? maxId = null,
@@ -301,8 +301,8 @@ public static partial class Streams
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream to measure.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> LengthAsync(this in RespStreams streams, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> LengthAsync(this RespStreams streams, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XLEN}{key}", flags, cancellationToken: cancellationToken);
 
@@ -312,23 +312,23 @@ public static partial class Streams
     /// <param name="group">The consumer group.</param>
     /// <param name="messageId">The entry to acknowledge.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> AcknowledgeAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue messageId, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> AcknowledgeAsync(this RespStreams streams, RedisKey key, RedisValue group, RedisValue messageId, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XACK}{key}{group}{messageId}", flags, cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="Streams.AcknowledgeAsync(in RespStreams, RedisKey, RedisValue, RedisValue, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Streams.AcknowledgeAsync(RespStreams, RedisKey, RedisValue, RedisValue, CommandFlags, CancellationToken)"/>
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream.</param>
     /// <param name="group">The consumer group.</param>
     /// <param name="messageIds">The entries to acknowledge; at least one.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// An empty run is <b>not</b> short-circuited to zero: <c>XACK</c> with no ids is a caller error
     /// rather than a request that trivially acknowledges nothing, and the old surface throws for it.
     /// </remarks>
-    public static ValueTask<long> AcknowledgeAsync(this in RespStreams streams, RedisKey key, RedisValue group, ReadOnlySpan<RedisValue> messageIds, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    public static ValueTask<long> AcknowledgeAsync(this RespStreams streams, RedisKey key, RedisValue group, ReadOnlySpan<RedisValue> messageIds, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         DemandAtLeastOneId(messageIds);
         return streams.Context.SendAsync<long>(
@@ -340,8 +340,8 @@ public static partial class Streams
     /// <param name="key">The stream.</param>
     /// <param name="messageIds">The entries to delete; at least one.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> DeleteAsync(this in RespStreams streams, RedisKey key, ReadOnlySpan<RedisValue> messageIds, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> DeleteAsync(this RespStreams streams, RedisKey key, ReadOnlySpan<RedisValue> messageIds, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         DemandAtLeastOneId(messageIds);
         return streams.Context.SendAsync<long>(
@@ -356,14 +356,14 @@ public static partial class Streams
     /// <param name="messageIds">The entries to delete; at least one.</param>
     /// <param name="mode">What to do with entries that consumer groups still reference.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// A <see cref="ReadOnlyLease{T}"/> of an <b>enum</b>, which is the <c>ExpireResult</c> shape and
     /// not one of the composite results still to be designed: the elements own nothing, so the lease is
     /// the whole of the storage question.
     /// </remarks>
     public static ValueTask<ReadOnlyLease<StreamTrimResult>> DeleteAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         ReadOnlySpan<RedisValue> messageIds,
         StreamTrimMode mode,
@@ -374,7 +374,7 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<ReadOnlyLease<StreamTrimResult>>.Require(), cancellationToken);
     }
 
-    /// <inheritdoc cref="Streams.DeleteAsync(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="Streams.DeleteAsync(RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)"/>
     /// <remarks>
     /// <b>Permanent, not scaffolding.</b> <c>IDatabase.StreamDelete</c> promises an array and is not
     /// going anywhere, so this is how that signature is served from the new core. Internal because the
@@ -382,7 +382,7 @@ public static partial class Streams
     /// assembly should be able to choose otherwise.
     /// </remarks>
     internal static ValueTask<StreamTrimResult[]> DeleteArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         ReadOnlySpan<RedisValue> messageIds,
         StreamTrimMode mode,
@@ -412,9 +412,9 @@ public static partial class Streams
     /// <param name="position">Where the group starts reading; defaults to new messages only.</param>
     /// <param name="createStream">Whether to create the stream if it does not exist (<c>MKSTREAM</c>).</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<bool> CreateConsumerGroupAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue? position = null,
@@ -431,8 +431,8 @@ public static partial class Streams
     /// <param name="key">The stream.</param>
     /// <param name="group">The consumer group to remove.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> DeleteConsumerGroupAsync(this in RespStreams streams, RedisKey key, RedisValue group, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> DeleteConsumerGroupAsync(this RespStreams streams, RedisKey key, RedisValue group, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<bool>(
             $"{RedisCommand.XGROUP}{RespLiterals.Destroy}{key}{group}",
             flags,
@@ -444,8 +444,8 @@ public static partial class Streams
     /// <param name="group">The consumer group.</param>
     /// <param name="consumer">The consumer to remove.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<long> DeleteConsumerAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue consumer, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> DeleteConsumerAsync(this RespStreams streams, RedisKey key, RedisValue group, RedisValue consumer, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<long>(
             $"{RedisCommand.XGROUP}{RespLiterals.DeleteConsumer}{key}{group}{consumer}",
             flags,
@@ -457,8 +457,8 @@ public static partial class Streams
     /// <param name="group">The consumer group.</param>
     /// <param name="position">The new position.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    public static ValueTask<bool> SetConsumerGroupPositionAsync(this in RespStreams streams, RedisKey key, RedisValue group, RedisValue position, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<bool> SetConsumerGroupPositionAsync(this RespStreams streams, RedisKey key, RedisValue group, RedisValue position, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => streams.Context.SendAsync<bool>(
             $"{RedisCommand.XGROUP}{RespLiterals.SetId}{key}{group}{ResolveGroupPosition(position)}",
             flags,
@@ -472,9 +472,9 @@ public static partial class Streams
     /// <param name="limit">The most entries to remove in one call.</param>
     /// <param name="mode">What to do with references to trimmed entries.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<long> TrimAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         long maxLength,
         bool approximate = false,
@@ -495,9 +495,9 @@ public static partial class Streams
     /// <param name="limit">The most entries to remove in one call.</param>
     /// <param name="mode">What to do with references to trimmed entries.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<long> TrimByMinIdAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue minId,
         bool approximate = false,
@@ -517,7 +517,7 @@ public static partial class Streams
     /// <param name="value">The single field's value.</param>
     /// <param name="options">Entry id, trimming and idempotency; the default appends with a server-assigned id.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Two overloads here against eight on <see cref="IDatabase"/>.</b> The shipped ones spell the
     /// options out positionally - message id, max length, approximate, limit, trim mode - and then repeat
@@ -526,7 +526,7 @@ public static partial class Streams
     /// are the transitional adapter's problem, which is where they belong.
     /// </remarks>
     public static ValueTask<RedisValue> AddAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue name,
         RedisValue value,
@@ -544,16 +544,16 @@ public static partial class Streams
     /// <param name="fields">The entry's fields; at least one.</param>
     /// <param name="options">Entry id, trimming and idempotency; the default appends with a server-assigned id.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
-    /// <inheritdoc cref="AddAsync(in RespStreams, RedisKey, RedisValue, RedisValue, in StreamAddOptions, CommandFlags, CancellationToken)" path="/remarks"/>
+    /// <inheritdoc cref="AddAsync(RespStreams, RedisKey, RedisValue, RedisValue, in StreamAddOptions, CommandFlags, CancellationToken)" path="/remarks"/>
     /// <para>
     /// <paramref name="fields"/> needs no loop at the call site: <see cref="NameValueEntry"/> is an
     /// <c>IRespArgument</c>, so the span overload asks each pair to write its own name and value.
     /// </para>
     /// </remarks>
     public static ValueTask<RedisValue> AddAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         scoped ReadOnlySpan<NameValueEntry> fields,
         in StreamAddOptions options = default,
@@ -577,8 +577,8 @@ public static partial class Streams
     /// <param name="minIdleTime">Only claim entries idle for at least this long.</param>
     /// <param name="messageIds">The entries to claim; at least one.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <returns><inheritdoc cref="RangeAsync(RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
     /// <remarks>
     /// <b>A <see cref="TimeSpan"/> where <c>IDatabase.StreamClaim</c> takes <c>long minIdleTimeInMs</c>.</b>
     /// A duration is a duration; the millisecond spelling is the shipped signature's, and the adapter is
@@ -586,7 +586,7 @@ public static partial class Streams
     /// same quantity, so the old surface is not even consistent with itself here.
     /// </remarks>
     public static ValueTask<RespRangeReply> ClaimAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -599,10 +599,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, RangeReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="ClaimAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="ClaimAsync(RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<StreamEntry[]> ClaimArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -625,14 +625,14 @@ public static partial class Streams
     /// <param name="minIdleTime">Only claim entries idle for at least this long.</param>
     /// <param name="messageIds">The entries to claim; at least one.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
-    /// <b>Not merely a cheaper <see cref="ClaimAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>.</b>
+    /// <b>Not merely a cheaper <see cref="ClaimAsync(RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>.</b>
     /// <c>JUSTID</c> also tells the server not to bump each entry's delivery counter, which is what makes
     /// this form safely retryable where the full one is not - see <c>WithJustIdCategory</c>.
     /// </remarks>
     public static ValueTask<ReadOnlyLease<RedisValue>> ClaimIdsOnlyAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -645,10 +645,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, JustIdFlags(flags), RespHandlers.Inbuilt<ReadOnlyLease<RedisValue>>.Require(), cancellationToken);
     }
 
-    /// <inheritdoc cref="ClaimIdsOnlyAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="ClaimIdsOnlyAsync(RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<RedisValue[]> ClaimIdsOnlyArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -696,8 +696,8 @@ public static partial class Streams
     /// <param name="position">Read entries after this id.</param>
     /// <param name="count">How many entries to return at most; the server's default when omitted.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <returns><inheritdoc cref="RangeAsync(RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
     /// <remarks>
     /// <b><see cref="StreamPosition.NewMessages"/> is rejected here</b>, because <c>$</c> means "entries
     /// added after this call blocks" and this call does not block. That is the shipped rule, enforced by
@@ -705,7 +705,7 @@ public static partial class Streams
     /// <i>not</i> enforce it - see the remarks there.
     /// </remarks>
     public static ValueTask<RespReadReply> ReadAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue position,
         int? count = null,
@@ -716,10 +716,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, ReadReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="ReadAsync(in RespStreams, RedisKey, RedisValue, int?, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="ReadAsync(RespStreams, RedisKey, RedisValue, int?, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<StreamEntry[]> ReadArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue position,
         int? count = null,
@@ -749,14 +749,14 @@ public static partial class Streams
     /// <param name="noAck">Whether the server should skip adding these to the pending list.</param>
     /// <param name="claimMinIdleTime">Also claim entries idle for at least this long.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <returns><inheritdoc cref="RangeAsync(RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
     /// <remarks>
     /// <b>Three <c>IDatabase</c> overloads become one</b>: the older two simply lack
     /// <paramref name="noAck"/> and <paramref name="claimMinIdleTime"/>, which are optional here.
     /// </remarks>
     public static ValueTask<RespReadReply> ReadGroupAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -771,10 +771,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, ReadGroupFlags(flags, position, claimMinIdleTime), ReadReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="ReadGroupAsync(in RespStreams, RedisKey, RedisValue, RedisValue, RedisValue?, int?, bool, TimeSpan?, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="ReadGroupAsync(RespStreams, RedisKey, RedisValue, RedisValue, RedisValue?, int?, bool, TimeSpan?, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<StreamEntry[]> ReadGroupArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -843,7 +843,7 @@ public static partial class Streams
     /// <param name="maxCount">Cap the total entries returned across all streams.</param>
     /// <param name="maxSize">Cap the total bytes returned across all streams.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <para>
     /// <b>Two <c>IDatabase</c> overloads become one</b>: the older one simply lacks
@@ -860,7 +860,7 @@ public static partial class Streams
     /// </para>
     /// </remarks>
     public static ValueTask<RespMultiReadReply> ReadAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         scoped ReadOnlySpan<StreamPosition> positions,
         int? countPerStream = null,
         int? maxCount = null,
@@ -872,10 +872,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, MultiReadReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="ReadAsync(in RespStreams, ReadOnlySpan{StreamPosition}, int?, int?, int?, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="ReadAsync(RespStreams, ReadOnlySpan{StreamPosition}, int?, int?, int?, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<RedisStream[]> ReadArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         scoped ReadOnlySpan<StreamPosition> positions,
         int? countPerStream = null,
         int? maxCount = null,
@@ -934,14 +934,14 @@ public static partial class Streams
     /// <param name="maxCount">Cap the total entries returned across all streams.</param>
     /// <param name="maxSize">Cap the total bytes returned across all streams.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Four <c>IDatabase</c> overloads become one</b>: they differ only in which of
     /// <paramref name="noAck"/>, <paramref name="claimMinIdleTime"/>, <paramref name="maxCount"/> and
     /// <paramref name="maxSize"/> they expose, and all four are optional here.
     /// </remarks>
     public static ValueTask<RespMultiReadReply> ReadGroupAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         scoped ReadOnlySpan<StreamPosition> positions,
         RedisValue group,
         RedisValue consumer,
@@ -957,10 +957,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, ReadGroupFlags(flags, positions, claimMinIdleTime), MultiReadReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="ReadGroupAsync(in RespStreams, ReadOnlySpan{StreamPosition}, RedisValue, RedisValue, int?, bool, TimeSpan?, int?, int?, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="ReadGroupAsync(RespStreams, ReadOnlySpan{StreamPosition}, RedisValue, RedisValue, int?, bool, TimeSpan?, int?, int?, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<RedisStream[]> ReadGroupArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         scoped ReadOnlySpan<StreamPosition> positions,
         RedisValue group,
         RedisValue consumer,
@@ -1103,7 +1103,7 @@ public static partial class Streams
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream to describe.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>Materialised, where the read shapes are deferred windows</b>, and deliberately: this reply is a
     /// flat name/value map of about a dozen counts, so a window would re-read a frame header per property
@@ -1111,7 +1111,7 @@ public static partial class Streams
     /// that allocates, and the caller asked for them by calling this at all.
     /// </remarks>
     public static ValueTask<StreamInfo> InfoAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -1124,9 +1124,9 @@ public static partial class Streams
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream to describe.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<ReadOnlyLease<StreamGroupInfo>> GroupInfoAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -1138,7 +1138,7 @@ public static partial class Streams
     /// <inheritdoc cref="GroupInfoAsync"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<StreamGroupInfo[]> GroupInfoArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
@@ -1155,7 +1155,7 @@ public static partial class Streams
     /// <param name="key">The stream to describe.</param>
     /// <param name="group">The consumer group to describe.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// <b>The key is written as a key here, where the shipped message writes it as a value.</b> The old
     /// path passes <c>key.AsRedisValue()</c> in the argument array and routes with
@@ -1166,7 +1166,7 @@ public static partial class Streams
     /// which is what the parity test compares.
     /// </remarks>
     public static ValueTask<ReadOnlyLease<StreamConsumerInfo>> ConsumerInfoAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         CommandFlags flags = CommandFlags.None,
@@ -1179,7 +1179,7 @@ public static partial class Streams
     /// <inheritdoc cref="ConsumerInfoAsync"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<StreamConsumerInfo[]> ConsumerInfoArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         CommandFlags flags = CommandFlags.None,
@@ -1214,10 +1214,10 @@ public static partial class Streams
     /// <param name="startAtId">Where to start scanning; the cursor from the previous call.</param>
     /// <param name="count">How many entries to attempt at most; the server's default when omitted.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <returns><inheritdoc cref="RangeAsync(RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
     public static ValueTask<RespAutoClaimReply> AutoClaimAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -1231,10 +1231,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, AutoClaimReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="AutoClaimAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, RedisValue, int?, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="AutoClaimAsync(RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, RedisValue, int?, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<StreamAutoClaimResult> AutoClaimResult(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -1257,10 +1257,10 @@ public static partial class Streams
     /// <param name="startAtId">Where to start scanning; the cursor from the previous call.</param>
     /// <param name="count">How many entries to attempt at most; the server's default when omitted.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    /// <remarks><inheritdoc cref="ClaimIdsOnlyAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <remarks><inheritdoc cref="ClaimIdsOnlyAsync(RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
     public static ValueTask<RespAutoClaimIdsOnlyReply> AutoClaimIdsOnlyAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -1274,10 +1274,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, JustIdFlags(flags), AutoClaimIdsOnlyReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="AutoClaimIdsOnlyAsync(in RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, RedisValue, int?, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="AutoClaimIdsOnlyAsync(RespStreams, RedisKey, RedisValue, RedisValue, TimeSpan, RedisValue, int?, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<StreamAutoClaimIdsOnlyResult> AutoClaimIdsOnlyResult(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         RedisValue consumer,
@@ -1319,10 +1319,10 @@ public static partial class Streams
     /// <param name="key">The stream.</param>
     /// <param name="group">The consumer group.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <returns><inheritdoc cref="RangeAsync(RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
     public static ValueTask<RespPendingReply> PendingAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         CommandFlags flags = CommandFlags.None,
@@ -1332,10 +1332,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, PendingReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="PendingAsync(in RespStreams, RedisKey, RedisValue, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="PendingAsync(RespStreams, RedisKey, RedisValue, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<StreamPendingInfo> PendingInfo(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         CommandFlags flags = CommandFlags.None,
@@ -1355,14 +1355,14 @@ public static partial class Streams
     /// <param name="maxId">The highest id to include; the end of the stream when omitted.</param>
     /// <param name="minIdleTime">Only entries idle for at least this long; all of them when omitted.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
-    /// <returns><inheritdoc cref="RangeAsync(in RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <returns><inheritdoc cref="RangeAsync(RespStreams, RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags, CancellationToken)" path="/returns"/></returns>
     /// <remarks>
     /// <b>Two <c>IDatabase</c> overloads become one</b>: the older of them simply lacks
     /// <paramref name="minIdleTime"/>, which is an optional argument here.
     /// </remarks>
     public static ValueTask<RespPendingMessagesReply> PendingMessagesAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         int count,
@@ -1377,10 +1377,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, PendingMessagesReplyHandler, cancellationToken);
     }
 
-    /// <inheritdoc cref="PendingMessagesAsync(in RespStreams, RedisKey, RedisValue, int, RedisValue, RedisValue?, RedisValue?, TimeSpan?, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="PendingMessagesAsync(RespStreams, RedisKey, RedisValue, int, RedisValue, RedisValue?, RedisValue?, TimeSpan?, CommandFlags, CancellationToken)"/>
     /// <remarks><inheritdoc cref="RangeArray" path="/remarks"/></remarks>
     internal static ValueTask<StreamPendingMessageInfo[]> PendingMessagesArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         int count,
@@ -1426,9 +1426,9 @@ public static partial class Streams
     /// <param name="mode">Whether the release counts as a failed delivery.</param>
     /// <param name="messageId">The entry to release.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<long> NegativeAcknowledgeAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         StreamNackMode mode,
@@ -1440,16 +1440,16 @@ public static partial class Streams
             flags,
             cancellationToken: cancellationToken);
 
-    /// <inheritdoc cref="NegativeAcknowledgeAsync(in RespStreams, RedisKey, RedisValue, StreamNackMode, RedisValue, CommandFlags, CancellationToken)"/>
+    /// <inheritdoc cref="NegativeAcknowledgeAsync(RespStreams, RedisKey, RedisValue, StreamNackMode, RedisValue, CommandFlags, CancellationToken)"/>
     /// <param name="streams">The stream command group.</param>
     /// <param name="key">The stream.</param>
     /// <param name="group">The consumer group.</param>
     /// <param name="mode">Whether the release counts as a failed delivery.</param>
     /// <param name="messageIds">The entries to release; at least one.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<long> NegativeAcknowledgeAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         StreamNackMode mode,
@@ -1473,9 +1473,9 @@ public static partial class Streams
     /// <param name="mode">What to do with entries that other consumer groups still reference.</param>
     /// <param name="messageIds">The entries to acknowledge and delete; at least one.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
-    /// <inheritdoc cref="DeleteAsync(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)" path="/remarks"/>
+    /// <inheritdoc cref="DeleteAsync(RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)" path="/remarks"/>
     /// <para>
     /// <b>Only the span form, where <see cref="IDatabase"/> has a single-id one too.</b> The reply is an
     /// array either way - the server is told <c>IDS 1</c> - so the single-id spelling buys a caller
@@ -1483,7 +1483,7 @@ public static partial class Streams
     /// </para>
     /// </remarks>
     public static ValueTask<ReadOnlyLease<StreamTrimResult>> AcknowledgeAndDeleteAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         StreamTrimMode mode,
@@ -1495,10 +1495,10 @@ public static partial class Streams
         return streams.Context.SendAsync(ref cmd, flags, RespHandlers.Inbuilt<ReadOnlyLease<StreamTrimResult>>.Require(), cancellationToken);
     }
 
-    /// <inheritdoc cref="AcknowledgeAndDeleteAsync(in RespStreams, RedisKey, RedisValue, StreamTrimMode, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>
-    /// <remarks><inheritdoc cref="DeleteArray(in RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
+    /// <inheritdoc cref="AcknowledgeAndDeleteAsync(RespStreams, RedisKey, RedisValue, StreamTrimMode, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)"/>
+    /// <remarks><inheritdoc cref="DeleteArray(RespStreams, RedisKey, ReadOnlySpan{RedisValue}, StreamTrimMode, CommandFlags, CancellationToken)" path="/remarks"/></remarks>
     internal static ValueTask<StreamTrimResult[]> AcknowledgeAndDeleteArray(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         RedisValue group,
         StreamTrimMode mode,
@@ -1529,14 +1529,14 @@ public static partial class Streams
     /// <param name="key">The stream.</param>
     /// <param name="configuration">The settings to apply.</param>
     /// <param name="flags">Command flags.</param>
-    /// <param name="cancellationToken">Cancels the request; only cancellation <i>before</i> the send is honoured today.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
     /// An empty <paramref name="configuration"/> still sends the bare command, which the server rejects.
     /// That is deliberate and matches the shipped behaviour: the server's message says what is wrong with
     /// more authority than a guess made here could.
     /// </remarks>
     public static ValueTask ConfigureAsync(
-        this in RespStreams streams,
+        this RespStreams streams,
         RedisKey key,
         StreamConfiguration configuration,
         CommandFlags flags = CommandFlags.None,
