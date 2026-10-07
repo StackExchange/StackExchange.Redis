@@ -236,7 +236,20 @@ namespace StackExchange.Redis
         /// between them.
         /// </para>
         /// </remarks>
-        internal string? UnroutableRedirectMessage { get; set; }
+        internal string? UnroutableRedirectMessage
+        {
+            get => _redirectUnroutable ? _redirectMessage : null;
+            set
+            {
+                _redirectMessage = value;
+                _redirectUnroutable = value is not null;
+            }
+        }
+
+        // the two redirect outcomes are exclusive (an unroutable redirect returns before NoRedirect is
+        // considered), so they share one field and a kind, where they were two strings on every operation
+        private string? _redirectMessage;
+        private bool _redirectUnroutable;
 
         /// <summary>
         /// Set when a redirect was DECLINED rather than unfollowable; the error says so, naming where the
@@ -254,7 +267,15 @@ namespace StackExchange.Redis
         /// unroutable target says the topology is not.
         /// </para>
         /// </remarks>
-        internal string? DeclinedRedirectMessage { get; set; }
+        internal string? DeclinedRedirectMessage
+        {
+            get => _redirectUnroutable ? null : _redirectMessage;
+            set
+            {
+                _redirectMessage = value;
+                _redirectUnroutable = false;
+            }
+        }
 
         /// <summary>The profiling record for this command, when anyone is profiling.</summary>
         /// <remarks>

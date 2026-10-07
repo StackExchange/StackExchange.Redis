@@ -27,10 +27,25 @@ namespace RESPite.Operations;
 /// reference, so RESPite neither depends on it nor has to model it.
 /// </para>
 /// </remarks>
+/// <summary>Converts a <see cref="Stopwatch"/> timestamp to wall-clock UTC, against an anchor taken once.</summary>
+/// <remarks>
+/// So an operation records one clock reading rather than two: <c>DateTime.UtcNow</c> on every send was a clock
+/// call per command for a value only diagnostics read. Drift between the two clocks over a process's life is
+/// far below what a timeout message or a profiling record resolves.
+/// </remarks>
+internal static class WallClock
+{
+    private static readonly DateTime AnchorUtc = DateTime.UtcNow;
+    private static readonly long AnchorTimestamp = Stopwatch.GetTimestamp();
+
+    internal static DateTime ToDateTime(long timestamp)
+        => timestamp == 0 ? default : AnchorUtc.AddTicks((long)((timestamp - AnchorTimestamp) * (TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency)));
+}
+
 internal struct RespOperationDiagnostics
 {
     /// <summary>When the operation was created, for the profiling timeline.</summary>
-    public DateTime CreatedDateTime;
+    public readonly DateTime CreatedDateTime => WallClock.ToDateTime(CreatedTimestamp);
 
     /// <summary>A <see cref="Stopwatch"/> stamp at creation, for measuring age precisely.</summary>
     public long CreatedTimestamp;
@@ -76,8 +91,7 @@ internal struct RespOperationDiagnostics
     /// <summary>Stamp the start of a life. Called once per request, including after a recycle.</summary>
     public void OnCreated()
     {
-        CreatedDateTime = DateTime.UtcNow;
-        CreatedTimestamp = Stopwatch.GetTimestamp();
+        CreatedTimestamp = Stopwatch.GetTimestamp(); // the wall-clock time is derived from it, on demand
         Status = RespCommandStatus.WaitingToBeSent;
     }
 

@@ -683,9 +683,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
         _asyncCore.Reset();
         _interpose = false;
-        _sink = null;
-        _sinkContinuation = null;
-        _sinkState = null;
+        _interposition?.Clear(); // kept for the next life that needs it; see Interposition
 
         // the version and the cleared flags land together, so nothing can observe a fresh version with
         // a previous life's claim still set; the parse capability is of the type, not the life, so it
@@ -797,8 +795,9 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
             // rented during a synchronous call: keep the continuation ourselves, so that if the caller blocks it
             // can be run on that caller's thread (see TryAttachSink). Until then - and if the caller never blocks -
             // the trampoline simply runs it, wherever the core dispatches it, exactly as before
-            _sinkContinuation = continuation;
-            _sinkState = state;
+            var interposition = _interposition!;
+            interposition.Continuation = continuation;
+            interposition.State = state;
             _asyncCore.OnCompleted(s_trampoline, this, token, flags);
         }
         else
@@ -808,14 +807,36 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     }
 
     private bool _interpose;
-    private IContinuationSink? _sink;
-    private long _sinkGeneration;
-    private Action<object?>? _sinkContinuation;
-    private object? _sinkState;
+    private Interposition? _interposition;
+
+    /// <summary>What a synchronous caller needs to claim this life's continuation; see <see cref="TryAttachSink"/>.</summary>
+    /// <remarks>
+    /// A side object rather than four fields on every operation: only an operation rented during a synchronous call
+    /// uses them, and they were 33 of an operation's ~300 bytes. Allocated the first time an instance is used that
+    /// way and kept across its pooled lives, so sync-heavy traffic pays once per instance, not once per call.
+    /// </remarks>
+    private sealed class Interposition
+    {
+        internal IContinuationSink? Sink;
+        internal long Generation;
+        internal Action<object?>? Continuation;
+        internal object? State;
+
+        internal void Clear()
+        {
+            Sink = null;
+            Continuation = null;
+            State = null;
+        }
+    }
 
     /// <summary>Keep this life's continuation, so a blocked synchronous caller can claim it later.</summary>
     /// <remarks>Only before the continuation is registered. Harmless if nobody ever claims it.</remarks>
-    internal void Interpose() => _interpose = true;
+    internal void Interpose()
+    {
+        _interposition ??= new Interposition();
+        _interpose = true;
+    }
 
     /// <summary>
     /// Run this life's continuation on <paramref name="sink"/>'s thread rather than the thread-pool.
@@ -832,8 +853,9 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     internal bool TryAttachSink(short token, IContinuationSink sink, long generation)
     {
         if (!_interpose) return false;
-        _sink = sink;
-        _sinkGeneration = generation;
+        var interposition = _interposition!;
+        interposition.Sink = sink;
+        interposition.Generation = generation;
         while (true)
         {
             var state = Volatile.Read(ref _state);
@@ -846,23 +868,25 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     private static readonly WaitCallback s_runOnPool = static state =>
     {
         var self = (RespMessageBase<TResponse>)state!;
-        self._sinkContinuation!(self._sinkState);
+        var interposition = self._interposition!;
+        interposition.Continuation!(interposition.State);
     };
 
     private static readonly Action<object?> s_trampoline = static state =>
     {
         var self = (RespMessageBase<TResponse>)state!;
+        var interposition = self._interposition!;
         if (!self.HasFlag(Flag_Sink))
         {
             // nobody claimed it: we were dispatched as any continuation is, so just run it
-            self._sinkContinuation!(self._sinkState);
+            interposition.Continuation!(interposition.State);
             return;
         }
 
         // claimed: we are running inline on the completing thread, which must not run library code that can
         // send (that deadlocks against write backpressure) - so hand it to the blocked caller, or, if that call
         // is already over, to the pool
-        if (!self._sink!.TryPost(self._sinkGeneration, self._sinkContinuation!, self._sinkState))
+        if (!interposition.Sink!.TryPost(interposition.Generation, interposition.Continuation!, interposition.State))
         {
             ThreadPool.UnsafeQueueUserWorkItem(s_runOnPool, self); // the fields hold until the continuation runs
         }
