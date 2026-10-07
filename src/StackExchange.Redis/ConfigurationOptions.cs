@@ -1633,7 +1633,6 @@ namespace StackExchange.Redis
         /// configure for a group. Expect the restriction to be lifted.
         /// </para>
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public MaintenanceNotificationMode MaintenanceNotifications
         {
             get => HasValue(OptionFlags.MaintenanceNotificationsHasValue) ? _maintenanceNotifications : Defaults.MaintenanceNotifications;
@@ -1650,7 +1649,6 @@ namespace StackExchange.Redis
         /// a client that wants a named replacement should ask for one. Prefer an FQDN form under TLS: an address
         /// cannot be validated against a certificate carrying only DNS names.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public MaintenanceEndpointType MaintenanceMovingEndpointType
         {
             get => HasValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue)
@@ -1670,7 +1668,6 @@ namespace StackExchange.Redis
         /// relaxed; keep-alive, the heartbeat and connection-failure detection are deliberately untouched, so
         /// a server that dies mid-maintenance is still noticed on the usual schedule.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public TimeSpan MaintenanceRelaxedTimeout
         {
             get => HasValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue) ? _maintenanceRelaxedTimeout : Defaults.MaintenanceRelaxedTimeout;
@@ -1686,7 +1683,6 @@ namespace StackExchange.Redis
         /// closes early, since relaxation delays the point at which a genuinely slow server surfaces as a
         /// timeout. Expressed in seconds in a configuration string.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public TimeSpan MaintenanceRelaxedWindowMax
         {
             get => HasValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue)
@@ -1706,7 +1702,6 @@ namespace StackExchange.Redis
         /// <see cref="MaintenanceRelaxedWindowMax"/>: in that case nothing told us the event finished, and
         /// extending past the backstop would defeat it. Expressed in seconds in a configuration string.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public TimeSpan MaintenancePostEventRelaxedDuration
         {
             get => HasValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue)

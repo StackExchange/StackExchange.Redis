@@ -25,3 +25,6 @@ StackExchange.Redis.ConnectionAttemptStage.Tunnel = 200 -> StackExchange.Redis.C
 StackExchange.Redis.ConnectionAttemptStage.Unknown = 0 -> StackExchange.Redis.ConnectionAttemptStage
 StackExchange.Redis.ConnectionAttemptCompletedEventArgs.TlsHostName.get -> string?
 override StackExchange.Redis.ConnectionAttemptCompletedEventArgs.ToString() -> string!
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
+override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode

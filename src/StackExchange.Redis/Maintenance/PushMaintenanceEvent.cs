@@ -24,7 +24,6 @@ namespace StackExchange.Redis.Maintenance;
 /// what to do with it.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
 public sealed class PushMaintenanceEvent : ServerMaintenanceEvent
 {
     internal PushMaintenanceEvent(
