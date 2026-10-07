@@ -44,12 +44,6 @@ Each has a default the work proceeds on until answered.
   `RunContinuationsAsynchronously`, which survives a reset: across lives (the inline continuation recycled the
   instance before the `finally` restored it) and within one (TrySetCanceledInline flipped it before claiming).
   12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
-- **Retry: the two `WithRetry` overloads default differently.** `IDatabaseAsync.WithRetry()` resolves the
-  connection's configured policy (`MultiGroupOptions`/`ConfigurationOptions.RetryPolicy`); the context
-  overload (`DatabaseExtensions.cs`, `RespDatabaseContext.WithRetry`) falls straight to `RetryPolicy.Default`.
-- **Retry: stale comments.** `RetryDatabase.ExecuteAsync` says the policy "will live here in due course; for
-  now it is a straight pass-through" (it retries); `RespRetryExecutor`'s remarks say "Failover is not wired
-  up yet" (it is, via `GetFailoverSource()`).
 - **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`.
 
 ## Backlog (after the alpha)
@@ -94,6 +88,15 @@ Each has a default the work proceeds on until answered.
   `BlockBufferSerializer` remarks are the surviving trace).
   **Check first** whether the interpolated writer's reserved prologue - the `*N` count is back-filled into
   padding reserved ahead of each frame - still lets frames sit adjacently, or leaves gaps that cost a copy.
+- **Retry: the two `WithRetry` overloads default differently.** `IDatabaseAsync.WithRetry()` resolves the
+  connection's configured policy (`MultiGroupOptions`/`ConfigurationOptions.RetryPolicy`); the context
+  overload (`DatabaseExtensions.cs`, `RespDatabaseContext.WithRetry`) falls straight to `RetryPolicy.Default`.
+- **Retry: stale comments.** `RetryDatabase.ExecuteAsync` says the policy "will live here in due course; for
+  now it is a straight pass-through" (it retries); `RespRetryExecutor`'s remarks say "Failover is not wired
+  up yet" (it is, via `GetFailoverSource()`).
+- **Prose still says "the new core".** The rename pass (a1673a96) renamed types and members only; comments
+  and docs still say "the new core" / "old core" where there is now one. A wording pass to "the connection
+  manager" (or just "the core") - noisy, so its own commit.
 - **Replace the method-replaying decorators with executor decorators.** Eager frames mean the "what to replay"
   problem is solved below the API: `RedisDatabase` is a thin `IDatabase` over a `RespDatabaseContext`
   (every member is `_inner.<Group>.XAsync(...)`), so `new RedisDatabase(ctx.WithExecutor(retry))` retries
