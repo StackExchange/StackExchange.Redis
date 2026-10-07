@@ -109,6 +109,18 @@ Each has a default the work proceeds on until answered.
 - **Prose still says "the new core".** The rename pass (a1673a96) renamed types and members only; comments
   and docs still say "the new core" / "old core" where there is now one. A wording pass to "the connection
   manager" (or just "the core") - noisy, so its own commit.
+- **Performance, remaining ideas** (after the 2026-10-07 work that took v4 from ~55% of v3 to parity or better;
+  each now promises single-digit percent, so parked): `RespPayload` as a struct (public API, ~32 B/op); keep small
+  request bytes inline in the operation (removes the last per-command array when operations are new at depth, at
+  a fixed cost to every operation); slim the operation further (266 B: the token + registration are 24, the
+  request memory/owner/refcount 28); a growable SPSC ring for the pending queue (`ConcurrentQueue` segments are ~5%
+  of allocation at extreme depth, but only on growth - risky, three threads touch it). Not worth it: stackalloc
+  request rendering (that path is ~1% of CPU now), delaying the writer to coalesce (small writes follow
+  throughput, they do not limit it), a dedicated small-buffer pool (slower than ArrayPool's thread cache).
+  **Warm-up** is JIT tiering, as for v3 (which ramps as much): `TieredCompilation=0` runs ~1.4-1.5M INCR/s from
+  the first iteration where default tiering is ~1.0M rising to ~1.25M by the sixth, hot methods lingering in the
+  PGO instrumented tier. Options are blunt (`AggressiveOptimization` forfeits PGO; ReadyToRun in the package is a
+  packaging change) - left to applications, and benchmarks should warm up before measuring.
 - **Replace the method-replaying decorators with executor decorators.** Eager frames mean the "what to replay"
   problem is solved below the API: `RedisDatabase` is a thin `IDatabase` over a `RespDatabaseContext`
   (every member is `_inner.<Group>.XAsync(...)`), so `new RedisDatabase(ctx.WithExecutor(retry))` retries
