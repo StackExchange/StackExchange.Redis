@@ -599,7 +599,39 @@ namespace StackExchange.Redis
         {
             if (typeof(TResult) == typeof(RespPayload)) return RespExecutor.AwaitUncached(this, request, handler, cancellationToken);
 
+            var operation = DispatchTyped(request, handler, database, cancellationToken, out var fault, out var forgotten);
+            if (fault is not null) return new ValueTask<TResult>(Task.FromException<TResult>(fault));
+            return forgotten ? new ValueTask<TResult>(default(TResult)!) : new ValueTask<TResult>(operation!, operation!.Token);
+        }
+
+        /// <inheritdoc/>
+        internal override ValueTask SendVoidAsync(RespRequest request, IRespHandler<bool> handler, CancellationToken cancellationToken)
+            => SendVoidAsync(request, handler, Database, cancellationToken);
+
+        /// <summary>The void twin of <see cref="SendTypedAsync{TResult}(RespRequest, IRespHandler{TResult}, int, CancellationToken)"/>.</summary>
+        /// <param name="request">The rendered request; consumed by this call on every path.</param>
+        /// <param name="handler">Checks the reply.</param>
+        /// <param name="database">The database the command belongs to.</param>
+        /// <param name="cancellationToken">Cancels the send.</param>
+        /// <returns>Completes when the reply has been checked.</returns>
+        internal ValueTask SendVoidAsync(RespRequest request, IRespHandler<bool> handler, int database, CancellationToken cancellationToken)
+        {
+            var operation = DispatchTyped(request, handler, database, cancellationToken, out var fault, out var forgotten);
+            if (fault is not null) return new ValueTask(Task.FromException(fault));
+            return forgotten ? default : new ValueTask(operation!, operation!.Token);
+        }
+
+        /// <summary>Rent a typed operation, attach and dispatch the request, and release the caller's reference.</summary>
+        /// <remarks>
+        /// A synchronous failure is reported through <paramref name="fault"/> - the callers turn it into a FAULTED
+        /// task, not a throw, because callers may hold the task before awaiting it; and a fire-and-forget send is
+        /// reported through <paramref name="forgotten"/>, its outcome declined and its reply discarded.
+        /// </remarks>
+        private RespPayloadOperation<TResult>? DispatchTyped<TResult>(
+            RespRequest request, IRespHandler<TResult> handler, int database, CancellationToken cancellationToken, out Exception? fault, out bool forgotten)
+        {
             RespPayloadOperation<TResult> operation;
+            forgotten = false;
             try
             {
                 operation = RespPayloadOperation<TResult>.Rent(handler, this);
@@ -608,21 +640,22 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 request.Dispose();
-                return new ValueTask<TResult>(Task.FromException<TResult>(ex));
+                fault = ex;
+                return null;
             }
 
+            fault = null;
             var flags = request.Flags;
-            request.Dispose(); // the operation shares the bytes (or copied them); this reference is done
+            request.Dispose(); // the operation copied or shares the bytes; this reference is done
 
             if ((flags & CommandFlags.FireAndForget) != 0)
             {
-                // as the untyped send: the outcome is declined, and the caller sees default
                 RespPayloadOperation.DiscardReply(operation);
                 OnFireAndForget();
-                return new ValueTask<TResult>(default(TResult)!);
+                forgotten = true;
             }
 
-            return new ValueTask<TResult>(operation, operation.Token);
+            return operation;
         }
 
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)

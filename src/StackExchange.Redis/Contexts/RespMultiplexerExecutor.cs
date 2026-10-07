@@ -326,8 +326,26 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc/>
-        /// <remarks>Always, because <see cref="SendTypedAsync{TResult}"/> makes the request owned for any target that does not.</remarks>
+        /// <remarks>Always, because the typed and void sends make the request owned for any target that does not.</remarks>
         internal override bool CopiesRequestOnSend => true;
+
+        /// <inheritdoc/>
+        internal override ValueTask SendVoidAsync(RespRequest request, IRespHandler<bool> handler, CancellationToken cancellationToken)
+        {
+            RespExecutorBase target;
+            try
+            {
+                target = Route(in request);
+            }
+            catch (Exception ex)
+            {
+                request.Dispose();
+                return new ValueTask(Task.FromException(ex));
+            }
+
+            if (!target.CopiesRequestOnSend) request = request.ToOwned();
+            return target.SendVoidAsync(request, handler, cancellationToken);
+        }
 
         /// <summary>Pick the endpoint for one command.</summary>
         /// <param name="request">The rendered request, carrying its combined slot.</param>

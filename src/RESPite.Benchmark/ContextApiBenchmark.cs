@@ -167,7 +167,7 @@ public sealed class ContextApiBenchmark : BenchmarkBase<ContextApiBenchmark.Targ
     }
 
     [DisplayName("PING_BULK")]
-    private ValueTask<bool> PingBulk(Target client) => Done(client.PingAsync());
+    private ValueTask PingBulk(Target client) => client.PingAsync();
 
     [DisplayName("INCR")]
     private ValueTask<long> Incr(Target client) => client.Strings.IncrementAsync(CounterKey);
@@ -232,12 +232,6 @@ public sealed class ContextApiBenchmark : BenchmarkBase<ContextApiBenchmark.Targ
     {
         using var lease = await client.Lists.RangeAsync(ListKey, 0, stop).ConfigureAwait(false);
         return lease.Length;
-    }
-
-    private static async ValueTask<bool> Done(ValueTask pending)
-    {
-        await pending.ConfigureAwait(false);
-        return true;
     }
 
     private async ValueTask LRangeInit650(Target client)

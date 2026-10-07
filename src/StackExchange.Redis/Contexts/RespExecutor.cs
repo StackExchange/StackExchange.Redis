@@ -103,6 +103,20 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual bool CopiesRequestOnSend => false;
 
+        /// <summary>Issue the request and check its reply succeeded, completing with nothing.</summary>
+        /// <param name="request">The rendered request; consumed by this call on every path.</param>
+        /// <param name="handler">Checks the reply.</param>
+        /// <param name="cancellationToken">Cancels the send.</param>
+        /// <returns>Completes when the reply has been checked.</returns>
+        /// <remarks>The default adapts the typed send; an executor that owns the operation returns it directly.</remarks>
+        internal virtual ValueTask SendVoidAsync(RespRequest request, IRespHandler<bool> handler, CancellationToken cancellationToken)
+        {
+            var pending = SendTypedAsync(request, handler, cancellationToken);
+            return pending.IsCompletedSuccessfully ? default : Awaited(pending);
+
+            static async ValueTask Awaited(ValueTask<bool> pending) => await pending.ConfigureAwait(false);
+        }
+
         /// <summary>Whether this executor can honour a <see cref="CancellationToken"/> once a command is sent.</summary>
         /// <remarks>
         /// <para>
@@ -1217,6 +1231,23 @@ namespace StackExchange.Redis
         {
             DemandCancellable(context, ref request, cancellationToken);
             var frame = request.Complete();
+
+            // the direct path, as the typed one takes for an uncached send: the operation is the awaitable, so
+            // no adapter boxes per command. Only without a cache - a cached send has its own machinery - and
+            // only where the executor copies the request during the call, so the frame may be lent.
+            if (context.Cache is null && context.Executor is { CopiesRequestOnSend: true } executor)
+            {
+                flags = flags.WithDefaultCategory(frame.Command);
+                try
+                {
+                    return executor.SendVoidAsync(frame.AsLookupKey(flags), RespHandlers.Success, cancellationToken);
+                }
+                finally
+                {
+                    frame.Dispose();
+                }
+            }
+
             var pending = SendAsync(context, ref frame, flags, RespHandlers.Success, cancellationToken);
             return pending.IsCompletedSuccessfully ? default : Awaited(pending);
 

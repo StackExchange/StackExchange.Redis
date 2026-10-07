@@ -26,7 +26,7 @@ namespace StackExchange.Redis
     /// be one interface, and the raw payload has no parse to absorb anyway.
     /// </para>
     /// </remarks>
-    internal sealed class RespPayloadOperation<TResult> : RespPayloadOperation, IValueTaskSource<TResult>
+    internal sealed class RespPayloadOperation<TResult> : RespPayloadOperation, IValueTaskSource<TResult>, IValueTaskSource
     {
         private static readonly RespPayloadOperation<TResult>?[] TypedPool = new RespPayloadOperation<TResult>?[PoolSize];
 
@@ -84,6 +84,19 @@ namespace StackExchange.Redis
         /// with "this command has not been sent".
         /// </remarks>
         ValueTaskSourceStatus IValueTaskSource<TResult>.GetStatus(short token)
+            => ((IValueTaskSource<RespPayload>)this).GetStatus(token);
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// As a plain <see cref="System.Threading.Tasks.ValueTask"/>, for a command whose result is only "it succeeded": parsed and
+        /// released exactly as the typed result is - an error reply still throws, and the payload is never
+        /// leaked - and the value discarded. Without this, such commands awaited the typed task inside an async
+        /// adapter, which boxed on every suspension.
+        /// </remarks>
+        void IValueTaskSource.GetResult(short token) => _ = ((IValueTaskSource<TResult>)this).GetResult(token);
+
+        /// <inheritdoc/>
+        ValueTaskSourceStatus IValueTaskSource.GetStatus(short token)
             => ((IValueTaskSource<RespPayload>)this).GetStatus(token);
 
         /// <inheritdoc/>

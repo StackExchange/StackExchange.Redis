@@ -112,6 +112,10 @@ namespace StackExchange.Redis
         internal override bool CopiesRequestOnSend => true; // a view over an endpoint executor, which does
 
         /// <inheritdoc/>
+        internal override ValueTask SendVoidAsync(RespRequest request, IRespHandler<bool> handler, CancellationToken cancellationToken)
+            => _inner.SendVoidAsync(request, handler, Database, cancellationToken);
+
+        /// <inheritdoc/>
         /// <remarks>Named with THIS view's database, which is the only thing this type adds.</remarks>
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
