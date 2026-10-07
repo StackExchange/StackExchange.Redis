@@ -338,8 +338,8 @@ namespace StackExchange.Redis
         /// <b>What makes <see cref="EnforcesTimeouts"/> an honest answer rather than a hopeful one.</b>
         /// The sweep is the whole of this core's timeout enforcement, and the sweep happens because the
         /// multiplexer heartbeat calls it - so an executor built directly over a transport, as the tests
-        /// do, genuinely does not time anything out except at the two-minute backstop. Claiming otherwise
-        /// would make a synchronous caller stand back from its own timer and wait out that backstop.
+        /// do, genuinely does not time anything out (the operation backstop is off by default). Claiming otherwise
+        /// would make a synchronous caller stand back from its own timer and wait for ever.
         /// </remarks>
         internal bool HeartbeatDriven { get; init; }
 
@@ -1446,8 +1446,8 @@ namespace StackExchange.Redis
         /// <param name="timeoutMilliseconds">The configured command timeout.</param>
         /// <remarks>
         /// <b>Driven by the multiplexer heartbeat, which is where the v3 core did this too.</b> A
-        /// command that has been WRITTEN has nothing else bounding it: the caller's wait had no deadline
-        /// and the operation backstop is two minutes away, so a server that stops answering - paused,
+        /// command that has been WRITTEN has nothing else bounding it: the caller's wait has no deadline
+        /// and the operation backstop is off by default, so without this a server that stops answering - paused,
         /// wedged, gone quiet - left commands hanging rather than timing out.
         /// <para>
         /// The RELAXED timeout where a maintenance window says so, since a window exists precisely to
@@ -2481,7 +2481,7 @@ namespace StackExchange.Redis
                 // A FAILED attempt has to lead to another one, which a DECLINED attempt already did. Only
                 // the decline armed the timer, so after a genuine failure nothing came back: whatever was
                 // put back sat there with nothing to retry it and nothing to expire it, which is the
-                // two-minute backstop again by a different road.
+                // unbounded wait again by a different road.
                 if (!_disposed) ArmConnectRetry();
 
                 throw fault;

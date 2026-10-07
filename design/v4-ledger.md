@@ -112,7 +112,10 @@ Each has a default the work proceeds on until answered.
 - **Performance, remaining ideas** (after the 2026-10-07 work that took v4 from ~55% of v3 to parity or better;
   each now promises single-digit percent, so parked): `RespPayload` as a struct (public API, ~32 B/op); keep small
   request bytes inline in the operation (removes the last per-command array when operations are new at depth, at
-  a fixed cost to every operation); slim the operation further (266 B: the token + registration are 24, the
+  a fixed cost to every operation); `IDatabase`'s remaining ~100 B/op over the context API is the `Task` and the
+  thread-pool work item that runs its completion (the completion source went 2026-10-07: an `AsyncTaskMethodBuilder`
+  promise held by the operation) - the work item could go if the operation queued itself (`IThreadPoolWorkItem`,
+  net6+) rather than through the source's continuation; slim the operation further (266 B: the token + registration are 24, the
   request memory/owner/refcount 28); a growable SPSC ring for the pending queue (`ConcurrentQueue` segments are ~5%
   of allocation at extreme depth, but only on growth - risky, three threads touch it). Not worth it: stackalloc
   request rendering (that path is ~1% of CPU now), delaying the writer to coalesce (small writes follow

@@ -51,7 +51,7 @@ internal static class OperationBackstop
     internal static TimeSpan Backstop { get; set; } = TimeSpan.Zero;
 
     /// <summary>How long one epoch's source accepts new operations before it is retired.</summary>
-    /// <remarks>Coarse on purpose: it is the slack in the deadline, and slack is free on a two-minute net.</remarks>
+    /// <remarks>Coarse on purpose: it is the slack in the deadline, and slack is free on a net measured in minutes.</remarks>
     internal static TimeSpan Period { get; set; } = TimeSpan.FromSeconds(30);
 
     private sealed class Epoch

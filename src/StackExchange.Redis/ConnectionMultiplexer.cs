@@ -1372,7 +1372,7 @@ namespace StackExchange.Redis
                 // EVERY core over this multiplexer, not just the one it built for itself. Suites that
                 // exercised the new surface without the engine flag used to construct their own beside it,
                 // and an unpulsed core is one that claims to enforce timeouts (`HeartbeatDriven`) and does
-                // not - so a stalled command waits out the two-minute operation backstop instead of failing
+                // not - so a stalled command waits for the operation backstop (if enabled at all) instead of failing
                 // at its own timeout. That turned one wedged connection into every test queued behind it:
                 // measured once at eleven failures and 143-second waits where the configured timeout was 5s.
                 PulseCores();

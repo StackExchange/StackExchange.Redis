@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using StackExchange.Redis.Protocol;
@@ -154,11 +155,64 @@ namespace StackExchange.Redis
         ValueTaskSourceStatus IValueTaskSource.GetStatus(short token)
             => ((IValueTaskSource<RespPayload>)this).GetStatus(token);
 
+        private AsyncTaskMethodBuilder<TResult> _taskBuilder;
+        private short _taskToken;
+
+        private static readonly Action<object?> s_completeTask = static state => ((RespPayloadOperation<TResult>)state!).CompleteTask();
+
+        /// <summary>This life's result as a <see cref="Task{TResult}"/>, for the <c>IDatabase</c> surface.</summary>
+        /// <param name="token">The life to bridge.</param>
+        /// <returns>A task completed with the parsed result, a fault (marked observed), or a cancellation.</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>A bare promise task, not a <see cref="TaskCompletionSource{TResult}"/>.</b> <see cref="AsyncTaskMethodBuilder{TResult}"/>
+        /// is public and works without an <c>async</c> method: its <c>Task</c> is one object, where a completion source is two,
+        /// and the builder lives in this (pooled) operation rather than in a bridge object of its own. It cannot carry an
+        /// async state - a database with one keeps the completion-source bridge - and it cannot ask for asynchronous
+        /// continuations, which is why it is completed only from <see cref="CompleteTask"/>: a callback the operation already
+        /// dispatches off the IO thread, so a caller's continuation never runs on the reader.
+        /// </para>
+        /// <para>
+        /// Faults are marked observed as they are set, as every bridge does - a caller that drops the task must not see
+        /// <see cref="TaskScheduler.UnobservedTaskException"/> - and an <see cref="OperationCanceledException"/> makes the
+        /// task cancelled, which is what the builder does with one.
+        /// </para>
+        /// </remarks>
+        internal Task<TResult> AsTask(short token)
+        {
+            _taskBuilder = AsyncTaskMethodBuilder<TResult>.Create();
+            var task = _taskBuilder.Task;
+            _taskToken = token;
+
+            // already settled - faulted under FailFast, say - is answered now
+            if (((IValueTaskSource<TResult>)this).GetStatus(token) != ValueTaskSourceStatus.Pending) CompleteTask();
+            else OnCompleted(s_completeTask, this, token, ValueTaskSourceOnCompletedFlags.None);
+            return task;
+        }
+
+        private void CompleteTask()
+        {
+            // copied out first: taking the result can recycle this instance into its next life
+            var builder = _taskBuilder;
+            var token = _taskToken;
+            _taskBuilder = default;
+            try
+            {
+                builder.SetResult(((IValueTaskSource<TResult>)this).GetResult(token));
+            }
+            catch (Exception ex)
+            {
+                builder.SetException(ex);
+                _ = builder.Task.Exception; // observed; see TaskBridge
+            }
+        }
+
         /// <inheritdoc/>
         protected override void OnReset()
         {
             _handler = null;
             _executor = null;
+            _taskBuilder = default;
             base.OnReset();
         }
 

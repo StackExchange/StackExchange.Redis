@@ -18,12 +18,12 @@ namespace StackExchange.Redis
     /// <c>new TaskCompletionSource&lt;T&gt;(state)</c>.
     /// </para>
     /// <para>
-    /// <b>The state itself costs nothing extra.</b> Every pending command takes the same bridge - a completion
-    /// source, its task and one delegate - with or without state, because the bridge is also what marks a fault
-    /// observed (see <c>Bridge</c>); <c>ValueTask.AsTask()</c> would be about one object cheaper and cannot do
-    /// that. A completed result allocates nothing without state. The new <c>RespDatabaseContext</c> surface
-    /// returns <c>ValueTask</c> and needs none of this; it exists for <see cref="IDatabaseAsync"/>, which
-    /// returns <see cref="Task"/>.
+    /// <b>So state costs one object.</b> A pending command on our own operation, without state, gets the
+    /// operation's own promise task (<c>RespPayloadOperation&lt;T&gt;.AsTask</c>) - one object; with state it gets a
+    /// completion source born with it - two. Either way the bridge is also what marks a fault observed (see
+    /// <c>Bridge</c>), which <c>ValueTask.AsTask()</c> cannot do. A completed result allocates nothing without
+    /// state. The new <c>RespDatabaseContext</c> surface returns <c>ValueTask</c> and needs none of this; it
+    /// exists for <see cref="IDatabaseAsync"/>, which returns <see cref="Task"/>.
     /// </para>
     /// <para>
     /// <b>Do not be tempted to stamp the state onto whatever <c>AsTask()</c> returns.</b> It is reachable
@@ -75,7 +75,8 @@ namespace StackExchange.Redis
             // our own operation, as most sends are: register on it with a static callback - no delegate per command
             if (RespPayloadOperation<T>.TryTakeDispatched(pending, out var token) is { } operation)
             {
-                return new SourceBridge<T>(operation, token, asyncState).Task;
+                // without state, the operation's own promise task - one object, no completion source
+                return asyncState is null ? operation.AsTask(token) : new SourceBridge<T>(operation, token, asyncState).Task;
             }
 
             return new Bridge<T>(pending, asyncState).Task;
@@ -97,7 +98,7 @@ namespace StackExchange.Redis
 
             if (RespPayloadOperation<bool>.TryTakeDispatched(pending, out var token) is { } operation)
             {
-                return new SourceVoidBridge(operation, token, asyncState).Task;
+                return asyncState is null ? operation.AsTask(token) : new SourceVoidBridge(operation, token, asyncState).Task;
             }
 
             return new VoidBridge(pending, asyncState).Task;
