@@ -931,7 +931,12 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     }
 
     /// <inheritdoc/>
-    public override void OnClosed(Exception? fault) => Close(fault);
+    /// <remarks>
+    /// A close the transport reports without an exception is the peer ending the stream, which is a failure with a
+    /// cause, not "the connection is closed": the pending commands should say so. Our own close (dispose) runs
+    /// first and wins, so this only ever describes a close we did not ask for.
+    /// </remarks>
+    public override void OnClosed(Exception? fault) => Close(fault ?? CreateRemoteClosedFault());
 
     /// <summary>
     /// Offer a reply to somebody who may take the operation elsewhere instead of completing it here.
@@ -1160,7 +1165,34 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         {
             entry.Message.TrySetException(entry.Token, reason, definite: true);
         }
+
+        // and only then tell whoever owns us, so what they see is a connection whose commands have already been
+        // failed - a close nobody heard about was a dead connection nothing noticed until its next send
+        if (Closed is { } closed)
+        {
+            try
+            {
+                closed(this);
+            }
+            catch
+            {
+                // an owner's bookkeeping must not stop the close; the commands above are already failed
+            }
+        }
     }
+
+    /// <summary>Called once, when this connection closes for any reason, after its pending commands are failed.</summary>
+    /// <remarks>
+    /// <b>The owner's only notice of a close it did not ask for.</b> A server that ends the stream - an output-buffer
+    /// limit, <c>CLIENT KILL</c>, a restart - used to fail the pending commands and stop there: nothing was logged, no
+    /// failure was raised, and nothing reconnected until a later command happened to try the dead connection. Set
+    /// before the connection is published; a close that races that is caught by checking <see cref="IsClosed"/>.
+    /// </remarks>
+    internal Action<RespConnection>? Closed { get; set; }
+
+    /// <summary>The fault for a close the transport reported without one: the peer ended the stream.</summary>
+    /// <returns>The exception pending commands fail with.</returns>
+    protected virtual Exception CreateRemoteClosedFault() => new System.IO.IOException("The connection was closed by the remote end.");
 
     private Exception ClosedFault()
         => _fault ?? new InvalidOperationException("The connection is closed.");

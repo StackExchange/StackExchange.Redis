@@ -1255,11 +1255,38 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         internal bool DropConnection(bool reconnectImmediately = false, bool wasRequested = false)
+            => DropConnection(expected: null, reconnectImmediately, wasRequested);
+
+        /// <summary>A connection closed under us - by the server, the network, anything we did not ask for.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The same as dropping it, which is what had been missing.</b> A close we did not initiate failed the
+        /// pending commands and nothing else: no log, no <c>ConnectionFailed</c>, no reconnect until some later send
+        /// happened to find the corpse (<c>OnSendRefused</c>). Anything that watches for failures - a multi-group's
+        /// failover among them - never heard about it.
+        /// </para>
+        /// <para>
+        /// Only for the CURRENT connection. Our own drops dispose the connection after unpublishing it, so their close
+        /// arrives here for a connection that is no longer current and is ignored - which is also what keeps a
+        /// requested close from being announced as a failure.
+        /// </para>
+        /// </remarks>
+        private void OnConnectionClosed(RespConnection connection)
+        {
+            if (Volatile.Read(ref _disposed)) return;
+            DropConnection(expected: connection);
+        }
+
+        /// <param name="expected">Drop only this connection, if it is still the current one; null for whichever is.</param>
+        /// <param name="reconnectImmediately">Dial now, rather than leaving it to the retry policy.</param>
+        /// <param name="wasRequested">Whether the drop was asked for, in which case it is not announced as a failure.</param>
+        private bool DropConnection(RespConnection? expected, bool reconnectImmediately = false, bool wasRequested = false)
         {
             RespConnection? doomed;
             lock (_sync)
             {
                 doomed = _connection;
+                if (expected is not null && !ReferenceEquals(doomed, expected)) return false; // already replaced
                 _connection = null;
             }
 
@@ -1434,7 +1461,14 @@ namespace StackExchange.Redis
 
             RespConnection? connection;
             lock (_sync) connection = _connection;
-            if (connection is null || connection.IsClosed) return;
+            if (connection is null) return;
+            if (connection.IsClosed)
+            {
+                // the close notice should already have dropped it; this is the net under that, as the heartbeat
+                // is for the timeouts - a closed connection left published is one nothing would ever retry
+                OnConnectionClosed(connection);
+                return;
+            }
 
             timeoutMilliseconds = EffectiveTimeout(timeoutMilliseconds);
             var expired = timeoutMilliseconds > 0 ? connection.ExpirePending(TimeSpan.FromMilliseconds(timeoutMilliseconds)) : 0;
@@ -2345,6 +2379,15 @@ namespace StackExchange.Redis
                         throw new ObjectDisposedException(nameof(RespEndpointExecutor));
                     }
 
+                    // WEAKLY, for the reason RespClientConnection.Server is weak: the connection is kept alive by its own
+                    // pending read, so a strong delegate here held this executor - and through it the multiplexer -
+                    // for as long as the socket lived (GarbageCollectionTests.MuxerIsCollected). Set before the
+                    // connection is published; see the check below.
+                    var self = new WeakReference<RespEndpointExecutor>(this);
+                    connection.Closed = closed =>
+                    {
+                        if (self.TryGetTarget(out var executor)) executor.OnConnectionClosed(closed);
+                    };
                     _connection = connection;
                     Interlocked.Increment(ref _socketCount);
 
@@ -2353,6 +2396,9 @@ namespace StackExchange.Redis
                     drain = !_writeSlotHeld;
                     if (drain) _writeSlotHeld = true;
                 }
+
+                // a close before Closed was set had nobody to tell; now that it is published, catch that here
+                if (connection.IsClosed) OnConnectionClosed(connection);
 
                 // event 70: v3 flushed what the handshake and the backlog had queued as its last handshake step, and
                 // this is where the same thing happens here - the connection is published and what waited for it goes

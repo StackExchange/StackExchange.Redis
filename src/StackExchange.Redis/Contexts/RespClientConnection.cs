@@ -81,6 +81,19 @@ namespace StackExchange.Redis
     {
         private HashSet<long>? _claims;
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// The type v3 failed these with, so a caller catching <see cref="RedisConnectionException"/> still does, and
+        /// a message that says who closed what rather than only that it is closed.
+        /// </remarks>
+        protected override Exception CreateRemoteClosedFault()
+        {
+            var message = Server?.EndPoint is { } endpoint
+                ? $"The server closed the connection to {Format.ToString(endpoint)}."
+                : "The server closed the connection.";
+            return new RedisConnectionException(ConnectionFailureType.SocketClosed, CommandFlags.None, message, null, CommandStatus.Unknown);
+        }
+
         /// <summary>
         /// Whether deliveries on this connection can arrive as ordinary arrays, not only as push frames.
         /// </summary>

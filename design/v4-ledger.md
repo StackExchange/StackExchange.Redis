@@ -27,10 +27,6 @@ Each has a default the work proceeds on until answered.
   cluster connects stalled together). Suspected lost wake-up, fixed speculatively in d45eadf7 (announce
   "connected" only after the connection is published); not reproduced locally. Tests now print the connection
   log, with thread-pool stats, for any connect that uses half its timeout - read it if it recurs.
-- **A server-side close is silent.** When Redis closed the interactive connection for the output-buffer limit
-  (D7), nothing was logged and no `ConnectionFailed` fired; every pending command failed "The connection is
-  closed." Check what the transport reports on a peer close, that it raises the event and the reconnect
-  path, and that the failure says WHY (the server's reason is in its log, not on the wire).
 - **Absorb `main` by merging**, little and often; resolve each conflict by re-expressing the change in v4
   terms and say how in the merge message. Drift check: `git rev-list --count v4..origin/main`. The final
   landing on `main` must be a real merge, never a squash.
@@ -54,7 +50,8 @@ Each has a default the work proceeds on until answered.
   heavily loaded machine, 20/20 since.
   Pub/sub under full-suite load, each once and each clean in isolation: `MultiGroupTests...PubSubOrderedRouted`
   and `...PubSubRouted` (RESP3), `PubSubKeyNotificationTestsCluster.KeyNotification_CanObserveSimple_ViaQueue`.
-  Three different ones in two runs during the 2026-10-07 perf work; watch for a pattern.
+  `PubSubRouted` and `KeyNotification_CanObserveSimple_ViaQueue` have each now failed in two full runs (RESP2
+  and RESP3), always clean in isolation and in the run after; the leading suspect if a pattern holds.
   (`RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeam...` was a startup race in the TEST, now
   fixed: a pair sent while the post-connect drain holds the write slot goes sequential, which sends the
   PREPARE without asking the gate; the connection-local gate rightly does not claim on being told, so the
