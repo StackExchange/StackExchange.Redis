@@ -101,6 +101,23 @@ Each has a default the work proceeds on until answered.
   that instance by the time the run is written (its request written and enqueued here too) or faulted. Fix: queue
   `(operation, token)` and pass the token through the run-send overloads. Needs a cancelled batch member, so rare.
 
+- **Batch-mode profile (2026-10-07), and two things it ruled out.** SADD, 50 callers x 100 per batch, perf with
+  full stacks: v4 is round-trip bound (40-50% of samples are idle pool workers and the read loop's spin-before-park),
+  command assembly into the transport (`RespConnection.Send`) is 0.9-1.5% - so **buffer packing at construction
+  cannot pay** - and socket sends are ~2x v3's (v4 ~130-145 commands per send, v3 ~280; v4 reads in far larger
+  chunks). Tried and reverted:
+  - *Gathering several committed pages into one send* (copy up to 32 KB into a scratch buffer): sends did not fall
+    (12,950 -> 16,365 per 2M ops). Pages are not the split; each send is ~one caller's flush, because the writer
+    wakes and sends per flush. Only holding sends back would merge callers, which the coalescing experiment found
+    does not raise throughput (round-trip bound).
+  - *Batch/transaction attaching through the inline-copying `Attach(in RespRequest)`* instead of the span overload
+    (which rents an ArrayPool array per command - a 100-deep batch overflows the pool's per-thread cache onto its
+    locked per-core stacks, ~4% of samples): allocation ROSE ~80 B/op, because at depth most operations are new
+    (pool of 128 vs ~5,000 in flight) and each new one allocates its own inline buffer. Throughput within noise.
+  The real lever both point at is **operation pool size at depth**: 128 slots against thousands in flight means
+  most operations (266 B, plus request bytes) are allocated fresh. A larger or depth-adaptive pool (watch the 8-probe
+  `TryTake`) would let the inline buffer stick and make the ArrayPool change pay.
+
 - **Batch/transaction buffer packing**: write a batch's commands adjacently into one shared buffer, rather
   than one rented frame per command, and hand the transport one contiguous run. The abandoned v3-era RESPite
   spike implemented this fully (PR #2959, `marc/respite`, "WIP : RESPite overhaul" - still open but idle since 2026-08: `src/RESPite/RespBatch.cs`,
