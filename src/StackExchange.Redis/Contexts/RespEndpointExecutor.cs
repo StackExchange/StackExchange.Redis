@@ -601,7 +601,9 @@ namespace StackExchange.Redis
 
             var operation = DispatchTyped(request, handler, database, cancellationToken, out var fault, out var forgotten);
             if (fault is not null) return new ValueTask<TResult>(Task.FromException<TResult>(fault));
-            return forgotten ? new ValueTask<TResult>(default(TResult)!) : new ValueTask<TResult>(operation!, operation!.Token);
+            if (forgotten) return new ValueTask<TResult>(default(TResult)!);
+            operation!.NoteDispatched(); // lets a Task bridge register on it directly; see TryTakeDispatched
+            return new ValueTask<TResult>(operation, operation.Token);
         }
 
         /// <inheritdoc/>
@@ -618,7 +620,9 @@ namespace StackExchange.Redis
         {
             var operation = DispatchTyped(request, handler, database, cancellationToken, out var fault, out var forgotten);
             if (fault is not null) return new ValueTask(Task.FromException(fault));
-            return forgotten ? default : new ValueTask(operation!, operation!.Token);
+            if (forgotten) return default;
+            operation!.NoteDispatched();
+            return new ValueTask(operation, operation.Token);
         }
 
         /// <summary>Rent a typed operation, attach and dispatch the request, and release the caller's reference.</summary>

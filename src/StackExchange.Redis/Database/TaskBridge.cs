@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 
 namespace StackExchange.Redis
 {
@@ -71,6 +72,12 @@ namespace StackExchange.Redis
                 return completed.Task;
             }
 
+            // our own operation, as most sends are: register on it with a static callback - no delegate per command
+            if (RespPayloadOperation<T>.TryTakeDispatched(pending, out var token) is { } operation)
+            {
+                return new SourceBridge<T>(operation, token, asyncState).Task;
+            }
+
             return new Bridge<T>(pending, asyncState).Task;
         }
 
@@ -88,7 +95,91 @@ namespace StackExchange.Redis
                 return completed.Task;
             }
 
+            if (RespPayloadOperation<bool>.TryTakeDispatched(pending, out var token) is { } operation)
+            {
+                return new SourceVoidBridge(operation, token, asyncState).Task;
+            }
+
             return new VoidBridge(pending, asyncState).Task;
+        }
+
+        /// <summary>
+        /// <see cref="Bridge{T}"/>, registered on the source itself rather than through the task's awaiter.
+        /// </summary>
+        /// <typeparam name="T">The result type.</typeparam>
+        /// <remarks>
+        /// Identical in outcome - result, cancellation, a fault marked observed as it faults - and one object
+        /// cheaper: the awaiter takes an <see cref="Action"/>, which bound to this instance is a delegate per
+        /// command, where the source takes a static callback and this instance as its state.
+        /// </remarks>
+        private sealed class SourceBridge<T> : TaskCompletionSource<T>
+        {
+            private static readonly Action<object?> s_onCompleted = static state => ((SourceBridge<T>)state!).OnCompleted();
+
+            private readonly IValueTaskSource<T> _source;
+            private readonly short _token;
+
+            internal SourceBridge(IValueTaskSource<T> source, short token, object? asyncState) : base(asyncState)
+            {
+                _source = source;
+                _token = token;
+
+                // already settled - faulted under FailFast, say - is answered NOW, as Bridge answers it
+                if (source.GetStatus(token) != ValueTaskSourceStatus.Pending) OnCompleted();
+                else source.OnCompleted(s_onCompleted, this, token, ValueTaskSourceOnCompletedFlags.None);
+            }
+
+            private void OnCompleted()
+            {
+                try
+                {
+                    TrySetResult(_source.GetResult(_token));
+                }
+                catch (OperationCanceledException ex)
+                {
+                    TrySetCanceled(ex.CancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    TrySetException(ex);
+                    _ = Task.Exception; // observed; see Bridge
+                }
+            }
+        }
+
+        /// <summary><see cref="SourceBridge{T}"/> for a command whose only result is that it succeeded.</summary>
+        private sealed class SourceVoidBridge : TaskCompletionSource<bool>
+        {
+            private static readonly Action<object?> s_onCompleted = static state => ((SourceVoidBridge)state!).OnCompleted();
+
+            private readonly IValueTaskSource _source;
+            private readonly short _token;
+
+            internal SourceVoidBridge(IValueTaskSource source, short token, object? asyncState) : base(asyncState)
+            {
+                _source = source;
+                _token = token;
+                if (source.GetStatus(token) != ValueTaskSourceStatus.Pending) OnCompleted();
+                else source.OnCompleted(s_onCompleted, this, token, ValueTaskSourceOnCompletedFlags.None);
+            }
+
+            private void OnCompleted()
+            {
+                try
+                {
+                    _source.GetResult(_token);
+                    TrySetResult(true);
+                }
+                catch (OperationCanceledException ex)
+                {
+                    TrySetCanceled(ex.CancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    TrySetException(ex);
+                    _ = Task.Exception;
+                }
+            }
         }
 
         /// <summary>

@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using StackExchange.Redis.Protocol;
 
@@ -32,6 +34,59 @@ namespace StackExchange.Redis
 
         private IRespHandler<TResult>? _handler;
         private RespExecutorBase? _executor;
+
+        [ThreadStatic]
+        private static RespPayloadOperation<TResult>? t_dispatched;
+
+        /// <summary>Note this as the operation this thread has just handed back as a task.</summary>
+        /// <remarks>See <see cref="TryTakeDispatched(ValueTask{TResult}, out short)"/>.</remarks>
+        internal void NoteDispatched() => t_dispatched = this;
+
+        /// <summary>
+        /// Recover the operation behind a task this thread was just given, without reaching into <see cref="ValueTask{TResult}"/>.
+        /// </summary>
+        /// <param name="pending">The task to identify.</param>
+        /// <param name="token">The operation's token, when it is ours.</param>
+        /// <returns>The operation, or null if <paramref name="pending"/> is anything else.</returns>
+        /// <remarks>
+        /// <para>
+        /// For the <c>IDatabase</c> bridge, which turns this task into a <see cref="Task"/>: knowing the source, it can
+        /// register on it with a STATIC callback, where going through the task's awaiter costs a delegate per command.
+        /// </para>
+        /// <para>
+        /// <b>Safe because it is checked, not trusted.</b> <see cref="ValueTask{TResult}.Equals(ValueTask{TResult})"/>
+        /// compares the source and the token, so a stale note - a cache hit in between, a decorator's own task, another
+        /// command - simply fails to match, and the caller falls back to the awaiter.
+        /// </para>
+        /// </remarks>
+        internal static RespPayloadOperation<TResult>? TryTakeDispatched(ValueTask<TResult> pending, out short token)
+        {
+            var noted = t_dispatched;
+            t_dispatched = null;
+            if (noted is not null)
+            {
+                token = noted.Token;
+                if (pending.Equals(new ValueTask<TResult>(noted, token))) return noted;
+            }
+
+            token = 0;
+            return null;
+        }
+
+        /// <inheritdoc cref="TryTakeDispatched(ValueTask{TResult}, out short)"/>
+        internal static RespPayloadOperation<TResult>? TryTakeDispatched(ValueTask pending, out short token)
+        {
+            var noted = t_dispatched;
+            t_dispatched = null;
+            if (noted is not null)
+            {
+                token = noted.Token;
+                if (pending.Equals(new ValueTask(noted, token))) return noted;
+            }
+
+            token = 0;
+            return null;
+        }
 
         /// <summary>Rent an operation that will parse its reply with <paramref name="handler"/>.</summary>
         /// <param name="handler">Parses the reply.</param>
