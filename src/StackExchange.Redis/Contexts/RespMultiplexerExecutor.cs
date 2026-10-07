@@ -303,6 +303,25 @@ namespace StackExchange.Redis
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
             => Route(in request).SendAsync(request, cancellationToken);
 
+        /// <inheritdoc/>
+        /// <remarks>Routing can refuse (cross-slot, a write demanded of a replica); that is a faulted task, not a throw.</remarks>
+        internal override ValueTask<TResult> SendTypedAsync<TResult>(
+            RespRequest request, IRespHandler<TResult> handler, CancellationToken cancellationToken)
+        {
+            RespExecutorBase target;
+            try
+            {
+                target = Route(in request);
+            }
+            catch (Exception ex)
+            {
+                request.Dispose();
+                return new ValueTask<TResult>(Task.FromException<TResult>(ex));
+            }
+
+            return target.SendTypedAsync(request, handler, cancellationToken);
+        }
+
         /// <summary>Pick the endpoint for one command.</summary>
         /// <param name="request">The rendered request, carrying its combined slot.</param>
         private RespExecutorBase Route(in RespRequest request)

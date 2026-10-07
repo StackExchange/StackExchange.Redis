@@ -69,6 +69,29 @@ namespace StackExchange.Redis
         /// <param name="cancellationToken">Cancels the send.</param>
         public abstract ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default);
 
+        /// <summary>Issue the request and parse its reply.</summary>
+        /// <typeparam name="TResult">What the handler makes of the reply.</typeparam>
+        /// <param name="request">The rendered request; consumed by this call on every path.</param>
+        /// <param name="handler">Parses the reply.</param>
+        /// <param name="cancellationToken">Cancels the send.</param>
+        /// <returns>The parsed reply.</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>The default awaits the payload and parses it in an async method</b>, which suspends and so boxes
+        /// its state machine whenever the reply is not already there. The pooling builder recycles those boxes
+        /// only while few are alive at once; a deep pipeline keeps hundreds of thousands in flight, and then
+        /// every send allocates one - measured at ~285 bytes, a third of everything a send allocated.
+        /// </para>
+        /// <para>
+        /// An executor that owns the operation overrides this to make the operation itself the awaitable for
+        /// the parsed result (<see cref="RespPayloadOperation{TResult}"/>), so a send is one object rather than
+        /// two. Everything else - retry, batches, transactions, decorators - keeps this default.
+        /// </para>
+        /// </remarks>
+        internal virtual ValueTask<TResult> SendTypedAsync<TResult>(
+            RespRequest request, IRespHandler<TResult> handler, CancellationToken cancellationToken)
+            => RespExecutor.AwaitUncached(this, request, handler, cancellationToken);
+
         /// <summary>Whether this executor can honour a <see cref="CancellationToken"/> once a command is sent.</summary>
         /// <remarks>
         /// <para>
@@ -839,7 +862,7 @@ namespace StackExchange.Redis
         /// than as the <c>NOAUTH</c> that followed it.
         /// </para>
         /// </remarks>
-        private static Exception? AuthFault(RespExecutorBase executor, RedisServerException ex)
+        internal static Exception? AuthFault(RespExecutorBase executor, RedisServerException ex)
         {
             if (ex.Kind is not (RedisErrorKind.NoAuth or RedisErrorKind.WrongPass)) return null;
             if (executor.Multiplexer is not { } muxer) return null;
@@ -898,7 +921,7 @@ namespace StackExchange.Redis
                 + "in-flight request, so honouring the token is not possible. Pass 'default', or use a "
                 + "context whose executor supports cancellation.");
 
-        private static TResult Parse<TResult>(IRespHandler<TResult> handler, RespPayload? response)
+        internal static TResult Parse<TResult>(IRespHandler<TResult> handler, RespPayload? response)
             => response switch
             {
                 null => default!,
@@ -1092,7 +1115,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            return AwaitUncached(executor, request.Detach(flags), handler, cancellationToken);
+            return executor.SendTypedAsync(request.Detach(flags), handler, cancellationToken);
         }
 
         /// <summary>
@@ -1458,6 +1481,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>The awaiting tail of an uncached send.</summary>
+        /// <typeparam name="TResult">What the handler makes of the reply.</typeparam>
+        /// <param name="executor">The executor to send through.</param>
+        /// <param name="request">The rendered request; consumed by this call.</param>
+        /// <param name="handler">Parses the reply.</param>
+        /// <param name="cancellationToken">Cancels the send.</param>
+        /// <returns>The parsed reply.</returns>
         /// <remarks>
         /// <para>
         /// <b>Pooled, and this is the single largest allocation on the path.</b> The synchronous part of
@@ -1482,7 +1511,7 @@ namespace StackExchange.Redis
 #if NET6_0_OR_GREATER
         [AsyncMethodBuilder(typeof(System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder<>))]
 #endif
-        private static async ValueTask<TResult> AwaitUncached<TResult>(
+        internal static async ValueTask<TResult> AwaitUncached<TResult>(
             RespExecutorBase executor,
             RespRequest request,
             IRespHandler<TResult> handler,

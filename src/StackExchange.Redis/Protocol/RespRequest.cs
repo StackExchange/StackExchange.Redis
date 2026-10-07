@@ -123,6 +123,29 @@ namespace StackExchange.Redis.Protocol
         /// </remarks>
         public bool IsOwned => _lease is not null;
 
+        /// <summary>Take a reference of our own on these bytes, rather than copying them.</summary>
+        /// <param name="memory">The request bytes, valid until <paramref name="owner"/> is disposed.</param>
+        /// <param name="owner">Disposing it releases the reference taken here, once.</param>
+        /// <returns>False for a borrowed request, or one whose lease has already been released: copy instead.</returns>
+        /// <remarks>
+        /// An operation that is handed a request used to rent a second buffer and copy the frame into it, so
+        /// every command carried two arrays from the shared pool - and at pipeline depths beyond what the pool
+        /// holds, allocated both. The frame is already reference-counted; sharing it is one interlocked add.
+        /// </remarks>
+        internal bool TryShare(out ReadOnlyMemory<byte> memory, out IDisposable? owner)
+        {
+            if (_lease is { } lease && _array is { } array && lease.TryAddRef())
+            {
+                memory = new ReadOnlyMemory<byte>(array, _offset, _length);
+                owner = lease; // disposing a RefCountedBuffer releases one reference
+                return true;
+            }
+
+            memory = default;
+            owner = null;
+            return false;
+        }
+
         /// <summary>
         /// The rendered frame. Throws once the last reference has gone, rather than quietly reading bytes
         /// that now belong to somebody else's rent.

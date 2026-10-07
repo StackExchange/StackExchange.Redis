@@ -23,7 +23,7 @@ namespace StackExchange.Redis
     /// of the receive buffer instead is a real win and a separate piece of work.
     /// </para>
     /// </remarks>
-        internal sealed class RespPayloadOperation : RespMessageBase<RespPayload>, IFaultSubject
+        internal class RespPayloadOperation : RespMessageBase<RespPayload>, IFaultSubject
     {
         /// <summary>
         /// Recycled operations, so a steady-state send allocates no operation at all.
@@ -47,21 +47,14 @@ namespace StackExchange.Redis
         /// </remarks>
         private static readonly RespPayloadOperation?[] Pool = new RespPayloadOperation[PoolSize];
 
-        private const int PoolSize = 128;
+        private protected const int PoolSize = 128; // a power of two: slots are chosen by masking
+
+        /// <summary>Where this thread starts looking, so threads do not all contend for the same first slots.</summary>
+        private static int StartSlot() => Environment.CurrentManagedThreadId * 7;
 
         internal static RespPayloadOperation Rent()
         {
-            RespPayloadOperation? operation = null;
-            for (var i = 0; i < Pool.Length; i++)
-            {
-                if (Interlocked.Exchange(ref Pool[i], null) is { } reused)
-                {
-                    operation = reused;
-                    break;
-                }
-            }
-
-            operation ??= new RespPayloadOperation();
+            var operation = TryTake(Pool) ?? new RespPayloadOperation();
 
             // rented during a synchronous call on this thread: its continuations run on that thread while the
             // call waits, not on the pool - see SyncPump
@@ -69,11 +62,46 @@ namespace StackExchange.Redis
             return operation;
         }
 
-        private static void Return(RespPayloadOperation operation)
+        private static void Return(RespPayloadOperation operation) => TryGive(Pool, operation);
+
+        /// <summary>Take an instance from a pool, or null if none is there.</summary>
+        /// <typeparam name="T">The pooled type.</typeparam>
+        /// <param name="pool">The pool; its length is a power of two.</param>
+        /// <returns>An instance, or null.</returns>
+        private protected static T? TryTake<T>(T?[] pool)
+            where T : class
         {
-            for (var i = 0; i < Pool.Length; i++)
+            var start = StartSlot();
+            for (var n = 0; n < pool.Length; n++)
             {
-                if (Interlocked.CompareExchange(ref Pool[i], operation, null) is null) return;
+                var i = (start + n) & (pool.Length - 1);
+
+                // READ before exchanging: an empty slot read stays a shared cache line, where an exchange takes
+                // it exclusive whether or not anything was there. Under a deep pipeline the pool is nearly always
+                // empty, and exchanging every slot in turn was 128 contended atomic writes per operation.
+                if (Volatile.Read(ref pool[i]) is not null && Interlocked.Exchange(ref pool[i], null) is { } taken)
+                {
+                    return taken;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>Put an instance into a pool, or drop it if the pool is full.</summary>
+        /// <typeparam name="T">The pooled type.</typeparam>
+        /// <param name="pool">The pool; its length is a power of two.</param>
+        /// <param name="item">The instance to keep.</param>
+        private protected static void TryGive<T>(T?[] pool, T item)
+            where T : class
+        {
+            var start = StartSlot();
+            for (var n = 0; n < pool.Length; n++)
+            {
+                var i = (start + n) & (pool.Length - 1);
+
+                // likewise: only try a slot that looks free
+                if (Volatile.Read(ref pool[i]) is null && Interlocked.CompareExchange(ref pool[i], item, null) is null) return;
             }
 
             // pool full; drop it, which is why this is lossy by design rather than by accident
@@ -444,6 +472,19 @@ namespace StackExchange.Redis
         /// hands the instance to the next caller.
         /// </remarks>
         protected override void OnRecyclable() => Return(this);
+
+        /// <summary>Attach a rendered request, sharing its buffer where it owns one rather than copying it.</summary>
+        internal void Attach(in RespRequest request, CancellationToken cancellationToken)
+        {
+            if (request.TryShare(out var memory, out var owner))
+            {
+                _flags = request.Flags;
+                SetRequest(memory, owner, cancellationToken);
+                return;
+            }
+
+            Attach(request.Span, request.Flags, cancellationToken);
+        }
 
         internal void Attach(ReadOnlySpan<byte> request, CommandFlags flags, CancellationToken cancellationToken)
         {

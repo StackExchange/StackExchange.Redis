@@ -71,6 +71,7 @@
     <!-- imported into consuming projects; makes <RedisMinServerVersion> visible to the shipped analyzer -->
     <None Include="build\StackExchange.Redis.props" Pack="true" PackagePath="build\" />
 
+    <Compile Update="Contexts\RespPayloadOperation.*.cs" DependentUpon="RespPayloadOperation.cs" />
     <Compile Update="BitFieldOperation.*.cs" DependentUpon="BitFieldOperation.cs" />
     <Compile Update="HotKeys.*.cs" DependentUpon="HotKeys.cs" />
     <Compile Update="RedisValue.*.cs" DependentUpon="RedisValue.cs" />

@@ -571,6 +571,56 @@ namespace StackExchange.Redis
         }
 
         /// <inheritdoc/>
+        internal override ValueTask<TResult> SendTypedAsync<TResult>(
+            RespRequest request, IRespHandler<TResult> handler, CancellationToken cancellationToken)
+            => SendTypedAsync(request, handler, Database, cancellationToken);
+
+        /// <summary>Send for a database that may not be this executor's own, completing with the parsed reply.</summary>
+        /// <typeparam name="TResult">What the handler makes of the reply.</typeparam>
+        /// <param name="request">The rendered request; consumed by this call on every path.</param>
+        /// <param name="handler">Parses the reply.</param>
+        /// <param name="database">The database the command belongs to.</param>
+        /// <param name="cancellationToken">Cancels the send.</param>
+        /// <returns>The parsed reply.</returns>
+        /// <remarks>
+        /// The typed twin of <see cref="SendAsync(RespRequest, CancellationToken)"/>: the operation is the
+        /// awaitable, so no async method sits between the caller and the reply (see
+        /// <see cref="RespPayloadOperation{TResult}"/>). Two things are kept exactly as the async tail had them.
+        /// A synchronous failure - validation, a disposed executor - is a FAULTED task, not a throw at the call
+        /// site, because callers may hold the task before awaiting it; and the request is released as soon as
+        /// the operation has its own reference, where the tail held it until the reply.
+        /// </remarks>
+        internal ValueTask<TResult> SendTypedAsync<TResult>(
+            RespRequest request, IRespHandler<TResult> handler, int database, CancellationToken cancellationToken)
+        {
+            if (typeof(TResult) == typeof(RespPayload)) return RespExecutor.AwaitUncached(this, request, handler, cancellationToken);
+
+            RespPayloadOperation<TResult> operation;
+            try
+            {
+                operation = RespPayloadOperation<TResult>.Rent(handler, this);
+                Dispatch(in request, database, cancellationToken, profile: true, operation);
+            }
+            catch (Exception ex)
+            {
+                request.Dispose();
+                return new ValueTask<TResult>(Task.FromException<TResult>(ex));
+            }
+
+            var flags = request.Flags;
+            request.Dispose(); // the operation shares the bytes (or copied them); this reference is done
+
+            if ((flags & CommandFlags.FireAndForget) != 0)
+            {
+                // as the untyped send: the outcome is declined, and the caller sees default
+                RespPayloadOperation.DiscardReply(operation);
+                OnFireAndForget();
+                return new ValueTask<TResult>(default(TResult)!);
+            }
+
+            return new ValueTask<TResult>(operation, operation.Token);
+        }
+
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
             var operation = Dispatch(in request, cancellationToken);
@@ -1648,13 +1698,14 @@ namespace StackExchange.Redis
         /// <c>SCRIPT LOAD</c> it inserted either, and a session that listed one would be reporting work
         /// nobody asked for, in a sequence the caller cannot reproduce.
         /// </param>
+        /// <param name="rented">An operation already rented by the caller - a typed one - or null to rent here.</param>
         private RespPayloadOperation Dispatch(
-            in RespRequest request, int database, CancellationToken cancellationToken, bool profile)
+            in RespRequest request, int database, CancellationToken cancellationToken, bool profile, RespPayloadOperation? rented = null)
         {
             Validate(in request, database);
 
-            var operation = RespPayloadOperation.Rent();
-            operation.Attach(request.Span, request.Flags, cancellationToken);
+            var operation = rented ?? RespPayloadOperation.Rent();
+            operation.Attach(in request, cancellationToken);
             operation.Database = database;
             operation.Command = request.Command;
             operation.Observer = this;
