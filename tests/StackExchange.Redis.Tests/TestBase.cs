@@ -148,6 +148,10 @@ public abstract class TestBase : IDisposable
 
     static TestBase()
     {
+        // the net under every operation's timeout - off by default for its cost, and on here for what it is
+        // for: a bug in the timeout bookkeeping should fail a test after two minutes, not hang the run
+        RESPite.Operations.OperationBackstop.Backstop = TimeSpan.FromMinutes(2);
+
         TaskScheduler.UnobservedTaskException += (sender, args) =>
         {
             Console.WriteLine("Unobserved: " + args.Exception);
