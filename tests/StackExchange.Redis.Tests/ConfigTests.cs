@@ -742,6 +742,42 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     /// <summary>
+    /// Under RESP2 with no configuration channel, the subscription socket is not opened until something
+    /// subscribes: a consumer that never uses pub/sub must not pay for a second connection.
+    /// </summary>
+    /// <remarks>
+    /// The configuration channel is the one thing that subscribes on connect, which is why the default
+    /// configuration opens two sockets (see <see cref="BeforeSocketConnect"/>). Without it, lazy is the
+    /// intended, long-standing behaviour.
+    /// </remarks>
+    [Fact]
+    public async Task WithoutAConfigChannelTheResp2SubscriptionSocketIsLazy()
+    {
+        // RESP3 carries subscriptions on the interactive connection, so there is no second socket to be lazy about
+        Assert.SkipWhen(TestContext.Current.IsResp3(), "RESP3 has no separate subscription socket");
+        var options = Parse(TestConfig.Current.PrimaryServerAndPort + ",configChannel=,protocol=resp2");
+        int interactive = 0, subscription = 0;
+        options.BeforeSocketConnect = (endpoint, connType, socket) =>
+        {
+            if (connType == ConnectionType.Subscription) Interlocked.Increment(ref subscription);
+            else Interlocked.Increment(ref interactive);
+        };
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+        Assert.True(conn.IsConnected);
+        await Task.Delay(1000); // long enough for a background dial to have happened, if there were one
+
+        Assert.Equal(1, Volatile.Read(ref interactive));
+        Assert.Equal(0, Volatile.Read(ref subscription));
+
+        // ...and the first subscriber is what opens it
+        var channel = RedisChannel.Literal(Me());
+        await conn.GetSubscriber().SubscribeAsync(channel, (_, _) => { });
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref subscription) >= 1);
+        Assert.Equal(1, Volatile.Read(ref subscription));
+    }
+
+    /// <summary>
     /// Reads a property that is obsolete-as-error, which the compiler will not let us name directly
     /// (and <c>#pragma warning disable</c> cannot suppress, since it is an error rather than a warning).
     /// </summary>
