@@ -594,7 +594,13 @@ while c1 took an `INCR` every ~5 s and c2 was read back; then `{"crdt_sync":"ena
   cluster certificate (pinned on each), and its `*.<fqdn>` SAN covers the database hostname, so the
   `TrustIssuer` pin should hold there too (*inferred*; only the fingerprint was checked on that path). So
   the local form is usable, and arguably the more truthful one, provided it is routed by database host.
-  Not yet measured: whether `local` + `extend_check=lag` flips under paused sync as the database form does.
+  *Measured 2026-10-07 (`marcgravell-test-823d3f1e`):* under paused sync the local form, routed by
+  database host, behaves exactly like the database form - plain 200 throughout; lag 503 on the stale
+  member only, at 100 ms and 600000 ms alike, from the first sample (~2 s); cleared on the same sample as
+  the database form once data caught up. Its lag failure is `bdb_endpoint_unavailable`, which is also
+  what it answers on a node not serving the endpoint, so it is no more distinguishable by body than the
+  database form. For lag, the two forms give the same verdict; the difference is call shape (one per
+  database versus one per endpoint, and the local form only works routed by database host).
 - **`/v1/bdbs` returns database passwords** (`authentication_redis_pass`, `authentication_admin_pass`)
   when `mask_bdb_credentials` is false, as on these clusters, and `/v1/crdbs` returns the same for every
   instance. Captured bodies cannot be committed as fixtures without scrubbing. Relevant to credential
