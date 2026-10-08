@@ -72,7 +72,8 @@ public abstract partial class HealthCheckProbe
         private static HttpMessageHandler CreateHandler(RemoteCertificateValidationCallback? validation)
         {
 #if NET
-            var handler = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(2) };
+            // redirects point at a node's internal address, so following one only ever hangs; report it instead
+            var handler = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(2), AllowAutoRedirect = false };
             if (validation is not null) handler.SslOptions.RemoteCertificateValidationCallback = validation;
             return handler;
 #elif NET461
@@ -80,9 +81,9 @@ public abstract partial class HealthCheckProbe
             {
                 throw new PlatformNotSupportedException("Custom certificate validation for the REST API requires .NET Framework 4.7.1 or later.");
             }
-            return new HttpClientHandler();
+            return new HttpClientHandler { AllowAutoRedirect = false };
 #else
-            var handler = new HttpClientHandler();
+            var handler = new HttpClientHandler { AllowAutoRedirect = false };
             if (validation is not null)
             {
                 handler.ServerCertificateCustomValidationCallback = (request, certificate, chain, errors) => validation(request, certificate, chain, errors);
@@ -101,7 +102,7 @@ public abstract partial class HealthCheckProbe
                 return Inconclusive(multiplexer, "(none)", "the member has no configured endpoint");
             }
 
-            var rest = _restEndpoint ?? new UriBuilder(Uri.UriSchemeHttps, host, DefaultRestPort).Uri;
+            var rest = _restEndpoint ?? new UriBuilder(Uri.UriSchemeHttps, ClusterHost(host, port.Value), DefaultRestPort).Uri;
             var key = $"{rest}|{host}:{port}";
             var known = _discovered.GetOrAdd(key, static _ => new Discovered());
 
@@ -119,7 +120,7 @@ public abstract partial class HealthCheckProbe
                 {
                     // filtered: an unfiltered /v1/bdbs carries database passwords, even for db_viewer
                     using var list = await GetAsync(rest, "v1/bdbs?fields=uid,endpoints", auth, cts.Token).ForAwait();
-                    if (list.StatusCode != HttpStatusCode.OK) return Inconclusive(multiplexer, rest, $"database discovery answered {(int)list.StatusCode}");
+                    if (list.StatusCode != HttpStatusCode.OK) return Inconclusive(multiplexer, rest, Describe("database discovery", list));
                     uid = FindUid(await list.Content.ReadAsStringAsync().ForAwait(), host, port!.Value);
                     if (uid is null) return Inconclusive(multiplexer, rest, $"no database on this cluster has the endpoint {host}:{port}");
                     known.Uid = uid;
@@ -135,7 +136,7 @@ public abstract partial class HealthCheckProbe
                 {
                     using var bdb = await GetAsync(rest, $"v1/bdbs/{uid}?fields=uid,crdt", auth, cts.Token).ForAwait();
                     if (bdb.StatusCode == HttpStatusCode.NotFound) return Forget(key);
-                    if (bdb.StatusCode != HttpStatusCode.OK) return Inconclusive(multiplexer, rest, $"database lookup answered {(int)bdb.StatusCode}");
+                    if (bdb.StatusCode != HttpStatusCode.OK) return Inconclusive(multiplexer, rest, Describe("database lookup", bdb));
                     lag = IsActiveActive(await bdb.Content.ReadAsStringAsync().ForAwait());
                     known.ActiveActive = lag;
                 }
@@ -153,7 +154,7 @@ public abstract partial class HealthCheckProbe
                     HttpStatusCode.OK => HealthCheckResult.Healthy,
                     HttpStatusCode.ServiceUnavailable => HealthCheckResult.Unhealthy, // unavailable, or lagging
                     HttpStatusCode.NotFound => Forget(key),
-                    _ => Inconclusive(multiplexer, rest, $"availability answered {(int)response.StatusCode}"),
+                    _ => Inconclusive(multiplexer, rest, Describe("availability", response)),
                 };
             }
             catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException or IOException)
@@ -162,12 +163,30 @@ public abstract partial class HealthCheckProbe
             }
         }
 
+        // Database endpoints are named "redis-{port}.{cluster fqdn}"; ask the cluster name, not the database's. Any
+        // node answers the availability routes itself, but the others (discovery, the crdt lookup) are answered
+        // only by the master: other nodes redirect to its *internal* address, unreachable from outside the
+        // cluster's network. The cluster name resolves to the master. A host that does not follow the pattern
+        // is used as given.
+        internal static string ClusterHost(string host, int port)
+        {
+            var prefix = $"redis-{port}.";
+            return host.Length > prefix.Length && host.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                ? host.Substring(prefix.Length)
+                : host;
+        }
+
         // the database has gone (or the configured uid is wrong): unhealthy, and rediscover next time
         private HealthCheckResult Forget(string key)
         {
             _discovered.TryRemove(key, out _);
             return HealthCheckResult.Unhealthy;
         }
+
+        private static string Describe(string what, HttpResponseMessage response)
+            => response.Headers.Location is { } location
+                ? $"{what} answered {(int)response.StatusCode}, redirecting to {location} (set RestEndpoint to an address that answers directly)"
+                : $"{what} answered {(int)response.StatusCode}";
 
         private static TimeSpan Budget(TimeSpan probeTimeout)
         {

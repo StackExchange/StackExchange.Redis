@@ -102,10 +102,10 @@ public class LagAwareProbeTests(ITestOutputHelper log)
             ["/v1/bdbs?fields=uid,endpoints", "/v1/bdbs/1?fields=uid,crdt", "/v1/bdbs/1/availability?extend_check=lag"],
             handler.Paths);
 
-        // derived from the configured database host; Basic auth on every request
+        // the cluster name, derived from the configured database host; Basic auth on every request
         Assert.All(handler.Requests, r =>
         {
-            Assert.Equal($"https://{Host}:9443", r.RequestUri!.GetLeftPart(UriPartial.Authority));
+            Assert.Equal("https://c1.example.com:9443", r.RequestUri!.GetLeftPart(UriPartial.Authority));
             Assert.Equal("Basic", r.Headers.Authorization?.Scheme);
             Assert.Equal(Convert.ToBase64String(Encoding.UTF8.GetBytes("probe@example.com:s3cret")), r.Headers.Authorization?.Parameter);
         });
@@ -229,6 +229,30 @@ public class LagAwareProbeTests(ITestOutputHelper log)
         Assert.DoesNotContain(handler.Paths, p => p.Contains("extend_check") || p.Contains("crdt"));
     }
 
+    [Theory]
+    [InlineData("redis-14460.c1.example.com", 14460, "c1.example.com")] // the form Redis Enterprise assigns
+    [InlineData("REDIS-14460.c1.example.com", 14460, "c1.example.com")]
+    [InlineData("redis-14460.c1.example.com", 6379, "redis-14460.c1.example.com")] // port does not match
+    [InlineData("cache.example.com", 14460, "cache.example.com")] // a name of the operator's own
+    [InlineData("redis-14460.", 14460, "redis-14460.")]
+    public void DerivesTheClusterNameFromTheDatabaseHost(string host, int port, string expected)
+        => Assert.Equal(expected, HealthCheckProbe.LagAwareProbe.ClusterHost(host, port));
+
+    [Fact]
+    public async Task ARedirectIsReportedNotFollowed()
+    {
+        // measured: non-master nodes redirect management routes to the master's internal address
+        var handler = new StubHandler((request, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TemporaryRedirect);
+            response.Headers.Location = new Uri("https://10.0.101.184:9443" + request.RequestUri!.PathAndQuery);
+            return Task.FromResult(response);
+        });
+        var (result, _) = await CheckOnceAsync(handler);
+        Assert.Equal(HealthCheckResult.Inconclusive, result);
+        Assert.Single(handler.Requests);
+    }
+
     [Fact]
     public void FindsTheDatabaseByAddressAsWellAsByName()
         => Assert.Equal(2, HealthCheckProbe.LagAwareProbe.FindUid(BdbList, "100.53.190.50", 12706));
@@ -257,12 +281,12 @@ public class LagAwareProbeTests(ITestOutputHelper log)
         var handler = new StubHandler((request, _) =>
         {
             var path = request.RequestUri!.PathAndQuery;
-            var host = request.RequestUri.Host;
+            var isC2 = request.RequestUri.Host == "c2.example.com"; // the cluster names, derived from the members' hosts
             (HttpStatusCode Status, string? Body) answer = path switch
             {
-                "/v1/bdbs?fields=uid,endpoints" => (HttpStatusCode.OK, BdbList.Replace(".c1.", host.Contains(".c2.") ? ".c2." : ".c1.")),
+                "/v1/bdbs?fields=uid,endpoints" => (HttpStatusCode.OK, isC2 ? BdbList.Replace(".c1.", ".c2.") : BdbList),
                 "/v1/bdbs/1?fields=uid,crdt" => (HttpStatusCode.OK, ActiveActive),
-                _ => host.Contains(".c2.") ? (HttpStatusCode.ServiceUnavailable, Unavailable) : (HttpStatusCode.OK, null),
+                _ => isC2 ? (HttpStatusCode.ServiceUnavailable, Unavailable) : (HttpStatusCode.OK, null),
             };
             var response = new HttpResponseMessage(answer.Status);
             if (answer.Body is not null) response.Content = new StringContent(answer.Body);
@@ -291,7 +315,7 @@ public class LagAwareProbeTests(ITestOutputHelper log)
 
         Assert.Equal("alpha", group.ActiveMember?.Name);
         Assert.False(members[1].FailbackVerified);
-        Assert.Contains(handler.Requests, r => r.RequestUri!.Host == betaEp.Host && r.RequestUri.AbsolutePath == "/v1/bdbs/1/availability");
+        Assert.Contains(handler.Requests, r => r.RequestUri!.Host == "c2.example.com" && r.RequestUri.AbsolutePath == "/v1/bdbs/1/availability");
     }
 
     private sealed class GateProbe : HealthCheckProbe
