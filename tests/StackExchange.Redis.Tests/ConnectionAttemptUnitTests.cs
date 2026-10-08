@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -281,7 +282,8 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
         var attempt = await FirstAttemptAsync(attempts);
-        output.WriteLine($"{attempt.Stage} / {attempt.FailureType}; server certificate accepted: {attempt.ServerCertificateAccepted}; {attempt.Exception?.GetType().Name}: {attempt.Exception?.Message}; inner {attempt.Exception?.InnerException?.GetType().Name}: {attempt.Exception?.InnerException?.Message}");
+        var inner = attempt.Exception?.InnerException;
+        output.WriteLine($"{attempt.Stage} / {attempt.FailureType}; server certificate accepted: {attempt.ServerCertificateAccepted}; {attempt.Exception?.GetType().Name}: {attempt.Exception?.Message}; inner {inner?.GetType().Name} (HResult 0x{inner?.HResult:X8}, native {(inner as Win32Exception)?.NativeErrorCode:X8}): {inner?.Message}");
         Assert.True(IsLikelyClientCertificateRejection(attempt));
     }
 
@@ -290,7 +292,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         => !e.IsSuccess
         && e.ServerCertificateAccepted == true
         && ((e.Stage == ConnectionAttemptStage.Tls && e.FailureType == ConnectionFailureType.AuthenticationFailure)
-            || (e.Stage == ConnectionAttemptStage.Handshake && e.FailureType == ConnectionFailureType.SocketClosed));
+            || (e.Stage == ConnectionAttemptStage.Handshake && e.FailureType is ConnectionFailureType.SocketClosed or ConnectionFailureType.SocketFailure));
 
     [Fact]
     public void DisposedClientCertificateDoesNotThrow()

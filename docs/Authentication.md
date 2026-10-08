@@ -111,15 +111,18 @@ static bool IsLikelyClientCertificateRejection(ConnectionAttemptCompletedEventAr
     => !e.IsSuccess
     && e.ServerCertificateAccepted == true // the server certificate was fine...
     && ((e.Stage == ConnectionAttemptStage.Tls && e.FailureType == ConnectionFailureType.AuthenticationFailure) // TLS 1.2
-        || (e.Stage == ConnectionAttemptStage.Handshake && e.FailureType == ConnectionFailureType.SocketClosed)); // TLS 1.3
+        || (e.Stage == ConnectionAttemptStage.Handshake // TLS 1.3
+            && e.FailureType is ConnectionFailureType.SocketClosed or ConnectionFailureType.SocketFailure));
 ```
 
 `e.Stage` says how far the attempt got: `Connect`, `Tunnel`, `Tls`, `Handshake`, or `Established` on success. Telling a rejected
 client certificate apart from other failures needs both the stage and the failure type:
 
 - With TLS 1.2, the server rejects the certificate during the TLS handshake: `Tls` + `AuthenticationFailure`.
-- With TLS 1.3, the client's TLS handshake completes *before* the server rejects the certificate, and the server then hangs up
-  during the Redis handshake that follows: `Handshake` + `SocketClosed`.
+- With TLS 1.3, the client's TLS handshake completes *before* the server rejects the certificate, so the rejection surfaces
+  during the Redis handshake that follows. How it surfaces depends on the platform's TLS stack: as the server hanging up,
+  `Handshake` + `SocketClosed` (seen on Linux), or as a failed read, `Handshake` + `SocketFailure`, whose exception describes
+  the server's TLS alert (seen on Windows).
 - A wrong password or ACL problem is the server *replying* with an error during the Redis handshake: `Handshake` +
   `AuthenticationFailure`. That says nothing about the certificate, and must not count against it.
 - An attempt that the library abandons itself, for example to retry the initial connect, reports `ConnectionDisposed` at
@@ -128,8 +131,8 @@ client certificate apart from other failures needs both the stage and the failur
 Treat the classification as a lower bound: if the library abandons an attempt at the same moment the server rejects the
 certificate, the attempt is reported as abandoned, and the rejection is not seen.
 
-Even so, `SocketClosed` is a weak signal: server restarts, connection resets, `maxclients` and network interruptions look the
-same. If you act on it, for example by falling back to an older certificate:
+Even so, `SocketClosed` and `SocketFailure` are weak signals: server restarts, connection resets, `maxclients` and network
+interruptions look the same. If you act on it, for example by falling back to an older certificate:
 
 - **require corroboration**, such as several consecutive suspected rejections of the same certificate, rather than reacting to
   one;
