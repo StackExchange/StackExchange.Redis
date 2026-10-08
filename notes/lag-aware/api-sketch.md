@@ -1,8 +1,10 @@
 # Lag-aware availability: API sketch
 
-Status: **sketch for review, not implemented.** Evidence is in [`findings.md`](findings.md) (section 10
-especially); sequence in [`plan.md`](plan.md). Everything here sits behind `SER007`
-(`Experiments.GeoRedundantFailover`), like the rest of `Availability/`.
+Status: **sections 1 and 2 implemented** (2026-10-08); the probe (3) and onwards are still a sketch.
+Evidence is in [`findings.md`](findings.md) (section 10 especially); sequence in [`plan.md`](plan.md).
+*Correction:* `SER007` was retired when geo-redundant failover went GA (#3247), so the shipped
+`Availability/` API is not experimental; everything new here is behind a new diagnostic, **`SER011`**
+(`Experiments.LagAwareFailover`, documented in `docs/exp/SER011.md`).
 
 Aim: parity with Lettuce, Jedis, redis-py and go-redis where it serves users, and deliberate,
 documented deviations where the measurements say the others get it wrong.
@@ -76,6 +78,20 @@ Rules, applied by `SelectPreferredGroup` / `UpdateState`:
 stale reading evicts the active member. Measured: only the member *behind* flips, which is never the
 one being written to, so for a single-writer deployment that eviction does not happen, and for a
 multi-writer one it would be wrong. This is a deliberate deviation.
+
+**As built**, with one consequence worth reviewing: because the active member is never evicted by its
+failback check, a member chosen by the liveness fallback (no eligible member was up at the time) stays
+active while it is alive, even after an eligible member appears. That matches go-redis's "never evict"
+and is what weight alone would do if the fallback member has the higher weight; the alternative (treat
+a fallback-selected active member as provisional, and move to an eligible one when it appears) is a
+small change if preferred. Tested in `FailbackHealthCheckTests`; the fixture holds all members down until
+every connection is up, precisely because a start-up race otherwise exercises this case.
+
+Implementing it also surfaced an existing bug: `HealthCheckProbePolicy.AllSuccess` (the default) reported
+`Healthy` for a run of nothing but `Inconclusive` probes, contrary to its own comment. Harmless for
+liveness (both count as connected) but fatal for a failback check, where "could not ask" would have read as
+"caught up". Fixed: such a run is now `Inconclusive`. The mirror-image bug in `AnySuccess` (all
+`Inconclusive` reads as `Unhealthy`, which *does* affect liveness) is left alone for a separate decision.
 
 ## 2. Running once per member, not per endpoint
 
