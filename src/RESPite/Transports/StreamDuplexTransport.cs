@@ -36,6 +36,7 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     private readonly CancellationTokenSource _shutdown = new();
     private readonly bool _isEncrypted;
     private readonly bool _splitReadAndParse;
+    private readonly bool _inlineSends;
     private int _disposed;
 
     /// <summary>Create a transport over a stream, which it takes ownership of.</summary>
@@ -48,11 +49,13 @@ internal sealed class StreamDuplexTransport : DuplexTransport
         BufferedStreamWriter.WriteMode mode = BufferedStreamWriter.WriteMode.Default,
         MemoryPool<byte>? bufferPool = null,
         bool isEncrypted = false,
-        bool splitReadAndParse = true)
+        bool splitReadAndParse = true,
+        bool inlineSends = false)
     {
         _stream = stream ?? throw new ArgumentNullException(nameof(stream));
         _isEncrypted = isEncrypted;
         _splitReadAndParse = splitReadAndParse;
+        _inlineSends = inlineSends;
         _writer = BufferedStreamWriter.Create(mode, stream, bufferPool, _shutdown.Token);
     }
 
@@ -74,7 +77,8 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     /// <inheritdoc/>
     public override bool Flush()
     {
-        _writer.Flush();
+        if (_inlineSends) _writer.FlushInline();
+        else _writer.Flush();
         return true;
     }
 

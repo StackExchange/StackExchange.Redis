@@ -53,6 +53,18 @@ public partial class ConnectionMultiplexer
         /// same inside the connection; an uncontended send is unchanged. Connections made after it is set use it.
         /// </remarks>
         CombineWrites = 8,
+
+        /// <summary>
+        /// Experimental: a caller that finds the writer idle sends its own bytes, rather than waking the writer loop.
+        /// </summary>
+        /// <remarks>
+        /// Every hand-off to the thread pool wakes a worker that then spins idle for a while, and for a sequential
+        /// caller that spinning was most of the CPU per request (measured: 118 -> 30us per INCR with the pool's spin
+        /// disabled). Sending inline removes the writer's hand-off when nobody else is writing. Bounded: the caller
+        /// sends only what was staged when it started, and leaves anything else - and a send that would block - to
+        /// the writer loop. Connections made after it is set use it.
+        /// </remarks>
+        InlineSends = 16,
     }
 
     private static void SetAutodetectFeatureFlags()
@@ -142,6 +154,8 @@ public partial class ConnectionMultiplexer
     internal static bool SingleReadLoop => (s_featureFlags & FeatureFlags.SingleReadLoop) != 0;
 
     internal static bool CombineWrites => (s_featureFlags & FeatureFlags.CombineWrites) != 0;
+
+    internal static bool InlineSends => (s_featureFlags & FeatureFlags.InlineSends) != 0;
 
     /// <summary>
     /// Whether the connection of this type to this endpoint is read by a thread we own; <c>null</c> if there

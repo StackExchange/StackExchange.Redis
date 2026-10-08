@@ -19,6 +19,7 @@ internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, 
         : base(pool, target, cancellationToken, initiallySync ? StateFlags.None : StateFlags.AsyncMode)
     {
         _readerTask.RunContinuationsAsynchronously = true; // we never want the flusher to take over the copying
+        _inlineCapable = target is System.Net.Sockets.NetworkStream or System.Net.Security.SslStream;
         if (initiallySync)
         {
             Thread thread = new(static s => ((SwitchableBufferedStreamWriter)s!).CopyOutSync())
@@ -184,8 +185,9 @@ internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, 
                     if (!pending.IsCompleted)
                     {
                         TakeLock(ref lockTaken);
-                        // double-checked marking inactive
-                        if (!pending.IsCompleted) RemoveStateFlagInsideLock(StateFlags.ActiveWriter);
+                        // double-checked marking inactive - unless the writer is a caller sending inline, which may
+                        // have claimed it since this loop last went idle: it is that caller's to release
+                        if (!pending.IsCompleted && (State & StateFlags.InlineSending) == 0) RemoveStateFlagInsideLock(StateFlags.ActiveWriter);
                         ReleaseLock(ref lockTaken);
                     }
                     // await activation and check status;
@@ -249,6 +251,153 @@ internal sealed class SwitchableBufferedStreamWriter : CycleBufferStreamWriter, 
             ReleaseLock(ref lockTaken);
         }
         // note we do *not* close the stream here - we have to settle for flushing; Close is explicit
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <para>
+    /// <b>The caller sends its own bytes when nobody else is writing</b>, rather than waking the writer loop: on a
+    /// socket with buffer room the write completes synchronously, so a sequential request costs no hand-off - and a
+    /// hand-off is a thread-pool worker woken, which then spins idle (see <c>FeatureFlags.InlineSends</c>).
+    /// </para>
+    /// <para>
+    /// <b>Bounded, so a caller does not become everyone's sender.</b> It claims the writer (<see cref="StateFlags.ActiveWriter"/>)
+    /// only when it is idle, and sends only what was committed when it claimed it. Anything committed since is the
+    /// loop's, and so is a write that does not complete synchronously - the kernel's buffer is full - which is
+    /// finished asynchronously and then handed over. Hand-over and going idle happen in one hold of the lock, with
+    /// the check for more data, as the loop's own going-idle does; so no wake-up is lost.
+    /// </para>
+    /// <para>
+    /// Only over a <see cref="System.Net.Sockets.NetworkStream"/> or an <see cref="System.Net.Security.SslStream"/>:
+    /// the loop flushes its stream after releasing the writer, which with these is a no-op but with a buffering
+    /// stream would overlap an inline write.
+    /// </para>
+    /// </remarks>
+    public override void FlushInline()
+    {
+        if (!_inlineCapable || (State & StateFlags.AsyncMode) == 0)
+        {
+            Flush(); // a dedicated writer thread, or a stream we cannot write beside the loop
+            return;
+        }
+
+        long budget;
+        bool lockTaken = false;
+        try
+        {
+            TakeLock(ref lockTaken);
+            var state = State;
+            if ((state & StateFlags.Closed) != 0) return;
+            if ((state & (StateFlags.ActiveWriter | StateFlags.TransitionToAsync)) != 0)
+            {
+                AddStateFlagInsideLock(StateFlags.Flush); // a writer is active, and will see these bytes
+                return;
+            }
+
+            budget = GetCommittedLengthInsideLock();
+            if (budget == 0) return;
+            AddStateFlagInsideLock(StateFlags.ActiveWriter | StateFlags.InlineSending | StateFlags.Flush); // ours, until handed over
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
+
+        SendInline(budget);
+    }
+
+    private readonly bool _inlineCapable;
+
+    private void SendInline(long budget)
+    {
+        bool lockTaken = false;
+        try
+        {
+            while (budget > 0)
+            {
+                ReadOnlyMemory<byte> memory;
+                TakeLock(ref lockTaken);
+                var any = GetFirstChunkInsideLock(1, out memory);
+                ReleaseLock(ref lockTaken);
+                if (!any) break;
+
+                if (memory.Length > budget) memory = memory.Slice(0, (int)budget);
+                if (IsFaulted) ThrowCompleteOrFaulted();
+                OnWritten(memory.Length);
+                OnDebugBufferLog(memory);
+
+                var pending = Target.WriteAsync(memory, CancellationToken);
+                if (!pending.IsCompletedSuccessfully)
+                {
+                    // would block (or failed): finished asynchronously, and then the loop's
+                    _ = CompleteInlineAsync(pending, memory.Length);
+                    return;
+                }
+
+                pending.GetAwaiter().GetResult();
+                TakeLock(ref lockTaken);
+                DiscardCommitted(memory.Length);
+                ReleaseLock(ref lockTaken);
+                budget -= memory.Length;
+            }
+
+            TakeLock(ref lockTaken);
+            HandOverOrIdleInsideLock();
+        }
+        catch (Exception ex)
+        {
+            OnInlineFault(ref lockTaken, ex);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
+    }
+
+    private async Task CompleteInlineAsync(ValueTask pending, int length)
+    {
+        bool lockTaken = false;
+        try
+        {
+            await pending.ConfigureAwait(false);
+            TakeLock(ref lockTaken);
+            DiscardCommitted(length);
+            HandOverOrIdleInsideLock();
+        }
+        catch (Exception ex)
+        {
+            OnInlineFault(ref lockTaken, ex);
+        }
+        finally
+        {
+            ReleaseLock(ref lockTaken);
+        }
+    }
+
+    /// <summary>Done sending inline: hand anything left to the loop, or go idle - in one hold of the lock.</summary>
+    private void HandOverOrIdleInsideLock()
+    {
+        Debug.Assert(Monitor.IsEntered(this), $"{nameof(HandOverOrIdleInsideLock)} must be called while holding the writer lock.");
+        if (GetCommittedLengthInsideLock() != 0)
+        {
+            // the loop is parked (the writer was ours); it takes over, ActiveWriter and all
+            RemoveStateFlagInsideLock(StateFlags.InlineSending);
+            OnWakeReaderInsideLock();
+        }
+        else
+        {
+            RemoveStateFlagInsideLock(StateFlags.Flush | StateFlags.ActiveWriter | StateFlags.InlineSending);
+        }
+    }
+
+    /// <summary>A failed inline send: release the writer, then fault it - which wakes the loop to close, as its own failures do.</summary>
+    private void OnInlineFault(ref bool lockTaken, Exception ex)
+    {
+        TakeLock(ref lockTaken);
+        RemoveStateFlagInsideLock(StateFlags.ActiveWriter | StateFlags.InlineSending);
+        ReleaseLock(ref lockTaken);
+        if (IsExpectedDuringClose(ex)) Complete();
+        else Complete(ex);
     }
 
     private bool TryTransitionToAsyncInsideLock()

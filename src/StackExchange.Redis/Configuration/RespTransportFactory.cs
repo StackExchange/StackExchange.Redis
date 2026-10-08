@@ -189,7 +189,8 @@ namespace StackExchange.Redis
                         ResolveWriteMode(connectionType, config.WriteMode, ConnectionMultiplexer.DedicatedThreads),
                         config.RequestBufferPool,
                         encrypted,
-                        splitReadAndParse: !ConnectionMultiplexer.SingleReadLoop),
+                        splitReadAndParse: !ConnectionMultiplexer.SingleReadLoop,
+                        inlineSends: ConnectionMultiplexer.InlineSends),
                     (socket?.RemoteEndPoint as IPEndPoint)?.Address,
                     encrypted);
             }

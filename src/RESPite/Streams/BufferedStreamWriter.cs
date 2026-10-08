@@ -116,6 +116,9 @@ internal abstract class BufferedStreamWriter(Stream target, CancellationToken ca
 
     public abstract void Flush();
 
+    /// <summary>Flush, sending on the calling thread when the writer is idle; see <c>InlineSends</c>.</summary>
+    public virtual void FlushInline() => Flush();
+
     public virtual bool TransitionToAsync() => false;
 }
 
@@ -143,6 +146,7 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
         Closed = 1 << 2,
         TransitionToAsync = 1 << 3,
         AsyncMode = 1 << 4,
+        InlineSending = 1 << 5, // the ActiveWriter is a caller sending inline (FlushInline), not the loop
     }
 
     protected bool GetFirstChunkInsideLock(int minBytes, out ReadOnlyMemory<byte> memory)
@@ -154,6 +158,12 @@ internal abstract class CycleBufferStreamWriter : BufferedStreamWriter, ICycleBu
     protected void ReleaseBuffer() => _buffer.Release();
 
     protected void DiscardCommitted(int count) => _buffer.DiscardCommitted(count);
+
+    protected long GetCommittedLengthInsideLock()
+    {
+        Debug.Assert(Monitor.IsEntered(this), $"{nameof(GetCommittedLengthInsideLock)} must be called while holding the writer lock.");
+        return _buffer.GetCommittedLength();
+    }
 
     /// <summary>
     /// Activate the writer if necessary, but only consume complete pages.
