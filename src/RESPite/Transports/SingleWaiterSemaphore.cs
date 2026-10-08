@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Threading.Tasks.Sources;
 
 namespace RESPite.Transports;
@@ -36,6 +36,8 @@ internal sealed class SingleWaiterSemaphore : IValueTaskSource<bool>
     /// <returns>Whether a count was taken.</returns>
     internal bool TryWait()
     {
+        // a lock-free look first: this is polled in a spin, and an empty count is the common answer
+        if (Volatile.Read(ref _count) == 0 && !Volatile.Read(ref _cancelled)) return false;
         lock (_lock)
         {
             if (_cancelled || _count == 0) return false;

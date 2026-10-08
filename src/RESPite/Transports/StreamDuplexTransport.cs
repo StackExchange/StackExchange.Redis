@@ -148,6 +148,24 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     /// </remarks>
     private const int FillSpin = 200;
 
+    /// <summary>The least the adaptive spin decays to; see <see cref="FillSpin"/>.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The spin adapts, because a fixed one bills idle time as CPU.</b> 200 polls is ~140us of spinning, and it
+    /// only pays when the filler is microseconds ahead - a busy connection. With one caller, the next reply cannot
+    /// arrive until that caller has done its work and sent again, so the parser burned the whole budget on every
+    /// request and then parked anyway: RespFest <c>work-100-seq</c> (100us of caller work per reply) measured 330us
+    /// of CPU per op against v3's 206, at the same throughput.
+    /// </para>
+    /// <para>
+    /// So the budget halves each time a spin ends in parking, and returns to <see cref="FillSpin"/> the first time one
+    /// is answered: a sequential caller only ever parks, so it decays to a few polls within a handful of requests; a
+    /// busy connection parks now and then, and recovers at once. Recovering by doubling instead cost
+    /// <c>incr-conc64</c> 3-5%: each occasional park left the spin short for several waits.
+    /// </para>
+    /// </remarks>
+    private const int MinFillSpin = 4;
+
     /// <summary>One filled buffer, and how much of it the read returned.</summary>
     private readonly struct Fill(byte[] buffer, int length)
     {
@@ -249,17 +267,27 @@ internal sealed class StreamDuplexTransport : DuplexTransport
         try
         {
             var done = false;
+            var spin = FillSpin; // adaptive; see MinFillSpin
             while (!done)
             {
-                var acquired = false;
-                for (var i = 0; i < FillSpin && !acquired; i++)
+                var acquired = hasFilled.TryWait();
+                for (var i = 0; i < spin && !acquired; i++)
                 {
+                    Thread.SpinWait(20);
                     acquired = hasFilled.TryWait();
-                    if (!acquired) Thread.SpinWait(20);
                 }
 
-                // false only at shutdown, which is what the cancelled wait used to throw for, and handled the same way
-                if (!acquired && !await hasFilled.WaitAsync().ConfigureAwait(false)) throw new OperationCanceledException();
+                if (acquired)
+                {
+                    spin = FillSpin; // spinning is paying: straight back to the full spin
+                }
+                else
+                {
+                    spin = Math.Max(MinFillSpin, spin / 2); // it ended in parking anyway: spin less next time
+
+                    // false only at shutdown, which is what the cancelled wait used to throw for, and handled the same way
+                    if (!await hasFilled.WaitAsync().ConfigureAwait(false)) throw new OperationCanceledException();
+                }
 
                 // one permit, so one buffer
                 Fill next;
