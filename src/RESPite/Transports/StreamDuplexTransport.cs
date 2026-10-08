@@ -163,8 +163,15 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     /// busy connection parks now and then, and recovers at once. Recovering by doubling instead cost
     /// <c>incr-conc64</c> 3-5%: each occasional park left the spin short for several waits.
     /// </para>
+    /// <para>
+    /// <b>The floor is 32, not lower.</b> At 4, <c>incr-seq</c> (a ~21us round trip) spent 70 -> 81us of CPU per op:
+    /// the decayed spin was shorter than the round trip, so it parked on every request, and parking - a pool wake -
+    /// costs more than spinning through a short wait. 32 polls covers that round trip on the measured machine and
+    /// keeps most of the saving where the wait is long: RespFest, v4 CPU/op, fixed 200 / floor 4 / floor 32 -
+    /// incr-seq 69.7 / 81.2 / 69.6, work-100-seq 329.7 / 265.7 / 287.5, throughput level throughout.
+    /// </para>
     /// </remarks>
-    private const int MinFillSpin = 4;
+    private const int MinFillSpin = 32;
 
     /// <summary>One filled buffer, and how much of it the read returned.</summary>
     private readonly struct Fill(byte[] buffer, int length)
