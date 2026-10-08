@@ -122,6 +122,11 @@ client certificate apart from other failures needs both the stage and the failur
   during the Redis handshake that follows: `Handshake` + `SocketClosed`.
 - A wrong password or ACL problem is the server *replying* with an error during the Redis handshake: `Handshake` +
   `AuthenticationFailure`. That says nothing about the certificate, and must not count against it.
+- An attempt that the library abandons itself, for example to retry the initial connect, reports `ConnectionDisposed` at
+  whatever stage it had reached. That also says nothing about the certificate.
+
+Treat the classification as a lower bound: if the library abandons an attempt at the same moment the server rejects the
+certificate, the attempt is reported as abandoned, and the rejection is not seen.
 
 Even so, `SocketClosed` is a weak signal: server restarts, connection resets, `maxclients` and network interruptions look the
 same. If you act on it, for example by falling back to an older certificate:

@@ -454,6 +454,12 @@ namespace StackExchange.Redis
             var tmp = physical;
             if (tmp != null && state != (int)State.ConnectedEstablished)
             {
+                // we are abandoning any attempt in flight in order to retry; that says nothing about the server, so report
+                // it as such (reporting is once-only, so the failure recorded below does not report the attempt again)
+                tmp.ReportAttemptOutcome(
+                    isSuccess: false,
+                    ConnectionFailureType.ConnectionDisposed,
+                    new RedisConnectionException(ConnectionFailureType.ConnectionDisposed, CommandFlags.None, "The connection attempt was abandoned so that it could be retried"));
                 tmp.RecordConnectionFailed(ConnectionFailureType.UnableToConnect);
             }
             TryConnect(null);

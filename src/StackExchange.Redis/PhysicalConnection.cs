@@ -420,7 +420,7 @@ namespace StackExchange.Redis
                 catch (ObjectDisposedException ex)
                 {
                     log?.LogErrorSocketShutdown(ex, new(endpoint));
-                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
+                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, ex, isInitialConnect: true); }
                     catch (Exception inner)
                     {
                         ConnectionMultiplexer.TraceWithoutContext(inner.Message);
@@ -429,7 +429,7 @@ namespace StackExchange.Redis
                 catch (Exception outer)
                 {
                     ConnectionMultiplexer.TraceWithoutContext(outer.Message);
-                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
+                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, outer, isInitialConnect: true); }
                     catch (Exception inner)
                     {
                         ConnectionMultiplexer.TraceWithoutContext(inner.Message);

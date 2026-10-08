@@ -78,8 +78,44 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
             Assert.False(a.IsSuccess);
             Assert.Equal(ConnectionAttemptStage.Connect, a.Stage);
             Assert.NotEqual(ConnectionFailureType.None, a.FailureType);
+            Assert.NotNull(a.Exception); // the refusal itself, not just its classification
             Assert.Equal(endpoint, a.EndPoint);
         });
+    }
+
+    [Fact]
+    public async Task AbandonedAttemptIsNotReportedAsAFailureToConnect()
+    {
+        // accepts TCP (via the backlog) but never answers the TLS handshake, so every attempt stays in flight at Tls
+        // until the library abandons it; that is the library's decision, and says nothing about the server
+        var listener = new TcpListener(IPAddress.Loopback, 0); // not IDisposable on net481
+        listener.Start();
+        try
+        {
+            var endpoint = (IPEndPoint)listener.LocalEndpoint;
+            var options = new ConfigurationOptions
+            {
+                EndPoints = { endpoint },
+                Ssl = true,
+                AbortOnConnectFail = false,
+                ConnectTimeout = 1000,
+            };
+            var attempts = Observe(options);
+
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+            conn.GetServerSnapshot()[0].ResetNonConnected();
+
+            await WaitForAsync(() => attempts.Any(a => a.FailureType == ConnectionFailureType.ConnectionDisposed));
+            var abandoned = attempts.First(a => a.FailureType == ConnectionFailureType.ConnectionDisposed);
+            Assert.False(abandoned.IsSuccess);
+            Assert.Equal(ConnectionAttemptStage.Tls, abandoned.Stage);
+            Assert.Contains("abandoned", abandoned.Exception?.Message);
+            Assert.DoesNotContain(attempts, a => a.FailureType == ConnectionFailureType.UnableToConnect && a.Exception is null);
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 
     [Fact]
@@ -95,8 +131,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         Assert.False(conn.IsConnected);
 
-        await WaitForAsync(() => !attempts.IsEmpty);
-        var attempt = attempts.First();
+        var attempt = await FirstAttemptAsync(attempts);
         output.WriteLine($"wrong password: {attempt.Stage}, {attempt.FailureType}: {attempt.Exception?.Message}");
         Assert.False(attempt.IsSuccess);
         Assert.Equal(ConnectionAttemptStage.Handshake, attempt.Stage);
@@ -155,8 +190,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         Assert.False(conn.IsConnected);
 
-        await WaitForAsync(() => !attempts.IsEmpty);
-        var attempt = attempts.First();
+        var attempt = await FirstAttemptAsync(attempts);
         output.WriteLine($"rejected attempt: {attempt.Stage}, {attempt.FailureType}: {attempt.Exception?.GetType().Name}: {attempt.Exception?.Message}");
         Assert.False(attempt.IsSuccess);
         Assert.True(attempt.Stage is ConnectionAttemptStage.Tls or ConnectionAttemptStage.Handshake); // TLS 1.3: Handshake, TLS 1.2: Tls
@@ -187,8 +221,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         Assert.False(conn.IsConnected);
 
-        await WaitForAsync(() => !attempts.IsEmpty);
-        var attempt = attempts.First();
+        var attempt = await FirstAttemptAsync(attempts);
         Assert.False(attempt.IsSuccess);
         Assert.Equal(ConnectionAttemptStage.Handshake, attempt.Stage);
         Assert.Equal(ConnectionFailureType.AuthenticationFailure, attempt.FailureType);
@@ -214,8 +247,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
-        await WaitForAsync(() => !attempts.IsEmpty);
-        Assert.True(IsLikelyClientCertificateRejection(attempts.First()));
+        Assert.True(IsLikelyClientCertificateRejection(await FirstAttemptAsync(attempts)));
     }
 
     // mirrors the classification documented in docs/Authentication.md; keep the two in step
@@ -302,8 +334,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         Assert.False(conn.IsConnected);
 
-        await WaitForAsync(() => !attempts.IsEmpty);
-        var attempt = attempts.First();
+        var attempt = await FirstAttemptAsync(attempts);
         output.WriteLine($"server certificate: {attempt.ServerCertificatePolicyErrors} / {attempt.ServerCertificateChainStatus}; {attempt.FailureType}: {attempt.Exception?.Message}");
         Assert.False(attempt.IsSuccess);
         Assert.Equal(ConnectionAttemptStage.Tls, attempt.Stage);
@@ -329,8 +360,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
         Assert.False(conn.IsConnected);
 
-        await WaitForAsync(() => !attempts.IsEmpty);
-        var attempt = attempts.First();
+        var attempt = await FirstAttemptAsync(attempts);
         Assert.False(attempt.IsSuccess);
         Assert.Equal(ConnectionAttemptStage.Tls, attempt.Stage);
         Assert.False(attempt.ServerCertificateAccepted);
@@ -391,6 +421,14 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         var attempts = new ConcurrentQueue<ConnectionAttemptCompletedEventArgs>();
         options.ConnectionAttemptCompleted += (_, e) => attempts.Enqueue(e);
         return attempts;
+    }
+
+    // outcomes are raised on workers, so arrival order is not attempt order; the initial attempt is always sequence 1
+    private static async Task<ConnectionAttemptCompletedEventArgs> FirstAttemptAsync(ConcurrentQueue<ConnectionAttemptCompletedEventArgs> attempts)
+    {
+        ConnectionAttemptCompletedEventArgs? first = null;
+        await WaitForAsync(() => (first = attempts.FirstOrDefault(a => a.SequenceNumber == 1)) is not null);
+        return first!;
     }
 
     private static async Task WaitForAsync(Func<bool> condition, int timeoutMilliseconds = 10000)
