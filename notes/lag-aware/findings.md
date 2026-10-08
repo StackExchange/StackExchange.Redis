@@ -636,6 +636,14 @@ Plain checks 200 throughout, both forms, both members; the local form tracked th
   what it answers on a node not serving the endpoint, so it is no more distinguishable by body than the
   database form. For lag, the two forms give the same verdict; the difference is call shape (one per
   database versus one per endpoint, and the local form only works routed by database host).
+  *Qualified 2026-10-08 (`marcgravell-test-41f58c28`):* routing by database host is fine for the
+  availability routes, but **not for the management routes**. On any node other than the master,
+  `/v1/bdbs?fields=...`, `/v1/bdbs/{uid}?fields=...` and `/v1/cluster` answer **307, redirecting to the
+  master's internal address** (`https://10.0.101.x:9443/...`), while `/availability` is answered directly.
+  Following that redirect from outside the VPC hangs. The cluster FQDN resolves to the master, which
+  answers everything. Found by running the real probe against the live clusters: three of four members
+  timed out until the probe derived the cluster name (strip `redis-{port}.`) instead and stopped following
+  redirects. *Inferred:* go-redis's discovery, routed via the database host, would meet the same redirect.
 - **`/v1/bdbs` returns database passwords** (`authentication_redis_pass`, `authentication_admin_pass`)
   when `mask_bdb_credentials` is false, as on these clusters, and `/v1/crdbs` returns the same for every
   instance. Captured bodies cannot be committed as fixtures without scrubbing. Relevant to credential
