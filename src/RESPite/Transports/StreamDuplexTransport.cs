@@ -77,6 +77,13 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     /// <inheritdoc/>
     public override bool Flush()
     {
+        _writer.Flush();
+        return true;
+    }
+
+    /// <inheritdoc/>
+    internal override bool FlushAlone()
+    {
         if (_inlineSends) _writer.FlushInline();
         else _writer.Flush();
         return true;

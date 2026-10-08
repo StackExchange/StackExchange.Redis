@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
@@ -62,6 +62,17 @@ public abstract class DuplexTransport : IBufferWriter<byte>, IAsyncDisposable
     /// <summary>Hand everything staged since the last flush to the wire, as one send where the
     /// transport allows. Returns false if the transport is closed (staged bytes are dropped).</summary>
     public abstract bool Flush();
+
+    /// <summary>
+    /// Flush the bytes of a request that is the only one in flight on its connection: a sequential caller.
+    /// </summary>
+    /// <remarks>
+    /// The transport may send them on the calling thread rather than hand them to its writer (see
+    /// <c>InlineSends</c>). Only for a request with nothing else in flight: measured, sending inline whenever the
+    /// writer happened to be idle cost <c>incr-conc64</c> 4%, because a busy connection's writer idles between
+    /// bursts and each caller then sent a tiny run of its own; a sequential caller is exactly the case it pays for.
+    /// </remarks>
+    internal virtual bool FlushAlone() => Flush();
 
     /// <summary>Begin inbound delivery. Exactly one receiver, set once, before any data is expected;
     /// delivery runs on the transport's schedule and threads.</summary>

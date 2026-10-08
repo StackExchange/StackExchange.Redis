@@ -395,6 +395,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             Monitor.Enter(_writeLock);
         }
 
+        bool alone;
         try
         {
             if (!message.TryReserveRequest(message.Token, out var payload))
@@ -410,6 +411,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 // our own write in the baseline would make every command look like progress
                 message.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
 
+                alone = _pending.IsEmpty; // nothing else in flight: the sequential shape; see FlushAlone
                 _pending.Enqueue(new(message, message.Token));
                 Write(payload.Span);
                 Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
@@ -429,7 +431,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         // out with theirs, which is a win rather than a race. Keeping the critical section down to
         // "stamp, enqueue, memcpy" is the point of the whole design - the old core serialises every
         // argument of every command inside its write lock, because that is where WriteTo runs.
-        _transport.Flush();
+        if (alone) _transport.FlushAlone();
+        else _transport.Flush();
         return true;
     }
 
