@@ -60,6 +60,13 @@ Each has a default the work proceeds on until answered.
 
 ## Backlog (after the alpha)
 
+- **One group accessor instead of two.** Each group (`.Strings`, `.Lists`, ...) currently has two extension
+  properties: one on the concrete context type and a generic one constrained to `IRespKeyspaceTarget`
+  (`new(target.Context.Raw)`). Test: make the concrete type implement the interface itself and keep only the
+  constrained generic shim. Measure whether the generic path costs anything (a constrained call on the concrete
+  type should devirtualise; check it does, and check allocation and IL size at the call site). Keep both only if
+  there is a measured reason.
+
 - **Client-side cache across a geo/active-active failover.** Today there is **no flush on switch, by design**
   (`MultiGroupDatabase` remarks): each member multiplexer has its own cache, resolved per command
   (`WithCacheResolver(() => TryGetActive()?.ClientCache)`), so a switch serves from the new member's cache and
