@@ -1,1 +1,10 @@
 ﻿#nullable enable
+[SER011]StackExchange.Redis.Availability.ConnectionGroupMember.FailbackHealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
+[SER011]StackExchange.Redis.Availability.ConnectionGroupMember.FailbackHealthCheck.set -> void
+[SER011]StackExchange.Redis.Availability.HealthCheckProbeScope
+[SER011]StackExchange.Redis.Availability.HealthCheckProbeScope.Endpoint = 0 -> StackExchange.Redis.Availability.HealthCheckProbeScope
+[SER011]StackExchange.Redis.Availability.HealthCheckProbeScope.Member = 1 -> StackExchange.Redis.Availability.HealthCheckProbeScope
+[SER011]StackExchange.Redis.Availability.MultiGroupOptions.Builder.FailbackHealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
+[SER011]StackExchange.Redis.Availability.MultiGroupOptions.Builder.FailbackHealthCheck.set -> void
+[SER011]StackExchange.Redis.Availability.MultiGroupOptions.FailbackHealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
+[SER011]virtual StackExchange.Redis.Availability.HealthCheckProbe.Scope.get -> StackExchange.Redis.Availability.HealthCheckProbeScope

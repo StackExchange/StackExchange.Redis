@@ -23,6 +23,7 @@
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
         public const string Transport = "SER009";
+        public const string LagAwareFailover = "SER011";
 
         // ReSharper restore InconsistentNaming
 
