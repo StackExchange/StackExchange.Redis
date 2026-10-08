@@ -469,6 +469,11 @@ Open question 5 below asked whether `HealthCheckContext` carries enough for a re
 external probe can already reach `context.Server.Multiplexer.RawConfig.Tunnel` with no change to
 `HealthCheckContext` at all.
 
+*Corrected 2026-10-08:* `RawConfig` is **not** public. The declaration found was on the internal
+`IInternalConnectionMultiplexer` in the same file; the public `IConnectionMultiplexer` does not expose it.
+So an external probe cannot reach the member's configured endpoints, which the lag-aware probe needs to
+derive the REST endpoint and discover the database - one more reason it lives in this assembly.
+
 ## 9. Open questions
 
 1. **Which tolerance default?** 100 ms (server, docs, redis-py) or 5000 ms (Lettuce)? Worth asking

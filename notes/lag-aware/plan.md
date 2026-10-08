@@ -6,8 +6,9 @@ sequence.
 Status: **proposed. Step 0 is cleared; step 1 is answered (findings §10): the lag check flips under
 real Active-Active lag, on the stale member only, and the tolerance is honoured on a running link.
 Cross-region lag magnitudes remain unmeasured (both test clusters share a region).** The core change
-(failback health check, member-scoped probes, selection rules) is implemented behind `SER011`; the REST
-probe itself is next. See [`api-sketch.md`](api-sketch.md).
+(failback health check, member-scoped probes, selection rules) and the REST probe are implemented behind
+`SER011`, with stubbed-transport tests (step 5, tier 1); next is the fault-injector scenario test (tier 3).
+See [`api-sketch.md`](api-sketch.md).
 
 > **This branch is not only a planning branch.** `marc/lag-aware-availability` carries these notes
 > now, and is the feature branch from here — the implementation lands on top of the same branch and
