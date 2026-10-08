@@ -85,11 +85,11 @@ namespace StackExchange.Redis
         /// It owns a connection outright, so contiguity is simply available: there is no backlog that
         /// could drain the run one operation at a time, and no reconnect that could split it.
         /// </remarks>
-        internal override bool TrySendBatch(List<RespPayloadOperation> operations)
-            => !_connection.IsClosed && _connection.Send(operations.ToArray(), operations.Count);
+        internal override bool TrySendBatch(List<QueuedOperation> operations)
+            => !_connection.IsClosed && _connection.Send(QueuedOperation.ToRun(operations), operations.Count);
 
         /// <inheritdoc/>
-        internal override bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+        internal override bool TrySendTransaction(List<QueuedOperation> operations, out ValueTask<bool> exec)
             => RespTransactionExecutor.TrySendOver(_connection, operations, out exec);
 
         private RespPayloadOperation Dispatch(in RespRequest request, CancellationToken cancellationToken)

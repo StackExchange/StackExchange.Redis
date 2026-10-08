@@ -688,7 +688,7 @@ namespace StackExchange.Redis
         /// their <c>+QUEUED</c> - but the connection's hand-off hook takes that receipt and leaves them
         /// pending for <c>EXEC</c> to complete.
         /// </remarks>
-        internal override bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+        internal override bool TrySendTransaction(List<QueuedOperation> operations, out ValueTask<bool> exec)
             => TrySendTransaction(operations, Database, out exec);
 
         /// <summary>Write a transaction on behalf of a database that may not be this executor's own.</summary>
@@ -699,7 +699,7 @@ namespace StackExchange.Redis
         /// The <c>SELECT</c> goes in front of <c>MULTI</c>, which is the only place it can: inside the
         /// transaction it would be queued and applied at <c>EXEC</c> like any other command.
         /// </remarks>
-        internal bool TrySendTransaction(List<RespPayloadOperation> operations, int database, out ValueTask<bool> exec)
+        internal bool TrySendTransaction(List<QueuedOperation> operations, int database, out ValueTask<bool> exec)
         {
             // the write itself is not endpoint-specific - it needs a connection and nothing else - so it
             // lives with the transaction, and every executor that owns a connection gets the same one
@@ -713,7 +713,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>Write a run for a database that may not be this executor's own.</summary>
-        internal bool TryWriteRun(RespConnection connection, IRespMessage[] run, int count, int database)
+        internal bool TryWriteRun(RespConnection connection, RespRunEntry[] run, int count, int database)
         {
             return SendRun(connection, run, count, database);
         }
@@ -976,7 +976,7 @@ namespace StackExchange.Redis
         /// A batch that cannot be written contiguously is not a batch, so saying no is better than
         /// quietly issuing it as a pipeline.
         /// </remarks>
-        internal override bool TrySendBatch(List<RespPayloadOperation> operations)
+        internal override bool TrySendBatch(List<QueuedOperation> operations)
             => TrySendBatch(operations, Database);
 
         /// <summary>Write a batch on behalf of a database that may not be this executor's own.</summary>
@@ -987,7 +987,7 @@ namespace StackExchange.Redis
         /// and so belongs to a single database, and the run is written with nothing of anybody else's in
         /// between - so the selection holds for exactly as long as the run needs it.
         /// </remarks>
-        internal bool TrySendBatch(List<RespPayloadOperation> operations, int database)
+        internal bool TrySendBatch(List<QueuedOperation> operations, int database)
         {
             RespConnection? connection;
             lock (_sync)
@@ -1006,22 +1006,22 @@ namespace StackExchange.Redis
                 }
             }
 
-            return SendRun(connection, operations.ToArray(), operations.Count, database);
+            return SendRun(connection, QueuedOperation.ToRun(operations), operations.Count, database);
         }
 
         /// <inheritdoc/>
-        internal override bool TryWriteRun(RespConnection connection, IRespMessage[] run, int count)
+        internal override bool TryWriteRun(RespConnection connection, RespRunEntry[] run, int count)
             => SendRun(connection, run, count, Database);
 
         /// <summary>Write a run, preceded by a <c>SELECT</c> if this connection is on another database.</summary>
-        internal bool SendRun(RespConnection connection, IRespMessage[] run, int count, int database)
+        internal bool SendRun(RespConnection connection, RespRunEntry[] run, int count, int database)
         {
             // a batch's and a transaction's operations are built by the composing executor rather than by
             // Dispatch, so this is where they learn who counts their outcome. Without it a deployment whose
             // EXEC always fails was never judged unhealthy - the breaker saw only the single sends.
             for (var i = 0; i < count; i++)
             {
-                if (run[i] is RespPayloadOperation operation)
+                if (run[i].Message is RespPayloadOperation operation)
                 {
                     operation.Observer = this;
                     operation.Server = Server;

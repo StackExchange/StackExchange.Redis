@@ -41,7 +41,7 @@ namespace StackExchange.Redis
         private readonly RespExecutorBase _inner;
         private readonly RespContext _context;
         private readonly object _sync = new();
-        private List<RespPayloadOperation>? _queue;
+        private List<QueuedOperation>? _queue;
         private List<Condition>? _conditions;
         private List<Action<bool>?>? _verdicts;
         private bool _sent;
@@ -185,7 +185,7 @@ namespace StackExchange.Redis
             lock (_sync)
             {
                 if (_sent) throw new InvalidOperationException("This transaction has already been executed.");
-                (_queue ??= []).Add(operation);
+                (_queue ??= []).Add(QueuedOperation.Of(operation));
             }
 
             // Fire-and-forget is answered NOW, with a null payload that Parse turns into default(T) -
@@ -243,7 +243,7 @@ namespace StackExchange.Redis
                     var queue = _queue;
                     if (queue is not null)
                     {
-                        foreach (var operation in queue)
+                        foreach (var (operation, _) in queue)
                         {
                             var category = operation.Flags & CommandFlagsInternal.MaskRetryCategory;
                             if (category > result) result = category;
@@ -273,7 +273,7 @@ namespace StackExchange.Redis
         /// </remarks>
         internal async Task<bool> ExecuteAsync(CommandFlags flags = CommandFlags.None)
         {
-            List<RespPayloadOperation>? queue;
+            List<QueuedOperation>? queue;
             List<Condition>? conditions;
             List<Action<bool>?>? verdicts;
             lock (_sync)
@@ -434,7 +434,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>The body of a transaction that has conditions and no commands; see the send path.</summary>
-        private static readonly List<RespPayloadOperation> EmptyBody = new();
+        private static readonly List<QueuedOperation> EmptyBody = new();
 
         private void OnAborted() => _watchConflict = true;
 
@@ -448,17 +448,17 @@ namespace StackExchange.Redis
             RespExecutorBase target, RespConnection connection, List<Condition> conditions, List<Action<bool>?>? verdicts)
         {
             var checks = new RespConditionOperation[conditions.Count];
-            var run = new IRespMessage[conditions.Count * 2];
+            var run = new RespRunEntry[conditions.Count * 2];
             for (var i = 0; i < conditions.Count; i++)
             {
                 var watch = RespPayloadOperation.Rent();
                 watch.Attach(RespConditionOperation.RenderWatch(_context, conditions[i]), CommandFlags.None, default);
-                run[i * 2] = watch;
+                run[i * 2] = RespRunEntry.Of(watch);
 
                 var check = new RespConditionOperation();
                 check.Attach(_context, conditions[i]);
                 checks[i] = check;
-                run[(i * 2) + 1] = check;
+                run[(i * 2) + 1] = RespRunEntry.Of(check);
             }
 
             // written THROUGH the executor, exactly as the MULTI run is, and this is not symmetry for its
@@ -472,12 +472,12 @@ namespace StackExchange.Redis
             // where it needs to be and adds nothing.
             if (!target.TryWriteRun(connection, run, run.Length))
             {
-                for (var i = 0; i < run.Length; i += 2) RespPayloadOperation.DiscardReply((RespPayloadOperation)run[i]);
+                for (var i = 0; i < run.Length; i += 2) RespPayloadOperation.DiscardReply((RespPayloadOperation)run[i].Message);
                 foreach (var check in checks) check.TrySetCanceled(check.Token);
                 return false;
             }
 
-            for (var i = 0; i < run.Length; i += 2) RespPayloadOperation.DiscardReply((RespPayloadOperation)run[i]);
+            for (var i = 0; i < run.Length; i += 2) RespPayloadOperation.DiscardReply((RespPayloadOperation)run[i].Message);
 
             // every check is awaited, not short-circuited on the first false: they are already in flight,
             // and abandoning one leaves an operation that never recycles. Each verdict is reported
@@ -520,12 +520,12 @@ namespace StackExchange.Redis
         /// transaction as cross-slot. Wrong error, not wrong data.
         /// </para>
         /// </remarks>
-        private static int SlotOf(List<RespPayloadOperation>? queue)
+        private static int SlotOf(List<QueuedOperation>? queue)
         {
             var slot = ServerSelectionStrategy.NoSlot;
             if (queue is null) return slot;
 
-            foreach (var operation in queue)
+            foreach (var (operation, _) in queue)
             {
                 slot = ServerSelectionStrategy.CombineSlot(slot, operation.Slot);
                 if (slot == ServerSelectionStrategy.MultipleSlots) return slot;
@@ -534,7 +534,7 @@ namespace StackExchange.Redis
             return slot;
         }
 
-        private static void Discard(RespConnection connection, List<RespPayloadOperation>? queue)
+        private static void Discard(RespConnection connection, List<QueuedOperation>? queue)
         {
             Unwatch(connection);
 
@@ -545,7 +545,7 @@ namespace StackExchange.Redis
             // and the shipped surface guarantees they have transitioned by the time ExecuteAsync's task
             // completes - callers read .Status rather than awaiting. See TrySetCanceledInline.
             if (queue is null) return;
-            foreach (var operation in queue) operation.TrySetCanceledInline(operation.Token);
+            foreach (var (operation, token) in queue) operation.TrySetCanceledInline(token);
         }
 
         private static void Unwatch(RespConnection connection)
@@ -556,7 +556,7 @@ namespace StackExchange.Redis
             RespPayloadOperation.DiscardReply(unwatch);
         }
 
-        private static void Fail(List<RespPayloadOperation>? queue, string message)
+        private static void Fail(List<QueuedOperation>? queue, string message)
         {
             if (queue is null) return;
             var fault = new RedisConnectionException(
@@ -565,7 +565,7 @@ namespace StackExchange.Redis
                 message,
                 null,
                 CommandStatus.WaitingInBacklog);
-            foreach (var operation in queue) operation.TrySetException(operation.Token, fault, definite: false);
+            foreach (var (operation, token) in queue) operation.TrySetException(token, fault, definite: false);
         }
 
         /// <summary>Write <c>MULTI</c>, the queued commands, and <c>EXEC</c> down one connection.</summary>
@@ -606,10 +606,10 @@ namespace StackExchange.Redis
         /// </param>
         internal static bool TrySendOver(
             RespConnection? connection,
-            List<RespPayloadOperation> operations,
+            List<QueuedOperation> operations,
             out ValueTask<bool> exec,
             Action? onAborted = null,
-            Func<IRespMessage[], int, bool>? send = null,
+            Func<RespRunEntry[], int, bool>? send = null,
             CommandFlags flags = CommandFlags.None)
         {
             exec = default;
@@ -621,10 +621,10 @@ namespace StackExchange.Redis
             var execOperation = new RespExecOperation();
             execOperation.Attach(ExecFrame, operations, onAborted, flags);
 
-            var run = new IRespMessage[operations.Count + 2];
-            run[0] = multi;
-            for (var i = 0; i < operations.Count; i++) run[i + 1] = operations[i];
-            run[operations.Count + 1] = execOperation;
+            var run = new RespRunEntry[operations.Count + 2];
+            run[0] = RespRunEntry.Of(multi);
+            for (var i = 0; i < operations.Count; i++) run[i + 1] = operations[i].Entry;
+            run[operations.Count + 1] = RespRunEntry.Of(execOperation);
 
             if (!(send is null ? connection.Send(run, run.Length) : send(run, run.Length)))
             {
@@ -646,7 +646,7 @@ namespace StackExchange.Redis
         /// <summary>Fail everything queued; for a transaction discarded rather than executed.</summary>
         internal void Abandon(Exception fault)
         {
-            List<RespPayloadOperation>? queue;
+            List<QueuedOperation>? queue;
             lock (_sync)
             {
                 queue = _queue;
@@ -655,7 +655,7 @@ namespace StackExchange.Redis
             }
 
             if (queue is null) return;
-            foreach (var operation in queue) operation.TrySetException(operation.Token, fault, definite: false);
+            foreach (var (operation, token) in queue) operation.TrySetException(token, fault, definite: false);
         }
     }
 
@@ -677,13 +677,13 @@ namespace StackExchange.Redis
     /// </remarks>
     internal sealed class RespExecOperation : RespMessageBase<bool>
     {
-        private List<RespPayloadOperation>? _queued;
+        private List<QueuedOperation>? _queued;
         private Action? _onAborted;
         private CommandFlags _flags;
 
         internal void Attach(
             ReadOnlySpan<byte> request,
-            List<RespPayloadOperation> queued,
+            List<QueuedOperation> queued,
             Action? onAborted = null,
             CommandFlags flags = CommandFlags.None)
         {
@@ -718,9 +718,9 @@ namespace StackExchange.Redis
                 var message = reader.ReadString() ?? "EXEC failed.";
                 // the flags carry the retry category, which is what lets a caller's policy ride this out
                 var fault = new RedisServerException(RedisErrorKindMetadata.Classify(reader), _flags, message);
-                foreach (var operation in queued)
+                foreach (var (operation, token) in queued)
                 {
-                    operation.TrySetException(operation.Token, fault, definite: true);
+                    operation.TrySetException(token, fault, definite: true);
                 }
 
                 // THROWN, not reported as false. False means "did not commit", which is what an elective
@@ -746,12 +746,12 @@ namespace StackExchange.Redis
 
             for (var i = 0; i < queued.Count; i++)
             {
-                var operation = queued[i];
+                var (operation, token) = queued[i];
                 var scan = default(RespScanState);
                 if (i >= count || body.IsEmpty || !scan.TryRead(body, out var length))
                 {
                     operation.TrySetException(
-                        operation.Token,
+                        token,
                         new RedisServerException(RedisErrorKind.ConnectionFault, CommandFlags.None, "EXEC returned fewer results than commands queued."),
                         definite: true);
                     continue;
@@ -761,7 +761,7 @@ namespace StackExchange.Redis
                 // as it would have parsed a reply of its own. No source: these bytes belong to the EXEC
                 // reply, and retaining N slices of one frame would pin the whole array for as long as its
                 // longest-lived element.
-                operation.TrySetResult(operation.Token, body.Slice(0, length));
+                operation.TrySetResult(token, body.Slice(0, length));
                 body = body.Slice(length);
             }
 
@@ -787,11 +787,11 @@ namespace StackExchange.Redis
         /// tells a retrying caller the transaction cleanly did not commit - so it stops, having ridden out
         /// nothing.
         /// </remarks>
-        private static bool Abort(List<RespPayloadOperation> queued, string? fault, CommandFlags flags)
+        private static bool Abort(List<QueuedOperation> queued, string? fault, CommandFlags flags)
         {
             if (fault is null)
             {
-                foreach (var operation in queued)
+                foreach (var (operation, token) in queued)
                 {
                     // CANCELLED, not faulted. An abort is the transaction working: a watched key changed,
                     // so nothing ran. The shipped surface reports that by transitioning every queued
@@ -804,16 +804,16 @@ namespace StackExchange.Redis
                     // Inline, for the reason that method documents: these never reached a socket, so there
                     // is no read loop to head-of-line block, and callers read .Status immediately rather
                     // than awaiting - "cancelled, and the continuation will run shortly" is not enough.
-                    operation.TrySetCanceledInline(operation.Token);
+                    operation.TrySetCanceledInline(token);
                 }
 
                 return false;
             }
 
             var error = new RedisServerException(RedisErrorKind.ConnectionFault, flags, fault);
-            foreach (var operation in queued)
+            foreach (var (operation, token) in queued)
             {
-                operation.TrySetException(operation.Token, error, definite: true);
+                operation.TrySetException(token, error, definite: true);
             }
 
             throw error;

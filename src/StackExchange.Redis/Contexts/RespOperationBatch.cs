@@ -27,11 +27,45 @@ namespace StackExchange.Redis
     /// slot currently lives is resolved once, at dispatch.
     /// </para>
     /// </remarks>
+    /// <summary>A queued operation, and the token of the life that was queued.</summary>
+    /// <remarks>
+    /// A batch or transaction acts on its queue long after composing it - writing it, failing it, cancelling it,
+    /// handing <c>EXEC</c>'s results out - and an element can complete in between (cancelled through its token),
+    /// be consumed, and have its pooled instance rented for somebody else's command. Acting through the instance's
+    /// CURRENT token would act on that stranger; acting through the token captured here makes a stale element a
+    /// no-op. The connection's pending queue keeps its tokens for the same reason (see <c>RespRunEntry</c>).
+    /// </remarks>
+    internal readonly struct QueuedOperation(RespPayloadOperation operation, short token)
+    {
+        public readonly RespPayloadOperation Operation = operation;
+        public readonly short Token = token;
+
+        /// <summary>Queue an operation as it stands now: its current life.</summary>
+        public static QueuedOperation Of(RespPayloadOperation operation) => new(operation, operation.Token);
+
+        /// <summary>The element as a connection writes it.</summary>
+        public RespRunEntry Entry => new(Operation, Token);
+
+        public void Deconstruct(out RespPayloadOperation operation, out short token)
+        {
+            operation = Operation;
+            token = Token;
+        }
+
+        /// <summary>A run of these, as a connection writes them.</summary>
+        internal static RespRunEntry[] ToRun(List<QueuedOperation> operations)
+        {
+            var run = new RespRunEntry[operations.Count];
+            for (var i = 0; i < run.Length; i++) run[i] = operations[i].Entry;
+            return run;
+        }
+    }
+
     internal sealed class RespOperationBatchExecutor : RespExecutorBase
     {
         private readonly RespExecutorBase _inner;
         private readonly object _sync = new();
-        private List<RespPayloadOperation>? _queue;
+        private List<QueuedOperation>? _queue;
         private bool _sent;
         private readonly bool _reusable;
 
@@ -186,7 +220,7 @@ namespace StackExchange.Redis
             lock (_sync)
             {
                 if (_sent) throw new InvalidOperationException("This batch has already been executed.");
-                (_queue ??= []).Add(operation);
+                (_queue ??= []).Add(QueuedOperation.Of(operation));
             }
 
             // Fire-and-forget is answered NOW, with a null payload that Parse turns into default(T). The
@@ -251,8 +285,8 @@ namespace StackExchange.Redis
             {
                 if (_sent) throw new InvalidOperationException("This batch has already been executed.");
                 var queue = _queue ??= [];
-                queue.Add(head);
-                queue.Add(body);
+                queue.Add(QueuedOperation.Of(head));
+                queue.Add(QueuedOperation.Of(body));
             }
 
             // nobody is waiting on the preamble's own reply; it is +OK or the run has failed, and the
@@ -268,7 +302,7 @@ namespace StackExchange.Redis
         /// </remarks>
         internal async Task ExecuteAsync()
         {
-            List<RespPayloadOperation>? queue;
+            List<QueuedOperation>? queue;
             lock (_sync)
             {
                 queue = _queue;
@@ -287,7 +321,7 @@ namespace StackExchange.Redis
         /// <summary>Fail everything accumulated; for a batch that is discarded rather than executed.</summary>
         internal void Abandon(Exception fault)
         {
-            List<RespPayloadOperation>? queue;
+            List<QueuedOperation>? queue;
             lock (_sync)
             {
                 queue = _queue;
@@ -296,10 +330,10 @@ namespace StackExchange.Redis
             }
 
             if (queue is null) return;
-            foreach (var operation in queue)
+            foreach (var (operation, token) in queue)
             {
                 // never written, so definitely not applied - the retry layer above is free to re-issue
-                operation.TrySetException(operation.Token, fault, definite: false);
+                operation.TrySetException(token, fault, definite: false);
             }
         }
 
@@ -307,33 +341,34 @@ namespace StackExchange.Redis
         /// Outside cluster every request is <c>NoSlot</c>, so this is one group and the cost is a walk
         /// comparing ints. The common case does not pay for the uncommon one.
         /// </remarks>
-        private static IEnumerable<List<RespPayloadOperation>> GroupBySlot(List<RespPayloadOperation> queue)
+        private static IEnumerable<List<QueuedOperation>> GroupBySlot(List<QueuedOperation> queue)
         {
-            var slot = queue[0].Slot;
+            var slot = queue[0].Operation.Slot;
             var single = true;
-            for (var i = 1; i < queue.Count && single; i++) single = queue[i].Slot == slot;
+            for (var i = 1; i < queue.Count && single; i++) single = queue[i].Operation.Slot == slot;
             if (single)
             {
                 yield return queue;
                 yield break;
             }
 
-            var bySlot = new Dictionary<int, List<RespPayloadOperation>>();
-            foreach (var operation in queue)
+            var bySlot = new Dictionary<int, List<QueuedOperation>>();
+            foreach (var entry in queue)
             {
-                if (!bySlot.TryGetValue(operation.Slot, out var group)) bySlot.Add(operation.Slot, group = []);
-                group.Add(operation);
+                var entrySlot = entry.Operation.Slot;
+                if (!bySlot.TryGetValue(entrySlot, out var group)) bySlot.Add(entrySlot, group = []);
+                group.Add(entry);
             }
 
             foreach (var group in bySlot.Values) yield return group;
         }
 
-        private async Task DispatchAsync(List<RespPayloadOperation> group)
+        private async Task DispatchAsync(List<QueuedOperation> group)
         {
             // BY SLOT, not by "anywhere": the group was formed by slot precisely so it could be routed to
             // the node that owns it. Resolving with no key sent every group to whichever node answered
             // first, which in a cluster is a MOVED for any group whose keys live elsewhere.
-            var target = _inner.ResolveForSlot(group[0].Slot, RedisCommand.NONE, CommandFlags.None);
+            var target = _inner.ResolveForSlot(group[0].Operation.Slot, RedisCommand.NONE, CommandFlags.None);
 
             // waits for a connection, and for any write claim to clear, rather than declining. A batch
             // that arrived before the first connect completed is EARLY, not unservable, and failing it
@@ -353,7 +388,7 @@ namespace StackExchange.Redis
                     "This executor cannot write a batch as one contiguous run; it has no connection to write it to.",
                     null,
                     CommandStatus.WaitingInBacklog);
-                foreach (var operation in group) operation.TrySetException(operation.Token, fault, definite: false);
+                foreach (var (operation, token) in group) operation.TrySetException(token, fault, definite: false);
             }
         }
     }

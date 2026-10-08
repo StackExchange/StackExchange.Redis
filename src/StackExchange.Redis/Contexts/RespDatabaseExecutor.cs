@@ -157,17 +157,17 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="CanWriteRuns" path="/remarks"/></remarks>
-        internal override bool TrySendBatch(List<RespPayloadOperation> operations)
+        internal override bool TrySendBatch(List<QueuedOperation> operations)
             => _inner.TrySendBatch(operations, Database);
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="CanWriteRuns" path="/remarks"/></remarks>
-        internal override bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+        internal override bool TrySendTransaction(List<QueuedOperation> operations, out ValueTask<bool> exec)
             => _inner.TrySendTransaction(operations, Database, out exec);
 
         /// <inheritdoc/>
         /// <remarks>Named with THIS view's database, so a transaction's run selects before its MULTI.</remarks>
-        internal override bool TryWriteRun(RespConnection connection, IRespMessage[] run, int count)
+        internal override bool TryWriteRun(RespConnection connection, RespRunEntry[] run, int count)
             => _inner.TryWriteRun(connection, run, count, Database);
 
         /// <inheritdoc/>

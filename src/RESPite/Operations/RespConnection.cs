@@ -24,6 +24,28 @@ namespace RESPite.Operations;
 /// testable against a transport that is just two byte arrays.
 /// </para>
 /// </remarks>
+/// <summary>One element of a run: the message, and the token of the life that was queued.</summary>
+/// <remarks>
+/// A run is composed before it is written - a batch, a transaction - and an element can complete in between
+/// (cancelled through its token), be consumed, and have its pooled instance rented for a new life. Writing it by
+/// its CURRENT token would write that stranger's request and enqueue the stranger here; the token captured when
+/// it was queued makes it a stale element instead, which the write skips.
+/// </remarks>
+internal readonly struct RespRunEntry(IRespMessage message, short token)
+{
+    public readonly IRespMessage Message = message;
+    public readonly short Token = token;
+
+    /// <summary>Queue a message as it stands now: its current life.</summary>
+    public static RespRunEntry Of(IRespMessage message) => new(message, message.Token);
+
+    public void Deconstruct(out IRespMessage message, out short token)
+    {
+        message = Message;
+        token = Token;
+    }
+}
+
 internal class RespConnection : TransportReceiver, IAsyncDisposable
 {
     private readonly DuplexTransport _transport;
@@ -789,7 +811,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// as it needs to.
     /// </remarks>
     public bool Send<TState>(
-        IRespMessage[] operations,
+        RespRunEntry[] operations,
         int count,
         TState state,
         Func<TState, IRespMessage?> preamble,
@@ -828,13 +850,13 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
             for (var i = 0; i < count; i++)
             {
-                var message = operations[i];
-                if (!message.TryReserveRequest(message.Token, out var payload)) continue;
+                var (message, token) = operations[i];
+                if (!message.TryReserveRequest(token, out var payload)) continue; // see the single-run overload
 
                 try
                 {
                     message.OnEnqueued(this, _bytesSent, received);
-                    _pending.Enqueue(new(message, message.Token));
+                    _pending.Enqueue(new(message, token));
                     Write(payload.Span);
                     Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
                 }
@@ -869,7 +891,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// the first reply can arrive before the last write returns.
     /// </para>
     /// </remarks>
-    public bool Send(IRespMessage[] operations, int count)
+    public bool Send(RespRunEntry[] operations, int count)
     {
         if (operations is null) throw new ArgumentNullException(nameof(operations));
         if (count <= 0) return true;
@@ -881,12 +903,15 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             var received = Volatile.Read(ref _bytesReceived);
             for (var i = 0; i < count; i++)
             {
-                var message = operations[i];
+                var (message, token) = operations[i];
 
                 // a reserve failure means this one was already completed - cancelled, most likely - so it
                 // is owed nothing and the rest of the run carries on without it. Failing the whole batch
-                // because one element was cancelled would be the wrong trade.
-                if (!message.TryReserveRequest(message.Token, out var payload)) continue;
+                // because one element was cancelled would be the wrong trade. The token is the one captured
+                // when the element was QUEUED, not the instance's current one: a cancelled element may have
+                // been consumed and its instance rented again since, and its current token is a stranger's.
+                // A successful reserve then holds this life, so the calls below cannot reach another.
+                if (!message.TryReserveRequest(token, out var payload)) continue;
 
                 try
                 {
@@ -894,7 +919,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                     // earlier element can arrive while a later one is still being copied, but no reply can
                     // arrive for something not yet written
                     message.OnEnqueued(this, _bytesSent, received);
-                    _pending.Enqueue(new(message, message.Token));
+                    _pending.Enqueue(new(message, token));
                     Write(payload.Span);
                     Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
                 }

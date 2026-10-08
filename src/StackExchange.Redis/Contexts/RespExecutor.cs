@@ -358,7 +358,7 @@ namespace StackExchange.Redis
         /// Returns nothing but a bool, because there is nothing to return: each operation is its own
         /// completion and the callers already hold their handles.
         /// </remarks>
-        internal virtual bool TrySendBatch(List<RespPayloadOperation> operations) => false;
+        internal virtual bool TrySendBatch(List<QueuedOperation> operations) => false;
 
         /// <summary>Send a preamble on its own, awaiting it, when it could not be paired with its request.</summary>
         /// <param name="preamble">The preamble frame.</param>
@@ -396,7 +396,7 @@ namespace StackExchange.Redis
         /// it: the <c>SELECT</c> goes in front of <c>MULTI</c>, which is the only place it can go - inside
         /// the transaction it would be queued and applied at <c>EXEC</c> like any other command.
         /// </remarks>
-        internal virtual bool TryWriteRun(RespConnection connection, IRespMessage[] run, int count)
+        internal virtual bool TryWriteRun(RespConnection connection, RespRunEntry[] run, int count)
             => connection.Send(run, count);
 
         /// <summary>
@@ -426,7 +426,7 @@ namespace StackExchange.Redis
         /// between the <c>MULTI</c> and the <c>EXEC</c> would join the transaction rather than run beside
         /// it. That is a stronger requirement than a batch's, which only wants the commands adjacent.
         /// </remarks>
-        internal virtual bool TrySendTransaction(List<RespPayloadOperation> operations, out ValueTask<bool> exec)
+        internal virtual bool TrySendTransaction(List<QueuedOperation> operations, out ValueTask<bool> exec)
         {
             exec = default;
             return false;

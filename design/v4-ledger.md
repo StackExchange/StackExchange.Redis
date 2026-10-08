@@ -93,14 +93,6 @@ Each has a default the work proceeds on until answered.
   is `Task`-backed - every one down-level, and 10 of 13 on net6+ - so a faulted one that the caller drops can still
   raise `UnobservedTaskException`. Dropping an un-awaited `ValueTask` is already misuse; low priority.
 
-- **Queued operations are acted on by their CURRENT token, not the one they were queued with.** Found while
-  fixing the lost batch completion (below, in Status). `RespConnection.Send(IRespMessage[], count)` reserves with
-  `message.Token`; batch `Abandon` and the dispatch-failure path call `TrySetException(operation.Token, ...)`;
-  the transaction's cancel paths call `TrySetCanceledInline(operation.Token)`. A batch member cancelled through its
-  `CancellationToken` before `Execute`, then awaited, is consumed and recycled - and a stranger's life can be on
-  that instance by the time the run is written (its request written and enqueued here too) or faulted. Fix: queue
-  `(operation, token)` and pass the token through the run-send overloads. Needs a cancelled batch member, so rare.
-
 - **Batch-mode profile (2026-10-07), and two things it ruled out.** SADD, 50 callers x 100 per batch, perf with
   full stacks: v4 is round-trip bound (40-50% of samples are idle pool workers and the read loop's spin-before-park),
   command assembly into the transport (`RespConnection.Send`) is 0.9-1.5% - so **buffer packing at construction
@@ -201,6 +193,12 @@ Each has a default the work proceeds on until answered.
   per parse pass with continuations kept asynchronous.
 
 ## Status
+
+- **2026-10-08: queued operations act through the token they were queued with.** Batches and transactions
+  queue `QueuedOperation` (operation + token) and runs are written as `RespRunEntry`, so a batch member that was
+  cancelled, consumed and re-rented before `Execute` is skipped rather than writing - or faulting - the stranger
+  now on its instance. Test: `RespConnectionTests.ARunWritesTheLifeThatWasQueuedNotTheInstancesCurrentOne`
+  (fails on the old behaviour by writing the stranger's request).
 
 - **2026-10-07: a lost batch completion, found and fixed.** One `IBatch` command in ~40 benchmark runs never
   completed: the operation had been pooled while a writer still held a reservation on its request (the reply landed

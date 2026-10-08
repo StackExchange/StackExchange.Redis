@@ -170,6 +170,30 @@ public class RespConnectionTests
     }
 
     [Fact]
+    public void ARunWritesTheLifeThatWasQueuedNotTheInstancesCurrentOne()
+    {
+        // a batch queues its commands long before it writes them, and one can complete in between - cancelled
+        // through its token - be consumed, and have its pooled instance rented for somebody else's command.
+        // Writing by the instance's CURRENT token wrote that stranger's request and enqueued the stranger here.
+        var (connection, transport) = Connect();
+        var message = RecyclingMessage.For("*1\r\n$4\r\nPING\r\n");
+        var queued = RespRunEntry.Of(message);
+
+        Assert.True(message.TrySetCanceled(queued.Token));
+        Assert.Throws<OperationCanceledException>(() => message.GetResult(queued.Token)); // consumed
+        message.Rearm("*1\r\n$4\r\nTIME\r\n"); // and rented again, for a stranger
+
+        Assert.True(connection.Send([queued], 1));
+        Assert.Equal("", transport.Written); // the stale element is skipped...
+        Assert.Equal(0, connection.PendingCount); // ...and nothing waits for a reply on its behalf
+
+        // the stranger's life is untouched: its own request, still unsent
+        Assert.True(message.TryReserveRequest(message.Token, out var payload, recordSent: false));
+        Assert.Equal("*1\r\n$4\r\nTIME\r\n", Encoding.UTF8.GetString(payload.ToArray()));
+        message.ReleaseRequest();
+    }
+
+    [Fact]
     public void AnOperationWithNoWriterLeftIsRecycledWhenItsResultIsTaken()
     {
         var transport = new InterceptingTransport();
