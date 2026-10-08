@@ -2,8 +2,8 @@
 
 Status: **sections 1 to 3 implemented** (2026-10-08): the failback check, member-scoped probes, and the
 lag-aware probe (`HealthCheck.LagAware`, `HealthCheckProbe.LagAware`, `LagAwareOptions`, `LagCheckMode`),
-with stubbed-transport tests replaying the measured response shapes. Not yet: client-certificate support for
-the REST call, and the fault-injector scenario test.
+with stubbed-transport tests replaying the measured response shapes. The fault-injector scenario test passes
+against a live Active-Active pair. Not yet: client-certificate support for the REST call.
 Evidence is in [`findings.md`](findings.md) (section 10 especially); sequence in [`plan.md`](plan.md).
 *Correction:* `SER007` was retired when geo-redundant failover went GA (#3247), so the shipped
 `Availability/` API is not experimental; everything new here is behind a new diagnostic, **`SER011`**
