@@ -201,6 +201,15 @@ Each has a default the work proceeds on until answered.
 
 ## Status
 
+- **2026-10-08: InlineSends, experimental, off by default (`SEREDIS_INLINESENDS=1`).** A caller whose request is
+  alone in flight on its connection sends its own bytes instead of waking the writer loop; bounded to what was
+  staged when it claimed the writer, with the rest (and any send that would block) handed to the loop. Why: each
+  thread-pool hand-off wakes a worker that then spins idle, and that was ~85us of every sequential request's CPU
+  in v3 and v4 alike (118 -> 30us per INCR with the pool's spin disabled). RespFest (`inline3-*`, 4.0.67):
+  work-100-seq 265.8 -> 203.0us CPU/op (v3 207.3), incr-seq 69.2 -> 66.5, get-1k-seq 70.3 -> 67.7 (+2% ops/s);
+  concurrent within noise. **Open: make it the default?** Watch first: across 6 full net8.0 suite runs with an
+  earlier version on, `ScanTests.*ScanLarge` failed twice and one test timed out at 10s, none reproduced alone.
+
 - **2026-10-08: queued operations act through the token they were queued with.** Batches and transactions
   queue `QueuedOperation` (operation + token) and runs are written as `RespRunEntry`, so a batch member that was
   cancelled, consumed and re-rented before `Execute` is skipped rather than writing - or faulting - the stranger
