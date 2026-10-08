@@ -68,6 +68,40 @@ namespace StackExchange.Redis
             ScriptCache = TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
             ChannelPrefix = TryGetService<ChannelPrefixService>(out var prefix) ? prefix.Channel : default;
             MaxCacheAgeTicks = TryGetService<MaxCacheAgeService>(out var maxAge) ? maxAge.Ticks : long.MaxValue;
+            IsSynchronous = TryGetService<SynchronousService>(out _);
+        }
+
+        /// <summary>
+        /// A copy of this context whose sends complete before they return: every <c>...Async</c> method reached
+        /// through it hands back an already-completed task, so <c>.GetAwaiter().GetResult()</c> never blocks on one.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>For a synchronous caller.</b> The shared send path, seeing this, sends through the executor's blocking
+        /// <c>Send</c> - which the reply completes directly, with no thread-pool hop to wait for - instead of
+        /// handing back a pending task. So a command group's asynchronous method serves a synchronous caller
+        /// without a synchronous twin, and a library's own groups get the same for nothing:
+        /// <code>
+        /// RedisValue value = db.Context.Synchronous().Strings.GetAsync(key).GetAwaiter().GetResult();
+        /// </code>
+        /// A command that takes several round trips works too, because each of its sends completes inline.
+        /// </para>
+        /// <para>
+        /// <b>Not for asynchronous code</b>: every send through it blocks the calling thread until its reply. And a
+        /// command reached through a path other than the shared send (rare) still completes asynchronously, so
+        /// <c>GetResult</c> waits on it as it would on any task.
+        /// </para>
+        /// </remarks>
+        /// <returns>The synchronous context.</returns>
+        public RespContext Synchronous() => IsSynchronous ? this : WithServices(SynchronousService.Instance);
+
+        /// <summary>Whether sends through this context complete before they return; see <see cref="Synchronous"/>.</summary>
+        internal bool IsSynchronous { get; }
+
+        /// <summary>The marker <see cref="Synchronous"/> adds; a service, so it composes with everything else.</summary>
+        private sealed class SynchronousService
+        {
+            internal static readonly SynchronousService Instance = new();
         }
 
         /// <summary>Where commands composed from this context are sent; <c>null</c> if none is configured.</summary>

@@ -78,6 +78,9 @@ namespace StackExchange.Redis
         /// <summary>A copy of this context with client-side caching disabled.</summary>
         public RespDatabaseContext WithoutCache() => new(Raw.WithoutCache());
 
+        /// <inheritdoc cref="RespContext.Synchronous"/>
+        public RespDatabaseContext Synchronous() => new(Raw.Synchronous());
+
         /// <summary>A copy of this context that will not serve a cached reply older than <paramref name="maxAge"/>.</summary>
         /// <param name="maxAge">The oldest reply this context will accept from the cache.</param>
         public RespDatabaseContext WithMaxCacheAge(TimeSpan maxAge) => new(Raw.WithMaxCacheAge(maxAge));

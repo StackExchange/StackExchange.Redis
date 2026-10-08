@@ -133,6 +133,14 @@ Each has a default the work proceeds on until answered.
   retry transaction's per-command tasks are settled when `ExecuteAsync` returns, which `RetryTransaction`
   guarantees by awaiting them; if it recurs, capture the assertion before anything else.
 
+- **`DedicatedThreads` is not pool-independent on Linux** (found 2026-10-08 by the starvation harness). .NET's
+  "blocking" socket `Receive` is non-blocking underneath and is woken through the thread pool, so with the pool
+  starved the dedicated reader thread never wakes for data already in the kernel buffer (seen: Recv-Q 7 bytes,
+  one reply, unread; reader parked in `SocketAsyncContext.ReceiveFrom`). Affects the pump and the sync context
+  alike, and probably v3. `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS=1` removes it entirely. Options: document
+  that alongside `DedicatedThreads`, or have the dedicated reader (and writer) wait with `Socket.Poll` - a direct
+  syscall - before each blocking call, so it never needs the pool.
+
 - **Batch/transaction buffer packing**: write a batch's commands adjacently into one shared buffer, rather
   than one rented frame per command, and hand the transport one contiguous run. The abandoned v3-era RESPite
   spike implemented this fully (PR #2959, `marc/respite`, "WIP : RESPite overhaul" - still open but idle since 2026-08: `src/RESPite/RespBatch.cs`,
@@ -205,6 +213,15 @@ Each has a default the work proceeds on until answered.
   per parse pass with continuations kept asynchronous.
 
 ## Status
+
+- **2026-10-08: `Synchronous()` contexts - a supported sync path for command groups, ours and libraries'.**
+  `ctx.Synchronous()` (on `RespContext`, `RespDatabaseContext`, `RespServerContext`) makes the shared send path
+  call the executor's blocking `Send`, so every `...Async` group method returns an already-completed task and
+  `.GetAwaiter().GetResult()` is correct (on an ordinary context it is not: a pending `ValueTask` throws on
+  `GetResult`). Starvation harness (2 pool workers, both blocked; caller on its own thread): healthy pool, sync
+  context 25.6k ops/s vs `IDatabase` sync (pump) 23.9k; starved with `DedicatedThreads` and inline socket
+  completions, both ~22k and never stalling, naive `AsTask().GetResult()` stalling every time. **Next:** move
+  `RedisDatabase`'s sync wrappers onto it and retire `SyncCall`/`SyncPump`.
 
 - **2026-10-08: InlineSends, ON by default since 10 clean full-suite runs (opt out: `SEREDIS_INLINESENDS=0`).** A caller whose request is
   alone in flight on its connection sends its own bytes instead of waking the writer loop; bounded to what was

@@ -423,6 +423,7 @@ StackExchange.Redis.RespContext.Compose(string! command, ref StackExchange.Redis
 StackExchange.Redis.RespContext.Render(ref StackExchange.Redis.Protocol.RespRequestBuilder handler) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespContext.Render(string! command, ref StackExchange.Redis.Protocol.RespRequestBuilder handler) -> StackExchange.Redis.Protocol.RespRequestFrame
 StackExchange.Redis.RespContext.RespContext() -> void
+StackExchange.Redis.RespContext.Synchronous() -> StackExchange.Redis.RespContext!
 StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.AppendChannelPrefix(StackExchange.Redis.RedisChannel channelPrefix) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.AppendKeyPrefix(StackExchange.Redis.RedisKey prefix) -> StackExchange.Redis.RespDatabaseContext
@@ -430,6 +431,7 @@ StackExchange.Redis.RespDatabaseContext.AsDatabase(StackExchange.Redis.IConnecti
 StackExchange.Redis.RespDatabaseContext.Database.get -> int
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext() -> void
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext(StackExchange.Redis.RespContext! context) -> void
+StackExchange.Redis.RespDatabaseContext.Synchronous() -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithDatabase(int database) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithServices(object? services) -> StackExchange.Redis.RespDatabaseContext
@@ -567,6 +569,7 @@ StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.AppendChannelPrefix(StackExchange.Redis.RedisChannel channelPrefix) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.RespServerContext() -> void
 StackExchange.Redis.RespServerContext.RespServerContext(StackExchange.Redis.RespContext! context) -> void
+StackExchange.Redis.RespServerContext.Synchronous() -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.WithServices(object? services) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.WithoutCache() -> StackExchange.Redis.RespServerContext
