@@ -32,9 +32,15 @@ public sealed class LagAwareOptions
     public Func<CancellationToken, ValueTask<NetworkCredential>>? Credentials { get; set; }
 
     /// <summary>
-    /// The cluster REST API to ask; when <see langword="null"/> (the default), <c>https://{host}:9443/</c>,
-    /// where <c>{host}</c> is the member's first configured endpoint.
+    /// The cluster REST API to ask; when <see langword="null"/> (the default), derived from the member's first
+    /// configured endpoint: <c>https://{cluster}:9443/</c> for a database named <c>redis-{port}.{cluster}</c> (the
+    /// form Redis Enterprise assigns), else <c>https://{host}:9443/</c>.
     /// </summary>
+    /// <remarks>
+    /// The cluster name matters: only the cluster's master answers every route the probe uses, and other nodes
+    /// redirect to its internal address. Redirects are never followed; set this explicitly if the database is
+    /// reached through a name that does not follow the pattern.
+    /// </remarks>
     public Uri? RestEndpoint { get; set; }
 
     /// <summary>

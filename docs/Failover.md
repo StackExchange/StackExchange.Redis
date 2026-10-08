@@ -812,8 +812,11 @@ ConnectionGroupMember member = new("redis-14460.us-west.example.com:14460,passwo
 
 What it does by default, and why:
 
-- **The REST endpoint is derived** from the member's first configured endpoint, as `https://{host}:9443/`;
-  set `RestEndpoint` if the database is reached through a name the cluster's certificate does not cover.
+- **The REST endpoint is derived** from the member's first configured endpoint: a database named
+  `redis-{port}.{cluster}` (the form Redis Enterprise assigns) is asked via `https://{cluster}:9443/`. The
+  cluster name matters, because only the cluster's master answers every route the check uses; other nodes
+  redirect to its internal address, which is usually unreachable from outside the cluster's network.
+  Redirects are never followed. Set `RestEndpoint` if the database is reached through a name of your own.
 - **The database is found** by matching that endpoint against the cluster's databases, using only filtered
   requests (unfiltered database listings include database passwords, even for read-only roles); set
   `DatabaseId` to skip this.
