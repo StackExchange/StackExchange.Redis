@@ -94,14 +94,12 @@ public static class ContosoExtensions
     // rendered once, not per call: the name is a constant, and `preform` keeps its RESP bulk string ready
     private static readonly RespCommand Substr = "SUBSTR".Command(preform: true);
 
-    // 2a. the accessor, on the CONTEXT - which is what carries the key prefix, the database, the
-    //     services, so it is what the commands must hang off. The cast is how you reach the plumbing:
-    //     a bare RespContext carries no semantics, so stepping out of the typed world is deliberate
-    public static ContosoCommands Contoso(this in RespDatabaseContext context) => new((RespContext)context);
-
-    // 2b. and sugar, so callers can say db.Contoso() - a target forwards to its own context
+    // 2. the accessor, on any keyspace TARGET: IDatabase, IBatch, ITransaction - and a database context
+    //    itself, which is a target too, so a prefixed context (db.Context.AppendKeyPrefix(...)) reaches it.
+    //    The context is what carries the key prefix, the database and the services; the cast steps out of
+    //    the typed world into the plumbing, deliberately
     public static ContosoCommands Contoso<TTarget>(this TTarget target) where TTarget : IRespKeyspaceTarget
-        => target.Context.Contoso();
+        => new((RespContext)target.Context);
 
     // 3. the command
     public static ValueTask<RedisValue> SubstringAsync(
@@ -122,7 +120,7 @@ and the caller writes:
 RedisValue value = await db.Contoso().SubstringAsync(key, 0, 4);
 ```
 
-`IRespKeyspaceTarget` is carried by `IDatabase`, `IBatch` and `ITransaction`, so one accessor covers all three; `IRespServerTarget` is the `IServer` counterpart, for commands that belong to a node rather than a key. Everything reaches the connection through `Context`.
+`IRespKeyspaceTarget` is carried by `IDatabase`, `IBatch` and `ITransaction`, and by `RespDatabaseContext` itself, so one accessor covers all of them; `IRespServerTarget` is the `IServer` (and `RespServerContext`) counterpart, for commands that belong to a node rather than a key. Everything reaches the connection through `Context`.
 
 A command with optional modifiers, or a variable number of keys, cannot be one interpolated string; build it with `Compose` instead - see [Building a command in pieces](Execute#building-a-command-in-pieces-compose).
 
@@ -130,9 +128,9 @@ The contexts, the targets and `SendAsync` are all in the `StackExchange.Redis` n
 
 That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which. It is also why level 2 needs nothing extra - `db.Context.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}")` names no protocol type, because the interpolated string is lowered into one rather than written as one.
 
-> On C# 14 either accessor can be an extension **property** (`extension(in RespDatabaseContext context) { public ContosoCommands Contoso => new((RespContext)context); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses. The classic form above compiles everywhere.
+> On C# 14 the accessor can be an extension **property** (`extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget { public ContosoCommands Contoso => new((RespContext)target.Context); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses - the shape this client's own groups use. The classic form above compiles everywhere.
 >
-> Why two accessors rather than one on the target? Because a context is what can differ from the connection it came from - `db.Context.AppendKeyPrefix("t:")` is still a context, and the groups have to come off *it*. Hanging them off the target only would mean a prefixed context could not reach them.
+> One generic accessor rather than one per type: the constraint is satisfied by a struct context exactly as by an interface, and for a struct the JIT specialises the call, so `ctx.Contoso` costs what a hand-written accessor on the context would - measured identical once tiered compilation has reached tier 1.
 
 ### The interpolated string is not a string
 

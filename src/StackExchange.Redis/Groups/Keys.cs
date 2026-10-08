@@ -73,12 +73,6 @@ public readonly struct RespKeys
 
 public static partial class RespDatabaseExtensions
 {
-    extension(RespDatabaseContext context)
-    {
-        /// <summary>The key commands.</summary>
-        public RespKeys Keys => new(context.Raw);
-    }
-
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The key commands.</summary>

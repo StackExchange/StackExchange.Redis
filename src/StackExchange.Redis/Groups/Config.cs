@@ -40,9 +40,9 @@ public readonly struct RespConfig
 
 public static partial class RespServerExtensions
 {
-    extension(RespServerContext context)
+    extension<TTarget>(TTarget target) where TTarget : IRespServerTarget
     {
         /// <summary>The <c>CONFIG</c> commands of this server.</summary>
-        public RespConfig Config => new(context.Raw);
+        public RespConfig Config => new(target.Context.Raw);
     }
 }

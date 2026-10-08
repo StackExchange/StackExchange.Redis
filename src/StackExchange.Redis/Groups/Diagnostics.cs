@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 
 namespace StackExchange.Redis;
 
@@ -41,9 +41,9 @@ public readonly struct RespDiagnostics
 
 public static partial class RespServerExtensions
 {
-    extension(RespServerContext context)
+    extension<TTarget>(TTarget target) where TTarget : IRespServerTarget
     {
         /// <summary>The commands that ask this server about itself.</summary>
-        public RespDiagnostics Diagnostics => new(context.Raw);
+        public RespDiagnostics Diagnostics => new(target.Context.Raw);
     }
 }

@@ -44,16 +44,16 @@ public readonly struct RespPubSub
 
 public static partial class RespDatabaseExtensions
 {
-    extension(RespDatabaseContext context)
+    extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The pub/sub commands.</summary>
-        public RespPubSub PubSub => new(context.Raw);
+        public RespPubSub PubSub => new(target.Context.Raw);
     }
 }
 
 public static partial class RespServerExtensions
 {
-    extension(RespServerContext context)
+    extension<TTarget>(TTarget target) where TTarget : IRespServerTarget
     {
         /// <summary>
         /// The pub/sub commands of this server.
@@ -64,6 +64,6 @@ public static partial class RespServerExtensions
         /// <c>PUBLISH</c> is database-scoped and reaches everyone. One group with two doors keeps a
         /// caller from having to know which of those two shapes a given command has.
         /// </remarks>
-        public RespPubSub PubSub => new(context.Raw);
+        public RespPubSub PubSub => new(target.Context.Raw);
     }
 }

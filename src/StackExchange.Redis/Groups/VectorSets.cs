@@ -68,12 +68,6 @@ public readonly struct RespVectorSets
 
 public static partial class RespDatabaseExtensions
 {
-    extension(RespDatabaseContext context)
-    {
-        /// <summary>The vector-set commands.</summary>
-        public RespVectorSets VectorSets => new(context.Raw);
-    }
-
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The vector-set commands.</summary>

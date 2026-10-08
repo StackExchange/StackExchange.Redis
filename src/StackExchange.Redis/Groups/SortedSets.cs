@@ -67,12 +67,6 @@ public readonly struct RespSortedSets
 
 public static partial class RespDatabaseExtensions
 {
-    extension(RespDatabaseContext context)
-    {
-        /// <summary>The sorted-set commands.</summary>
-        public RespSortedSets SortedSets => new(context.Raw);
-    }
-
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The sorted-set commands.</summary>

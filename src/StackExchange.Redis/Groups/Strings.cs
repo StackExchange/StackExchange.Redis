@@ -69,12 +69,6 @@ public readonly struct RespStrings
 
 public static partial class RespDatabaseExtensions
 {
-    extension(RespDatabaseContext context)
-    {
-        /// <summary>The string commands.</summary>
-        public RespStrings Strings => new(context.Raw);
-    }
-
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The string commands.</summary>

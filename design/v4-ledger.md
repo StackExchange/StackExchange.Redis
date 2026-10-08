@@ -60,13 +60,6 @@ Each has a default the work proceeds on until answered.
 
 ## Backlog (after the alpha)
 
-- **One group accessor instead of two.** Each group (`.Strings`, `.Lists`, ...) currently has two extension
-  properties: one on the concrete context type and a generic one constrained to `IRespKeyspaceTarget`
-  (`new(target.Context.Raw)`). Test: make the concrete type implement the interface itself and keep only the
-  constrained generic shim. Measure whether the generic path costs anything (a constrained call on the concrete
-  type should devirtualise; check it does, and check allocation and IL size at the call site). Keep both only if
-  there is a measured reason.
-
 - **Client-side cache across a geo/active-active failover.** Today there is **no flush on switch, by design**
   (`MultiGroupDatabase` remarks): each member multiplexer has its own cache, resolved per command
   (`WithCacheResolver(() => TryGetActive()?.ClientCache)`), so a switch serves from the new member's cache and
@@ -213,6 +206,15 @@ Each has a default the work proceeds on until answered.
   per parse pass with continuations kept asynchronous.
 
 ## Status
+
+- **2026-10-09: one group accessor instead of two (was a backlog item).** `RespDatabaseContext` is now an
+  `IRespKeyspaceTarget` and `RespServerContext` an `IRespServerTarget` (each its own context), so the single
+  constrained-generic accessor per group serves targets and contexts alike; the non-generic ones are gone, from
+  the extension properties and the down-level shims. Machine code: identical to the old direct accessor at tier 1
+  (4 bytes for `ctx.Strings`, 1,935 for a prefixed context, 40 via `IDatabase`); only without tiering does the JIT
+  leave a direct call to the trivial getter rather than inlining it. Side effect, a fix: `Config`, `Diagnostics`,
+  `Scripts` and `PubSub` had no target accessor, so `server.Config` did not compile on an `IServer`; it does now,
+  and so does `db.PubSub`.
 
 - **2026-10-08: `Synchronous()` contexts - a supported sync path for command groups, ours and libraries'.**
   `ctx.Synchronous()` (on `RespContext`, `RespDatabaseContext`, `RespServerContext`) makes the shared send path

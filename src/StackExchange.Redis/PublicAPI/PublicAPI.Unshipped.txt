@@ -97,32 +97,19 @@ static StackExchange.Redis.Diagnostics.ResetSlowLogAsync(this StackExchange.Redi
 static StackExchange.Redis.Diagnostics.SlowLogAsync(this StackExchange.Redis.RespDiagnostics diagnostics, int count = 0, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<StackExchange.Redis.CommandTrace![]!>
 static StackExchange.Redis.Diagnostics.TimeAsync(this StackExchange.Redis.RespDiagnostics diagnostics, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<System.DateTime>
 StackExchange.Redis.Downlevel.RespGroups
-static StackExchange.Redis.Downlevel.RespGroups.Arrays(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespArrays
 static StackExchange.Redis.Downlevel.RespGroups.Arrays<TTarget>(this TTarget target) -> StackExchange.Redis.RespArrays
-static StackExchange.Redis.Downlevel.RespGroups.Bitmaps(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespBitmaps
 static StackExchange.Redis.Downlevel.RespGroups.Bitmaps<TTarget>(this TTarget target) -> StackExchange.Redis.RespBitmaps
-static StackExchange.Redis.Downlevel.RespGroups.Geospatial(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespGeospatial
 static StackExchange.Redis.Downlevel.RespGroups.Geospatial<TTarget>(this TTarget target) -> StackExchange.Redis.RespGeospatial
-static StackExchange.Redis.Downlevel.RespGroups.Hashes(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespHashes
 static StackExchange.Redis.Downlevel.RespGroups.Hashes<TTarget>(this TTarget target) -> StackExchange.Redis.RespHashes
-static StackExchange.Redis.Downlevel.RespGroups.HyperLogLog(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespHyperLogLog
 static StackExchange.Redis.Downlevel.RespGroups.HyperLogLog<TTarget>(this TTarget target) -> StackExchange.Redis.RespHyperLogLog
-static StackExchange.Redis.Downlevel.RespGroups.Keys(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespKeys
 static StackExchange.Redis.Downlevel.RespGroups.Keys<TTarget>(this TTarget target) -> StackExchange.Redis.RespKeys
-static StackExchange.Redis.Downlevel.RespGroups.Lists(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespLists
 static StackExchange.Redis.Downlevel.RespGroups.Lists<TTarget>(this TTarget target) -> StackExchange.Redis.RespLists
-static StackExchange.Redis.Downlevel.RespGroups.PubSub(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespPubSub
-static StackExchange.Redis.Downlevel.RespGroups.Scripts(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespScripts
+static StackExchange.Redis.Downlevel.RespGroups.PubSub<TTarget>(this TTarget target) -> StackExchange.Redis.RespPubSub
 static StackExchange.Redis.Downlevel.RespGroups.Scripts<TTarget>(this TTarget target) -> StackExchange.Redis.RespScripts
-static StackExchange.Redis.Downlevel.RespGroups.Sets(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespSets
 static StackExchange.Redis.Downlevel.RespGroups.Sets<TTarget>(this TTarget target) -> StackExchange.Redis.RespSets
-static StackExchange.Redis.Downlevel.RespGroups.SortedSets(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespSortedSets
 static StackExchange.Redis.Downlevel.RespGroups.SortedSets<TTarget>(this TTarget target) -> StackExchange.Redis.RespSortedSets
-static StackExchange.Redis.Downlevel.RespGroups.Streams(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespStreams
 static StackExchange.Redis.Downlevel.RespGroups.Streams<TTarget>(this TTarget target) -> StackExchange.Redis.RespStreams
-static StackExchange.Redis.Downlevel.RespGroups.Strings(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespStrings
 static StackExchange.Redis.Downlevel.RespGroups.Strings<TTarget>(this TTarget target) -> StackExchange.Redis.RespStrings
-static StackExchange.Redis.Downlevel.RespGroups.VectorSets(this StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespVectorSets
 static StackExchange.Redis.Downlevel.RespGroups.VectorSets<TTarget>(this TTarget target) -> StackExchange.Redis.RespVectorSets
 static StackExchange.Redis.ExtensionMethods.AsStream(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, bool ownsLease = true) -> System.IO.Stream?
 static StackExchange.Redis.ExtensionMethods.DecodeString(this StackExchange.Redis.ReadOnlyLease<byte>? bytes, System.Text.Encoding? encoding = null) -> string?
@@ -439,21 +426,6 @@ StackExchange.Redis.RespDatabaseContext.WithoutCache() -> StackExchange.Redis.Re
 static StackExchange.Redis.RespDatabaseContext.explicit operator StackExchange.Redis.RespContext!(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespContext!
 static StackExchange.Redis.RespDatabaseContext.explicit operator StackExchange.Redis.RespContext(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespDatabaseExtensions
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext)
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Arrays.get -> StackExchange.Redis.RespArrays
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Bitmaps.get -> StackExchange.Redis.RespBitmaps
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Geospatial.get -> StackExchange.Redis.RespGeospatial
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Hashes.get -> StackExchange.Redis.RespHashes
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).HyperLogLog.get -> StackExchange.Redis.RespHyperLogLog
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Keys.get -> StackExchange.Redis.RespKeys
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Lists.get -> StackExchange.Redis.RespLists
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).PubSub.get -> StackExchange.Redis.RespPubSub
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Scripts.get -> StackExchange.Redis.RespScripts
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Sets.get -> StackExchange.Redis.RespSets
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).SortedSets.get -> StackExchange.Redis.RespSortedSets
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Streams.get -> StackExchange.Redis.RespStreams
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).Strings.get -> StackExchange.Redis.RespStrings
-StackExchange.Redis.RespDatabaseExtensions.extension(StackExchange.Redis.RespDatabaseContext).VectorSets.get -> StackExchange.Redis.RespVectorSets
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget)
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).Arrays.get -> StackExchange.Redis.RespArrays
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).Bitmaps.get -> StackExchange.Redis.RespBitmaps
@@ -462,38 +434,26 @@ StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).Hashes.ge
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).HyperLogLog.get -> StackExchange.Redis.RespHyperLogLog
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).Keys.get -> StackExchange.Redis.RespKeys
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).Lists.get -> StackExchange.Redis.RespLists
+StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).PubSub.get -> StackExchange.Redis.RespPubSub
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).Scripts.get -> StackExchange.Redis.RespScripts
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).Sets.get -> StackExchange.Redis.RespSets
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).SortedSets.get -> StackExchange.Redis.RespSortedSets
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).Streams.get -> StackExchange.Redis.RespStreams
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).Strings.get -> StackExchange.Redis.RespStrings
 StackExchange.Redis.RespDatabaseExtensions.extension<TTarget>(TTarget).VectorSets.get -> StackExchange.Redis.RespVectorSets
-static StackExchange.Redis.RespDatabaseExtensions.get_Arrays(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespArrays
 static StackExchange.Redis.RespDatabaseExtensions.get_Arrays<TTarget>(TTarget target) -> StackExchange.Redis.RespArrays
-static StackExchange.Redis.RespDatabaseExtensions.get_Bitmaps(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespBitmaps
 static StackExchange.Redis.RespDatabaseExtensions.get_Bitmaps<TTarget>(TTarget target) -> StackExchange.Redis.RespBitmaps
-static StackExchange.Redis.RespDatabaseExtensions.get_Geospatial(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespGeospatial
 static StackExchange.Redis.RespDatabaseExtensions.get_Geospatial<TTarget>(TTarget target) -> StackExchange.Redis.RespGeospatial
-static StackExchange.Redis.RespDatabaseExtensions.get_Hashes(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespHashes
 static StackExchange.Redis.RespDatabaseExtensions.get_Hashes<TTarget>(TTarget target) -> StackExchange.Redis.RespHashes
-static StackExchange.Redis.RespDatabaseExtensions.get_HyperLogLog(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespHyperLogLog
 static StackExchange.Redis.RespDatabaseExtensions.get_HyperLogLog<TTarget>(TTarget target) -> StackExchange.Redis.RespHyperLogLog
-static StackExchange.Redis.RespDatabaseExtensions.get_Keys(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespKeys
 static StackExchange.Redis.RespDatabaseExtensions.get_Keys<TTarget>(TTarget target) -> StackExchange.Redis.RespKeys
-static StackExchange.Redis.RespDatabaseExtensions.get_Lists(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespLists
 static StackExchange.Redis.RespDatabaseExtensions.get_Lists<TTarget>(TTarget target) -> StackExchange.Redis.RespLists
-static StackExchange.Redis.RespDatabaseExtensions.get_PubSub(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespPubSub
-static StackExchange.Redis.RespDatabaseExtensions.get_Scripts(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespScripts
+static StackExchange.Redis.RespDatabaseExtensions.get_PubSub<TTarget>(TTarget target) -> StackExchange.Redis.RespPubSub
 static StackExchange.Redis.RespDatabaseExtensions.get_Scripts<TTarget>(TTarget target) -> StackExchange.Redis.RespScripts
-static StackExchange.Redis.RespDatabaseExtensions.get_Sets(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespSets
 static StackExchange.Redis.RespDatabaseExtensions.get_Sets<TTarget>(TTarget target) -> StackExchange.Redis.RespSets
-static StackExchange.Redis.RespDatabaseExtensions.get_SortedSets(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespSortedSets
 static StackExchange.Redis.RespDatabaseExtensions.get_SortedSets<TTarget>(TTarget target) -> StackExchange.Redis.RespSortedSets
-static StackExchange.Redis.RespDatabaseExtensions.get_Streams(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespStreams
 static StackExchange.Redis.RespDatabaseExtensions.get_Streams<TTarget>(TTarget target) -> StackExchange.Redis.RespStreams
-static StackExchange.Redis.RespDatabaseExtensions.get_Strings(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespStrings
 static StackExchange.Redis.RespDatabaseExtensions.get_Strings<TTarget>(TTarget target) -> StackExchange.Redis.RespStrings
-static StackExchange.Redis.RespDatabaseExtensions.get_VectorSets(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespVectorSets
 static StackExchange.Redis.RespDatabaseExtensions.get_VectorSets<TTarget>(TTarget target) -> StackExchange.Redis.RespVectorSets
 StackExchange.Redis.RespDiagnostics
 StackExchange.Redis.RespDiagnostics.RespDiagnostics() -> void
@@ -576,20 +536,17 @@ StackExchange.Redis.RespServerContext.WithoutCache() -> StackExchange.Redis.Resp
 static StackExchange.Redis.RespServerContext.explicit operator StackExchange.Redis.RespContext!(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespContext!
 static StackExchange.Redis.RespServerContext.explicit operator StackExchange.Redis.RespContext(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespContext
 StackExchange.Redis.RespServerExtensions
-StackExchange.Redis.RespServerExtensions.extension(StackExchange.Redis.RespServerContext)
-StackExchange.Redis.RespServerExtensions.extension(StackExchange.Redis.RespServerContext).Config.get -> StackExchange.Redis.RespConfig
-StackExchange.Redis.RespServerExtensions.extension(StackExchange.Redis.RespServerContext).Diagnostics.get -> StackExchange.Redis.RespDiagnostics
-StackExchange.Redis.RespServerExtensions.extension(StackExchange.Redis.RespServerContext).Keyspace.get -> StackExchange.Redis.RespKeyspace
-StackExchange.Redis.RespServerExtensions.extension(StackExchange.Redis.RespServerContext).PubSub.get -> StackExchange.Redis.RespPubSub
-StackExchange.Redis.RespServerExtensions.extension(StackExchange.Redis.RespServerContext).Scripts.get -> StackExchange.Redis.RespScripts
 StackExchange.Redis.RespServerExtensions.extension<TTarget>(TTarget)
+StackExchange.Redis.RespServerExtensions.extension<TTarget>(TTarget).Config.get -> StackExchange.Redis.RespConfig
+StackExchange.Redis.RespServerExtensions.extension<TTarget>(TTarget).Diagnostics.get -> StackExchange.Redis.RespDiagnostics
 StackExchange.Redis.RespServerExtensions.extension<TTarget>(TTarget).Keyspace.get -> StackExchange.Redis.RespKeyspace
-static StackExchange.Redis.RespServerExtensions.get_Config(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespConfig
-static StackExchange.Redis.RespServerExtensions.get_Diagnostics(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespDiagnostics
-static StackExchange.Redis.RespServerExtensions.get_Keyspace(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespKeyspace
+StackExchange.Redis.RespServerExtensions.extension<TTarget>(TTarget).PubSub.get -> StackExchange.Redis.RespPubSub
+StackExchange.Redis.RespServerExtensions.extension<TTarget>(TTarget).Scripts.get -> StackExchange.Redis.RespScripts
+static StackExchange.Redis.RespServerExtensions.get_Config<TTarget>(TTarget target) -> StackExchange.Redis.RespConfig
+static StackExchange.Redis.RespServerExtensions.get_Diagnostics<TTarget>(TTarget target) -> StackExchange.Redis.RespDiagnostics
 static StackExchange.Redis.RespServerExtensions.get_Keyspace<TTarget>(TTarget target) -> StackExchange.Redis.RespKeyspace
-static StackExchange.Redis.RespServerExtensions.get_PubSub(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespPubSub
-static StackExchange.Redis.RespServerExtensions.get_Scripts(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespScripts
+static StackExchange.Redis.RespServerExtensions.get_PubSub<TTarget>(TTarget target) -> StackExchange.Redis.RespPubSub
+static StackExchange.Redis.RespServerExtensions.get_Scripts<TTarget>(TTarget target) -> StackExchange.Redis.RespScripts
 StackExchange.Redis.RespSets
 StackExchange.Redis.RespSets.RespSets() -> void
 StackExchange.Redis.RespSets.RespSets(StackExchange.Redis.RespContext! context) -> void

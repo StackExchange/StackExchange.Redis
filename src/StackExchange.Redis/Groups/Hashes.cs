@@ -69,12 +69,6 @@ public readonly struct RespHashes
 
 public static partial class RespDatabaseExtensions
 {
-    extension(RespDatabaseContext context)
-    {
-        /// <summary>The hash commands.</summary>
-        public RespHashes Hashes => new(context.Raw);
-    }
-
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The hash commands.</summary>

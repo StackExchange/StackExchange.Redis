@@ -21,7 +21,7 @@ namespace StackExchange.Redis
     /// target, so passing one does not box it.
     /// </para>
     /// </remarks>
-    public readonly struct RespServerContext : IRespTarget
+    public readonly struct RespServerContext : IRespServerTarget
     {
         /// <summary>Create a server context over a context.</summary>
         /// <param name="context">The context commands are composed and sent through.</param>
@@ -53,6 +53,9 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         RespContext IRespTarget.Context => Raw;
+
+        /// <summary>A server context is its own server target, so one generic accessor per group serves both.</summary>
+        RespServerContext IRespServerTarget.Context => this;
 
         // The scoping family returns THIS type rather than a bare context, and that is the whole reason it
         // is written out per context rather than shared: a naked context offers no groups, so a chain that

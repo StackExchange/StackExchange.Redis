@@ -67,12 +67,6 @@ public readonly struct RespStreams
 /// </remarks>
 public static partial class RespDatabaseExtensions
 {
-    extension(RespDatabaseContext context)
-    {
-        /// <summary>The stream commands.</summary>
-        public RespStreams Streams => new(context.Raw);
-    }
-
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The stream commands.</summary>

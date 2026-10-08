@@ -24,7 +24,7 @@ namespace StackExchange.Redis
     /// the entire argument of design notes section 9.4, made concrete.
     /// </para>
     /// </remarks>
-    public readonly struct RespDatabaseContext : IRespTarget
+    public readonly struct RespDatabaseContext : IRespKeyspaceTarget
     {
         /// <summary>Create a database over a context.</summary>
         /// <param name="context">The context commands are composed and sent through.</param>
@@ -56,6 +56,9 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         RespContext IRespTarget.Context => Raw;
+
+        /// <summary>A database context is its own keyspace target, so one generic accessor per group serves both.</summary>
+        RespDatabaseContext IRespKeyspaceTarget.Context => this;
 
         /// <summary>The database index these commands run against.</summary>
         /// <remarks>

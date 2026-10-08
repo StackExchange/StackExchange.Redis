@@ -78,12 +78,6 @@ public readonly struct RespScripts
 
 public static partial class RespDatabaseExtensions
 {
-    extension(RespDatabaseContext context)
-    {
-        /// <summary>The scripting commands.</summary>
-        public RespScripts Scripts => new(context.Raw);
-    }
-
     extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget
     {
         /// <summary>The scripting commands.</summary>
@@ -93,7 +87,7 @@ public static partial class RespDatabaseExtensions
 
 public static partial class RespServerExtensions
 {
-    extension(RespServerContext context)
+    extension<TTarget>(TTarget target) where TTarget : IRespServerTarget
     {
         /// <summary>
         /// The scripting commands of this server.
@@ -102,6 +96,6 @@ public static partial class RespServerExtensions
         /// A script cache belongs to one node, so the commands that manage it - <c>SCRIPT FLUSH</c> and
         /// its neighbours - are asked of a server rather than of a database.
         /// </remarks>
-        public RespScripts Scripts => new(context.Raw);
+        public RespScripts Scripts => new(target.Context.Raw);
     }
 }

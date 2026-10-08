@@ -92,13 +92,18 @@ public class RespDownlevelShimTests
     /// <c>Strings</c> or <c>Keyspace</c> is a sensible thing to offer. The groups hang off
     /// <see cref="RespDatabaseContext"/>, so the shims must too - otherwise a down-level caller can hold
     /// the type the surface hands them and still not reach a command.
+    /// <para>
+    /// Since the contexts became targets of their own kind, there is no separate set to check: a
+    /// <see cref="RespDatabaseContext"/> IS an <see cref="IRespKeyspaceTarget"/>, so the one generic accessor per
+    /// group - and its one generic shim, covered above - serve it. What must hold is that it stays one.
+    /// </para>
     /// </remarks>
     [Fact]
     public void EveryContextGroupHasAMethodShim()
     {
-        var accessors = AccessorNames(typeof(RespDatabaseContext));
-        Assert.NotEmpty(accessors);
-        Assert.Equal(accessors, ShimNames(typeof(RespDatabaseContext)));
+        Assert.True(typeof(IRespKeyspaceTarget).IsAssignableFrom(typeof(RespDatabaseContext)));
+        Assert.True(typeof(IRespServerTarget).IsAssignableFrom(typeof(RespServerContext)));
+        Assert.Empty(AccessorNames(typeof(RespDatabaseContext))); // no second, non-generic set to keep in step
     }
 
     /// <summary>And the shim really does reach a command, not merely exist.</summary>
