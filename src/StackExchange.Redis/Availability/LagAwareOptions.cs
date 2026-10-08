@@ -86,6 +86,32 @@ public sealed class LagAwareOptions
     public void TrustIssuer(X509Certificate2 issuer)
         => CertificateValidation = ConfigurationOptions.TrustIssuerCallback(issuer);
 
+    /// <summary>
+    /// A client certificate to present to the REST API, for clusters that require mutual TLS on it; when
+    /// <see langword="null"/> (the default), none. Not supported on .NET Framework 4.6.1.
+    /// </summary>
+    public X509Certificate2? ClientCertificate { get; set; }
+
+#if NET
+    /// <summary>
+    /// Present a client certificate loaded from a PEM file pair, as
+    /// <see cref="ConfigurationOptions.SetUserPemCertificate(string, string?)"/> does for the data plane.
+    /// </summary>
+    /// <param name="userCertificatePath">The path for the user certificate (commonly a .crt file).</param>
+    /// <param name="userKeyPath">The path for the user key (commonly a .key file).</param>
+    public void SetUserPemCertificate(string userCertificatePath, string? userKeyPath = null)
+        => ClientCertificate = ConfigurationOptions.LoadPemUserCertificate(userCertificatePath, userKeyPath);
+#endif
+
+    /// <summary>
+    /// Present a client certificate loaded from a PFX file, as
+    /// <see cref="ConfigurationOptions.SetUserPfxCertificate(string, string?)"/> does for the data plane.
+    /// </summary>
+    /// <param name="userCertificatePath">The path for the user certificate (commonly a .pfx file).</param>
+    /// <param name="password">The password for the certificate file.</param>
+    public void SetUserPfxCertificate(string userCertificatePath, string? password = null)
+        => ClientCertificate = ConfigurationOptions.LoadPfxUserCertificate(userCertificatePath, password);
+
     // test seam: replaces the HTTP transport entirely, so tests can answer requests without a listener
     internal Func<HttpMessageHandler>? HttpMessageHandlerFactory { get; set; }
 }

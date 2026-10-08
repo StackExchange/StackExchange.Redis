@@ -1,1 +1,2 @@
 ﻿#nullable enable
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.SetUserPemCertificate(string! userCertificatePath, string? userKeyPath = null) -> void

@@ -30,3 +30,6 @@
 [SER011]StackExchange.Redis.Availability.LagCheckMode.Enabled = 1 -> StackExchange.Redis.Availability.LagCheckMode
 [SER011]static StackExchange.Redis.Availability.HealthCheck.LagAware(StackExchange.Redis.Availability.LagAwareOptions! options) -> StackExchange.Redis.Availability.HealthCheck!
 [SER011]static StackExchange.Redis.Availability.HealthCheckProbe.LagAware(StackExchange.Redis.Availability.LagAwareOptions! options) -> StackExchange.Redis.Availability.HealthCheckProbe!
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.ClientCertificate.get -> System.Security.Cryptography.X509Certificates.X509Certificate2?
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.ClientCertificate.set -> void
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.SetUserPfxCertificate(string! userCertificatePath, string? password = null) -> void

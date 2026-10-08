@@ -529,23 +529,30 @@ namespace StackExchange.Redis
 #if NET
         internal static LocalCertificateSelectionCallback CreatePemUserCertificateCallback(string userCertificatePath, string? userKeyPath)
         {
+            var pfx = LoadPemUserCertificate(userCertificatePath, userKeyPath);
+            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
+        }
+
+        internal static X509Certificate2 LoadPemUserCertificate(string userCertificatePath, string? userKeyPath)
+        {
             // PEM handshakes not universally supported and causes a runtime error about ephemeral certificates; to avoid, export as PFX
             using var pem = X509Certificate2.CreateFromPemFile(userCertificatePath, userKeyPath);
 #pragma warning disable SYSLIB0057 // X509 loading
-            var pfx = new X509Certificate2(pem.Export(X509ContentType.Pfx));
+            return new X509Certificate2(pem.Export(X509ContentType.Pfx));
 #pragma warning restore SYSLIB0057 // X509 loading
-
-            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
 #endif
 
         internal static LocalCertificateSelectionCallback CreatePfxUserCertificateCallback(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
         {
-#pragma warning disable SYSLIB0057 // X509 loading
-            var pfx = new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
-#pragma warning restore SYSLIB0057 // X509 loading
+            var pfx = LoadPfxUserCertificate(userCertificatePath, password, storageFlags);
             return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
+
+        internal static X509Certificate2 LoadPfxUserCertificate(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
+#pragma warning disable SYSLIB0057 // X509 loading
+            => new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
+#pragma warning restore SYSLIB0057 // X509 loading
 
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even when not known by the machine.
