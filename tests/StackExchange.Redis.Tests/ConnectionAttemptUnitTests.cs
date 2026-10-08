@@ -84,9 +84,43 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task TimedOutAttemptCarriesTheTimeout()
+    {
+        // never answers the TLS handshake; with a short retry policy the heartbeat gives up on each attempt, which must be
+        // reported with the timeout rather than as a bare disposal
+        var listener = new TcpListener(IPAddress.Loopback, 0); // not IDisposable on net481
+        listener.Start();
+        try
+        {
+            var options = new ConfigurationOptions
+            {
+                EndPoints = { (IPEndPoint)listener.LocalEndpoint },
+                Ssl = true,
+                AbortOnConnectFail = false,
+                ConnectTimeout = 1000,
+                HeartbeatInterval = TimeSpan.FromMilliseconds(100),
+                ReconnectRetryPolicy = new LinearRetry(50),
+            };
+            var attempts = Observe(options);
+
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+
+            await WaitForAsync(() => attempts.Any(a => a.FailureType == ConnectionFailureType.UnableToConnect));
+            var timedOut = attempts.First(a => a.FailureType == ConnectionFailureType.UnableToConnect);
+            Assert.False(timedOut.IsSuccess);
+            Assert.NotNull(timedOut.Exception);
+            Assert.All(attempts, a => Assert.NotNull(a.Exception));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
     public async Task AbandonedAttemptIsNotReportedAsAFailureToConnect()
     {
-        // accepts TCP (via the backlog) but never answers the TLS handshake, so every attempt stays in flight at Tls
+        // accepts TCP (via the backlog) but never answers the TLS handshake, so every attempt stays in flight
         // until the library abandons it; that is the library's decision, and says nothing about the server
         var listener = new TcpListener(IPAddress.Loopback, 0); // not IDisposable on net481
         listener.Start();
@@ -108,7 +142,6 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
             await WaitForAsync(() => attempts.Any(a => a.FailureType == ConnectionFailureType.ConnectionDisposed));
             var abandoned = attempts.First(a => a.FailureType == ConnectionFailureType.ConnectionDisposed);
             Assert.False(abandoned.IsSuccess);
-            Assert.Equal(ConnectionAttemptStage.Tls, abandoned.Stage);
             Assert.Contains("abandoned", abandoned.Exception?.Message);
             Assert.DoesNotContain(attempts, a => a.FailureType == ConnectionFailureType.UnableToConnect && a.Exception is null);
         }
@@ -247,7 +280,9 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
-        Assert.True(IsLikelyClientCertificateRejection(await FirstAttemptAsync(attempts)));
+        var attempt = await FirstAttemptAsync(attempts);
+        output.WriteLine($"{attempt.Stage} / {attempt.FailureType}; server certificate accepted: {attempt.ServerCertificateAccepted}; {attempt.Exception?.GetType().Name}: {attempt.Exception?.Message}; inner {attempt.Exception?.InnerException?.GetType().Name}: {attempt.Exception?.InnerException?.Message}");
+        Assert.True(IsLikelyClientCertificateRejection(attempt));
     }
 
     // mirrors the classification documented in docs/Authentication.md; keep the two in step

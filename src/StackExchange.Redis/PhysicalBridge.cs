@@ -627,6 +627,7 @@ namespace StackExchange.Redis
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;
+                            snapshot?.ReportAttemptOutcome(isSuccess: false, ConnectionFailureType.UnableToConnect, ex); // else Dispose reports it without the timeout
                             OnDisconnected(ConnectionFailureType.UnableToConnect, snapshot, out bool isCurrent, out State oldState);
                             snapshot?.Dispose(); // Cleanup the existing connection/socket if any, otherwise it will wait reading indefinitely
                             TryConnect(null);
