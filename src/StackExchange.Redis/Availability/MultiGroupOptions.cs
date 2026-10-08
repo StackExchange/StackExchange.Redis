@@ -18,7 +18,7 @@ public sealed class MultiGroupOptions
     internal static readonly TimeSpan DefaultFailbackDelay = TimeSpan.Zero;
 
     private static readonly MultiGroupOptions DefaultInstance = new(
-        HealthCheck.Default, CircuitBreaker.Default, RetryPolicy.Default, DefaultHealthCheckInterval, DefaultFailbackDelay);
+        HealthCheck.Default, CircuitBreaker.Default, RetryPolicy.Default, DefaultHealthCheckInterval, DefaultFailbackDelay, null);
 
     /// <summary>
     /// Default shared options.
@@ -30,13 +30,15 @@ public sealed class MultiGroupOptions
         CircuitBreaker circuitBreaker,
         RetryPolicy retryPolicy,
         TimeSpan healthCheckInterval,
-        TimeSpan failbackDelay)
+        TimeSpan failbackDelay,
+        HealthCheck? failbackHealthCheck)
     {
         HealthCheck = healthCheck;
         CircuitBreaker = circuitBreaker;
         RetryPolicy = retryPolicy;
         HealthCheckInterval = healthCheckInterval;
         FailbackDelay = failbackDelay;
+        FailbackHealthCheck = failbackHealthCheck;
     }
 
     /// <inheritdoc/>
@@ -75,6 +77,13 @@ public sealed class MultiGroupOptions
     public TimeSpan FailbackDelay { get; }
 
     /// <summary>
+    /// The failback health check to use for members of the group when no per-member one is specified;
+    /// <see langword="null"/> (the default) means none. See <see cref="ConnectionGroupMember.FailbackHealthCheck"/>.
+    /// </summary>
+    [Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
+    public HealthCheck? FailbackHealthCheck { get; }
+
+    /// <summary>
     /// Allows configuration of <see cref="MultiGroupOptions"/>.
     /// </summary>
     public sealed class Builder
@@ -96,6 +105,7 @@ public sealed class MultiGroupOptions
             RetryPolicy = options.RetryPolicy;
             HealthCheckInterval = options.HealthCheckInterval;
             FailbackDelay = options.FailbackDelay;
+            FailbackHealthCheck = options.FailbackHealthCheck;
         }
 
         /// <summary>
@@ -127,6 +137,13 @@ public sealed class MultiGroupOptions
         public TimeSpan FailbackDelay { get; set; } = DefaultFailbackDelay;
 
         /// <summary>
+        /// The failback health check to use for members of the group when no per-member one is specified;
+        /// <see langword="null"/> (the default) means none. See <see cref="ConnectionGroupMember.FailbackHealthCheck"/>.
+        /// </summary>
+        [Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
+        public HealthCheck? FailbackHealthCheck { get; set; }
+
+        /// <summary>
         /// Create a new options instance.
         /// </summary>
         public MultiGroupOptions Create()
@@ -142,12 +159,13 @@ public sealed class MultiGroupOptions
                 && ReferenceEquals(CircuitBreaker, CircuitBreaker.Default)
                 && ReferenceEquals(RetryPolicy, RetryPolicy.Default)
                 && HealthCheckInterval == DefaultHealthCheckInterval
-                && FailbackDelay == DefaultFailbackDelay)
+                && FailbackDelay == DefaultFailbackDelay
+                && FailbackHealthCheck is null)
             {
                 return DefaultInstance;
             }
 
-            return new MultiGroupOptions(HealthCheck, CircuitBreaker, RetryPolicy, HealthCheckInterval, FailbackDelay);
+            return new MultiGroupOptions(HealthCheck, CircuitBreaker, RetryPolicy, HealthCheckInterval, FailbackDelay, FailbackHealthCheck);
         }
 
         /// <summary>

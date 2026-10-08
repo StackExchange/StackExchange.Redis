@@ -83,6 +83,7 @@ Because the policies are immutable, there is no question of whether a change "ta
 | `RetryPolicy` | `MultiGroupOptions.RetryPolicy` | *(none; retry is applied per-database via `WithRetry`)* |
 | `HealthCheckInterval` | `MultiGroupOptions.HealthCheckInterval` | *(none; it is the group's re-evaluation cadence)* |
 | `FailbackDelay` | `MultiGroupOptions.FailbackDelay` | `ConnectionGroupMember.FailbackDelay` |
+| `FailbackHealthCheck` (experimental, `SER011`) | `MultiGroupOptions.FailbackHealthCheck` | `ConnectionGroupMember.FailbackHealthCheck` |
 | `Weight` | *(none)* | `ConnectionGroupMember.Weight` |
 | `SkipInitialHealthCheck` | *(none)* | `ConnectionGroupMember.SkipInitialHealthCheck` |
 
@@ -443,7 +444,7 @@ HealthCheck healthCheck = new HealthCheck.Builder
 
 #### HealthCheckProbePolicy.AllSuccess (Default)
 
-The health check passes only if **all** probes succeed. This provides the strictest evaluation:
+The health check passes only if **no** probe fails and at least one succeeds. This provides the strictest evaluation. A run in which every probe was `Inconclusive` (the probe could not tell) reports `Inconclusive`, not `Healthy`:
 
 ```csharp
 HealthCheck healthCheck = new HealthCheck.Builder
@@ -753,7 +754,44 @@ ConnectionGroupMember[] members = [
 
 This guards against **flapping**: a member that is intermittently failing will keep pushing its "last failure" time forward, so it never satisfies the delay and stays out of rotation until it is genuinely stable.
 
-> Implementation note: the failback check is pure tick math on the wall clock — the last-failure time and the cutoff (`UtcNow - FailbackDelay`) are both compared as raw `long` UTC ticks, so `DateTimeKind` never enters into it. (`DateTime.Ticks` and `TimeSpan.Ticks` share the same 100 ns unit.)
+> Implementation note: the `FailbackDelay` comparison is pure tick math on the wall clock — the last-failure time and the cutoff (`UtcNow - FailbackDelay`) are both compared as raw `long` UTC ticks, so `DateTimeKind` never enters into it. (`DateTime.Ticks` and `TimeSpan.Ticks` share the same 100 ns unit.)
+
+### Failback health checks
+
+> Experimental, behind diagnostic id `SER011`; see [SER011](exp/SER011.md).
+
+`HealthCheck` answers "is this member alive". Some deployments need a second question answered before traffic
+moves *to* a member: "has it caught up". In an Active-Active deployment, a region that has just come back can be
+reachable but stale, and failing back onto it reads (and builds on) data that is behind.
+`ConnectionGroupMember.FailbackHealthCheck` (or the group default, `MultiGroupOptions.FailbackHealthCheck`) is
+that second question:
+
+```csharp
+ConnectionGroupMember member = new("us-west.redis.example.com:6379", name: "US West")
+{
+    Weight = 10,
+    // CaughtUpProbe stands for a probe of your own; see "Custom Health Check Probes"
+    FailbackHealthCheck = new HealthCheck.Builder { Probe = new CaughtUpProbe(), ProbeCount = 1 },
+};
+```
+
+The rules:
+
+- **It never removes the active member.** It is consulted only for members that are not active, and only
+  decides whether they may *become* active. Liveness stays with `HealthCheck`.
+- **Only `Healthy` makes a member eligible.** `Inconclusive` (for example, the probe could not reach whatever
+  it asks) leaves the member ineligible, as does `Unhealthy`; neither marks it unhealthy.
+- **A verdict is not kept while it cannot be acted on.** A member that is active, or not connected, is checked
+  afresh before it is next eligible.
+- **If no connected member is eligible, selection falls back to liveness alone.** In a partition between
+  regions every member can be behind at once, and a group that refused to serve from any of them would turn a
+  consistency precaution into an outage. When the active member is lost, the best eligible survivor is
+  preferred, then the best live one.
+- **An explicit `TryFailoverTo(member)` overrides it**, as it does `IsUnhealthy`.
+
+A probe that asks about the database as a whole, rather than one endpoint, can set
+`HealthCheckProbe.Scope` to `HealthCheckProbeScope.Member`, so that it runs once per member per pass rather than
+once per endpoint.
 
 ### Anti-flap tiebreak in selection
 

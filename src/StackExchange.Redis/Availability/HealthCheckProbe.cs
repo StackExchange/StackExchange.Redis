@@ -15,6 +15,12 @@ public abstract partial class HealthCheckProbe
     /// </summary>
     public abstract Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context);
 
+    /// <summary>
+    /// Whether this probe is invoked per endpoint (the default) or once per member.
+    /// </summary>
+    [Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
+    public virtual HealthCheckProbeScope Scope => HealthCheckProbeScope.Endpoint;
+
     private static Task<HealthCheckResult>? _inconclusive, _healthy, _unhealthy;
 
     /// <summary>
