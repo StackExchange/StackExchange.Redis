@@ -49,12 +49,15 @@ Rules, applied by `SelectPreferredGroup` / `UpdateState`:
   check (if any) answers `Healthy`. `Inconclusive` from the failback check means **not eligible**:
   "could not ask" must not let the group fail back onto a member that may be stale.
 - **If no member is eligible, select on liveness alone.** Every member lagging (a partition between
-  regions, say) must degrade to "serve from somewhere", never to "serve from nowhere". This matters
-  more than it looks: measured, a member whose *incoming* sync has stopped answers lag 503 at any
-  tolerance. So when the active region dies, the survivor's lag check is likely to fail precisely
-  because its peer is gone (*inferred*: measured with sync paused, not with the peer killed). A strict
-  rule would refuse the failover that is needed most. In short: the failback check gates moving *away
-  from a live active member*; it never blocks replacing a dead one.
+  regions, say) must degrade to "serve from somewhere", never to "serve from nowhere". Measured under a
+  partition (findings section 10): both members' lag checks pass for about a minute, then both fail at
+  100 ms. So a region outage that lasts more than a minute leaves *no* member passing the lag check;
+  a strict rule (go-redis's) would allow failover in the first minute and refuse it afterwards. In
+  short: the failback check gates moving *away from a live active member*; it never blocks replacing a
+  dead one.
+- **The first minute after a link breaks is blind** (measured): the lag check reports no lag for
+  ~60 s after sync stops. So a failback decision in that window is not protected by the lag check;
+  `FailbackDelay` covers some of it, and the docs must say so.
 - The failback check runs on the same `HealthCheckInterval` poll as liveness, but only for members
   that are not active (the active member's answer is never used).
 
@@ -232,8 +235,6 @@ imports the same `LagAwareHealthCheck`, so it is not asyncio-only.)
    | go-redis | **kept** (PING judges it) | stays on a live active; otherwise `ErrTemporarilyNotAvailable`, then `ErrPermanentlyNotAvailable` | no; lagging candidates stay unselectable |
 
    *Recommendation:* no client falls back to liveness alone, so the proposal in 1 has no precedent.
-   Keep it anyway, for the reason given there: once the active region is gone, the survivor's lag
-   check probably fails *because* the region is gone, and go-redis's rule would then refuse the
-   failover (*inferred* from its code and our paused-sync measurement, not tested). This is worth
-   measuring before it is built: isolate one member's region and read the survivor's lag check. It
-   needs `network_failure` or similar, which needs the same care `network_latency` taught.
+   Keep it anyway. *Measured 2026-10-08* by partitioning the clusters: after ~60 s every member fails
+   the lag check, so go-redis's rule would refuse a failover during any region outage longer than a
+   minute (its behaviour there is *inferred* from its code, not run).
