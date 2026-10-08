@@ -66,7 +66,13 @@ public sealed class FaultInjectorEnvironment
     /// advertised endpoint type - which matter because they decide which notification family a database can
     /// even emit. Tests that provision their own database know what they asked for and need none of this.
     /// </remarks>
-    public ClusterCredentials? Cluster { get; private set; }
+    public ClusterCredentials? Cluster => Clusters.Count > 0 ? Clusters[0] : null;
+
+    /// <summary>
+    /// Credentials for every cluster in the environment, in <c>env_output.json</c> order (which is the
+    /// injector's <c>cluster_index</c>); one entry for single-cluster templates, two for Active-Active.
+    /// </summary>
+    public IReadOnlyList<ClusterCredentials> Clusters { get; private set; } = [];
 
     private static FaultInjectorEnvironment? Discover()
     {
@@ -94,7 +100,7 @@ public sealed class FaultInjectorEnvironment
         {
             CertificateAuthorityPath = FindCertificateAuthority(directory),
         };
-        result.Cluster = ReadClusterCredentials(directory);
+        result.Clusters = ReadClusterCredentials(directory);
         return result;
     }
 
@@ -124,10 +130,10 @@ public sealed class FaultInjectorEnvironment
         return null;
     }
 
-    private static ClusterCredentials? ReadClusterCredentials(DirectoryInfo directory)
+    private static IReadOnlyList<ClusterCredentials> ReadClusterCredentials(DirectoryInfo directory)
     {
         var path = Path.Combine(directory.FullName, "env_output.json");
-        if (!File.Exists(path)) return null;
+        if (!File.Exists(path)) return [];
 
         try
         {
@@ -136,26 +142,35 @@ public sealed class FaultInjectorEnvironment
             // two schemas in the wild: single-cluster templates put outputs at the top level, and the AWS
             // multi-cluster template nests them under .clusters.value[N]. Both are handled because which one
             // you get is a property of the template somebody chose, not of anything a test can control.
-            var root = document.RootElement;
-            if (root.TryGetProperty("clusters", out var clusters)
+            var roots = new List<JsonElement>();
+            if (document.RootElement.TryGetProperty("clusters", out var clusters)
                 && clusters.TryGetProperty("value", out var values)
-                && values.ValueKind == JsonValueKind.Array
-                && values.GetArrayLength() > 0)
+                && values.ValueKind == JsonValueKind.Array)
             {
-                root = values[0];
+                foreach (var value in values.EnumerateArray()) roots.Add(value);
+            }
+            else
+            {
+                roots.Add(document.RootElement);
             }
 
-            var name = ReadValue(root, "cluster_name") ?? ReadValue(root, "name");
-            var user = ReadValue(root, "username") ?? ReadValue(root, "cluster_username");
-            var password = ReadValue(root, "password") ?? ReadValue(root, "cluster_password");
+            var result = new List<ClusterCredentials>();
+            foreach (var root in roots)
+            {
+                var name = ReadValue(root, "cluster_name") ?? ReadValue(root, "name");
+                var user = ReadValue(root, "username") ?? ReadValue(root, "cluster_username");
+                var password = ReadValue(root, "password") ?? ReadValue(root, "cluster_password");
+                if (name is null || user is null || password is null) break; // keep indexes aligned with cluster_index
+                result.Add(new ClusterCredentials(name, user, password));
+            }
 
-            return name is null || user is null || password is null ? null : new ClusterCredentials(name, user, password);
+            return result;
         }
         catch (Exception)
         {
             // a malformed env_output.json is not fatal here: only the tests that need REST enrichment care,
             // and they report it themselves rather than failing every test in the suite at discovery time
-            return null;
+            return [];
         }
     }
 
