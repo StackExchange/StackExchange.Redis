@@ -8,6 +8,7 @@
     <PackageVersion Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
     <PackageVersion Include="System.IO.Compression" Version="4.3.0" />
     <PackageVersion Include="System.IO.Pipelines" Version="10.0.5" />
+    <PackageVersion Include="System.Text.Json" Version="10.0.5" />
     <!-- note that this bumps System.Buffers, so is pinned in down-level in SE csproj -->
     <PackageVersion Include="System.IO.Hashing" Version="10.0.12" />
     <!-- for RESPite -->

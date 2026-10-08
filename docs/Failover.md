@@ -793,6 +793,45 @@ A probe that asks about the database as a whole, rather than one endpoint, can s
 `HealthCheckProbe.Scope` to `HealthCheckProbeScope.Member`, so that it runs once per member per pass rather than
 once per endpoint.
 
+#### Redis Enterprise: lag-aware availability
+
+For Redis Enterprise Active-Active deployments, `HealthCheck.LagAware(...)` asks the cluster's own
+[database availability API](https://redis.io/docs/latest/operate/rs/monitoring/db-availability/) whether a
+member is available and caught up. The only thing it needs is the cluster's management credentials:
+
+```csharp
+ConnectionGroupMember member = new("redis-14460.us-west.example.com:14460,password=...", name: "US West")
+{
+    Weight = 10,
+    FailbackHealthCheck = HealthCheck.LagAware(new LagAwareOptions
+    {
+        Credentials = _ => new(new NetworkCredential("probe@example.com", secrets.Get("us-west-mgmt"))),
+    }),
+};
+```
+
+What it does by default, and why:
+
+- **The REST endpoint is derived** from the member's first configured endpoint, as `https://{host}:9443/`;
+  set `RestEndpoint` if the database is reached through a name the cluster's certificate does not cover.
+- **The database is found** by matching that endpoint against the cluster's databases, using only filtered
+  requests (unfiltered database listings include database passwords, even for read-only roles); set
+  `DatabaseId` to skip this.
+- **The lag question is only asked of Active-Active databases** (`LagCheck = LagCheckMode.Auto`). Asked of
+  any other database, the server reports it unavailable regardless of tolerance.
+- **No tolerance is sent**, so the cluster's own `availability_lag_tolerance_ms` applies; set `LagTolerance`
+  to override it. (Other clients default to 5000 ms; the server's default is 100 ms.)
+- **"Could not ask" is `Inconclusive`, not `Unhealthy`.** A management-plane problem (REST API unreachable,
+  credentials rejected) never fails anything over; as a failback check it simply leaves the member
+  ineligible. A role with `management: db_viewer` is sufficient.
+- **The management certificate is usually self-signed by the cluster**, so it will not validate against the
+  platform trust store; `options.TrustIssuer(path)` with the cluster's own certificate (or its issuer) works,
+  as it does for the data plane, but it is a separate setting from the database's TLS trust.
+
+One limitation to plan around: measured on Redis Enterprise 8.0, when the link between regions breaks, the
+lag check keeps reporting "caught up" for roughly a minute before it notices. A failback in that window is not
+protected by it; a `FailbackDelay` of at least that long closes the gap.
+
 ### Anti-flap tiebreak in selection
 
 Member selection ranks candidates by connectivity, explicit override, weight, and latency. When two candidates are otherwise indistinguishable, selection prefers the member that is **already active**, rather than picking arbitrarily. 

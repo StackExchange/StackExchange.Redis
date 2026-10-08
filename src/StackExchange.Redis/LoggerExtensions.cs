@@ -826,4 +826,10 @@ internal static partial class LoggerExtensions
         EventId = 120,
         Message = "{Server}: Re-reading topology after {Failures} consecutive connect failures")]
     internal static partial void LogInformationRefreshingAfterConnectFailures(this ILogger logger, ServerEndPointLogValue server, int failures);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 124,
+        Message = "Lag-aware health check could not ask {RestEndpoint}: {Reason}")]
+    internal static partial void LogWarningLagAwareInconclusive(this ILogger logger, string restEndpoint, string reason);
 }

@@ -558,7 +558,7 @@ namespace StackExchange.Redis
             => TrustIssuerCallback(new X509Certificate2(issuerCertificatePath));
 #pragma warning restore SYSLIB0057 // X509 loading
 
-        private static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
+        internal static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
 
