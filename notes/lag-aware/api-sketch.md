@@ -147,10 +147,11 @@ probe is `Member`-scoped.
 
 ### What it does, per pass
 
-1. **Endpoint:** `RestEndpoint`, else `https://<host of the member's first configured endpoint>:9443`.
-   Measured: every database's host is `redis-<port>.<cluster fqdn>`, the 9443 certificate's SANs
-   cover `*.<fqdn>`, and any node answers. Configured endpoint, not discovered nodes: an OSS-cluster
-   database advertises IP addresses.
+1. **Endpoint:** `RestEndpoint`, else derived from the member's first configured endpoint: the cluster
+   FQDN when the host is `redis-<port>.<cluster fqdn>`, else the host itself. *As built:* the cluster
+   FQDN, not the database host, because non-master nodes redirect management routes to the master's
+   internal address (findings section 10); redirects are never followed. Configured endpoint, not
+   discovered nodes: an OSS-cluster database advertises IP addresses.
 2. **uid** (once, cached; cleared on 404, as Lettuce does): `DatabaseId`, else
    `GET /v1/bdbs?fields=uid,endpoints`, matched on `dns_name` and port.
 3. **Active-Active** (once, cached), for `LagCheck = Auto`: `GET /v1/bdbs/{uid}?fields=uid,crdt`.
