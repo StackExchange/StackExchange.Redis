@@ -55,14 +55,22 @@ public partial class ConnectionMultiplexer
         CombineWrites = 8,
 
         /// <summary>
-        /// Experimental: a caller that finds the writer idle sends its own bytes, rather than waking the writer loop.
+        /// On by default: a caller whose request is alone in flight on its connection sends its own bytes, rather than
+        /// waking the writer loop. <c>SEREDIS_INLINESENDS=0</c>, or clearing it in code, restores the writer for every send.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Every hand-off to the thread pool wakes a worker that then spins idle for a while, and for a sequential
         /// caller that spinning was most of the CPU per request (measured: 118 -> 30us per INCR with the pool's spin
-        /// disabled). Sending inline removes the writer's hand-off when nobody else is writing. Bounded: the caller
-        /// sends only what was staged when it started, and leaves anything else - and a send that would block - to
-        /// the writer loop. Connections made after it is set use it.
+        /// disabled). Sending inline removes the writer's hand-off. Bounded: the caller sends only what was staged when
+        /// it claimed the writer, and leaves anything else - and a send that would block - to the writer loop. Only when
+        /// nothing else is in flight: sending inline whenever the writer was idle cost <c>incr-conc64</c> 4%.
+        /// </para>
+        /// <para>
+        /// RespFest, CPU per op off -> on: <c>work-100-seq</c> 265.8 -> 203.0us (v3 207.3), <c>incr-seq</c> 69.2 -> 66.5,
+        /// <c>get-1k-seq</c> 70.3 -> 67.7 (+2% ops/s); concurrent within noise. Made the default after ten clean
+        /// full-suite runs with it on. Connections made after it is changed use the new setting.
+        /// </para>
         /// </remarks>
         InlineSends = 16,
     }
@@ -78,6 +86,7 @@ public partial class ConnectionMultiplexer
         }
         catch { }
         SetFeatureFlag(nameof(FeatureFlags.PreventThreadTheft), value);
+        SetFeatureFlag(nameof(FeatureFlags.InlineSends), true); // on by default; the environment can still clear it
         ApplyEnvironmentFeatureFlags();
     }
 

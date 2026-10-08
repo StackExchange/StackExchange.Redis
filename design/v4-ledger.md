@@ -201,14 +201,15 @@ Each has a default the work proceeds on until answered.
 
 ## Status
 
-- **2026-10-08: InlineSends, experimental, off by default (`SEREDIS_INLINESENDS=1`).** A caller whose request is
+- **2026-10-08: InlineSends, ON by default since 10 clean full-suite runs (opt out: `SEREDIS_INLINESENDS=0`).** A caller whose request is
   alone in flight on its connection sends its own bytes instead of waking the writer loop; bounded to what was
   staged when it claimed the writer, with the rest (and any send that would block) handed to the loop. Why: each
   thread-pool hand-off wakes a worker that then spins idle, and that was ~85us of every sequential request's CPU
   in v3 and v4 alike (118 -> 30us per INCR with the pool's spin disabled). RespFest (`inline3-*`, 4.0.67):
   work-100-seq 265.8 -> 203.0us CPU/op (v3 207.3), incr-seq 69.2 -> 66.5, get-1k-seq 70.3 -> 67.7 (+2% ops/s);
-  concurrent within noise. **Open: make it the default?** Watch first: across 6 full net8.0 suite runs with an
-  earlier version on, `ScanTests.*ScanLarge` failed twice and one test timed out at 10s, none reproduced alone.
+  concurrent within noise. Made the default after 10 full-suite runs with it on (net8.0 and net10.0
+  alternating): 9 clean, 1 with only the known `RespHashImportProbeTests` flake. An earlier version had shown two
+  `ScanTests.*ScanLarge` failures and a 10s timeout in 6 runs; none recurred - keep an eye out.
 
 - **2026-10-08: queued operations act through the token they were queued with.** Batches and transactions
   queue `QueuedOperation` (operation + token) and runs are written as `RespRunEntry`, so a batch member that was
