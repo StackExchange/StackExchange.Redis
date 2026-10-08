@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -63,23 +64,24 @@ public abstract partial class HealthCheckProbe
             _databaseId = options.DatabaseId;
             _mode = options.LagCheck;
             _tolerance = options.LagTolerance;
-            var handler = options.HttpMessageHandlerFactory?.Invoke() ?? CreateHandler(options.CertificateValidation);
+            var handler = options.HttpMessageHandlerFactory?.Invoke() ?? CreateHandler(options.CertificateValidation, options.ClientCertificate);
             _http = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan }; // bounded per call instead
         }
 
         public override HealthCheckProbeScope Scope => HealthCheckProbeScope.Member;
 
-        private static HttpMessageHandler CreateHandler(RemoteCertificateValidationCallback? validation)
+        internal static HttpMessageHandler CreateHandler(RemoteCertificateValidationCallback? validation, X509Certificate2? clientCertificate)
         {
 #if NET
             // redirects point at a node's internal address, so following one only ever hangs; report it instead
             var handler = new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(2), AllowAutoRedirect = false };
             if (validation is not null) handler.SslOptions.RemoteCertificateValidationCallback = validation;
+            if (clientCertificate is not null) handler.SslOptions.ClientCertificates = [clientCertificate];
             return handler;
 #elif NET461
-            if (validation is not null)
+            if (validation is not null || clientCertificate is not null)
             {
-                throw new PlatformNotSupportedException("Custom certificate validation for the REST API requires .NET Framework 4.7.1 or later.");
+                throw new PlatformNotSupportedException("Custom certificate validation and client certificates for the REST API require .NET Framework 4.7.1 or later.");
             }
             return new HttpClientHandler { AllowAutoRedirect = false };
 #else
@@ -87,6 +89,11 @@ public abstract partial class HealthCheckProbe
             if (validation is not null)
             {
                 handler.ServerCertificateCustomValidationCallback = (request, certificate, chain, errors) => validation(request, certificate, chain, errors);
+            }
+            if (clientCertificate is not null)
+            {
+                handler.ClientCertificateOptions = ClientCertificateOption.Manual;
+                handler.ClientCertificates.Add(clientCertificate);
             }
             return handler;
 #endif

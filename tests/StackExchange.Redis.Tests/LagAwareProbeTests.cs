@@ -257,6 +257,80 @@ public class LagAwareProbeTests(ITestOutputHelper log)
     public void FindsTheDatabaseByAddressAsWellAsByName()
         => Assert.Equal(2, HealthCheckProbe.LagAwareProbe.FindUid(BdbList, "100.53.190.50", 12706));
 
+    // public-only and self-signed (CN=lag-aware-probe-test, private key discarded at generation): enough to show
+    // the certificate reaching the transport, where generating one is not possible (Mono has no CertificateRequest)
+    private const string PublicOnlyCertificate = "MIIDITCCAgmgAwIBAgIUbLJxUJKq4SkB9FnIFFLUTKBAaSkwDQYJKoZIhvcNAQELBQAwHzEdMBsGA1UEAwwUbGFnLWF3YXJlLXByb2JlLXRlc3QwIBcNMjYxMDA4MTUzNjU0WhgPMjEyNjA5MTQxNTM2NTRaMB8xHTAbBgNVBAMMFGxhZy1hd2FyZS1wcm9iZS10ZXN0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxXfFEzpB82vcUAwfk75Blw1BYG57k9XXIBqa0dx7KxivuF0iSZsSPGViBs6Pwjx7Yvq6+FRZHusFEZ0s3qRbbSf5p7dZhAJ4Oeb5TjqYj7rNQaoCjz2+W4eWbSpVpd8If+g3qy/U+C3gTdIPOUu9biExNj9iN/dUt4o/0S3vgp0iwUiP/E2TcnFRk0SHLgo0Irt1U12FWSpdJA+p65OoG4h/xbsO70qqn/ifyLX8B+eYBOaqQi8myls3MPef2b/pmQlMYUaTGR5kT2EY3pRusTEhdpC1xDrmYxUnxzptgkcAval7HjXEU0sB7c7atGgTaQlUSv8CsrOk/wtQ4Lp54QIDAQABo1MwUTAdBgNVHQ4EFgQUbo8ar3s44TIDl8yYq4Hc8TsTs9UwHwYDVR0jBBgwFoAUbo8ar3s44TIDl8yYq4Hc8TsTs9UwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAVMrCof8H0vBm2UBSxSQreCblVlz41Yinkp1Q2B+1s1CkvTXGhTPS3iJv2FYViJ5RsC36nG5e35vdW3L4r0hjn1lZA32lX2XAYUsrjx7YaQBqvm6qYiK9HqFs2uJUNN7EtDZsWPMN+SRoRAkcQsTZlMvf2qKIkcnulU36wQ+vEdEmLRRsUmIbdPqhT09kJGx0X7jVUmD6PnuAyk8/OJPAGQM+uCvS43Gfdm+ywQ9+rQIDs7F3lU9g7D0o8OS3yY7WY87vMbiwh7eUlDmn74ypCXSTpLTEy4OtP4Th+eXrZGV5+ExmVwzbeWucC5nCMQJ4+ZIpkjW6h0tb/4WTnfSE3w==";
+
+#if NET
+    private static System.Security.Cryptography.X509Certificates.X509Certificate2 CreateClientCertificate()
+    {
+        using var rsa = System.Security.Cryptography.RSA.Create(2048);
+        var request = new System.Security.Cryptography.X509Certificates.CertificateRequest(
+            "CN=lag-aware-probe-test", rsa, System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+        return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddHours(1));
+    }
+
+    [Fact]
+    public void LoadsAClientCertificateFromPfx()
+    {
+        using var certificate = CreateClientCertificate();
+        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"lagaware-{Guid.NewGuid():n}.pfx");
+        try
+        {
+            System.IO.File.WriteAllBytes(path, certificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx, "pw"));
+            var options = new LagAwareOptions();
+            options.SetUserPfxCertificate(path, "pw");
+            Assert.Equal(certificate.Thumbprint, options.ClientCertificate?.Thumbprint);
+            Assert.True(options.ClientCertificate!.HasPrivateKey);
+        }
+        finally
+        {
+            System.IO.File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LoadsAClientCertificateFromPem()
+    {
+        using var certificate = CreateClientCertificate();
+        var dir = System.IO.Directory.CreateTempSubdirectory("lagaware-").FullName;
+        try
+        {
+            var crt = System.IO.Path.Combine(dir, "client.crt");
+            var key = System.IO.Path.Combine(dir, "client.key");
+            System.IO.File.WriteAllText(crt, certificate.ExportCertificatePem());
+            System.IO.File.WriteAllText(key, System.Security.Cryptography.X509Certificates.RSACertificateExtensions.GetRSAPrivateKey(certificate)!.ExportPkcs8PrivateKeyPem());
+            var options = new LagAwareOptions();
+            options.SetUserPemCertificate(crt, key);
+            Assert.Equal(certificate.Thumbprint, options.ClientCertificate?.Thumbprint);
+            Assert.True(options.ClientCertificate!.HasPrivateKey);
+        }
+        finally
+        {
+            System.IO.Directory.Delete(dir, recursive: true);
+        }
+    }
+#endif
+
+    [Fact]
+    public void TheClientCertificateReachesTheTransport()
+    {
+#pragma warning disable SYSLIB0057 // X509 loading; X509CertificateLoader is not available on every test TFM
+        using var certificate = new System.Security.Cryptography.X509Certificates.X509Certificate2(Convert.FromBase64String(PublicOnlyCertificate));
+#pragma warning restore SYSLIB0057
+        using var handler = HealthCheckProbe.LagAwareProbe.CreateHandler(validation: null, certificate);
+#if NET
+        var sockets = Assert.IsType<SocketsHttpHandler>(handler);
+        Assert.Contains(certificate, sockets.SslOptions.ClientCertificates!.Cast<System.Security.Cryptography.X509Certificates.X509Certificate>());
+        Assert.False(sockets.AllowAutoRedirect);
+#else
+        var client = Assert.IsType<HttpClientHandler>(handler);
+        Assert.Equal(ClientCertificateOption.Manual, client.ClientCertificateOptions);
+        Assert.Contains(certificate, client.ClientCertificates.Cast<System.Security.Cryptography.X509Certificates.X509Certificate>());
+        Assert.False(client.AllowAutoRedirect);
+#endif
+    }
+
     [Fact]
     public void RejectsInvalidOptions()
     {
