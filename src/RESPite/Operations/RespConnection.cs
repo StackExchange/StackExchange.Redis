@@ -480,6 +480,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (Volatile.Read(ref _closed) != 0) return false;
 
         EnterWrite();
+        var alone = _pending.IsEmpty; // nothing else in flight: see DuplexTransport.FlushAlone
         try
         {
             var head = preamble(state);
@@ -534,7 +535,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             ExitWrite();
         }
 
-        _transport.Flush();
+        if (alone) _transport.FlushAlone();
+        else _transport.Flush();
         return true;
     }
 
@@ -584,6 +586,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (Volatile.Read(ref _closed) != 0) return false;
 
         EnterWrite();
+        var alone = _pending.IsEmpty; // nothing else in flight: see DuplexTransport.FlushAlone
         try
         {
             if (!isFirstNeeded(state))
@@ -638,7 +641,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             ExitWrite();
         }
 
-        _transport.Flush();
+        if (alone) _transport.FlushAlone();
+        else _transport.Flush();
         return true;
     }
 
@@ -681,6 +685,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (Volatile.Read(ref _closed) != 0) return false;
 
         EnterWrite();
+        var alone = _pending.IsEmpty; // nothing else in flight: see DuplexTransport.FlushAlone
         try
         {
             if (select(state) is { } head)
@@ -738,7 +743,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             ExitWrite();
         }
 
-        _transport.Flush();
+        if (alone) _transport.FlushAlone();
+        else _transport.Flush();
         return true;
     }
 
@@ -759,6 +765,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (Volatile.Read(ref _closed) != 0) return false;
 
         EnterWrite();
+        var alone = _pending.IsEmpty; // nothing else in flight: see DuplexTransport.FlushAlone
         try
         {
             if (!first.TryReserveRequest(first.Token, out var firstPayload)) return false;
@@ -792,7 +799,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             ExitWrite();
         }
 
-        _transport.Flush();
+        if (alone) _transport.FlushAlone();
+        else _transport.Flush();
         return true;
     }
 
@@ -828,6 +836,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (Volatile.Read(ref _closed) != 0) return false;
 
         EnterWrite();
+        var alone = _pending.IsEmpty; // nothing else in flight: see DuplexTransport.FlushAlone
         try
         {
             var received = Volatile.Read(ref _bytesReceived);
@@ -874,7 +883,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             ExitWrite();
         }
 
-        _transport.Flush();
+        if (alone) _transport.FlushAlone();
+        else _transport.Flush();
         return true;
     }
 
@@ -901,6 +911,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (Volatile.Read(ref _closed) != 0) return false;
 
         EnterWrite();
+        var alone = _pending.IsEmpty; // nothing else in flight: see DuplexTransport.FlushAlone
         try
         {
             var received = Volatile.Read(ref _bytesReceived);
@@ -937,7 +948,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             ExitWrite();
         }
 
-        _transport.Flush();
+        if (alone) _transport.FlushAlone();
+        else _transport.Flush();
         return true;
     }
 
