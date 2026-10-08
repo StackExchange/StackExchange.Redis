@@ -8,3 +8,25 @@
 [SER011]StackExchange.Redis.Availability.MultiGroupOptions.Builder.FailbackHealthCheck.set -> void
 [SER011]StackExchange.Redis.Availability.MultiGroupOptions.FailbackHealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
 [SER011]virtual StackExchange.Redis.Availability.HealthCheckProbe.Scope.get -> StackExchange.Redis.Availability.HealthCheckProbeScope
+[SER011]StackExchange.Redis.Availability.LagAwareOptions
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.CertificateValidation.get -> System.Net.Security.RemoteCertificateValidationCallback?
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.CertificateValidation.set -> void
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.Credentials.get -> System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<System.Net.NetworkCredential!>>?
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.Credentials.set -> void
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.DatabaseId.get -> int?
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.DatabaseId.set -> void
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.LagAwareOptions() -> void
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.LagCheck.get -> StackExchange.Redis.Availability.LagCheckMode
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.LagCheck.set -> void
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.LagTolerance.get -> System.TimeSpan?
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.LagTolerance.set -> void
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.RestEndpoint.get -> System.Uri?
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.RestEndpoint.set -> void
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.TrustIssuer(string! issuerCertificatePath) -> void
+[SER011]StackExchange.Redis.Availability.LagAwareOptions.TrustIssuer(System.Security.Cryptography.X509Certificates.X509Certificate2! issuer) -> void
+[SER011]StackExchange.Redis.Availability.LagCheckMode
+[SER011]StackExchange.Redis.Availability.LagCheckMode.Auto = 0 -> StackExchange.Redis.Availability.LagCheckMode
+[SER011]StackExchange.Redis.Availability.LagCheckMode.Disabled = 2 -> StackExchange.Redis.Availability.LagCheckMode
+[SER011]StackExchange.Redis.Availability.LagCheckMode.Enabled = 1 -> StackExchange.Redis.Availability.LagCheckMode
+[SER011]static StackExchange.Redis.Availability.HealthCheck.LagAware(StackExchange.Redis.Availability.LagAwareOptions! options) -> StackExchange.Redis.Availability.HealthCheck!
+[SER011]static StackExchange.Redis.Availability.HealthCheckProbe.LagAware(StackExchange.Redis.Availability.LagAwareOptions! options) -> StackExchange.Redis.Availability.HealthCheckProbe!
