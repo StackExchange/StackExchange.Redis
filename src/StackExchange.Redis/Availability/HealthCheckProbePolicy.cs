@@ -52,8 +52,10 @@ public abstract class HealthCheckProbePolicy
             // Fail as soon as we have any failure
             if (context.Failure > 0) return HealthCheckResult.Unhealthy;
 
-            // Succeed only when all probes have succeeded (no remaining)
-            if (context.Remaining == 0) return HealthCheckResult.Healthy;
+            // With no failures and nothing remaining, succeed - but only if something actually succeeded: a run
+            // of nothing but inconclusive probes ("could not tell") is not a pass, and a failback check
+            // depends on the difference
+            if (context.Remaining == 0) return context.Success > 0 ? HealthCheckResult.Healthy : HealthCheckResult.Inconclusive;
 
             // Can't determine yet
             return HealthCheckResult.Inconclusive;
