@@ -574,6 +574,36 @@ while c1 took an `INCR` every ~5 s and c2 was read back; then `{"crdt_sync":"ena
   scenario test than `network_latency` or `network_failure` (which drops all inbound bar SSH on every
   hosting node and kills `dmcproxy`). It is a direct REST mutation, not an injector action.
 
+### Under a partition: blind for about a minute, then tolerance-governed, and symmetric (2026-10-08)
+
+Environment `marcgravell-test-41f58c28`. A network partition between the clusters, nothing else: on each
+c1 node, iptables rules tagged `lagprobe` dropped traffic to and from c2's six node addresses (private and
+public), with a `systemd-run` timer on each node as a self-heal backstop. SSH, DNS, 9443 and the client
+path were untouched. 60 s, then removed; all three nodes verified back at their baseline rule sets.
+Writes to c1 every ~5 s; both members sampled (database and local forms).
+
+| observer time | c2 data | c2 lag check (100 / 600000 / 0 ms) | c1 lag check (100 / 600000 / 0 ms) |
+| --- | --- | --- | --- |
+| t+0 to 27 s, before | in step | 200 / 200 / 200 | 200 / 200 / 200 |
+| t+28 s | **partition applied** | | |
+| t+31 to 84 s | **stuck at 8**, c1 reaching 20 | **200 / 200 / 200** | 200 / 200 / 200 |
+| t+88 s | stuck | **503 / 200 / 503** | 200 / 200 / **503** |
+| t+94 s | stuck | 503 / 200 / 503 | **503** / 200 / 503 |
+| t+92 s | **partition removed** | | |
+| t+101 s on | caught up | 200 / 200 / 200 | 200 / 200 / 200 |
+
+Plain checks 200 throughout, both forms, both members; the local form tracked the database form.
+
+- **Measured: the lag check is blind to a dead link for about 60 s.** Sync stopped at once, but both
+  members reported no lag for ~57 s. Unlike paused sync, which fails immediately at any tolerance.
+- **Measured: then it compares a growing lag against the tolerance.** 0 ms failed first, then 100 ms;
+  600000 ms never failed. **A tolerance of 0 is honoured** (open since 2026-09-30).
+- **Measured: both members fail.** Each is missing the other's stream, so "every member lagging" is the
+  ordinary state of a partition, not an edge case.
+- **Inferred:** a dead peer region looks the same from the survivor as this partition does, so the
+  survivor's lag check passes for about a minute after the region dies and fails after that (at 100 ms).
+  The ~60 s presumably comes from the syncer's own failure detection; not investigated.
+
 ### Other answers
 
 - **Cluster default** `availability_lag_tolerance_ms` is 100, on every environment - the server agrees
