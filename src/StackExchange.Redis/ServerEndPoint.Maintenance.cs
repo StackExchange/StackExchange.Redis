@@ -41,7 +41,6 @@ internal sealed partial class ServerEndPoint
     /// cannot be made.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
     private MaintenanceNotificationMode MaintenanceMode
         => Multiplexer.IsGroupMember
             ? MaintenanceNotificationMode.Disabled

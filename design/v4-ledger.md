@@ -128,6 +128,11 @@ Each has a default the work proceeds on until answered.
   operation cache (03bbb05a), 0 of 3 before it; 0 of 16 when the cluster tests run on their own, either build. Not
   attributed - but if it recurs, compare with and without that commit first.
 
+- **Watch: `QueuedResultTests.RetryTransactionFireAndForgetSharesOneCompletedTask` failed once** (net8.0, full
+  suite, 44ms, 2026-10-08, after the main merge; message not captured), 0 of 6 in isolation. It asserts that a
+  retry transaction's per-command tasks are settled when `ExecuteAsync` returns, which `RetryTransaction`
+  guarantees by awaiting them; if it recurs, capture the assertion before anything else.
+
 - **Batch/transaction buffer packing**: write a batch's commands adjacently into one shared buffer, rather
   than one rented frame per command, and hand the transport one contiguous run. The abandoned v3-era RESPite
   spike implemented this fully (PR #2959, `marc/respite`, "WIP : RESPite overhaul" - still open but idle since 2026-08: `src/RESPite/RespBatch.cs`,

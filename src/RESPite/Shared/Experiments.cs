@@ -17,19 +17,19 @@
         //   SER006 = Server_8_8  (Redis 8.8 features)
         //   SER007 = GeoRedundantFailover (multi-group connections, health checks, retry)
         //   SER008 = Server_8_10 (Redis 8.10 features)
+        //   SER010 = MaintenanceNotifications (server-native maintenance notifications / smart client handoffs)
         //   SER013 = InterpolatedWriter - the RespContext surface and the command groups, which
         //            ARE the 4.0 API rather than a preview of one. It was gated while the shape was
         //            being argued with; the documentation now teaches it, so the gate was the only
         //            thing still calling it an experiment.
         //            Renumbered from SER010, which this branch claimed while 3.x independently shipped
-        //            SER010 as MaintenanceNotifications. That one is released and keeps the number;
+        //            SER010 as MaintenanceNotifications. That one is released and keeps the number (and has since retired too, above);
         //            nothing ever shipped emitting SER010 for the writer, so nothing is stranded.
 
         // ReSharper disable InconsistentNaming
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
         public const string Transport = "SER009";
-        public const string MaintenanceNotifications = "SER010";
 
         /// <summary>
         /// Constructing a <c>RespFragment</c> by hand. Deliberately NOT in the global NoWarn: the whole point

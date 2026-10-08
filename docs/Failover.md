@@ -1110,9 +1110,14 @@ public sealed class ReadOnlyOnlyRetryPolicy : RetryPolicy
 {
     public override RetryResult CanRetry(in FaultContext fault)
     {
-        // only ever retry pure reads, and only on the same server
+        // only ever retry read-only (or safer) commands, and only on the same server;
+        // the retry category is a small numeric field inside CommandFlags, not a set of
+        // independent bits, so mask the whole field (CommandRetryNever spans it) and
+        // compare, rather than testing a single category value with "& != 0"
+        var category = fault.Flags & CommandFlags.CommandRetryNever;
         if (fault.ErrorKind == RedisErrorKind.Loading
-            && (fault.Flags & CommandFlags.CommandRetryReadOnly) != 0)
+            && category != 0 // uncategorised commands are never retried
+            && category <= CommandFlags.CommandRetryReadOnly)
         {
             return RetryResult.SameServer;
         }
