@@ -56,7 +56,8 @@ Documentation
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts, including the low-allocation `ScriptEvalLease` API
-- [Ad-hoc commands](Execute) - running commands without a dedicated API, including the low-allocation `ExecLease` API
+- [Command groups](Groups) - `db.Strings`, `db.Hashes`, ...: where every command lives, and how they are called
+- [Ad-hoc commands](Execute) - running commands without a dedicated API, building them in pieces with `Compose`, and the low-allocation `ExecuteResp` API
 - [Extending the client](Extending) - for library authors: adding commands this client does not have, and migrating off `Execute(string, object[])`
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems

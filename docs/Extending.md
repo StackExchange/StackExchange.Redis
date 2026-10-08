@@ -124,6 +124,8 @@ RedisValue value = await db.Contoso().SubstringAsync(key, 0, 4);
 
 `IRespKeyspaceTarget` is carried by `IDatabase`, `IBatch` and `ITransaction`, so one accessor covers all three; `IRespServerTarget` is the `IServer` counterpart, for commands that belong to a node rather than a key. Everything reaches the connection through `Context`.
 
+A command with optional modifiers, or a variable number of keys, cannot be one interpolated string; build it with `Compose` instead - see [Building a command in pieces](Execute#building-a-command-in-pieces-compose).
+
 The contexts, the targets and `SendAsync` are all in the `StackExchange.Redis` namespace, which your callers already have. The second `using` above is the other half of the split: `StackExchange.Redis.Protocol` holds the request- and reply-building types - `RespCommand`, `RespRequestFrame`, `RespFragment`, `IRespArgument`, and `RespHandlers`/`IRespHandler<T>` for a reply shape the defaults do not cover. You name those when you write a command, and never otherwise.
 
 That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which. It is also why level 2 needs nothing extra - `db.Context.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}")` names no protocol type, because the interpolated string is lowered into one rather than written as one.

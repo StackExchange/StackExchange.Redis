@@ -43,7 +43,7 @@ object asyncState = ...
 IDatabase db = redis.GetDatabase(databaseNumber, asyncState);
 ```
 
-Once you have the `IDatabase`, it is simply a case of using the [redis API](https://redis.io/commands). Commands are grouped by the redis data type they belong to - `db.Strings`, `db.Hashes`, `db.Lists`, `db.Sets`, `db.SortedSets`, `db.Keys` and so on - and every command is asynchronous, ending `...Async(...)` in line with Microsoft's naming guidance.
+Once you have the `IDatabase`, it is simply a case of using the [redis API](https://redis.io/commands). Commands are grouped by the redis data type they belong to - `db.Strings`, `db.Hashes`, `db.Lists`, `db.Sets`, `db.SortedSets`, `db.Keys` and so on - and every command is asynchronous, ending `...Async(...)` in line with Microsoft's naming guidance. [Command groups](Groups) lists them all and explains how they work.
 
 The simplest operation would be to store and retrieve a value:
 

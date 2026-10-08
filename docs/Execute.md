@@ -44,6 +44,39 @@ Two things worth knowing before you use this on a hot path or behind a retry pol
 
 If you are building more than an occasional call - a set of module commands, say - [Extending the client](Extending) takes this same call and gives it a surface of its own.
 
+Building a command in pieces: `Compose`
+---
+
+A single interpolated string needs every argument at the call site. When some are only known at run time - an optional modifier, a variable number of keys - start the command with `Compose`, append the rest, and send it:
+
+```csharp
+// declared once: a command name in a field is encoded once, not on every call (see SER309)
+private static readonly RespCommand Set = "SET".Command(), Del = "DEL".Command();
+
+// Compose and its SendAsync live on the untyped context
+RespContext ctx = (RespContext)db.Context;
+
+// an optional argument
+var set = ctx.Compose($"{Set} {key} {value}");
+if (ttl is { } t)
+{
+    set.AppendFormatted((RedisValue)"EX");
+    set.AppendFormatted((long)t.TotalSeconds);
+}
+bool ok = await ctx.SendAsync<bool>(ref set);
+
+// a variable number of keys
+var del = ctx.Compose($"{Del}");
+foreach (RedisKey k in keys) del.AppendFormatted(k);
+long removed = await ctx.SendAsync<long>(ref del);
+```
+
+- **Each `AppendFormatted` adds one argument**, typed exactly as a hole would be: a `RedisKey` is a key (routed, prefixed, and what a client-side cache invalidates on); anything else is a value.
+- **The argument count need not be known up front.** The `*N` that begins a RESP command is filled in when the command is sent.
+- **Send it from the context you composed it on.** The builder has already applied that context's key prefix and command map; sending it through a different context would mix the two.
+- **Send it once.** Sending consumes it. If something between `Compose` and the send can throw, use `try`/`finally` and call `Dispose()` on it - it cannot be a `using` variable, because it is passed by `ref`.
+- **For a command whose arguments are all known**, the single-expression `db.Context.SendAsync<T>($"...")` above is simpler and just as cheap; `Compose` is for when they are not.
+
 `ExecuteResp`: the `IDatabase` form
 ---
 

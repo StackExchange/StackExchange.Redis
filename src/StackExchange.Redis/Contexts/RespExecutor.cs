@@ -982,7 +982,7 @@ namespace StackExchange.Redis
         /// <b>before</b> the send; the payload is retained across <see cref="IRespHandler{TResult}.Parse"/>
         /// and released in a <c>finally</c>; and the request is consumed on every path.
         /// </remarks>
-        /// <param name="cancellationToken">Reserved; must not be cancellable yet.</param>
+        /// <param name="cancellationToken">Cancels the request where the connection can: one not yet written is never sent; one already written still runs on the server, and its reply is discarded. An already-cancelled token is always honoured.</param>
         public static TResult Send<TResult>(
             this RespContext context,
             ref RespRequestFrame request,
@@ -1094,7 +1094,7 @@ namespace StackExchange.Redis
         public static ValueTask<TResult> SendAsync<TResult>(
             this RespContext context,
             ref RespRequestFrame request,
-            CommandFlags flags,
+            CommandFlags flags = CommandFlags.None,
             IRespHandler<TResult>? handler = null,
             CancellationToken cancellationToken = default)
         {
@@ -1184,7 +1184,7 @@ namespace StackExchange.Redis
         public static ValueTask<TResult> SendAsync<TResult>(
             this RespContext context,
             [InterpolatedStringHandlerArgument(nameof(context))] ref RespRequestBuilder request,
-            CommandFlags flags,
+            CommandFlags flags = CommandFlags.None,
             IRespHandler<TResult>? handler = null,
             CancellationToken cancellationToken = default)
         {

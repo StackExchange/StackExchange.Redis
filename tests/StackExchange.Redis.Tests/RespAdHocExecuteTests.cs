@@ -34,8 +34,47 @@ public class RespAdHocExecuteTests
     /// </remarks>
     private static readonly RespCommand SomeCommand = "SOME.COMMAND".Command(preform: true);
 
+    private static readonly RespCommand Set = "SET".Command(), Del = "DEL".Command();
+
     private static RespDatabaseContext Context(FakeExecutor executor, RespClientCache? cache = null)
         => new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
+
+    /// <summary>
+    /// Building a command in pieces: <c>Compose</c> for arguments that are only known at run time, then sent from
+    /// the SAME context - through the public route a caller has, the explicit conversion from the typed context.
+    /// </summary>
+    [Fact]
+    public async Task AComposedCommandWithOptionalArgumentsIsSentFromItsOwnContext()
+    {
+        var executor = new FakeExecutor("+OK\r\n") { CaptureKeys = true };
+        var ctx = (RespContext)Context(executor);
+        RedisKey key = "user:1";
+        TimeSpan? ttl = TimeSpan.FromSeconds(30);
+
+        var cmd = ctx.Compose($"{Set} {key} {(RedisValue)"marc"}");
+        if (ttl is { } t)
+        {
+            cmd.AppendFormatted((RedisValue)"EX");
+            cmd.AppendFormatted((long)t.TotalSeconds);
+        }
+
+        Assert.True(await ctx.SendAsync<bool>(ref cmd));
+        Assert.Equal("*5|$3|SET|$6|user:1|$4|marc|$2|EX|$2|30|", Assert.Single(executor.Sent));
+    }
+
+    [Fact]
+    public async Task AComposedCommandWithAVariableNumberOfKeysCountsThemAll()
+    {
+        var executor = new FakeExecutor(":3\r\n") { CaptureKeys = true };
+        var ctx = (RespContext)Context(executor);
+        RedisKey[] keys = ["a", "b", "c"];
+
+        var cmd = ctx.Compose($"{Del}");
+        foreach (var key in keys) cmd.AppendFormatted(key);
+
+        Assert.Equal(3, await ctx.SendAsync<long>(ref cmd));
+        Assert.Equal("*4|$3|DEL|$1|a|$1|b|$1|c|", Assert.Single(executor.Sent)); // *N back-filled
+    }
 
     [Fact]
     public async Task AnUnmodelledCommandRoundTrips()
