@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -146,7 +147,10 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     /// 1,150,757 ops/s at 10.19us CPU/op, 200 spins 1,200,150 at 9.77us; 1,000 to 16,000 are within noise of
     /// 200. CPU per op goes DOWN: it removes park/unpark work rather than trading CPU for latency.
     /// </remarks>
-    private const int FillSpin = 200;
+    // 40, not the 200 it was tuned at: 200 polls measure ~150us here, longer than a busy caller's whole wait, so it
+    // caught work-100-seq's replies after spinning ~120us each. 40 (~30us) still covers the shortest round trip
+    // (incr-seq, ~21us), and incr-conc64 measured no worse (637-648k ops/s against 628-631k at floor 32).
+    private const int FillSpin = 40;
 
     /// <summary>The least the adaptive spin decays to; see <see cref="FillSpin"/>.</summary>
     /// <remarks>
@@ -164,14 +168,14 @@ internal sealed class StreamDuplexTransport : DuplexTransport
     /// <c>incr-conc64</c> 3-5%: each occasional park left the spin short for several waits.
     /// </para>
     /// <para>
-    /// <b>The floor is 32, not lower.</b> At 4, <c>incr-seq</c> (a ~21us round trip) spent 70 -> 81us of CPU per op:
-    /// the decayed spin was shorter than the round trip, so it parked on every request, and parking - a pool wake -
-    /// costs more than spinning through a short wait. 32 polls covers that round trip on the measured machine and
-    /// keeps most of the saving where the wait is long: RespFest, v4 CPU/op, fixed 200 / floor 4 / floor 32 -
-    /// incr-seq 69.7 / 81.2 / 69.6, work-100-seq 329.7 / 265.7 / 287.5, throughput level throughout.
+    /// <b>Decided by how long the parked wait took, not only by whether the spin caught it.</b> Halving on every
+    /// park could not tell a short wait that the spin narrowly missed from a long one: at a floor of 4, <c>incr-seq</c>
+    /// (a ~21us round trip) decayed below its own round trip and parked on every request, 70 -> 81us of CPU per op,
+    /// and a floor of 32 traded that back for 20us of spin on every long wait. A wait that ends within one full spin's
+    /// duration would have been caught by spinning, so it restores the full spin; only a longer one decays it.
     /// </para>
     /// </remarks>
-    private const int MinFillSpin = 32;
+    private const int MinFillSpin = 4;
 
     /// <summary>One filled buffer, and how much of it the read returned.</summary>
     private readonly struct Fill(byte[] buffer, int length)
@@ -275,9 +279,11 @@ internal sealed class StreamDuplexTransport : DuplexTransport
         {
             var done = false;
             var spin = FillSpin; // adaptive; see MinFillSpin
+            long fullSpinTicks = 0; // how long a full spin lasts here: the shortest one measured, so a preempted spin cannot inflate it
             while (!done)
             {
                 var acquired = hasFilled.TryWait();
+                var spinStart = spin == FillSpin ? Stopwatch.GetTimestamp() : 0;
                 for (var i = 0; i < spin && !acquired; i++)
                 {
                     Thread.SpinWait(20);
@@ -290,10 +296,21 @@ internal sealed class StreamDuplexTransport : DuplexTransport
                 }
                 else
                 {
-                    spin = Math.Max(MinFillSpin, spin / 2); // it ended in parking anyway: spin less next time
+                    var parkedAt = Stopwatch.GetTimestamp();
+                    if (spinStart != 0)
+                    {
+                        var spent = Math.Max(1, parkedAt - spinStart);
+                        fullSpinTicks = fullSpinTicks == 0 ? spent : Math.Min(fullSpinTicks, spent);
+                    }
 
                     // false only at shutdown, which is what the cancelled wait used to throw for, and handled the same way
                     if (!await hasFilled.WaitAsync().ConfigureAwait(false)) throw new OperationCanceledException();
+
+                    // a SHORT wait that the spin merely missed would have been caught by a full one, so spin in full;
+                    // a long one - the caller is busy between requests - is cheaper parked, so spin less next time
+                    spin = fullSpinTicks != 0 && Stopwatch.GetTimestamp() - parkedAt <= fullSpinTicks
+                        ? FillSpin
+                        : Math.Max(MinFillSpin, spin / 2);
                 }
 
                 // one permit, so one buffer
