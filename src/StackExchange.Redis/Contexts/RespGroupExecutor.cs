@@ -68,6 +68,17 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public override int Database { get; }
 
+        /// <summary>The group this executor serves, reported in place of whichever member is active.</summary>
+        internal IConnectionMultiplexer? Group { get; init; }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// <b>The group, not the active member</b>: a library-name suffix added through it reaches every member,
+        /// and is remembered for any that join later, where one added to the active member would be lost at
+        /// the next failover.
+        /// </remarks>
+        internal override IConnectionMultiplexer? ExposedMultiplexer => Group ?? _active()?.ExposedMultiplexer;
+
         /// <inheritdoc/>
         /// <remarks>Forwarded from the active member; a group does not send anything itself.</remarks>
         public override bool CanCancel => _active() is { CanCancel: true };

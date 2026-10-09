@@ -38,13 +38,16 @@ public static class DatabaseExtensions
     /// <exception cref="System.InvalidOperationException">If <paramref name="database"/> is a batch, a
     /// transaction, already retrying, or carries an <c>asyncState</c>.</exception>
     public static IDatabaseAsync WithRetry(this IDatabaseAsync database, RetryPolicy? retryPolicy = null)
-        => new RetryDatabase(database, retryPolicy ?? ResolveRetryPolicy(database));
+        => new RetryDatabase(database, retryPolicy ?? ResolveRetryPolicy(database.Multiplexer));
 
     /// <summary>
     /// A context whose commands are retried when a transient fault says they can be.
     /// </summary>
     /// <param name="context">The context to wrap.</param>
-    /// <param name="retryPolicy">The policy to apply; <see cref="RetryPolicy.Default"/> when omitted.</param>
+    /// <param name="retryPolicy">
+    /// The policy to apply; when omitted, the one configured on the context's multiplexer, as the database
+    /// overload resolves it, and <see cref="RetryPolicy.Default"/> if there is none.
+    /// </param>
     /// <remarks>
     /// <para>
     /// <b>A decorator on the executor, which is why this returns a context rather than a wrapper type.</b>
@@ -60,9 +63,9 @@ public static class DatabaseExtensions
     /// only <see cref="IDatabaseAsync"/>.
     /// </para>
     /// <para>
-    /// <b>The policy is not resolved from configuration here</b>, as the database overload resolves it
-    /// from the multiplexer: a context deliberately does not carry one. Pass the policy, or attach it as a
-    /// service when that is wired up.
+    /// <b>The policy is resolved from configuration</b> through <see cref="RespDatabaseContext.Multiplexer"/>,
+    /// exactly as the database overload resolves it. It used to default to <see cref="RetryPolicy.Default"/>
+    /// whatever was configured, because a context had no multiplexer to ask.
     /// </para>
     /// </remarks>
     /// <exception cref="System.InvalidOperationException">If the context is already retrying.</exception>
@@ -85,13 +88,13 @@ public static class DatabaseExtensions
         // GetNextFailover down, but a context built with WithRetry had nowhere to get one and so silently
         // ran with the failover rungs unreachable. Fetched per use, never captured - see GetFailoverSource.
         return new RespDatabaseContext(
-            raw.WithExecutor(new RespRetryExecutor(inner, retryPolicy ?? RetryPolicy.Default, inner.GetFailoverSource())));
+            raw.WithExecutor(new RespRetryExecutor(inner, retryPolicy ?? ResolveRetryPolicy(raw.Multiplexer), inner.GetFailoverSource())));
     }
 
     // IDatabaseAsync always exposes its multiplexer (via IRedisAsync), so the configured policy is reachable
     // without the caller having to thread it through; note IConnectionMultiplexer is a public interface that
     // callers may implement or mock, so every step here degrades to the default rather than assuming a type
-    private static RetryPolicy ResolveRetryPolicy(IDatabaseAsync database) => database.Multiplexer switch
+    private static RetryPolicy ResolveRetryPolicy(IConnectionMultiplexer? multiplexer) => multiplexer switch
     {
         IConnectionGroup group => group.Options.RetryPolicy,
         IInternalConnectionMultiplexer muxer => muxer.RawConfig.RetryPolicy ?? RetryPolicy.Default,

@@ -406,6 +406,7 @@ static StackExchange.Redis.RespConnectionExtensions.GetServerContext(this StackE
 static StackExchange.Redis.RespConnectionExtensions.GetServerContext(this StackExchange.Redis.IConnectionMultiplexer! multiplexer, string! host, int port, object? asyncState = null) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespContext
 StackExchange.Redis.RespContext.Blocking() -> StackExchange.Redis.RespContext!
+StackExchange.Redis.RespContext.Multiplexer.get -> StackExchange.Redis.IConnectionMultiplexer?
 StackExchange.Redis.RespContext.Compose(ref StackExchange.Redis.Protocol.RespRequestBuilder handler) -> StackExchange.Redis.Protocol.RespRequestBuilder
 StackExchange.Redis.RespContext.Compose(string! command, ref StackExchange.Redis.Protocol.RespRequestBuilder handler) -> StackExchange.Redis.Protocol.RespRequestBuilder
 StackExchange.Redis.RespContext.Render(ref StackExchange.Redis.Protocol.RespRequestBuilder handler) -> StackExchange.Redis.Protocol.RespRequestFrame
@@ -416,6 +417,7 @@ StackExchange.Redis.RespDatabaseContext.AppendChannelPrefix(StackExchange.Redis.
 StackExchange.Redis.RespDatabaseContext.AppendKeyPrefix(StackExchange.Redis.RedisKey prefix) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.AsDatabase(StackExchange.Redis.IConnectionMultiplexer! multiplexer, object? asyncState = null) -> StackExchange.Redis.IDatabase!
 StackExchange.Redis.RespDatabaseContext.Blocking() -> StackExchange.Redis.RespDatabaseContext
+StackExchange.Redis.RespDatabaseContext.Multiplexer.get -> StackExchange.Redis.IConnectionMultiplexer?
 StackExchange.Redis.RespDatabaseContext.Database.get -> int
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext() -> void
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext(StackExchange.Redis.RespContext! context) -> void
@@ -528,6 +530,7 @@ StackExchange.Redis.RespScripts.RespScripts(StackExchange.Redis.RespContext! con
 StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.AppendChannelPrefix(StackExchange.Redis.RedisChannel channelPrefix) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.Blocking() -> StackExchange.Redis.RespServerContext
+StackExchange.Redis.RespServerContext.Multiplexer.get -> StackExchange.Redis.IConnectionMultiplexer?
 StackExchange.Redis.RespServerContext.RespServerContext() -> void
 StackExchange.Redis.RespServerContext.RespServerContext(StackExchange.Redis.RespContext! context) -> void
 StackExchange.Redis.RespServerContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespServerContext

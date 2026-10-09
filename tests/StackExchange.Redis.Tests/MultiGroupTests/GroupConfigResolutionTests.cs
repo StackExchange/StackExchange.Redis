@@ -54,6 +54,27 @@ public class GroupConfigResolutionTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task AContextReportsTheGroupAndResolvesItsPolicy()
+    {
+        using var server0 = new InProcessTestServer(log, endpoint: new DnsEndPoint("alpha", 6379));
+        using var server1 = new InProcessTestServer(log, endpoint: new DnsEndPoint("beta", 6379));
+
+        RetryPolicy groupPolicy = new RetryPolicy.Builder { MaxAttempts = 6, RetryDelay = TimeSpan.Zero };
+        MultiGroupOptions options = new MultiGroupOptions.Builder { RetryPolicy = groupPolicy };
+
+        ConnectionGroupMember[] members = [new(server0.GetClientConfig()), new(server1.GetClientConfig())];
+        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+        var context = conn.GetDatabase().Context;
+
+        // the group, not whichever member is active: a library-name suffix must reach every member
+        Assert.Same(conn, context.Multiplexer);
+
+        // ...which is also what lets a context's WithRetry find the group's policy
+        var retrying = Assert.IsType<RespRetryExecutor>(context.WithRetry().Raw.Executor);
+        Assert.Same(groupPolicy, retrying.Policy);
+    }
+
+    [Fact]
     public async Task GroupCircuitBreakerReachesMembersWithoutMutatingCallerConfig()
     {
         using var server0 = new InProcessTestServer(log, endpoint: new DnsEndPoint("alpha", 6379));

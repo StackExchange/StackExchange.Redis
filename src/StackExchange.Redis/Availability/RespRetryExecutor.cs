@@ -124,6 +124,9 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     }
 
     /// <inheritdoc/>
+    internal override IConnectionMultiplexer? ExposedMultiplexer => _inner.ExposedMultiplexer;
+
+    /// <inheritdoc/>
     /// <remarks>Whenever the executor underneath can: the loop itself blocks happily.</remarks>
     internal override bool CanSendBlocking => _inner.CanSendBlocking;
 

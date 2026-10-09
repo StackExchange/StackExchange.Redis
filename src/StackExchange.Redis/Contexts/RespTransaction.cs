@@ -77,6 +77,9 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public override int Database => _inner.Database;
 
+        /// <inheritdoc/>
+        internal override IConnectionMultiplexer? ExposedMultiplexer => _inner.ExposedMultiplexer;
+
         /// <summary>
         /// Whether the conditions all held and the transaction was <i>still</i> aborted, because a
         /// watched key changed between the check and the <c>EXEC</c>.

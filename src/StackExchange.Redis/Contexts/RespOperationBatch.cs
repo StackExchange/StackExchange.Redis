@@ -91,6 +91,9 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public override int Database => _inner.Database;
 
+        /// <inheritdoc/>
+        internal override IConnectionMultiplexer? ExposedMultiplexer => _inner.ExposedMultiplexer;
+
         /// <summary>Whether this batch has been executed or discarded; either way, nothing more will be sent.</summary>
         internal bool IsSent
         {

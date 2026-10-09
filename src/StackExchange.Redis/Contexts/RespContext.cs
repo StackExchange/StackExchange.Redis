@@ -103,6 +103,24 @@ namespace StackExchange.Redis
         /// <returns>The blocking context.</returns>
         public RespContext Blocking() => IsBlocking ? this : WithServices(BlockingService.Instance);
 
+        /// <summary>The multiplexer this context's commands go through, if it has one.</summary>
+        /// <remarks>
+        /// <para>
+        /// The same object <see cref="IRedisAsync.Multiplexer"/> reports for the database the context came from -
+        /// and for a multi-group connection, the group. <see langword="null"/> for a context built over an
+        /// executor with no multiplexer behind it, as tests and fakes are.
+        /// </para>
+        /// <para>
+        /// For the connection-level settings a library needs, which belong to the multiplexer rather than to any
+        /// one context - announcing itself, for one:
+        /// <code>
+        /// context.Multiplexer?.AddLibraryNameSuffix("MyLibrary");
+        /// </code>
+        /// which is idempotent, and applies to every connection, including ones made after the call.
+        /// </para>
+        /// </remarks>
+        public IConnectionMultiplexer? Multiplexer => Executor?.ExposedMultiplexer;
+
         /// <summary>Whether sends through this context complete before they return; see <see cref="Blocking"/>.</summary>
         internal bool IsBlocking { get; }
 

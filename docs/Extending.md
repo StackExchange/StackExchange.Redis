@@ -207,6 +207,16 @@ public static RedisValue Substring(this in ContosoCommands contoso, RedisKey key
 
 This is how the synchronous `IDatabase` methods work. A command that takes several round trips works too, because each send completes before the next is issued. It does not wait for a thread-pool thread to wake the caller, which is the usual hazard of blocking on an async API. A retrying context blocks too, pausing between attempts on the calling thread. The exception is a batch or transaction, whose commands are not sent until it is executed - see the remarks on `RespContext.Blocking`.
 
+### Announcing your library
+
+Redis records which client library each connection belongs to (`CLIENT SETINFO lib-name`, shown in `CLIENT LIST`). To add your library's name to it, call `AddLibraryNameSuffix` on the multiplexer - which a context exposes:
+
+```csharp
+db.Context.Multiplexer?.AddLibraryNameSuffix("Contoso");
+```
+
+It is idempotent and applies to every connection, including ones made later, so once per multiplexer is enough - not once per command: each call takes a lock to find out it has nothing to do. `Multiplexer` is `null` for a context with no multiplexer behind it (a test fake, say); for a multi-group connection it is the group, so the suffix reaches every member.
+
 ### What you do not have to do
 
 Handled for you, on every command written this way:

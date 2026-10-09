@@ -60,6 +60,21 @@ namespace StackExchange.Redis
         /// </remarks>
         internal virtual ConnectionMultiplexer? Multiplexer => null;
 
+        /// <summary>The multiplexer a context reports publicly, as <see cref="RespContext.Multiplexer"/>.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Separate from <see cref="Multiplexer"/></b>, which is the concrete owner the library's own
+        /// machinery needs. This is what a caller should be handed: usually the same object, but for a
+        /// multi-group connection the <i>group</i> - an <see cref="IConnectionMultiplexer"/> that is not a
+        /// <see cref="ConnectionMultiplexer"/>, and the one a library-name suffix must reach to apply to every
+        /// member, including members that fail over in later.
+        /// </para>
+        /// <para>
+        /// A decorator (retry, batch, transaction) forwards to the executor it wraps.
+        /// </para>
+        /// </remarks>
+        internal virtual IConnectionMultiplexer? ExposedMultiplexer => Multiplexer;
+
         /// <summary>Issue the request and return the reply, with one reference held by the caller.</summary>
         /// <param name="request">The rendered request; retain it if it must outlive this call.</param>
         public abstract RespPayload Send(in RespRequest request);
