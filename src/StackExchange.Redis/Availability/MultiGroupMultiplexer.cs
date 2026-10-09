@@ -703,7 +703,10 @@ namespace StackExchange.Redis
             // timeout, leaves the member ineligible; none of it marks a member unhealthy.
             private async Task RunFailbackChecksAsync(ConnectionGroupMember[] members)
             {
+                // a provisional active member (chosen by the liveness fallback) is still checked, so that it can
+                // stop being provisional once it has caught up; a normal active member is not
                 var active = _activeStub.Active;
+                var provisional = Volatile.Read(ref _provisional);
                 List<(ConnectionGroupMember Member, Task<HealthCheckResult> Pending)>? checks = null;
                 int totalTimeoutMillis = 0;
                 foreach (var member in members)
@@ -711,7 +714,7 @@ namespace StackExchange.Redis
                     var check = member.ResolveFailbackHealthCheck(_options);
                     if (check is null) continue;
 
-                    if (!member.ConsiderActive || ReferenceEquals(member.Multiplexer, active))
+                    if (!member.ConsiderActive || (ReferenceEquals(member.Multiplexer, active) && !ReferenceEquals(active, provisional)))
                     {
                         member.FailbackVerified = false;
                         continue;
@@ -741,13 +744,20 @@ namespace StackExchange.Redis
                 }
             }
 
-            // eligible to become (or stay) active: the active member always is, as is an explicit failover
-            // target; otherwise a member with a failback check must have passed it on the latest pass
+            // Eligible to become (or stay) active: an explicit failover target always is, as is the active member
+            // - unless it is provisional, having been chosen by the liveness fallback without ever passing its
+            // failback check; otherwise a member with a failback check must have passed it on the latest pass.
             private bool IsFailbackEligible(ConnectionGroupMember member, ConnectionMultiplexer? active)
                 => member.ExplicitOverride
-                || ReferenceEquals(member.Multiplexer, active)
+                || (ReferenceEquals(member.Multiplexer, active) && !ReferenceEquals(active, Volatile.Read(ref _provisional)))
                 || member.ResolveFailbackHealthCheck(_options) is null
                 || member.FailbackVerified;
+
+            // The active member when it was chosen by the liveness fallback (no live member was eligible), else null.
+            // Other clients never select a member that fails its lag check at all; this is the nearest equivalent
+            // that still serves when every member is behind: such a member is left for an eligible one as soon as
+            // one is available, and becomes an ordinary active member once it passes its own failback check.
+            private ConnectionMultiplexer? _provisional;
 
             private long GetFailbackFailureCutoff(ConnectionGroupMember member)
             {
@@ -787,10 +797,19 @@ namespace StackExchange.Redis
                     }
                 }
 
-                // The active member is always eligible, so this only applies when it is gone (or there is none):
-                // if no live member has passed its failback check - every one lagging, say, which is the normal
-                // state of a partition between regions - serve from the best live member rather than from none.
-                preferredMember ??= fallbackMember;
+                // The active member is eligible unless provisional, so this only applies when it is gone, there is
+                // none, or it is itself provisional: if no live member has passed its failback check - every one
+                // lagging, say, which is the normal state of a partition between regions - serve from the best live
+                // member rather than from none, marking it provisional.
+                if (preferredMember is null)
+                {
+                    preferredMember = fallbackMember;
+                    Volatile.Write(ref _provisional, fallbackMember?.Multiplexer);
+                }
+                else
+                {
+                    Volatile.Write(ref _provisional, null);
+                }
 
                 SetActive(preferredMember?.Multiplexer);
 
