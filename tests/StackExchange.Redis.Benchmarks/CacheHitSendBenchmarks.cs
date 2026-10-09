@@ -61,6 +61,7 @@ public class CacheHitSendBenchmarks
     private RespPayload _payload = null!;      // the cached reply, one reference held by this class
     private byte[] _scratch = null!;
     private byte[] _keyBytes = null!;
+    private IRespHandler<RedisValue> _handler = null!;
     private ConcurrentDictionary<RespRequest, object> _baselineDictionary = null!;
 
     [GlobalSetup]
@@ -78,7 +79,8 @@ public class CacheHitSendBenchmarks
         _otherCopy = _lookup.CopyForCacheKey();
         if (!_cache.TryGet(_lookup, 0, out var payload)) throw new InvalidOperationException("not primed");
         _payload = payload;
-        _scratch = ArrayPool<byte>.Shared.Rent(126);
+        _scratch = ArrayPool<byte>.Shared.Rent(64 + KeySize); // room for the largest key; c1 is the floor, not the builder's estimate
+        _handler = RespHandlers.Inbuilt<RedisValue>.Require();
         _keyBytes = Encoding.UTF8.GetBytes((string)_key!);
         _baselineDictionary = new ConcurrentDictionary<RespRequest, object>();
         _baselineDictionary[_otherCopy] = _payload;
@@ -217,13 +219,9 @@ public class CacheHitSendBenchmarks
         return true;
     }
 
-    /// <summary>Parsing the cached reply alone, from the retained payload.</summary>
+    /// <summary>Parsing the cached reply alone, from the retained payload, exactly as the executor does on a hit.</summary>
     [Benchmark(Description = "c8. parse only")]
-    public RedisValue ParseOnly()
-    {
-        var reader = _payload.GetReader();
-        return RespHandlers.Inbuilt<RedisValue>.Require().Parse(ref reader);
-    }
+    public RedisValue ParseOnly() => RespExecutor.Parse(_handler, _payload);
 
     /// <summary>Render, hash, and probe the dictionary - everything but reading the reply.</summary>
     [Benchmark(Description = "3. + cache probe")]
