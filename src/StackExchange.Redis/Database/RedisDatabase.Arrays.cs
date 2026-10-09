@@ -15,7 +15,7 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public bool ArraySet(RedisKey key, RedisArrayIndex index, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.SetAsync(key, index, value, flags));
+            => Wait(Blocking.Arrays.SetAsync(key, index, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> ArraySetAsync(RedisKey key, RedisArrayIndex index, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -23,7 +23,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public int ArraySet(RedisKey key, RedisArrayIndex index, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => checked((int)Wait(SyncCall.Begin(), _inner.Arrays.SetAsync(key, index, Required(values, nameof(values)), flags)));
+            => checked((int)Wait(Blocking.Arrays.SetAsync(key, index, Required(values, nameof(values)), flags)));
 
         /// <inheritdoc/>
         public async Task<int> ArraySetAsync(RedisKey key, RedisArrayIndex index, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -31,7 +31,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public int ArraySet(RedisKey key, RedisArrayEntry[] values, CommandFlags flags = CommandFlags.None)
-            => checked((int)Wait(SyncCall.Begin(), _inner.Arrays.SetAsync(key, Required(values, nameof(values)), flags)));
+            => checked((int)Wait(Blocking.Arrays.SetAsync(key, Required(values, nameof(values)), flags)));
 
         /// <inheritdoc/>
         public async Task<int> ArraySetAsync(RedisKey key, RedisArrayEntry[] values, CommandFlags flags = CommandFlags.None)
@@ -39,7 +39,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue ArrayGet(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.GetAsync(key, index, flags));
+            => Wait(Blocking.Arrays.GetAsync(key, index, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> ArrayGetAsync(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] ArrayGet(RedisKey key, RedisArrayIndex[] indices, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.GetArray(key, Required(indices, nameof(indices)), flags));
+            => Wait(Blocking.Arrays.GetArray(key, Required(indices, nameof(indices)), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> ArrayGetAsync(RedisKey key, RedisArrayIndex[] indices, CommandFlags flags = CommandFlags.None)
@@ -55,7 +55,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] ArrayGetRange(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.GetRangeArray(key, start, end, flags));
+            => Wait(Blocking.Arrays.GetRangeArray(key, start, end, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> ArrayGetRangeAsync(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
@@ -63,7 +63,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayIndex ArrayLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.LengthAsync(key, flags));
+            => Wait(Blocking.Arrays.LengthAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayIndex> ArrayLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -71,7 +71,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayIndex ArrayCount(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.CountAsync(key, flags));
+            => Wait(Blocking.Arrays.CountAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayIndex> ArrayCountAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -79,7 +79,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool ArrayDelete(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.DeleteAsync(key, index, flags));
+            => Wait(Blocking.Arrays.DeleteAsync(key, index, flags));
 
         /// <inheritdoc/>
         public Task<bool> ArrayDeleteAsync(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
@@ -87,7 +87,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public int ArrayDelete(RedisKey key, RedisArrayIndex[] indices, CommandFlags flags = CommandFlags.None)
-            => checked((int)Wait(SyncCall.Begin(), _inner.Arrays.DeleteAsync(key, Required(indices, nameof(indices)), flags)));
+            => checked((int)Wait(Blocking.Arrays.DeleteAsync(key, Required(indices, nameof(indices)), flags)));
 
         /// <inheritdoc/>
         public async Task<int> ArrayDeleteAsync(RedisKey key, RedisArrayIndex[] indices, CommandFlags flags = CommandFlags.None)
@@ -95,7 +95,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayIndex ArrayDeleteRange(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.DeleteRangeAsync(key, start, end, flags));
+            => Wait(Blocking.Arrays.DeleteRangeAsync(key, start, end, flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayIndex> ArrayDeleteRangeAsync(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, CommandFlags flags = CommandFlags.None)
@@ -103,7 +103,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayIndex ArrayDeleteRange(RedisKey key, RedisArrayRange[] ranges, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.DeleteRangeAsync(key, Required(ranges, nameof(ranges)), flags));
+            => Wait(Blocking.Arrays.DeleteRangeAsync(key, Required(ranges, nameof(ranges)), flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayIndex> ArrayDeleteRangeAsync(RedisKey key, RedisArrayRange[] ranges, CommandFlags flags = CommandFlags.None)
@@ -111,7 +111,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayEntry[] ArrayScan(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int limit = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.ScanArray(key, start, end, limit > 0 ? limit : null, flags));
+            => Wait(Blocking.Arrays.ScanArray(key, start, end, limit > 0 ? limit : null, flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayEntry[]> ArrayScanAsync(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, int limit = 0, CommandFlags flags = CommandFlags.None)
@@ -119,7 +119,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue ArrayOperation(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, ArrayOperation operation, RedisValue operand = default, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.OperationAsync(key, start, end, operation, operand, flags));
+            => Wait(Blocking.Arrays.OperationAsync(key, start, end, operation, operand, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> ArrayOperationAsync(RedisKey key, RedisArrayIndex start, RedisArrayIndex end, ArrayOperation operation, RedisValue operand = default, CommandFlags flags = CommandFlags.None)
@@ -127,7 +127,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayIndex ArrayRing(RedisKey key, RedisArrayIndex maxLength, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.RingAsync(key, maxLength, value, flags));
+            => Wait(Blocking.Arrays.RingAsync(key, maxLength, value, flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayIndex> ArrayRingAsync(RedisKey key, RedisArrayIndex maxLength, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -135,7 +135,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayIndex ArrayRing(RedisKey key, RedisArrayIndex maxLength, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.RingAsync(key, maxLength, Required(values, nameof(values)), flags));
+            => Wait(Blocking.Arrays.RingAsync(key, maxLength, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayIndex> ArrayRingAsync(RedisKey key, RedisArrayIndex maxLength, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -143,7 +143,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayIndex? ArrayNext(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.NextAsync(key, flags));
+            => Wait(Blocking.Arrays.NextAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayIndex?> ArrayNextAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -151,7 +151,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayIndex ArrayInsert(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.InsertAsync(key, value, flags));
+            => Wait(Blocking.Arrays.InsertAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayIndex> ArrayInsertAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -159,7 +159,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayIndex ArrayInsert(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.InsertAsync(key, Required(values, nameof(values)), flags));
+            => Wait(Blocking.Arrays.InsertAsync(key, Required(values, nameof(values)), flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayIndex> ArrayInsertAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -167,7 +167,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool ArraySeek(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.SeekAsync(key, index, flags));
+            => Wait(Blocking.Arrays.SeekAsync(key, index, flags));
 
         /// <inheritdoc/>
         public Task<bool> ArraySeekAsync(RedisKey key, RedisArrayIndex index, CommandFlags flags = CommandFlags.None)
@@ -175,7 +175,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] ArrayLastItems(RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.LastItemsArray(key, count, reverse, flags));
+            => Wait(Blocking.Arrays.LastItemsArray(key, count, reverse, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> ArrayLastItemsAsync(RedisKey key, int count, bool reverse = false, CommandFlags flags = CommandFlags.None)
@@ -183,7 +183,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public ArrayInfo ArrayInfo(RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.InfoAsync(key, full, flags));
+            => Wait(Blocking.Arrays.InfoAsync(key, full, flags));
 
         /// <inheritdoc/>
         public Task<ArrayInfo> ArrayInfoAsync(RedisKey key, bool full = false, CommandFlags flags = CommandFlags.None)
@@ -191,7 +191,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisArrayEntry[] ArrayGrep(RedisKey key, ArrayGrepRequest request, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Arrays.GrepArray(key, request, flags));
+            => Wait(Blocking.Arrays.GrepArray(key, request, flags));
 
         /// <inheritdoc/>
         public Task<RedisArrayEntry[]> ArrayGrepAsync(RedisKey key, ArrayGrepRequest request, CommandFlags flags = CommandFlags.None)

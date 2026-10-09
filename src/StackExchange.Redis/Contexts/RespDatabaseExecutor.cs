@@ -103,6 +103,10 @@ namespace StackExchange.Redis
             => _inner.SendPreambleAsync(preamble, gate, cancellationToken);
 
         /// <inheritdoc/>
+        internal override void SendPreamble(RespRequest preamble, IRespPreambleGate? gate)
+            => _inner.SendPreamble(preamble, gate);
+
+        /// <inheritdoc/>
         /// <remarks>Named with THIS view's database, as the untyped send is.</remarks>
         internal override ValueTask<TResult> SendTypedAsync<TResult>(
             RespRequest request, IRespHandler<TResult> handler, CancellationToken cancellationToken)
@@ -139,7 +143,7 @@ namespace StackExchange.Redis
         public override RespPayload Send(in RespRequest request)
         {
             var operation = _inner.Dispatch(in request, Database, default);
-            return operation.Wait(operation.Token, TimeSpan.Zero);
+            return _inner.WaitBlocking(operation);
         }
 
         /// <inheritdoc/>

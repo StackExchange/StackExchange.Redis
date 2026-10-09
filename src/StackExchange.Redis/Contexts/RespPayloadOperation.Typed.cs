@@ -124,9 +124,6 @@ namespace StackExchange.Redis
             var operation = TryTake(TypedPool) ?? new RespPayloadOperation<TResult>();
             operation._handler = handler;
             operation._executor = executor;
-
-            // as the untyped Rent: rented during a synchronous call, its continuations run on that thread
-            SyncPump.Current?.OnRented(operation);
             return operation;
         }
 

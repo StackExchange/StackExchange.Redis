@@ -346,6 +346,40 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         internal override bool EnforcesTimeouts => HeartbeatDriven;
 
+        /// <summary>Wait on this thread for an operation this executor dispatched.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Never without a limit, where there is a timeout to take one from.</b> A heartbeat-driven executor
+        /// times its operations out itself, and that exception - naming the command, the endpoint and why -
+        /// is the one a caller should see; so the limit here is a <b>backstop</b>, twice the timeout plus a few
+        /// heartbeats, far enough out never to race it. "The heartbeat will time it out" is a promise about
+        /// one mechanism, and a waiter that trusts it with an infinite wait turns any operation that escapes
+        /// it into a hung caller: that happened on CI, to a synchronous call that waited over ten minutes on
+        /// a connection the asynchronous callers had all been timed out of.
+        /// </para>
+        /// <para>
+        /// Without a heartbeat the configured timeout is the only one, so it applies as it stands; without a
+        /// timeout at all (an executor built straight over a transport, as tests do) there is none to apply.
+        /// </para>
+        /// </remarks>
+        internal RespPayload WaitBlocking(RespPayloadOperation operation)
+        {
+            var timeout = SyncTimeoutMilliseconds?.Invoke() ?? 0;
+            var limit = timeout <= 0
+                ? TimeSpan.Zero // which Wait reads as "no limit"
+                : TimeSpan.FromMilliseconds(HeartbeatDriven ? Math.Min((2L * timeout) + BackstopSlackMilliseconds, int.MaxValue) : timeout);
+            return operation.Wait(operation.Token, limit);
+        }
+
+        private const int BackstopSlackMilliseconds = 5000;
+
+        /// <summary>The multiplexer's synchronous timeout, for <see cref="WaitBlocking"/>; null for none.</summary>
+        /// <remarks>
+        /// Told rather than looked up through <see cref="Multiplexer"/>, which goes by way of the modelled
+        /// server - and an endpoint nobody models has none, which would have quietly meant "no limit".
+        /// </remarks>
+        internal Func<int>? SyncTimeoutMilliseconds { get; init; }
+
         /// <inheritdoc/>
         internal override ConnectionMultiplexer? Multiplexer => Server?.Multiplexer;
 
@@ -567,7 +601,7 @@ namespace StackExchange.Redis
                 return null!;
             }
 
-            return operation.Wait(operation.Token, TimeSpan.Zero);
+            return WaitBlocking(operation);
         }
 
         /// <inheritdoc/>
@@ -758,6 +792,59 @@ namespace StackExchange.Redis
             IRespPreambleGate? gate,
             CancellationToken cancellationToken = default)
         {
+            var body = DispatchPair(preamble, request, gate, cancellationToken, out var head, out var target);
+            if (body is null) return SequentialAsync(preamble, request, gate, cancellationToken);
+
+            // recorded when the reply lands rather than when the write happens: claiming an effect the
+            // server has not confirmed is how a NOSCRIPT gets cached as "loaded"
+            if (head is not null) Established(head, gate!, target!);
+            return new ValueTask<RespPayload>(body, body.Token);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// The same write as the asynchronous form; only the waiting differs. The preamble's reply is
+        /// consumed here too, once the request's is in: the server answers in order, so by then it has
+        /// almost always landed, and telling the gate on this thread leaves nothing for the pool to do.
+        /// </remarks>
+        internal override RespPayload Send(RespRequest preamble, RespRequest request, IRespPreambleGate? gate)
+        {
+            var body = DispatchPair(preamble, request, gate, default, out var head, out var target);
+            if (body is null) return Sequential(preamble, request, gate);
+
+            try
+            {
+                return WaitBlocking(body);
+            }
+            finally
+            {
+                if (head is not null) EstablishedNow(head, gate!, target!);
+            }
+        }
+
+        /// <summary>
+        /// Write a preamble and its request as a unit, if they can be.
+        /// </summary>
+        /// <returns>
+        /// The request's operation; or <see langword="null"/> if nothing was written, and they must be sent
+        /// in sequence instead.
+        /// </returns>
+        /// <param name="preamble">The conditional first frame.</param>
+        /// <param name="request">The request whose reply the caller wants.</param>
+        /// <param name="gate">Decides at write time whether the preamble is still needed.</param>
+        /// <param name="cancellationToken">Cancels the request.</param>
+        /// <param name="head">The preamble's operation, if it was written and the gate is to be told when it succeeds.</param>
+        /// <param name="target">What the gate is told about.</param>
+        private RespPayloadOperation? DispatchPair(
+            RespRequest preamble,
+            RespRequest request,
+            IRespPreambleGate? gate,
+            CancellationToken cancellationToken,
+            out RespPayloadOperation? head,
+            out IRespPreambleTarget? target)
+        {
+            head = null;
+            target = null;
             RespConnection? connection;
             lock (_sync)
             {
@@ -767,22 +854,22 @@ namespace StackExchange.Redis
                 // Do what an executor WITHOUT the capability does - send them in sequence - rather than
                 // calling the base, which throws: this executor can pair in general, just not this instant,
                 // and the first EVALSHA on a cold connection is exactly that instant.
-                if (connection is null || connection.IsClosed) return SequentialAsync(preamble, request, gate, cancellationToken);
+                if (connection is null || connection.IsClosed) return null;
             }
 
-            var target = connection as IRespPreambleTarget;
+            target = connection as IRespPreambleTarget;
 
             // a server with one database cannot be asked for another; the sequential path dispatches each half
             // through Send, which refuses that with the shipped message
             if (_select is not null && Database > 0 && target is { Server: { SupportsDatabases: false } })
             {
-                return SequentialAsync(preamble, request, gate, cancellationToken);
+                return null;
             }
 
-            var head = RespPayloadOperation.Rent();
-            head.Attach(preamble.Span, preamble.Flags, default);
-            head.Observer = this;
-            head.Database = Database;
+            var pre = RespPayloadOperation.Rent();
+            pre.Attach(preamble.Span, preamble.Flags, default);
+            pre.Observer = this;
+            pre.Database = Database;
 
             var body = RespPayloadOperation.Rent();
             body.Attach(request.Span, request.Flags, cancellationToken);
@@ -809,7 +896,7 @@ namespace StackExchange.Redis
             if (_select is not null && Database >= 0)
             {
                 sent = connection.Send(
-                    head,
+                    pre,
                     body,
                     new PairState(new Decision(gate, target), new Selector(connection, _select, Database)),
                     static p => p.Selector.Preamble(),
@@ -820,28 +907,27 @@ namespace StackExchange.Redis
             }
             else
             {
-                sent = connection.Send(head, body, new Decision(gate, target), static d => d.IsNeeded(), out wroteHead);
+                sent = connection.Send(pre, body, new Decision(gate, target), static d => d.IsNeeded(), out wroteHead);
             }
 
             if (!sent)
             {
-                RespPayloadOperation.DiscardReply(head);
+                RespPayloadOperation.DiscardReply(pre);
                 body.EnsureFaulted(request.Flags, NoConnection(request.Command, body.CommandAndKey));
-                return new ValueTask<RespPayload>(body, body.Token);
+                return body;
             }
 
             if (!wroteHead)
             {
-                RespPayloadOperation.DiscardReply(head);
-                return new ValueTask<RespPayload>(body, body.Token);
+                RespPayloadOperation.DiscardReply(pre);
+                return body;
             }
 
-            // recorded when the reply lands rather than when the write happens: claiming an effect the
-            // server has not confirmed is how a NOSCRIPT gets cached as "loaded"
-            if (gate is not null && target is not null) Established(head, gate, target);
-            else RespPayloadOperation.DiscardReply(head);
+            // the gate is told by the caller, once the reply says the preamble worked
+            if (gate is not null && target is not null) head = pre;
+            else RespPayloadOperation.DiscardReply(pre);
 
-            return new ValueTask<RespPayload>(body, body.Token);
+            return body;
         }
 
         /// <summary>Consume the preamble's reply, and tell the gate only if it succeeded.</summary>
@@ -861,6 +947,29 @@ namespace StackExchange.Redis
                     // the preamble failed, so its effect did not happen and the belief must not be set;
                     // the request that followed will report whatever that costs it
                 }
+            }
+        }
+
+        /// <summary>As <see cref="Established(RespPayloadOperation, IRespPreambleGate, IRespPreambleTarget)"/>, without a continuation if the reply is already in.</summary>
+        private static void EstablishedNow(RespPayloadOperation head, IRespPreambleGate gate, IRespPreambleTarget target)
+        {
+            var pending = new ValueTask<RespPayload>(head, head.Token);
+            if (!pending.IsCompleted)
+            {
+                // the request's reply came without the preamble's - a connection failure faulting them in
+                // some order, say; nothing here is worth blocking on, so leave it to the continuation
+                Established(head, gate, target);
+                return;
+            }
+
+            try
+            {
+                pending.Result?.Release();
+                gate.OnEstablished(target);
+            }
+            catch
+            {
+                // as in Established: the preamble failed, so the belief must not be set
             }
         }
 
@@ -931,6 +1040,39 @@ namespace StackExchange.Redis
             return await body.ForAwait();
         }
 
+        /// <summary>As <see cref="SequentialAsync"/>, blocking.</summary>
+        private RespPayload Sequential(RespRequest preamble, RespRequest request, IRespPreambleGate? gate)
+        {
+            // both queued before either is waited for, as in SequentialAsync, and for the same reason
+            var head = Dispatch(in preamble, Database, default, profile: false);
+            RespPayload response;
+            try
+            {
+                response = Send(in request);
+            }
+            catch
+            {
+                RespPayloadOperation.DiscardReply(head);
+                throw;
+            }
+
+            try
+            {
+                EstablishedBlocking(head, gate);
+            }
+            catch
+            {
+                response?.Release();
+                throw;
+            }
+
+            return response;
+        }
+
+        /// <inheritdoc/>
+        internal override void SendPreamble(RespRequest preamble, IRespPreambleGate? gate)
+            => EstablishedBlocking(Dispatch(in preamble, Database, default, profile: false), gate);
+
         /// <inheritdoc/>
         internal override ValueTask SendPreambleAsync(
             RespRequest preamble, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
@@ -946,8 +1088,22 @@ namespace StackExchange.Redis
         private async Task Established(RespPayloadOperation head, IRespPreambleGate? gate)
         {
             (await new ValueTask<RespPayload>(head, head.Token).ForAwait())?.Release();
+            Established(gate);
+        }
 
-            // told AFTER the await, so the connection recorded against is one that exists, and only on
+        /// <summary>Wait for a preamble's reply on this thread and, if it succeeded, tell the gate.</summary>
+        /// <param name="head">The preamble, already on its way.</param>
+        /// <param name="gate">The condition it establishes; null when nobody is counting.</param>
+        private void EstablishedBlocking(RespPayloadOperation head, IRespPreambleGate? gate)
+        {
+            WaitBlocking(head)?.Release();
+            Established(gate);
+        }
+
+        /// <summary>Tell the gate its preamble succeeded.</summary>
+        private void Established(IRespPreambleGate? gate)
+        {
+            // told AFTER the reply, so the connection recorded against is one that exists, and only on
             // success - a preamble that threw did not establish anything.
             //
             // Recorded against whatever connection is live by then, which is sound for the scope that needs

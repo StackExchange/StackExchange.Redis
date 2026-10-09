@@ -792,6 +792,7 @@ namespace StackExchange.Redis
         {
             IsSubscriptionEndpoint = true,
             HeartbeatDriven = true,
+            SyncTimeoutMilliseconds = () => _multiplexer.TimeoutMilliseconds,
         };
 
         /// <summary>The executor for one database on one endpoint, over that endpoint's single connection.</summary>
@@ -871,6 +872,7 @@ namespace StackExchange.Redis
         {
             RerouteSubscription = operation => TryRerouteSubscription(endpoint, operation),
             HeartbeatDriven = true,
+            SyncTimeoutMilliseconds = () => _multiplexer.TimeoutMilliseconds,
         };
 
         /// <summary>The <see cref="ServerEndPoint"/> this client models for an endpoint, if it models one.</summary>

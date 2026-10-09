@@ -81,7 +81,6 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         Flag_Indefinite = 1 << 7,       // the outcome does not prove the pipeline is done with us
         Flag_Queued = 1 << 8,           // accepted by an owner that will send it later - a backlog
         Flag_Awaited = 1 << 9,          // an async consumer attached a continuation; nobody is blocked on it
-        Flag_Sink = 1 << 10,            // a blocked synchronous caller will run this life's continuation
         Flag_Waiting = 1 << 11,         // a synchronous caller is (or was) blocked in Wait: completing must pulse
         Flag_InlineContinuation = 1 << 12; // the continuation only dispatches, so it runs on the completing thread
 
@@ -563,9 +562,9 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         Mark(definite);
         OnFinished(null);
-        if (HasFlag(Flag_Sink | Flag_InlineContinuation))
+        if (HasFlag(Flag_InlineContinuation))
         {
-            // claimed by a blocked caller: the trampoline only posts, so run it here rather than paying a pool hop
+            // a dispatch-only continuation (see OnCompletedInline): run it here rather than paying a pool hop
             _asyncCore.RunContinuationsAsynchronously = false;
             try
             {
@@ -592,7 +591,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     {
         Mark(definite);
         OnFinished(exception);
-        if (inline || HasFlag(Flag_Sink | Flag_InlineContinuation))
+        if (inline || HasFlag(Flag_InlineContinuation))
         {
             _asyncCore.RunContinuationsAsynchronously = false;
             var wasInline = t_completingInline;
@@ -744,8 +743,6 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         OnReset();
 
         _asyncCore.Reset();
-        _interpose = false;
-        _interposition?.Clear(); // kept for the next life that needs it; see Interposition
 
         // the version and the cleared flags land together, so nothing can observe a fresh version with
         // a previous life's claim still set; the parse capability is of the type, not the life, so it
@@ -851,20 +848,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         // async mode", and it threw (SetTests.SScan, net481 CI). A stale token sets nothing, and the core rejects it.
         SetFlagFor(token, Flag_NoPulse | Flag_Awaited); // an async consumer will never be blocked in Wait
 
-        if (_interpose)
-        {
-            // rented during a synchronous call: keep the continuation ourselves, so that if the caller blocks it
-            // can be run on that caller's thread (see TryAttachSink). Until then - and if the caller never blocks -
-            // the trampoline simply runs it, wherever the core dispatches it, exactly as before
-            var interposition = _interposition!;
-            interposition.Continuation = continuation;
-            interposition.State = state;
-            _asyncCore.OnCompleted(s_trampoline, this, token, flags);
-        }
-        else
-        {
-            _asyncCore.OnCompleted(continuation, state, token, flags);
-        }
+        _asyncCore.OnCompleted(continuation, state, token, flags);
     }
 
     /// <summary>
@@ -881,8 +865,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// </para>
     /// <para>
     /// <b>The continuation must never run caller code</b>: it runs on the reader, and anything that blocks or sends
-    /// there stalls every reply behind it. An operation rented during a synchronous call (see
-    /// <see cref="TryAttachSink"/>) takes the ordinary path, because its continuation may belong to that caller.
+    /// there stalls every reply behind it.
     /// </para>
     /// </remarks>
     /// <summary>
@@ -901,101 +884,9 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
 
     protected void OnCompletedInline(Action<object?> continuation, object? state, short token)
     {
-        if (_interpose)
-        {
-            OnCompleted(continuation, state, token, ValueTaskSourceOnCompletedFlags.None);
-            return;
-        }
-
         SetFlagFor(token, Flag_NoPulse | Flag_Awaited | Flag_InlineContinuation);
         _asyncCore.OnCompleted(continuation, state, token, ValueTaskSourceOnCompletedFlags.None);
     }
-
-    private bool _interpose;
-    private Interposition? _interposition;
-
-    /// <summary>What a synchronous caller needs to claim this life's continuation; see <see cref="TryAttachSink"/>.</summary>
-    /// <remarks>
-    /// A side object rather than four fields on every operation: only an operation rented during a synchronous call
-    /// uses them, and they were 33 of an operation's ~300 bytes. Allocated the first time an instance is used that
-    /// way and kept across its pooled lives, so sync-heavy traffic pays once per instance, not once per call.
-    /// </remarks>
-    private sealed class Interposition
-    {
-        internal IContinuationSink? Sink;
-        internal long Generation;
-        internal Action<object?>? Continuation;
-        internal object? State;
-
-        internal void Clear()
-        {
-            Sink = null;
-            Continuation = null;
-            State = null;
-        }
-    }
-
-    /// <summary>Keep this life's continuation, so a blocked synchronous caller can claim it later.</summary>
-    /// <remarks>Only before the continuation is registered. Harmless if nobody ever claims it.</remarks>
-    internal void Interpose()
-    {
-        _interposition ??= new Interposition();
-        _interpose = true;
-    }
-
-    /// <summary>
-    /// Run this life's continuation on <paramref name="sink"/>'s thread rather than the thread-pool.
-    /// </summary>
-    /// <param name="token">The life being claimed; a stale one is refused.</param>
-    /// <param name="sink">Where to run it.</param>
-    /// <param name="generation">The sink's call, so a sink reused for a later call declines this one.</param>
-    /// <returns>Whether it was claimed before the outcome was known.</returns>
-    /// <remarks>
-    /// Recorded with the version in one atomic step, like the outcome claim: a claim that loses a race with
-    /// completion and recycling cannot land on a later life. Called only by a caller that is about to block and
-    /// will pump the sink until it is done - never speculatively, which is what makes a sink safe to attach.
-    /// </remarks>
-    internal bool TryAttachSink(short token, IContinuationSink sink, long generation)
-    {
-        if (!_interpose) return false;
-        var interposition = _interposition!;
-        interposition.Sink = sink;
-        interposition.Generation = generation;
-        while (true)
-        {
-            var state = Volatile.Read(ref _state);
-            if (VersionOf(state) != token) return false;        // a later life: not ours
-            if ((state & Flag_OutcomeKnown) != 0) return false;  // too late; the caller will be woken anyway
-            if (Interlocked.CompareExchange(ref _state, state | Flag_Sink, state) == state) return true;
-        }
-    }
-
-    private static readonly WaitCallback s_runOnPool = static state =>
-    {
-        var self = (RespMessageBase<TResponse>)state!;
-        var interposition = self._interposition!;
-        interposition.Continuation!(interposition.State);
-    };
-
-    private static readonly Action<object?> s_trampoline = static state =>
-    {
-        var self = (RespMessageBase<TResponse>)state!;
-        var interposition = self._interposition!;
-        if (!self.HasFlag(Flag_Sink))
-        {
-            // nobody claimed it: we were dispatched as any continuation is, so just run it
-            interposition.Continuation!(interposition.State);
-            return;
-        }
-
-        // claimed: we are running inline on the completing thread, which must not run library code that can
-        // send (that deadlocks against write backpressure) - so hand it to the blocked caller, or, if that call
-        // is already over, to the pool
-        if (!interposition.Sink!.TryPost(interposition.Generation, interposition.Continuation!, interposition.State))
-        {
-            ThreadPool.UnsafeQueueUserWorkItem(s_runOnPool, self); // the fields hold until the continuation runs
-        }
-    };
 
     ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _asyncCore.GetStatus(token);
 

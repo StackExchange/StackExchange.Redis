@@ -30,7 +30,7 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public RedisValue StringGet(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.GetAsync(key, flags));
+            => Wait(Blocking.Strings.GetAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -38,7 +38,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool StringSet(RedisKey key, RedisValue value, Expiration expiry = default, ValueCondition when = default, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.SetAsync(key, value, expiry, when, flags));
+            => Wait(Blocking.Strings.SetAsync(key, value, expiry, when, flags));
 
         /// <inheritdoc/>
         public Task<bool> StringSetAsync(RedisKey key, RedisValue value, Expiration expiry = default, ValueCondition when = default, CommandFlags flags = CommandFlags.None)
@@ -83,7 +83,7 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         public bool StringSet(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, Expiration expiry = default, CommandFlags flags = CommandFlags.None)
             => Required(values, nameof(values)).Length != 0
-                && Wait(SyncCall.Begin(), _inner.Strings.SetAsync(values, expiry, when, flags));
+                && Wait(Blocking.Strings.SetAsync(values, expiry, when, flags));
 
         /// <inheritdoc/>
         /// <remarks>
@@ -115,7 +115,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue StringSetAndGet(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.SetAndGetAsync(key, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags));
+            => Wait(Blocking.Strings.SetAndGetAsync(key, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> StringSetAndGetAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
@@ -128,7 +128,7 @@ namespace StackExchange.Redis
         /// server has it, and the old one wherever it might not. See <c>IRespServerFeatures</c>.
         /// </remarks>
         public RedisValue StringGetSet(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.GetSet(key, value, flags));
+            => Wait(Blocking.Strings.GetSet(key, value, flags));
 
         /// <inheritdoc cref="StringGetSet"/>
         public Task<RedisValue> StringGetSetAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -140,7 +140,7 @@ namespace StackExchange.Redis
         /// the sibling that produces one directly rather than renting a lease and copying out of it.
         /// </remarks>
         public RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.GetArray(Required(keys, nameof(keys)), flags));
+            => Wait(Blocking.Strings.GetArray(Required(keys, nameof(keys)), flags));
 
         /// <inheritdoc cref="StringGet(RedisKey[], CommandFlags)"/>
         public Task<RedisValue[]> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
@@ -148,7 +148,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Lease<byte>? StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.GetWritableLease(key, flags));
+            => Wait(Blocking.Strings.GetWritableLease(key, flags));
 
         /// <inheritdoc/>
         public Task<Lease<byte>?> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -156,7 +156,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue StringGetRange(RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.GetRangeAsync(key, start, end, flags));
+            => Wait(Blocking.Strings.GetRangeAsync(key, start, end, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetRangeAsync(RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None)
@@ -164,7 +164,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue StringGetDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.GetDeleteAsync(key, flags));
+            => Wait(Blocking.Strings.GetDeleteAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -176,7 +176,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue StringGetSetExpiry(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.GetSetExpiryAsync(key, Expiration.CreateOrPersist(expiry, !expiry.HasValue), flags));
+            => Wait(Blocking.Strings.GetSetExpiryAsync(key, Expiration.CreateOrPersist(expiry, !expiry.HasValue), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
@@ -184,7 +184,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue StringGetSetExpiry(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.GetSetExpiryAsync(key, new Expiration(expiry), flags));
+            => Wait(Blocking.Strings.GetSetExpiryAsync(key, new Expiration(expiry), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> StringGetSetExpiryAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
@@ -192,7 +192,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.AppendAsync(key, value, flags));
+            => Wait(Blocking.Strings.AppendAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -200,7 +200,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StringLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.LengthAsync(key, flags));
+            => Wait(Blocking.Strings.LengthAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long> StringLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -211,7 +211,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue StringSetRange(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.SetRangeAsync(key, offset, value, flags));
+            => Wait(Blocking.Strings.SetRangeAsync(key, offset, value, flags));
 
         /// <inheritdoc/>
         public async Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -219,7 +219,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool StringDelete(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.DeleteAsync(key, when, flags, default, nameof(StringDelete)));
+            => Wait(Blocking.Strings.DeleteAsync(key, when, flags, default, nameof(StringDelete)));
 
         /// <inheritdoc/>
         public Task<bool> StringDeleteAsync(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None)
@@ -227,7 +227,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public ValueCondition? StringDigest(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.DigestAsync(key, flags));
+            => Wait(Blocking.Strings.DigestAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<ValueCondition?> StringDigestAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -235,7 +235,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StringIncrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.IncrementAsync(key, value, flags));
+            => Wait(Blocking.Strings.IncrementAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<long> StringIncrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
@@ -243,7 +243,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public double StringIncrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.IncrementAsync(key, value, flags));
+            => Wait(Blocking.Strings.IncrementAsync(key, value, flags));
 
         /// <inheritdoc/>
         public Task<double> StringIncrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None)
@@ -270,7 +270,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StringIncrementResult<long> StringIncrement(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.IncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags));
+            => Wait(Blocking.Strings.IncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags));
 
         /// <inheritdoc/>
         public Task<StringIncrementResult<long>> StringIncrementAsync(RedisKey key, long value, Expiration expiry, long? lowerBound = null, long? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
@@ -278,7 +278,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StringIncrementResult<double> StringIncrement(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.IncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags));
+            => Wait(Blocking.Strings.IncrementAsync(key, value, expiry, lowerBound, upperBound, options, flags));
 
         /// <inheritdoc/>
         public Task<StringIncrementResult<double>> StringIncrementAsync(RedisKey key, double value, Expiration expiry, double? lowerBound = null, double? upperBound = null, IncrementOptions options = IncrementOptions.None, CommandFlags flags = CommandFlags.None)
@@ -286,7 +286,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public string? StringLongestCommonSubsequence(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.LongestCommonSubsequenceAsync(first, second, flags));
+            => Wait(Blocking.Strings.LongestCommonSubsequenceAsync(first, second, flags));
 
         /// <inheritdoc/>
         public Task<string?> StringLongestCommonSubsequenceAsync(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -294,7 +294,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StringLongestCommonSubsequenceLength(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.LongestCommonSubsequenceLengthAsync(first, second, flags));
+            => Wait(Blocking.Strings.LongestCommonSubsequenceLengthAsync(first, second, flags));
 
         /// <inheritdoc/>
         public Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -302,7 +302,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey first, RedisKey second, long minLength = 0, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.LongestCommonSubsequenceWithMatchesAsync(first, second, minLength, flags));
+            => Wait(Blocking.Strings.LongestCommonSubsequenceWithMatchesAsync(first, second, minLength, flags));
 
         /// <inheritdoc/>
         public Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey first, RedisKey second, long minLength = 0, CommandFlags flags = CommandFlags.None)
@@ -318,11 +318,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValueWithExpiry StringGetWithExpiry(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(GetWithExpiry(key, flags));
+            => Wait(GetWithExpiry(Blocking, key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => GetWithExpiry(key, flags).AsTask(AsyncState, flags);
+            => GetWithExpiry(_inner, key, flags).AsTask(AsyncState, flags);
 
         /// <summary>One result assembled from two replies: the value, and how long it has left.</summary>
         /// <remarks>
@@ -363,7 +363,7 @@ namespace StackExchange.Redis
         /// The guard existed and was inside the state machine, so the exception went into a task the
         /// caller had already thrown away, and the operation hung instead of being refused.
         /// </remarks>
-        private ValueTask<RedisValueWithExpiry> GetWithExpiry(RedisKey key, CommandFlags flags)
+        private ValueTask<RedisValueWithExpiry> GetWithExpiry(RespDatabaseContext context, RedisKey key, CommandFlags flags)
         {
             if (this is IBatch)
             {
@@ -371,13 +371,15 @@ namespace StackExchange.Redis
                     "This operation is not possible inside a transaction or batch; please issue separate GetString and KeyTimeToLive requests");
             }
 
-            return GetWithExpiryCore(key, flags);
+            return GetWithExpiryCore(context, key, flags);
         }
 
-        private async ValueTask<RedisValueWithExpiry> GetWithExpiryCore(RedisKey key, CommandFlags flags)
+        private async ValueTask<RedisValueWithExpiry> GetWithExpiryCore(RespDatabaseContext context, RedisKey key, CommandFlags flags)
         {
-            var pendingExpiry = _inner.Keys.TimeToLiveAsync(key, flags);
-            var pendingValue = _inner.Strings.GetAsync(key, flags);
+            // from a blocking context these are two round trips rather than one pipelined pair: each send
+            // completes before the next is issued, which is the price of not depending on the pool
+            var pendingExpiry = context.Keys.TimeToLiveAsync(key, flags);
+            var pendingValue = context.Strings.GetAsync(key, flags);
 
             TimeSpan? expiry = null;
             Exception? expiryFault = null;
@@ -415,38 +417,38 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool LockTake(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
-            => Wait(TakeLock(key, value, expiry, flags));
+            => Wait(TakeLock(Blocking, key, value, expiry, flags));
 
         /// <inheritdoc/>
         public Task<bool> LockTakeAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
-            => TakeLock(key, value, expiry, flags).AsTask(AsyncState, flags);
+            => TakeLock(_inner, key, value, expiry, flags).AsTask(AsyncState, flags);
 
-        private ValueTask<bool> TakeLock(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags)
+        private ValueTask<bool> TakeLock(RespDatabaseContext context, RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags)
         {
             // a null token would make the lock unreleasable: SET would delete the key instead of taking it
             if (value.IsNull) throw new ArgumentNullException(nameof(value));
-            return _inner.Strings.SetAsync(key, value, new Expiration(expiry), ValueCondition.NotExists, flags);
+            return context.Strings.SetAsync(key, value, new Expiration(expiry), ValueCondition.NotExists, flags);
         }
 
         /// <inheritdoc/>
         public bool LockRelease(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => Wait(ReleaseLock(key, value, flags));
+            => Wait(ReleaseLock(Blocking, key, value, flags));
 
         /// <inheritdoc/>
         public Task<bool> LockReleaseAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-            => ReleaseLock(key, value, flags).AsTask(AsyncState, flags);
+            => ReleaseLock(_inner, key, value, flags).AsTask(AsyncState, flags);
 
         [SuppressMessage("Usage", "SER301:Transaction can be replaced by a single atomic operation", Justification = "Deliberate fallback for servers without DELEX; the atomic form is preferred above.")]
-        private ValueTask<bool> ReleaseLock(RedisKey key, RedisValue value, CommandFlags flags)
+        private ValueTask<bool> ReleaseLock(RespDatabaseContext context, RedisKey key, RedisValue value, CommandFlags flags)
         {
             if (value.IsNull) throw new ArgumentNullException(nameof(value));
 
             // lock tokens are small, so IFEQ rather than IFDEQ - the same reasoning as the shipped version,
             // and the same command: one round trip, atomic, no transaction needed
-            if (_inner.Raw.TryGetFeatures(RedisCommand.DELEX, in key, flags, out var features)
+            if (context.Raw.TryGetFeatures(RedisCommand.DELEX, in key, flags, out var features)
                 && features.DeleteWithValueCheck)
             {
-                return _inner.Strings.DeleteAsync(key, ValueCondition.Equal(value), flags);
+                return context.Strings.DeleteAsync(key, ValueCondition.Equal(value), flags);
             }
 
             if (TryCreateTransaction() is { } tran)
@@ -458,26 +460,26 @@ namespace StackExchange.Redis
 
             // without transactions (twemproxy etc) the "value" part cannot be enforced at all; deleting
             // unconditionally is what the shipped surface does, and it is a deliberate weakening
-            return _inner.Keys.DeleteAsync(key, flags);
+            return context.Keys.DeleteAsync(key, flags);
         }
 
         /// <inheritdoc/>
         public bool LockExtend(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
-            => Wait(ExtendLock(key, value, expiry, flags));
+            => Wait(ExtendLock(Blocking, key, value, expiry, flags));
 
         /// <inheritdoc/>
         public Task<bool> LockExtendAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
-            => ExtendLock(key, value, expiry, flags).AsTask(AsyncState, flags);
+            => ExtendLock(_inner, key, value, expiry, flags).AsTask(AsyncState, flags);
 
         [SuppressMessage("Usage", "SER301:Transaction can be replaced by a single atomic operation", Justification = "Deliberate fallback for servers without SET IFEQ; the atomic form is preferred above.")]
-        private ValueTask<bool> ExtendLock(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags)
+        private ValueTask<bool> ExtendLock(RespDatabaseContext context, RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags)
         {
             if (value.IsNull) throw new ArgumentNullException(nameof(value));
 
-            if (_inner.Raw.TryGetFeatures(RedisCommand.SET, in key, flags, out var features)
+            if (context.Raw.TryGetFeatures(RedisCommand.SET, in key, flags, out var features)
                 && features.SetWithValueCheck)
             {
-                return _inner.Strings.SetAsync(key, value, new Expiration(expiry), ValueCondition.Equal(value), flags);
+                return context.Strings.SetAsync(key, value, new Expiration(expiry), ValueCondition.Equal(value), flags);
             }
 
             if (TryCreateTransaction() is { } tran)
@@ -487,7 +489,7 @@ namespace StackExchange.Redis
                 return new ValueTask<bool>(tran.ExecuteAsync(flags));
             }
 
-            return _inner.Keys.ExpireAsync(key, new Expiration(expiry), flags: flags);
+            return context.Keys.ExpireAsync(key, new Expiration(expiry), flags: flags);
         }
 
         /// <summary>A transaction, or null where the server has no <c>MULTI</c>/<c>EXEC</c> to build one from.</summary>
@@ -505,7 +507,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue LockQuery(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Strings.GetAsync(key, flags));
+            => Wait(Blocking.Strings.GetAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> LockQueryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)

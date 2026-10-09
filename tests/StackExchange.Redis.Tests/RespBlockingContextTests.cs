@@ -1,4 +1,5 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using StackExchange.Redis.Availability;
 using StackExchange.Redis.Protocol;
 using Xunit;
 
@@ -69,5 +70,64 @@ public class RespBlockingContextTests
 
         Assert.True(done.IsCompletedSuccessfully);
         Assert.Equal("*2|$3|GET|$3|t:k|", Assert.Single(executor.Sent));
+    }
+
+    [Fact]
+    public void APairedCommandCompletesToo()
+    {
+        // EVALSHA behind SCRIPT LOAD goes through its own send, not the single-request funnel; this fake cannot
+        // pair, so it takes the sequential path - the preamble, then the request, each answered at once
+        var executor = new SyncOnlyExecutor("$40\r\ne0e1f9fabfc9d4800c877a703b823ac0578ff8db\r\n", ":1\r\n");
+        var done = Context(executor).Blocking().Scripts.EvaluateAsync("return 1");
+
+        Assert.True(done.IsCompletedSuccessfully);
+        using var result = done.GetAwaiter().GetResult();
+        Assert.Equal(1, (long)result.ReadScalar().ReadRedisValue());
+        Assert.Equal(
+            ["*3|$6|SCRIPT|$4|LOAD|$8|return 1|", "*3|$7|EVALSHA|$40|e0e1f9fabfc9d4800c877a703b823ac0578ff8db|$1|0|"],
+            executor.Sent);
+    }
+
+    [Fact]
+    public async Task AHashImportCompletesToo()
+    {
+        // the other paired command: HIMPORT PREPARE, then the row
+        await using var fieldSet = HashImport.Create("a");
+        var executor = new SyncOnlyExecutor("+OK\r\n");
+        var done = Context(executor).Blocking().Hashes.ImportAsync("k", fieldSet, ["v"]);
+
+        Assert.True(done.IsCompletedSuccessfully);
+        Assert.Equal(2, executor.Sends);
+    }
+
+    [Fact]
+    public void ARetryingContextSendsAsynchronouslyInstead()
+    {
+        // a retry pauses asynchronously, so it cannot block; the context falls back to the ordinary path
+        // rather than refusing, and a synchronous caller blocks on that task as it always did
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(new FakeExecutor("$1\r\nv\r\n"))).WithRetry();
+        var done = ctx.Blocking().Strings.GetAsync("k");
+
+        Assert.Equal("v", (string?)done.AsTask().GetAwaiter().GetResult());
+    }
+
+    [Fact]
+    public void TheSynchronousDatabaseOverARetryingContextStillWorks()
+    {
+        var multiplexer = NSubstitute.Substitute.For<IConnectionMultiplexer>();
+        var db = new RespDatabaseContext(new RespContext().WithExecutor(new FakeExecutor("$1\r\nv\r\n"))).WithRetry().AsDatabase(multiplexer);
+
+        Assert.Equal("v", (string?)db.StringGet("k"));
+    }
+
+    [Fact]
+    public void TheSynchronousDatabaseSendsThroughTheBlockingPath()
+    {
+        // the point of the change: IDatabase's synchronous members never touch the asynchronous send
+        var executor = new SyncOnlyExecutor("$1\r\nv\r\n", ":-1\r\n", "$1\r\nv\r\n"); // GET; then PTTL, GET
+        var db = Context(executor).AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
+
+        Assert.Equal("v", (string?)db.StringGet("k"));
+        Assert.Equal("v", (string?)db.StringGetWithExpiry("k").Value); // a composite: two sends, both blocking
     }
 }

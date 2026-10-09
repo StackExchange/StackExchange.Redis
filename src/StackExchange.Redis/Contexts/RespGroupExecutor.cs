@@ -97,6 +97,10 @@ namespace StackExchange.Redis
             => Active().SendAsync(preamble, request, gate, cancellationToken);
 
         /// <inheritdoc/>
+        internal override RespPayload Send(RespRequest preamble, RespRequest request, IRespPreambleGate? gate)
+            => Active().Send(preamble, request, gate);
+
+        /// <inheritdoc/>
         internal override bool CanWriteRuns => _active() is { CanWriteRuns: true };
 
         /// <inheritdoc/>

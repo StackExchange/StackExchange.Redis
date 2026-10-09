@@ -23,7 +23,7 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public RespResult ExecuteResp(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Raw.ExecuteAsync(command, args, flags));
+            => Wait(Blocking.Raw.ExecuteAsync(command, args, flags));
 
         /// <inheritdoc/>
         public Task<RespResult> ExecuteRespAsync(string command, ReadOnlyMemory<RedisKeyOrValue> args, CommandFlags flags = CommandFlags.None)
@@ -35,7 +35,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
-            => Wait(ExecuteCore(command, args, flags));
+            => Wait(ExecuteCore(Blocking, command, args, flags));
 
         /// <inheritdoc/>
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
@@ -43,10 +43,10 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object>? args, CommandFlags flags = CommandFlags.None)
-            => ExecuteCore(command, args, flags).AsTask(AsyncState, flags);
+            => ExecuteCore(_inner, command, args, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc cref="RespAdHoc.ExecuteAsync"/>
-        private ValueTask<RedisResult> ExecuteCore(string command, ICollection<object>? args, CommandFlags flags)
-            => RespAdHoc.ExecuteAsync(_inner.Raw, command, args, flags);
+        private ValueTask<RedisResult> ExecuteCore(RespDatabaseContext context, string command, ICollection<object>? args, CommandFlags flags)
+            => RespAdHoc.ExecuteAsync(context.Raw, command, args, flags);
     }
 }

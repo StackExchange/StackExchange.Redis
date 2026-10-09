@@ -132,32 +132,40 @@ namespace StackExchange.Redis
 
         // ---- the sync bridge ----------------------------------------------------------------------------
 
-        /// <summary>Block for an asynchronous result, applying the multiplexer's timeout.</summary>
+        /// <summary>
+        /// This database's context, <see cref="RespContext.Blocking">blocking</see>: what every synchronous member
+        /// sends through.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Routing rather than waiting.</b> Each send through it goes to the executor's synchronous
+        /// <c>Send</c>, which waits for the reply on this thread, so the group method hands back a task that is
+        /// already complete and <see cref="Wait{T}(ValueTask{T})"/> takes its fast path. Nothing then depends on
+        /// the thread pool running a continuation while this thread is blocked - which is the starvation the
+        /// synchronous API most needs to survive (a saturated pool, and .NET Framework, which does not inject
+        /// threads for blocking waits). A composite command is several sends, each completing inline, so it
+        /// runs to the end on this thread too.
+        /// </para>
+        /// <para>
+        /// <b>Created once, on first use</b>: a blocking context is the inner one with a marker service added,
+        /// and a database that is only ever used asynchronously never pays for it. The race on first use is
+        /// benign - two equivalent contexts, one of which is kept.
+        /// </para>
+        /// </remarks>
+        private RespDatabaseContext Blocking => new(_blocking ??= _inner.Raw.Blocking());
+
+        private RespContext? _blocking;
+
+        /// <summary>Take the result of a synchronous call, blocking only if it has not completed.</summary>
         /// <typeparam name="T">The result type.</typeparam>
         /// <param name="pending">The operation to wait for.</param>
         /// <remarks>
-        /// <para>
-        /// <b>Sync is deliberately deprioritised</b>, so this is the cheap version rather than the right
-        /// one. A synchronously-completed result - notably a client-side cache hit - is taken directly and
-        /// costs nothing. Anything else blocks on a <c>Task</c>, which is sync-over-async: the async path
-        /// completes its task sources with <c>RunContinuationsAsynchronously</c> (see
-        /// <c>ResultBox.cs</c>), so the completion needs a thread-pool thread while this one is blocked
-        /// holding another. That is the failure mode SER307/SER308 exist to warn about.
-        /// </para>
-        /// <para>
-        /// The proper fix is routing rather than waiting: <c>RespExecutorBase</c> already has a synchronous
-        /// <c>Send</c>, and <c>RespExecutor.Send</c> already uses it, so a context flag consulted by the
-        /// one shared funnel would make every sync call complete inline and reduce this method to its fast
-        /// path. Worth doing when sync stops being deprioritised - not before.
-        /// </para>
+        /// From <see cref="Blocking"/>, the result is normally complete already, and this only consumes it.
+        /// Anything that did not complete inline - a path that bypasses the blocking send - is waited for
+        /// as a task, with the multiplexer's timeout: correct, but sync-over-async again, and so dependent on
+        /// the pool. See <see cref="SyncWait"/>.
         /// </remarks>
         private T Wait<T>(ValueTask<T> pending) => SyncWait.Wait(pending, multiplexer, _inner.Raw.Executor);
-
-        /// <summary>As <c>Wait</c>, for a call marked synchronous by <see cref="SyncCall.Begin"/>.</summary>
-        private T Wait<T>(SyncCall call, ValueTask<T> pending) => SyncWait.Wait(call, pending, multiplexer, _inner.Raw.Executor);
-
-        /// <summary>As <c>Wait</c>, for a call marked synchronous by <see cref="SyncCall.Begin"/>.</summary>
-        private void Wait(SyncCall call, ValueTask pending) => SyncWait.Wait(call, pending, multiplexer);
 
         /// <inheritdoc cref="SyncWait.Wait(ValueTask, IConnectionMultiplexer)"/>
         /// <param name="pending">The operation to wait for.</param>
@@ -243,7 +251,7 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="PingAsync" path="/remarks"/></remarks>
         public TimeSpan Ping(CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.PingMeasureAsync(flags));
+            => Wait(Blocking.PingMeasureAsync(flags));
 
         /// <inheritdoc/>
         /// <remarks>

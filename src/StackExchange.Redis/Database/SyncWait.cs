@@ -1,30 +1,9 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
-    /// Marks a synchronous call, so the operations it rents run their continuations on the calling thread.
-    /// </summary>
-    /// <remarks>
-    /// The sync wrappers hold only a <see cref="System.Threading.Tasks.ValueTask"/>, which does not expose its
-    /// operation, so the call is marked before the operation exists: <c>Begin</c> is an argument evaluated ahead
-    /// of the async call (C# evaluates arguments left to right), and the matching <c>Wait</c> overload pumps and
-    /// ends it. See <see cref="SyncPump"/>.
-    /// </remarks>
-    internal readonly struct SyncCall
-    {
-        private SyncCall(SyncPump pump) => Pump = pump;
-
-        /// <summary>The call's pump.</summary>
-        internal SyncPump? Pump { get; }
-
-        /// <summary>Start a synchronous call on this thread.</summary>
-        internal static SyncCall Begin() => new(SyncPump.Enter());
-    }
-
     /// <summary>
     /// Blocks on an operation of the new core, for the synchronous half of a shipped interface.
     /// </summary>
@@ -36,122 +15,14 @@ namespace StackExchange.Redis
     /// that the hard way.
     /// </para>
     /// <para>
-    /// The proper fix is routing rather than waiting: <c>RespExecutorBase</c> already has a synchronous
-    /// <c>Send</c>, and <c>RespExecutor.Send</c> already uses it, so a context flag consulted by the one
-    /// shared funnel would make every sync call complete inline and reduce this to its fast path. Worth
-    /// doing when sync stops being deprioritised - not before.
+    /// <b>Mostly a fast path now.</b> The synchronous members send through a
+    /// <see cref="RespContext.Blocking">blocking</see> context, whose sends wait on the calling thread and
+    /// hand back a completed task, so this only takes the result. The slow path - blocking on a task - is
+    /// for whatever still bypasses that: it is sync-over-async, and needs a pool thread to wake it.
     /// </para>
     /// </remarks>
     internal static class SyncWait
     {
-        /// <summary>Wait for a synchronous call, running its continuations on this thread meanwhile.</summary>
-        /// <typeparam name="T">The result type.</typeparam>
-        /// <param name="call">From <see cref="SyncCall.Begin"/>, evaluated before <paramref name="pending"/> was created.</param>
-        /// <param name="pending">The operation to wait for.</param>
-        /// <param name="multiplexer">Applies the configured timeout.</param>
-        /// <param name="executor">The executor, when it enforces its own timeouts.</param>
-        /// <returns>The result.</returns>
-        internal static T Wait<T>(SyncCall call, ValueTask<T> pending, IConnectionMultiplexer multiplexer, RespExecutorBase? executor)
-        {
-            var pump = call.Pump;
-            if (pump is null) return Wait(pending, multiplexer, executor);
-            try
-            {
-                if (!pending.IsCompleted)
-                {
-                    pending.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(pump.SignalDone);
-                    var deadline = Deadline(TimeoutFor(multiplexer, executor, out var backstop));
-                    do
-                    {
-                        if (!pump.RunUntilDone(Remaining(deadline)))
-                        {
-                            throw backstop ? MissedTimeout(multiplexer, pump) : new TimeoutException();
-                        }
-                    }
-                    while (WasStale(pump, pending.IsCompleted) && !pending.IsCompleted);
-                }
-
-                return pending.GetAwaiter().GetResult();
-            }
-            finally
-            {
-                SyncPump.Exit(pump);
-            }
-        }
-
-        /// <inheritdoc cref="Wait{T}(SyncCall, ValueTask{T}, IConnectionMultiplexer, RespExecutorBase)"/>
-        /// <param name="call">From <see cref="SyncCall.Begin"/>, evaluated before <paramref name="pending"/> was created.</param>
-        /// <param name="pending">The operation to wait for.</param>
-        /// <param name="multiplexer">Applies the configured timeout.</param>
-        internal static void Wait(SyncCall call, ValueTask pending, IConnectionMultiplexer multiplexer)
-        {
-            var pump = call.Pump;
-            if (pump is null)
-            {
-                Wait(pending, multiplexer);
-                return;
-            }
-
-            try
-            {
-                if (!pending.IsCompleted)
-                {
-                    pending.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(pump.SignalDone);
-                    var deadline = Deadline(TimeoutFor(multiplexer, null, out _));
-                    do
-                    {
-                        if (!pump.RunUntilDone(Remaining(deadline))) throw new TimeoutException();
-                    }
-                    while (WasStale(pump, pending.IsCompleted) && !pending.IsCompleted);
-                }
-
-                pending.GetAwaiter().GetResult();
-            }
-            finally
-            {
-                SyncPump.Exit(pump);
-            }
-        }
-
-        /// <summary>
-        /// Whether the pump was woken by a signal that was not this call's - in which case it is cleared, so the
-        /// caller re-checks its own operation and waits again.
-        /// </summary>
-        /// <param name="pump">The pump that reported done.</param>
-        /// <param name="completed">Whether this call's operation has completed.</param>
-        /// <remarks>
-        /// <para>
-        /// <b>"Done" is a hint, never the answer.</b> The pump is reused per thread, and a call that gave up - a
-        /// timeout - leaves its <c>SignalDone</c> registered on an operation that is still running. When that
-        /// operation finally completes, the signal lands on whichever call the thread is making NOW, which then
-        /// left the pump and blocked in <c>GetResult</c> on its own operation, with no deadline at all. That was
-        /// the CI hang: a synchronous <c>HashFieldExpireNoField</c> parked in <c>GetResult</c> for minutes, on a
-        /// connection that was answering normally, after an earlier call on the same thread had timed out.
-        /// </para>
-        /// <para>
-        /// The caller re-checks completion AFTER the flag is cleared, so a genuine signal arriving between the two
-        /// cannot be lost: either the operation is already complete, or its signal is still to come.
-        /// </para>
-        /// </remarks>
-        private static bool WasStale(SyncPump pump, bool completed)
-        {
-            if (completed) return false;
-            pump.ClearDone();
-            return true;
-        }
-
-        private static long Deadline(int timeoutMilliseconds)
-            => timeoutMilliseconds == Timeout.Infinite
-                ? long.MaxValue
-                : Stopwatch.GetTimestamp() + (timeoutMilliseconds * Stopwatch.Frequency / 1000);
-
-        private static int Remaining(long deadline)
-        {
-            if (deadline == long.MaxValue) return Timeout.Infinite;
-            var remaining = (deadline - Stopwatch.GetTimestamp()) * 1000 / Stopwatch.Frequency;
-            return remaining <= 0 ? 0 : (int)Math.Min(remaining, int.MaxValue);
-        }
-
         /// <summary>
         /// The multiplexer's timeout - or, where the executor times operations out itself, a <b>backstop</b>
         /// well beyond it, so that the executor's exception (which names the command, the endpoint and why)
@@ -176,12 +47,12 @@ namespace StackExchange.Redis
         private const int BackstopSlackMilliseconds = 5000;
 
         /// <summary>The executor's timeout should have fired and did not; say so, rather than report a plain timeout.</summary>
-        private static RedisTimeoutException MissedTimeout(IConnectionMultiplexer multiplexer, SyncPump? pump)
+        private static RedisTimeoutException MissedTimeout(IConnectionMultiplexer multiplexer)
         {
             var timeout = multiplexer.TimeoutMilliseconds;
             var message = $"A synchronous call was not timed out by its connection within {(timeout * 2) + BackstopSlackMilliseconds}ms, "
                 + $"twice the configured {timeout}ms; the connection's own timeout should have fired first, so this is "
-                + "a client fault worth reporting." + (pump is null ? string.Empty : " Pump: " + pump.Describe());
+                + "a client fault worth reporting.";
             return new(CommandFlags.CommandRetryNever, message, CommandStatus.Unknown);
         }
 
@@ -195,7 +66,9 @@ namespace StackExchange.Redis
             // spelled the same way as the result-less overload below, deliberately: .Result would also
             // consume (it calls IValueTaskSource<T>.GetResult(_token)), but only a reader who already
             // knows that can tell - and the rule is the same rule, so it should look the same
-            if (pending.IsCompletedSuccessfully) return pending.GetAwaiter().GetResult();
+            // IsCompleted, not IsCompletedSuccessfully: a blocking send hands back its failures as completed
+            // tasks too, and GetResult throws them here exactly as the task would have
+            if (pending.IsCompleted) return pending.GetAwaiter().GetResult();
 
             var task = pending.AsTask();
 
@@ -206,7 +79,7 @@ namespace StackExchange.Redis
             {
                 // ...but never without a limit: see TimeoutFor
                 var limit = TimeoutFor(multiplexer, executor, out _);
-                if (limit != Timeout.Infinite && !((IAsyncResult)task).AsyncWaitHandle.WaitOne(limit)) throw MissedTimeout(multiplexer, null);
+                if (limit != Timeout.Infinite && !((IAsyncResult)task).AsyncWaitHandle.WaitOne(limit)) throw MissedTimeout(multiplexer);
                 #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
                 return task.GetAwaiter().GetResult();
                 #pragma warning restore SER308
@@ -222,7 +95,7 @@ namespace StackExchange.Redis
         /// <param name="multiplexer">Applies the configured timeout.</param>
         internal static void Wait(ValueTask pending, IConnectionMultiplexer multiplexer)
         {
-            if (pending.IsCompletedSuccessfully)
+            if (pending.IsCompleted)
             {
                 // NOT a no-op, and not optional. A ValueTask backed by an IValueTaskSource must have its
                 // result consumed exactly once: GetResult(_token) is what lets the source complete its

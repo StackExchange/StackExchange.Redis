@@ -27,7 +27,7 @@ namespace StackExchange.Redis;
 /// </remarks>
 internal partial class RedisDatabase
 {
-    private ValueTask<RedisResult> Eval(string script, RedisKey[]? keys, RedisValue[]? values, bool readOnly, CommandFlags flags)
+    private ValueTask<RedisResult> Eval(RespDatabaseContext context, string script, RedisKey[]? keys, RedisValue[]? values, bool readOnly, CommandFlags flags)
     {
         if (script is null) throw new ArgumentNullException(nameof(script));
 
@@ -35,8 +35,8 @@ internal partial class RedisDatabase
         // whose body happens to look like one cannot be sent by this overload
         var isHash = RespParsers.IsSHA1(script);
         return isHash
-            ? _inner.Scripts.EvaluateDirectResult(script.AsRedisValue(), keys ?? [], values ?? [], isHash: true, readOnly, flags)
-            : _inner.Scripts.EvaluateResult(script, keys ?? [], values ?? [], readOnly, flags);
+            ? context.Scripts.EvaluateDirectResult(script.AsRedisValue(), keys ?? [], values ?? [], isHash: true, readOnly, flags)
+            : context.Scripts.EvaluateResult(script, keys ?? [], values ?? [], readOnly, flags);
     }
 
     /// <summary>A raw SHA1 digest, sent the way the server expects it.</summary>
@@ -48,7 +48,7 @@ internal partial class RedisDatabase
     /// The length check is the shipped one too: a wrong-sized array is a caller mistake worth naming here
     /// rather than a mystery at the server.
     /// </remarks>
-    private ValueTask<RedisResult> EvalHash(byte[] hash, RedisKey[]? keys, RedisValue[]? values, bool readOnly, CommandFlags flags)
+    private ValueTask<RedisResult> EvalHash(RespDatabaseContext context, byte[] hash, RedisKey[]? keys, RedisValue[]? values, bool readOnly, CommandFlags flags)
     {
         Required(hash, nameof(hash));
         if (hash.Length != RespParsers.Sha1HashLength)
@@ -56,7 +56,7 @@ internal partial class RedisDatabase
             throw new ArgumentOutOfRangeException(nameof(hash), "Invalid hash length");
         }
 
-        return _inner.Scripts.EvaluateDirectResult(
+        return context.Scripts.EvaluateDirectResult(
             (RedisValue)ToHex(hash), keys ?? [], values ?? [], isHash: true, readOnly, flags);
     }
 
@@ -75,35 +75,35 @@ internal partial class RedisDatabase
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluate(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => Wait(Eval(script, keys, values, readOnly: false, flags));
+        => Wait(Eval(Blocking, script, keys, values, readOnly: false, flags));
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => Eval(script, keys, values, readOnly: false, flags).AsTask(AsyncState, flags);
+        => Eval(_inner, script, keys, values, readOnly: false, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluateReadOnly(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => Wait(Eval(script, keys, values, readOnly: true, flags));
+        => Wait(Eval(Blocking, script, keys, values, readOnly: true, flags));
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateReadOnlyAsync(string script, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => Eval(script, keys, values, readOnly: true, flags).AsTask(AsyncState, flags);
+        => Eval(_inner, script, keys, values, readOnly: true, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluate(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => Wait(EvalHash(hash, keys, values, readOnly: false, flags));
+        => Wait(EvalHash(Blocking, hash, keys, values, readOnly: false, flags));
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => EvalHash(hash, keys, values, readOnly: false, flags).AsTask(AsyncState, flags);
+        => EvalHash(_inner, hash, keys, values, readOnly: false, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluateReadOnly(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => Wait(EvalHash(hash, keys, values, readOnly: true, flags));
+        => Wait(EvalHash(Blocking, hash, keys, values, readOnly: true, flags));
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateReadOnlyAsync(byte[] hash, RedisKey[]? keys = null, RedisValue[]? values = null, CommandFlags flags = CommandFlags.None)
-        => EvalHash(hash, keys, values, readOnly: true, flags).AsTask(AsyncState, flags);
+        => EvalHash(_inner, hash, keys, values, readOnly: true, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluate(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
@@ -127,30 +127,30 @@ internal partial class RedisDatabase
     /// maps onto the context surface's <see cref="RespResult"/> without translation - only the send
     /// differs from <c>Scripts.EvaluateAsync</c>, and it differs for the reason above.
     /// </remarks>
-    private ValueTask<RespResult> EvalResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, bool readOnly, CommandFlags flags)
+    private ValueTask<RespResult> EvalResp(RespDatabaseContext context, string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, bool readOnly, CommandFlags flags)
     {
         if (script is null) throw new ArgumentNullException(nameof(script));
         var isHash = RespParsers.IsSHA1(script);
-        if (isHash) return _inner.Scripts.EvaluateDirectResp(script.AsRedisValue(), keys.Span, values.Span, isHash: true, readOnly, flags);
+        if (isHash) return context.Scripts.EvaluateDirectResp(script.AsRedisValue(), keys.Span, values.Span, isHash: true, readOnly, flags);
 
         return readOnly
-            ? _inner.Scripts.EvaluateReadOnlyAsync(script, keys.Span, values.Span, flags)
-            : _inner.Scripts.EvaluateAsync(script, keys.Span, values.Span, flags);
+            ? context.Scripts.EvaluateReadOnlyAsync(script, keys.Span, values.Span, flags)
+            : context.Scripts.EvaluateAsync(script, keys.Span, values.Span, flags);
     }
 
     /// <inheritdoc/>
     public RespResult ScriptEvaluateResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-        => Wait(EvalResp(script, keys, values, readOnly: false, flags));
+        => Wait(EvalResp(Blocking, script, keys, values, readOnly: false, flags));
 
     /// <inheritdoc/>
     public Task<RespResult> ScriptEvaluateRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-        => EvalResp(script, keys, values, readOnly: false, flags).AsTask(AsyncState, flags);
+        => EvalResp(_inner, script, keys, values, readOnly: false, flags).AsTask(AsyncState, flags);
 
     /// <inheritdoc/>
     public RespResult ScriptEvaluateReadOnlyResp(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-        => Wait(EvalResp(script, keys, values, readOnly: true, flags));
+        => Wait(EvalResp(Blocking, script, keys, values, readOnly: true, flags));
 
     /// <inheritdoc/>
     public Task<RespResult> ScriptEvaluateReadOnlyRespAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
-        => EvalResp(script, keys, values, readOnly: true, flags).AsTask(AsyncState, flags);
+        => EvalResp(_inner, script, keys, values, readOnly: true, flags).AsTask(AsyncState, flags);
 }

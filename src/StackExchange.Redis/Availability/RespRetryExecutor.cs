@@ -105,6 +105,10 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     /// <remarks><inheritdoc cref="RespRetryExecutor" path="/remarks/para[2]"/></remarks>
     public override RespPayload Send(in RespRequest request) => throw NoSynchronousRetry();
 
+    /// <inheritdoc/>
+    /// <remarks>No, for the reason <see cref="Send(in RespRequest)"/> refuses.</remarks>
+    internal override bool CanSendBlocking => false;
+
     internal static InvalidOperationException NoSynchronousRetry() => new(
         "A retrying context has no synchronous send: every pause a retry takes is asynchronous. "
         + "Use the asynchronous surface, or compose the command from a context without retry.");

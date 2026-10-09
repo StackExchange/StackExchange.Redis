@@ -226,6 +226,10 @@ namespace StackExchange.Redis
             => Route(in request).SendAsync(preamble, request, gate, cancellationToken);
 
         /// <inheritdoc/>
+        internal override RespPayload Send(RespRequest preamble, RespRequest request, IRespPreambleGate? gate)
+            => Route(in request).Send(preamble, request, gate);
+
+        /// <inheritdoc/>
         internal override bool CanWriteRuns
             => ResolveFor(default, RedisCommand.MULTI, CommandFlags.None) is { CanWriteRuns: true };
 
@@ -295,6 +299,10 @@ namespace StackExchange.Redis
         internal override ValueTask SendPreambleAsync(
             RespRequest preamble, IRespPreambleGate? gate, CancellationToken cancellationToken = default)
             => Route(in preamble).SendPreambleAsync(preamble, gate, cancellationToken);
+
+        /// <inheritdoc/>
+        internal override void SendPreamble(RespRequest preamble, IRespPreambleGate? gate)
+            => Route(in preamble).SendPreamble(preamble, gate);
 
         /// <inheritdoc/>
         public override RespPayload Send(in RespRequest request) => Route(in request).Send(in request);

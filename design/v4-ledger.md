@@ -1,4 +1,4 @@
-# v4 ledger
+﻿# v4 ledger
 
 The current list of what is pending on `v4` and what is waiting on a decision. **Keep it short:** when an
 item closes, delete it here and let the commit message hold the story. History and reasoning live in
@@ -222,8 +222,17 @@ Each has a default the work proceeds on until answered.
   `.GetAwaiter().GetResult()` is correct (on an ordinary context it is not: a pending `ValueTask` throws on
   `GetResult`). Starvation harness (2 pool workers, both blocked; caller on its own thread): healthy pool, sync
   context 25.6k ops/s vs `IDatabase` sync (pump) 23.9k; starved with `DedicatedThreads` and inline socket
-  completions, both ~22k and never stalling, naive `AsTask().GetResult()` stalling every time. **Next:** move
-  `RedisDatabase`'s sync wrappers onto it and retire `SyncCall`/`SyncPump`.
+  completions, both ~22k and never stalling, naive `AsTask().GetResult()` stalling every time.
+  **2026-10-09, done:** paired sends (EVALSHA behind SCRIPT LOAD, HIMPORT PREPARE + row) block too, via a
+  blocking pair `Send` on the executors (the endpoint waits the body on the calling thread and tells the gate
+  there); `RedisDatabase`'s sync members all send through a cached blocking context, helpers included
+  (scripts, locks, `StringGetWithExpiry` - now two round trips rather than one pipelined pair); `SyncCall`,
+  `SyncPump` and RESPite's `IContinuationSink`/interposition machinery are deleted. The endpoint's blocking
+  wait got the backstop `SyncWait` had (2x sync timeout + 5s when heartbeat-driven), from an explicit
+  `SyncTimeoutMilliseconds` rather than via the modelled server, which can be null. Executors that cannot
+  block (`CanSendBlocking`: retry, batch, transaction) send asynchronously and `SyncWait` blocks on the task,
+  so `ctx.WithRetry().AsDatabase(mux)` sync calls still work - pool-dependent, as before. **Open:** a real
+  synchronous retry loop (`Thread.Sleep`/failover wait handle) would remove that last exception.
 
 - **2026-10-08: InlineSends, ON by default since 10 clean full-suite runs (opt out: `SEREDIS_INLINESENDS=0`).** A caller whose request is
   alone in flight on its connection sends its own bytes instead of waking the writer loop; bounded to what was

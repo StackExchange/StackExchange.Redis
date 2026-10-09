@@ -178,6 +178,9 @@ deletion (old-core helpers: `RespMessageExecutor`, the old `RedisBatch`/`RedisTr
       before the wait leaks an open pump when the async call throws first, hanging every later operation on
       that thread. Operations rented by a pumped continuation do not attach (a nested non-SyncCall wait would
       deadlock behind itself). `SyncCompletionTests`: 500 vs 1001 pool items for 500 calls.
+      **Superseded 2026-10-09** by `Blocking()` contexts: the sync members route to the executor's blocking
+      `Send` and wait on the operation directly, so there are no continuations to pump; `SyncCall`, `SyncPump`
+      and `IContinuationSink` are gone (see the ledger).
 - [ ] **Linux: socket readiness still goes through the pool**, even for a dedicated reader, once the socket has
       done any async operation (the connect, the TLS handshake). Measured: with
       `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS=1`, 500 sync calls cost 0 pool items. A DedicatedThreads

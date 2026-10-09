@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests;
 /// so the reply arrived and the caller still waited for a pool thread to finish the task - one hop per call
 /// on top of anything else, and under a saturated pool (the case <c>DedicatedThreads</c> exists for) the hop
 /// that kept the caller blocked. v3 pulsed its sync waiters from the reader; now the blocked caller's
-/// operation completes inline (see <c>SyncCall</c>).
+/// operation is waited on directly, through a blocking context (see <c>RespContext.Blocking</c>).
 /// </para>
 /// <para>
 /// <b>Measured relative to blocking on the async API</b>, which still pays the hop, rather than as an absolute:

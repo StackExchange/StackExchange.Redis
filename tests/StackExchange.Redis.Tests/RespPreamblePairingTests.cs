@@ -106,6 +106,54 @@ public class RespPreamblePairingTests
             transport.Written.Substring(before.Length));
     }
 
+    [Fact]
+    public async Task ABlockingContextWritesThePairAndWaitsOnTheCallingThread()
+    {
+        var (_, transport, context) = await ConnectedAsync();
+        var gate = new RecordingGate();
+        var before = transport.Written;
+
+        // blocking, so it needs its own thread: this one has to play the server
+        var call = Task.Run(() =>
+        {
+            var preamble = context.Raw.Render($"{RedisCommand.SELECT}{(RedisValue)3}");
+            var request = context.Raw.Render($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"v"}");
+            try
+            {
+                var pending = context.Raw.Blocking().SendWithPreambleAsync(
+                    ref preamble, ref request, CommandFlags.None, RespHandlers.Boolean, gate);
+                return (pending.IsCompleted, Value: pending.IsCompletedSuccessfully && pending.Result, gate.Established);
+            }
+            finally
+            {
+                preamble.Dispose();
+                request.Dispose();
+            }
+        });
+
+        await WaitFor(() => transport.Written.Length > before.Length);
+        Assert.Equal("*2|$6|SELECT|$1|3|*3|$3|SET|$1|k|$1|v|", transport.Written.Substring(before.Length));
+        Assert.False(call.IsCompleted, "a blocking send returns only once the reply is in");
+
+        transport.Reply("+OK\r\n+OK\r\n");
+        var (completed, value, established) = await call;
+
+        Assert.True(completed, "the task handed back is already complete");
+        Assert.True(value);
+
+        // told on the calling thread, before the call returned - nothing left for the pool to do
+        Assert.Equal(1, established);
+    }
+
+    private sealed class RecordingGate : IRespPreambleGate
+    {
+        internal int Established;
+
+        public bool IsNeeded(IRespPreambleTarget connection) => true;
+
+        public void OnEstablished(IRespPreambleTarget connection) => Interlocked.Increment(ref Established);
+    }
+
     /// <summary>
     /// A gate whose belief is <b>connection-scoped</b>: the first send claims, later sends on that same
     /// connection see the claim and collapse the pair to a single command.

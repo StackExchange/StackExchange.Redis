@@ -22,7 +22,7 @@ namespace StackExchange.Redis
         /// transition: the reply owns a pooled buffer, and the array has to be taken before it goes back.
         /// </remarks>
         public StreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.RangeArray(key, minId, maxId, count, messageOrder, flags));
+            => Wait(Blocking.Streams.RangeArray(key, minId, maxId, count, messageOrder, flags));
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
@@ -31,7 +31,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.LengthAsync(key, flags));
+            => Wait(Blocking.Streams.LengthAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long> StreamLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -39,7 +39,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.AcknowledgeAsync(key, groupName, messageId, flags));
+            => Wait(Blocking.Streams.AcknowledgeAsync(key, groupName, messageId, flags));
 
         /// <inheritdoc/>
         public Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None)
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.AcknowledgeAsync(key, groupName, Required(messageIds, nameof(messageIds)), flags));
+            => Wait(Blocking.Streams.AcknowledgeAsync(key, groupName, Required(messageIds, nameof(messageIds)), flags));
 
         /// <inheritdoc/>
         public Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
@@ -55,7 +55,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.DeleteAsync(key, Required(messageIds, nameof(messageIds)), flags));
+            => Wait(Blocking.Streams.DeleteAsync(key, Required(messageIds, nameof(messageIds)), flags));
 
         /// <inheritdoc/>
         public Task<long> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
@@ -63,7 +63,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamTrimResult[] StreamDelete(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.DeleteArray(key, Required(messageIds, nameof(messageIds)), mode, flags));
+            => Wait(Blocking.Streams.DeleteArray(key, Required(messageIds, nameof(messageIds)), mode, flags));
 
         /// <inheritdoc/>
         public Task<StreamTrimResult[]> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, StreamTrimMode mode, CommandFlags flags = CommandFlags.None)
@@ -71,7 +71,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags)
-            => Wait(SyncCall.Begin(), _inner.Streams.CreateConsumerGroupAsync(key, groupName, position, createStream: true, flags));
+            => Wait(Blocking.Streams.CreateConsumerGroupAsync(key, groupName, position, createStream: true, flags));
 
         /// <inheritdoc/>
         public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags)
@@ -79,7 +79,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.CreateConsumerGroupAsync(key, groupName, position, createStream, flags));
+            => Wait(Blocking.Streams.CreateConsumerGroupAsync(key, groupName, position, createStream, flags));
 
         /// <inheritdoc/>
         public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
@@ -87,7 +87,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool StreamDeleteConsumerGroup(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.DeleteConsumerGroupAsync(key, groupName, flags));
+            => Wait(Blocking.Streams.DeleteConsumerGroupAsync(key, groupName, flags));
 
         /// <inheritdoc/>
         public Task<bool> StreamDeleteConsumerGroupAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
@@ -95,7 +95,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamDeleteConsumer(RedisKey key, RedisValue groupName, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.DeleteConsumerAsync(key, groupName, consumerName, flags));
+            => Wait(Blocking.Streams.DeleteConsumerAsync(key, groupName, consumerName, flags));
 
         /// <inheritdoc/>
         public Task<long> StreamDeleteConsumerAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
@@ -103,7 +103,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool StreamConsumerGroupSetPosition(RedisKey key, RedisValue groupName, RedisValue position, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.SetConsumerGroupPositionAsync(key, groupName, position, flags));
+            => Wait(Blocking.Streams.SetConsumerGroupPositionAsync(key, groupName, position, flags));
 
         /// <inheritdoc/>
         public Task<bool> StreamConsumerGroupSetPositionAsync(RedisKey key, RedisValue groupName, RedisValue position, CommandFlags flags = CommandFlags.None)
@@ -111,7 +111,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
-            => Wait(SyncCall.Begin(), _inner.Streams.TrimAsync(key, maxLength, useApproximateMaxLength, flags: flags));
+            => Wait(Blocking.Streams.TrimAsync(key, maxLength, useApproximateMaxLength, flags: flags));
 
         /// <inheritdoc/>
         public Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength, CommandFlags flags)
@@ -119,7 +119,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamTrim(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.TrimAsync(key, maxLength, useApproximateMaxLength, limit, mode, flags));
+            => Wait(Blocking.Streams.TrimAsync(key, maxLength, useApproximateMaxLength, limit, mode, flags));
 
         /// <inheritdoc/>
         public Task<long> StreamTrimAsync(RedisKey key, long maxLength, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
@@ -127,7 +127,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamTrimByMinId(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.TrimByMinIdAsync(key, minId, useApproximateMaxLength, limit, mode, flags));
+            => Wait(Blocking.Streams.TrimByMinIdAsync(key, minId, useApproximateMaxLength, limit, mode, flags));
 
         /// <inheritdoc/>
         public Task<long> StreamTrimByMinIdAsync(RedisKey key, RedisValue minId, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
@@ -168,7 +168,7 @@ namespace StackExchange.Redis
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamAddOptions options, CommandFlags flags = CommandFlags.None)
         {
             options.ThrowIfInvalid();
-            return Wait(SyncCall.Begin(), _inner.Streams.AddAsync(key, streamField, streamValue, in options, flags));
+            return Wait(Blocking.Streams.AddAsync(key, streamField, streamValue, in options, flags));
         }
 
         /// <inheritdoc/>
@@ -206,7 +206,7 @@ namespace StackExchange.Redis
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamAddOptions options, CommandFlags flags = CommandFlags.None)
         {
             options.ThrowIfInvalid();
-            return Wait(SyncCall.Begin(), _inner.Streams.AddAsync(key, Required(streamPairs, nameof(streamPairs)), in options, flags));
+            return Wait(Blocking.Streams.AddAsync(key, Required(streamPairs, nameof(streamPairs)), in options, flags));
         }
 
         /// <inheritdoc/>
@@ -220,7 +220,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.NegativeAcknowledgeAsync(key, groupName, mode, messageId, flags));
+            => Wait(Blocking.Streams.NegativeAcknowledgeAsync(key, groupName, mode, messageId, flags));
 
         /// <inheritdoc/>
         public Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
@@ -228,7 +228,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long StreamNegativeAcknowledge(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.NegativeAcknowledgeAsync(key, groupName, mode, Required(messageIds, nameof(messageIds)), flags));
+            => Wait(Blocking.Streams.NegativeAcknowledgeAsync(key, groupName, mode, Required(messageIds, nameof(messageIds)), flags));
 
         /// <inheritdoc/>
         public Task<long> StreamNegativeAcknowledgeAsync(RedisKey key, RedisValue groupName, StreamNackMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
@@ -240,22 +240,22 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamTrimResult StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
-            => Wait(SingleAcknowledgeAndDelete(key, groupName, mode, messageId, flags));
+            => Wait(SingleAcknowledgeAndDelete(Blocking, key, groupName, mode, messageId, flags));
 
         /// <inheritdoc/>
         public Task<StreamTrimResult> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags = CommandFlags.None)
-            => SingleAcknowledgeAndDelete(key, groupName, mode, messageId, flags).AsTask(AsyncState, flags);
+            => SingleAcknowledgeAndDelete(_inner, key, groupName, mode, messageId, flags).AsTask(AsyncState, flags);
 
-        private async ValueTask<StreamTrimResult> SingleAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags)
+        private async ValueTask<StreamTrimResult> SingleAcknowledgeAndDelete(RespDatabaseContext context, RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue messageId, CommandFlags flags)
         {
             // the span cannot be a local across the await, so the id is re-formed inside the lease's scope
-            using var results = await _inner.Streams.AcknowledgeAndDeleteAsync(key, groupName, mode, new[] { messageId }, flags).ForAwait();
+            using var results = await context.Streams.AcknowledgeAndDeleteAsync(key, groupName, mode, new[] { messageId }, flags).ForAwait();
             return results.Length == 0 ? default : results.Span[0];
         }
 
         /// <inheritdoc/>
         public StreamTrimResult[] StreamAcknowledgeAndDelete(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.AcknowledgeAndDeleteArray(key, groupName, mode, Required(messageIds, nameof(messageIds)), flags));
+            => Wait(Blocking.Streams.AcknowledgeAndDeleteArray(key, groupName, mode, Required(messageIds, nameof(messageIds)), flags));
 
         /// <inheritdoc/>
         public Task<StreamTrimResult[]> StreamAcknowledgeAndDeleteAsync(RedisKey key, RedisValue groupName, StreamTrimMode mode, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
@@ -265,7 +265,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public void StreamConfigure(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.ConfigureAsync(key, configuration, flags));
+            => Wait(Blocking.Streams.ConfigureAsync(key, configuration, flags));
 
         /// <inheritdoc/>
         public Task StreamConfigureAsync(RedisKey key, StreamConfiguration configuration, CommandFlags flags = CommandFlags.None)
@@ -277,7 +277,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.ClaimArray(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), Required(messageIds, nameof(messageIds)), flags));
+            => Wait(Blocking.Streams.ClaimArray(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), Required(messageIds, nameof(messageIds)), flags));
 
         /// <inheritdoc/>
         public Task<StreamEntry[]> StreamClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
@@ -285,7 +285,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] StreamClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.ClaimIdsOnlyArray(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), Required(messageIds, nameof(messageIds)), flags));
+            => Wait(Blocking.Streams.ClaimIdsOnlyArray(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), Required(messageIds, nameof(messageIds)), flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> StreamClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
@@ -297,7 +297,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamPendingInfo StreamPending(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.PendingInfo(key, groupName, flags));
+            => Wait(Blocking.Streams.PendingInfo(key, groupName, flags));
 
         /// <inheritdoc/>
         public Task<StreamPendingInfo> StreamPendingAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
@@ -313,7 +313,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, long? minIdleTimeInMs = null, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.PendingMessagesArray(key, groupName, count, consumerName, minId, maxId, AsIdleTime(minIdleTimeInMs), flags));
+            => Wait(Blocking.Streams.PendingMessagesArray(key, groupName, count, consumerName, minId, maxId, AsIdleTime(minIdleTimeInMs), flags));
 
         /// <inheritdoc/>
         public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, long? minIdleTimeInMs = null, CommandFlags flags = CommandFlags.None)
@@ -326,7 +326,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamAutoClaimResult StreamAutoClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.AutoClaimResult(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), startAtId, count, flags));
+            => Wait(Blocking.Streams.AutoClaimResult(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), startAtId, count, flags));
 
         /// <inheritdoc/>
         public Task<StreamAutoClaimResult> StreamAutoClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
@@ -334,7 +334,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamAutoClaimIdsOnlyResult StreamAutoClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.AutoClaimIdsOnlyResult(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), startAtId, count, flags));
+            => Wait(Blocking.Streams.AutoClaimIdsOnlyResult(key, consumerGroup, claimingConsumer, TimeSpan.FromMilliseconds(minIdleTimeInMs), startAtId, count, flags));
 
         /// <inheritdoc/>
         public Task<StreamAutoClaimIdsOnlyResult> StreamAutoClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue startAtId, int? count = null, CommandFlags flags = CommandFlags.None)
@@ -345,7 +345,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamEntry[] StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.ReadArray(key, position, count, flags));
+            => Wait(Blocking.Streams.ReadArray(key, position, count, flags));
 
         /// <inheritdoc/>
         public Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
@@ -369,7 +369,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.ReadGroupArray(key, groupName, consumerName, position, count, noAck, claimMinIdleTime, flags));
+            => Wait(Blocking.Streams.ReadGroupArray(key, groupName, consumerName, position, count, noAck, claimMinIdleTime, flags));
 
         /// <inheritdoc/>
         public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, CommandFlags flags = CommandFlags.None)
@@ -379,7 +379,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public StreamInfo StreamInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.InfoAsync(key, flags));
+            => Wait(Blocking.Streams.InfoAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<StreamInfo> StreamInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -388,7 +388,7 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
         public StreamGroupInfo[] StreamGroupInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.GroupInfoArray(key, flags));
+            => Wait(Blocking.Streams.GroupInfoArray(key, flags));
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
@@ -398,7 +398,7 @@ namespace StackExchange.Redis
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
         public StreamConsumerInfo[] StreamConsumerInfo(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.ConsumerInfoArray(key, groupName, flags));
+            => Wait(Blocking.Streams.ConsumerInfoArray(key, groupName, flags));
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="StreamRange(RedisKey, RedisValue?, RedisValue?, int?, Order, CommandFlags)" path="/remarks"/></remarks>
@@ -412,7 +412,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags)
-            => Wait(SyncCall.Begin(), _inner.Streams.ReadArray(Required(streamPositions, nameof(streamPositions)), countPerStream, flags: flags));
+            => Wait(Blocking.Streams.ReadArray(Required(streamPositions, nameof(streamPositions)), countPerStream, flags: flags));
 
         /// <inheritdoc/>
         public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream, CommandFlags flags)
@@ -420,7 +420,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.ReadArray(Required(streamPositions, nameof(streamPositions)), countPerStream, maxCount, maxSize, flags));
+            => Wait(Blocking.Streams.ReadArray(Required(streamPositions, nameof(streamPositions)), countPerStream, maxCount, maxSize, flags));
 
         /// <inheritdoc/>
         public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
@@ -452,7 +452,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.Streams.ReadGroupArray(Required(streamPositions, nameof(streamPositions)), groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize, flags));
+            => Wait(Blocking.Streams.ReadGroupArray(Required(streamPositions, nameof(streamPositions)), groupName, consumerName, countPerStream, noAck, claimMinIdleTime, maxCount, maxSize, flags));
 
         /// <inheritdoc/>
         public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, TimeSpan? claimMinIdleTime = null, int? maxCount = null, int? maxSize = null, CommandFlags flags = CommandFlags.None)

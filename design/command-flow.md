@@ -1,4 +1,4 @@
-# Where a command goes
+﻿# Where a command goes
 
 **Status: describes what is built, as of 2026-10-07.** Unlike `message-core-replacement.md`, which is a
 plan, this is a map of the code as it stands - so where the two disagree, this one is the one that is
@@ -127,8 +127,8 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
     `RespPayloadOperation.ParseFrame`, which turns an error reply into a `RedisServerException` and
     otherwise *retains* the receive buffer rather than copying out of it. The operation completes with
     `RunContinuationsAsynchronously`, so the caller's continuation goes to the thread pool and never runs
-    on the parser - the exception is a blocked synchronous caller that has claimed it (`SyncPump`), whose
-    continuation runs on that caller's own, otherwise idle, thread.
+    on the parser. A blocked synchronous caller has no continuation at all: it is waiting on the operation's
+    monitor, and completing pulses it, so it wakes on its own thread.
 
 11. **Parse.** The caller's `await` takes the result: `RespPayloadOperation<T>.GetResult` reads the
     handler, takes the payload (which recycles the operation into its pool), runs the handler over it,
@@ -209,9 +209,14 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
   `TaskScheduler.UnobservedTaskException` - v3's behaviour, which `ValueTask.AsTask()` would not keep - and
   maps an `OperationCanceledException` to a cancelled task, which is how a transaction whose condition failed
   completes its queued commands. Fire-and-forget never carries state.
-- **Synchronous.** `StringGet(key, flags)` is `Wait(SyncCall.Begin(), _inner.Strings.GetAsync(key, flags))`.
-  The `SyncPump` captures the operations the call rents, and the wait has their continuations run on the
-  blocked thread rather than the thread pool, so a saturated pool cannot strand a reply that has arrived.
+- **Synchronous.** `StringGet(key, flags)` is `Wait(Blocking.Strings.GetAsync(key, flags))`, where `Blocking`
+  is the database's context with `Blocking()` applied. The shared send path sees the flag and calls the
+  executor's synchronous `Send`, which dispatches the operation and waits on it directly - the reader pulses
+  the blocked thread - so the group method returns an already-completed `ValueTask` and `Wait` only takes the
+  result. No continuation runs anywhere, so a saturated pool cannot strand a reply that has arrived (given a
+  reader that does not itself need the pool: see the ledger on `DedicatedThreads`). A composite command is
+  several sends, each completing inline. Contexts that cannot block - retrying ones, batches, transactions -
+  send asynchronously and `Wait` blocks on the task, as everything did before.
 - **Batches and transactions** are `RespOperationBatchExecutor` and `RespTransactionExecutor` contexts behind
   the same shim; `Execute` sends what was queued, and an `IBatch`/`ITransaction` can be executed again.
 

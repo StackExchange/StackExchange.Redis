@@ -63,12 +63,7 @@ namespace StackExchange.Redis
 
         internal static RespPayloadOperation Rent()
         {
-            var operation = TryTake(Pool) ?? new RespPayloadOperation();
-
-            // rented during a synchronous call on this thread: its continuations run on that thread while the
-            // call waits, not on the pool - see SyncPump
-            SyncPump.Current?.OnRented(operation);
-            return operation;
+            return TryTake(Pool) ?? new RespPayloadOperation();
         }
 
         private static void Return(RespPayloadOperation operation) => TryGive(Pool, operation);

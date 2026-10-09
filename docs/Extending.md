@@ -1,4 +1,4 @@
-Extending the client with your own commands
+﻿Extending the client with your own commands
 ===
 
 This page is for **library authors**: you ship a package on top of StackExchange.Redis that adds commands this client does not have - a module (`JSON.*`, `FT.*`, `BF.*`, `TS.*`), a preview server feature, a vendor extension. The audience is NRedisStack and friends.
@@ -188,6 +188,24 @@ This one is easy to miss and has no visible symptom. The client keeps a retry ca
 ```
 
 `WithRetryCategory` is **caller-wins**: a caller who passes an explicit category keeps it, so this sets a default rather than overriding a decision. Use `CommandRetryReadOnly` for a read, `CommandRetryWriteChecked` for a write whose replay converges (conditional or idempotent), and leave it alone if a replay could double an effect.
+
+### Synchronous forms
+
+Write the asynchronous method only. A caller who needs to block makes the context blocking - `Blocking()` on the target's context - and every send through it then waits on the calling thread, so your `...Async` method returns a `ValueTask` that has already completed:
+
+```csharp
+var contoso = db.Context.Blocking().Contoso();
+RedisValue value = contoso.SubstringAsync(key, 0, 4).GetAwaiter().GetResult();
+```
+
+If you want to offer a synchronous method yourself, it is that, inside the method - no second implementation, and nothing internal to bracket the call with:
+
+```csharp
+public static RedisValue Substring(this in ContosoCommands contoso, RedisKey key, long start, long end, CommandFlags flags = CommandFlags.None)
+    => new ContosoCommands(contoso.Context.Blocking()).SubstringAsync(key, start, end, flags).GetAwaiter().GetResult();
+```
+
+This is how the synchronous `IDatabase` methods work. A command that takes several round trips works too, because each send completes before the next is issued. It does not wait for a thread-pool thread to wake the caller, which is the usual hazard of blocking on an async API. The exceptions are a batch, a transaction and a retrying context, which cannot block and send asynchronously instead - see the remarks on `RespContext.Blocking`.
 
 ### What you do not have to do
 

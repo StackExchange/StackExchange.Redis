@@ -583,6 +583,42 @@ namespace StackExchange.Redis
             IRespPreambleGate? gate,
             CancellationToken cancellationToken = default)
             => throw new NotSupportedException($"{GetType().Name} cannot write a preamble.");
+
+        /// <summary>
+        /// As <see cref="SendAsync(RespRequest, RespRequest, IRespPreambleGate?, CancellationToken)"/>, but
+        /// <b>blocking</b>: the pair is written and the request's reply waited for on the calling thread.
+        /// </summary>
+        /// <param name="preamble">The conditional first frame.</param>
+        /// <param name="request">The request whose reply the caller wants.</param>
+        /// <param name="gate">Decides at write time whether the preamble is still needed.</param>
+        /// <remarks>
+        /// What a <see cref="RespContext.Blocking"/> context uses, and for the same reason as the
+        /// single-request <see cref="Send(in RespRequest)"/>: blocking on the asynchronous form would park this thread
+        /// until a pool thread ran the continuation, which is the dependency the blocking context exists
+        /// to remove. Offered by exactly the executors that offer the asynchronous form.
+        /// </remarks>
+        internal virtual RespPayload Send(RespRequest preamble, RespRequest request, IRespPreambleGate? gate)
+            => throw new NotSupportedException($"{GetType().Name} cannot write a preamble.");
+
+        /// <summary>
+        /// As <see cref="SendPreambleAsync"/>, but <b>blocking</b>: the preamble is sent, its reply consumed,
+        /// and the gate told, before this returns.
+        /// </summary>
+        /// <param name="preamble">The preamble frame.</param>
+        /// <param name="gate">The condition the preamble establishes, to be told if it succeeds.</param>
+        /// <remarks>The default has the same limits as the asynchronous one, for the same reason.</remarks>
+        internal virtual void SendPreamble(RespRequest preamble, IRespPreambleGate? gate)
+            => Send(in preamble)?.Release();
+
+        /// <summary>
+        /// Whether this executor can serve a <see cref="RespContext.Blocking"/> context, by sending and waiting
+        /// on the calling thread.
+        /// </summary>
+        /// <remarks>
+        /// Not if it <see cref="Accumulates">accumulates</see>: a queued command cannot be waited for before its
+        /// batch is executed. A context whose executor says no sends asynchronously instead.
+        /// </remarks>
+        internal virtual bool CanSendBlocking => !Accumulates;
     }
 
     /// <summary>
@@ -692,7 +728,9 @@ namespace StackExchange.Redis
             // the caller's frames really are emptied, and their Dispose is the no-op it looks like.
             var head = preamble.Detach(CommandFlags.CommandRetryAlways);
             var body = request.Detach(flags);
-            return AwaitPair(executor, head, body, gate, handler, cancellationToken);
+            return Blocks(context)
+                ? SendPairBlocking(executor, head, body, gate, handler)
+                : AwaitPair(executor, head, body, gate, handler, cancellationToken);
         }
 
         /// <summary>
@@ -725,7 +763,54 @@ namespace StackExchange.Redis
             var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
 
             var body = request.Detach(flags);
-            return AwaitPair(executor, preamble, body, gate, handler, cancellationToken);
+            return Blocks(context)
+                ? SendPairBlocking(executor, preamble, body, gate, handler)
+                : AwaitPair(executor, preamble, body, gate, handler, cancellationToken);
+        }
+
+        /// <summary>
+        /// <see cref="AwaitPair"/> for a <see cref="RespContext.Blocking"/> context: the same cases, each sent and
+        /// waited for on this thread, and handed back as a completed (or faulted) task.
+        /// </summary>
+        private static ValueTask<TResult> SendPairBlocking<TResult>(
+            RespExecutorBase executor,
+            RespRequest head,
+            RespRequest body,
+            IRespPreambleGate? gate,
+            IRespHandler<TResult> handler)
+        {
+            try
+            {
+                RespPayload? response;
+                // no Accumulates case: an executor that accumulates does not block, so never reaches here
+                if (executor.CanWritePreamble)
+                {
+                    response = executor.Send(head, body, gate);
+                }
+                else
+                {
+                    executor.SendPreamble(head, gate);
+                    response = executor.Send(in body);
+                }
+
+                try
+                {
+                    return new ValueTask<TResult>(Parse(handler, response));
+                }
+                finally
+                {
+                    response?.Release();
+                }
+            }
+            catch (Exception ex)
+            {
+                return new ValueTask<TResult>(Task.FromException<TResult>(ex));
+            }
+            finally
+            {
+                head.Dispose();
+                body.Dispose();
+            }
         }
 
 #if NET6_0_OR_GREATER
@@ -1102,7 +1187,7 @@ namespace StackExchange.Redis
             // the inbuilt handler for TResult - so a command factory does not force its callers to spell
             // out a handler they were happy to leave implicit before the factory existed.
             handler ??= RespHandlers.Inbuilt<TResult>.Require();
-            if (context.IsBlocking) return SendBlocking(context, ref request, flags, handler, cancellationToken);
+            if (Blocks(context)) return SendBlocking(context, ref request, flags, handler, cancellationToken);
             DemandCancellable(context, cancellationToken);
 
             // THE one place a command's retry category is applied. The frame already carries the
@@ -1232,7 +1317,7 @@ namespace StackExchange.Redis
         {
             DemandCancellable(context, ref request, cancellationToken);
             var frame = request.Complete();
-            if (context.IsBlocking)
+            if (Blocks(context))
             {
                 var done = SendBlocking(context, ref frame, flags, RespHandlers.Success, cancellationToken);
                 return done.IsCompletedSuccessfully ? default : new ValueTask(done.AsTask());
@@ -1332,6 +1417,15 @@ namespace StackExchange.Redis
         /// send path return tasks, and a caller - an <c>async</c> method composing several sends, say - may hold
         /// one before reading it. Allocates only on failure.
         /// </remarks>
+        /// <summary>Whether a send through <paramref name="context"/> should block, rather than go the asynchronous way.</summary>
+        /// <remarks>
+        /// <b>Asked of the executor as well as the context</b>, because not every executor can: one that queues
+        /// (a batch, a transaction) has nothing to wait for until it is executed, and a retrying one pauses
+        /// between attempts asynchronously. Those take the ordinary path, and a synchronous caller blocks on
+        /// that task instead - which is what it did before blocking contexts existed, pool dependency included.
+        /// </remarks>
+        private static bool Blocks(RespContext context) => context.IsBlocking && context.Executor is { CanSendBlocking: true };
+
         private static ValueTask<TResult> SendBlocking<TResult>(
             RespContext context, ref RespRequestFrame request, CommandFlags flags, IRespHandler<TResult> handler, CancellationToken cancellationToken)
         {

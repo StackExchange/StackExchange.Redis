@@ -16,7 +16,7 @@ namespace StackExchange.Redis
     {
         /// <inheritdoc/>
         public bool VectorSetAdd(RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.AddAsync(key, request, flags));
+            => Wait(Blocking.VectorSets.AddAsync(key, request, flags));
 
         /// <inheritdoc/>
         public Task<bool> VectorSetAddAsync(RedisKey key, VectorSetAddRequest request, CommandFlags flags = CommandFlags.None)
@@ -24,7 +24,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long VectorSetLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.LengthAsync(key, flags));
+            => Wait(Blocking.VectorSets.LengthAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<long> VectorSetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -32,7 +32,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public int VectorSetDimension(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.DimensionAsync(key, flags));
+            => Wait(Blocking.VectorSets.DimensionAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<int> VectorSetDimensionAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -40,7 +40,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Lease<float>? VectorSetGetApproximateVector(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.GetApproximateVectorWritableLease(key, member, flags));
+            => Wait(Blocking.VectorSets.GetApproximateVectorWritableLease(key, member, flags));
 
         /// <inheritdoc/>
         public Task<Lease<float>?> VectorSetGetApproximateVectorAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -48,7 +48,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public string? VectorSetGetAttributesJson(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.GetAttributesJsonAsync(key, member, flags));
+            => Wait(Blocking.VectorSets.GetAttributesJsonAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<string?> VectorSetGetAttributesJsonAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -56,7 +56,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public VectorSetInfo? VectorSetInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.InfoAsync(key, flags));
+            => Wait(Blocking.VectorSets.InfoAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<VectorSetInfo?> VectorSetInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -64,7 +64,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool VectorSetContains(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.ContainsAsync(key, member, flags));
+            => Wait(Blocking.VectorSets.ContainsAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<bool> VectorSetContainsAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -72,7 +72,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Lease<RedisValue>? VectorSetGetLinks(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.GetLinksWritableLease(key, member, flags));
+            => Wait(Blocking.VectorSets.GetLinksWritableLease(key, member, flags));
 
         /// <inheritdoc/>
         public Task<Lease<RedisValue>?> VectorSetGetLinksAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -80,7 +80,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Lease<VectorSetLink>? VectorSetGetLinksWithScores(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.GetLinksWithScoresWritableLease(key, member, flags));
+            => Wait(Blocking.VectorSets.GetLinksWithScoresWritableLease(key, member, flags));
 
         /// <inheritdoc/>
         public Task<Lease<VectorSetLink>?> VectorSetGetLinksWithScoresAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -88,7 +88,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue VectorSetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.RandomMemberAsync(key, flags));
+            => Wait(Blocking.VectorSets.RandomMemberAsync(key, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue> VectorSetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -96,7 +96,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public RedisValue[] VectorSetRandomMembers(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.RandomMembersArray(key, count, flags));
+            => Wait(Blocking.VectorSets.RandomMembersArray(key, count, flags));
 
         /// <inheritdoc/>
         public Task<RedisValue[]> VectorSetRandomMembersAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
@@ -104,7 +104,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool VectorSetRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.RemoveAsync(key, member, flags));
+            => Wait(Blocking.VectorSets.RemoveAsync(key, member, flags));
 
         /// <inheritdoc/>
         public Task<bool> VectorSetRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -112,7 +112,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool VectorSetSetAttributesJson(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.SetAttributesJsonAsync(key, member, attributesJson, flags));
+            => Wait(Blocking.VectorSets.SetAttributesJsonAsync(key, member, attributesJson, flags));
 
         /// <inheritdoc/>
         public Task<bool> VectorSetSetAttributesJsonAsync(RedisKey key, RedisValue member, string attributesJson, CommandFlags flags = CommandFlags.None)
@@ -120,7 +120,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Lease<VectorSetSimilaritySearchResult>? VectorSetSimilaritySearch(RedisKey key, VectorSetSimilaritySearchRequest query, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.SimilaritySearchWritableLease(key, query, flags));
+            => Wait(Blocking.VectorSets.SimilaritySearchWritableLease(key, query, flags));
 
         /// <inheritdoc/>
         public Task<Lease<VectorSetSimilaritySearchResult>?> VectorSetSimilaritySearchAsync(RedisKey key, VectorSetSimilaritySearchRequest query, CommandFlags flags = CommandFlags.None)
@@ -128,7 +128,7 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public Lease<RedisValue> VectorSetRange(RedisKey key, RedisValue start = default, RedisValue end = default, long count = -1, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(SyncCall.Begin(), _inner.VectorSets.RangeWritableLease(key, start, end, count, exclude, flags))!;
+            => Wait(Blocking.VectorSets.RangeWritableLease(key, start, end, count, exclude, flags))!;
 
         /// <inheritdoc/>
         public Task<Lease<RedisValue>?> VectorSetRangeAsync(RedisKey key, RedisValue start = default, RedisValue end = default, long count = -1, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)

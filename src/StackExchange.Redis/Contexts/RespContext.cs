@@ -92,10 +92,14 @@ namespace StackExchange.Redis
         /// sent through - in blocking mode, and it affects only the commands sent through it.
         /// </para>
         /// <para>
-        /// <b>Not for asynchronous code</b>: every send through it blocks the calling thread until its reply. And a
-        /// command reached through a path other than the shared send (rare) still completes asynchronously - where
-        /// <c>GetResult</c> on the pending <c>ValueTask</c> throws rather than waits, which is the error this mode
-        /// exists to avoid; those paths are being brought under it.
+        /// <b>Not for asynchronous code</b>: every send through it blocks the calling thread until its reply.
+        /// </para>
+        /// <para>
+        /// <b>Two kinds of context cannot block, and send asynchronously instead</b>: a batch or transaction,
+        /// whose commands are not sent until it is executed, and a retrying context, which pauses between
+        /// attempts asynchronously. There the <c>ValueTask</c> may still be pending, and <c>GetResult</c> on a
+        /// pending one throws rather than waits; to block on those, use <c>.AsTask().GetAwaiter().GetResult()</c>,
+        /// which does wait - and, like any sync-over-async, needs a thread-pool thread to wake it.
         /// </para>
         /// </remarks>
         /// <returns>The blocking context.</returns>

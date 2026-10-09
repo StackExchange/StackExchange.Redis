@@ -1,4 +1,4 @@
-Command groups
+﻿Command groups
 ===
 
 Every Redis command this client models lives in a **group**, named for the part of Redis it works on: `db.Strings`, `db.Hashes`, `db.Lists`, and so on. You find a command by going to its group, and you call it the same way everywhere:
@@ -84,7 +84,14 @@ ValueTask<TResult> SomethingAsync(/* the command's arguments */,
 - **`CancellationToken`** cancels the *wait*: a command not yet written is never sent; one already written still runs on the server, and its reply is discarded.
 - **Leases.** Where a reply is a large or binary payload, there is often a `...LeaseAsync` form (`Strings.GetLeaseAsync`, for example) that hands back a pooled buffer instead of a fresh array. Dispose what it returns. See [SER012](exp/SER012).
 
-There is no synchronous form on the groups. If you need to block, the original `IDatabase` methods are still there - and see [Sync over async](SyncOverAsync) for why you usually don't want to.
+There is no synchronous *twin* of each method. If you need to block, either use the original `IDatabase` methods, or make the context blocking - every group method then sends and waits on the calling thread, and returns a `ValueTask` that has already completed:
+
+```csharp
+var blocking = db.Context.Blocking();   // once; it is a context like any other
+RedisValue value = blocking.Strings.GetAsync("greeting").GetAwaiter().GetResult();
+```
+
+This is how the synchronous `IDatabase` methods are implemented, and it is the supported way for a library to offer synchronous forms of its own commands. It does not depend on the thread pool to wake the caller. A batch, a transaction or a retrying context cannot block, and sends asynchronously as usual - see [Sync over async](SyncOverAsync) for why you usually don't want to block at all.
 
 Batches and transactions
 ---
