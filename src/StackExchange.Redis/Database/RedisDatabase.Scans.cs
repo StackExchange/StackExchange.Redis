@@ -191,14 +191,25 @@ internal partial class RedisDatabase
     /// <inheritdoc cref="Emulate{T}"/>
     [Obsolete("The server or command map does not offer SCAN, so this reads the whole structure in one reply; prefer a server that supports SCAN.")]
     private static async IAsyncEnumerable<T> EmulateAsync<T>(
-        Func<Task<T[]>> all, long cursor, int pageOffset, RedisCommand scan, RedisCommand whole, bool patterned)
+        Func<Task<T[]>> all,
+        long cursor,
+        int pageOffset,
+        RedisCommand scan,
+        RedisCommand whole,
+        bool patterned,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (cursor != RedisBase.CursorUtils.Origin) throw ExceptionFactory.NoCursor(whole);
         if (patterned) throw ExceptionFactory.NotSupported(true, scan);
 
+        // the token from WithCancellation/GetAsyncEnumerator: a generated iterator only ever sees it through an
+        // [EnumeratorCancellation] parameter, which is how this path came to ignore cancellation while every
+        // other sequence honoured it
+        cancellationToken.ThrowIfCancellationRequested();
         var skip = pageOffset;
         foreach (var item in await all().ForAwait())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (skip > 0)
             {
                 skip--;

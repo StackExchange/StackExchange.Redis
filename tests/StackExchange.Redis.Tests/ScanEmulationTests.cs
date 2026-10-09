@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -52,6 +52,32 @@ public class ScanEmulationTests
 
         Assert.Equal("*2|$8|SMEMBERS|$1|k|", Assert.Single(executor.Sent));
         Assert.Equal(["x", "y"], members.Select(x => (string?)x));
+    }
+
+    /// <summary>
+    /// <c>WithCancellation</c> reaches the emulation too: cancelling mid-walk stops it, as it stops a real scan.
+    /// </summary>
+    /// <remarks>
+    /// The emulation is a compiler-generated iterator, which only sees the enumerator's token through an
+    /// <c>[EnumeratorCancellation]</c> parameter - and it had none, so on this path alone the token was ignored.
+    /// </remarks>
+    [Fact]
+    public async Task CancellationReachesTheEmulatedScan()
+    {
+        var executor = new FakeExecutor("*3\r\n$1\r\nx\r\n$1\r\ny\r\n$1\r\nz\r\n");
+        using var cts = new System.Threading.CancellationTokenSource();
+
+        var seen = 0;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var _ in Target(executor).SetScanAsync("k").WithCancellation(cts.Token))
+            {
+                seen++;
+                cts.Cancel();
+            }
+        });
+
+        Assert.Equal(1, seen);
     }
 
     /// <summary>The page offset still applies: it is an offset into the single page.</summary>
