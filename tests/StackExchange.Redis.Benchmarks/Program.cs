@@ -19,6 +19,12 @@ namespace StackExchange.Redis.Benchmarks
                 obj.HashCS_B();
             }
 #else
+            if (args.Length > 0 && args[0] == "cache-scaling")
+            {
+                CacheHitScaling.Run(args); // threads x keys; not a BenchmarkDotNet run - see the class remarks
+                return;
+            }
+
             BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
 #endif
         }
