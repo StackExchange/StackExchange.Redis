@@ -59,6 +59,14 @@ public class InProcessTestServer : MemoryCacheRedisServer
     /// </summary>
     public RedisProtocol MaxProtocolVersion { get; set; } = RedisProtocol.Resp3;
 
+#if !NETFRAMEWORK
+    /// <summary>
+    /// When set (and TLS is enabled), the server requires a client certificate, and accepts the handshake only if
+    /// this returns <c>true</c> for the certificate presented (which is <c>null</c> if the client sent none).
+    /// </summary>
+    public Func<X509Certificate?, bool>? ClientCertificateValidator { get; set; }
+#endif
+
     protected override RedisProtocol MaxProtocol => MaxProtocolVersion;
 
     public Task<ConnectionMultiplexer> ConnectAsync(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default, TextWriter? log = null)
@@ -94,7 +102,12 @@ public class InProcessTestServer : MemoryCacheRedisServer
         return result;
     }
 
-    public ConfigurationOptions GetClientConfig(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default)
+    /// <param name="withPubSub">Whether to enable the pub/sub commands.</param>
+    /// <param name="defaultOnly">Whether to connect only to the default endpoint.</param>
+    /// <param name="writeMode">The write mode to use.</param>
+    /// <param name="validateServerCertificate">When using TLS, whether to configure a validation callback that trusts this server's
+    /// (self-signed) certificate; when false, the platform default applies, which rejects it.</param>
+    public ConfigurationOptions GetClientConfig(bool withPubSub = true, bool defaultOnly = false, WriteMode writeMode = WriteMode.Default, bool validateServerCertificate = true)
     {
         var commands = GetCommands();
         if (!withPubSub)
@@ -127,7 +140,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         TestConfig.ApplyMaintenanceDefault(config);
         if (!string.IsNullOrEmpty(Password)) config.Password = Password;
         config.Ssl = UseSsl; // explicitly, ignore provider defaults
-        if (UseSsl)
+        if (UseSsl && validateServerCertificate)
         {
 #if !NETFRAMEWORK
             config.CertificateValidation += _certificateValidationCallback;
@@ -394,11 +407,27 @@ public class InProcessTestServer : MemoryCacheRedisServer
                         async () =>
                         {
                             using var ssl = new SslStream(serverTransport, leaveInnerStreamOpen: false);
-                            await ssl.AuthenticateAsServerAsync(
-                                server.GetServerCertificate(),
-                                clientCertificateRequired: false,
-                                enabledSslProtocols: SslProtocols.None,
-                                checkCertificateRevocation: false).ConfigureAwait(false);
+                            if (server.ClientCertificateValidator is { } validator)
+                            {
+                                await ssl.AuthenticateAsServerAsync(
+                                    new SslServerAuthenticationOptions
+                                    {
+                                        ServerCertificate = server.GetServerCertificate(),
+                                        ClientCertificateRequired = true,
+                                        EnabledSslProtocols = SslProtocols.None,
+                                        CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
+                                        RemoteCertificateValidationCallback = (_, certificate, _, _) => validator(certificate),
+                                    },
+                                    cancellationToken).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                await ssl.AuthenticateAsServerAsync(
+                                    server.GetServerCertificate(),
+                                    clientCertificateRequired: false,
+                                    enabledSslProtocols: SslProtocols.None,
+                                    checkCertificateRevocation: false).ConfigureAwait(false);
+                            }
                             var serverSide = new StreamDuplexPipe(ssl);
                             await server.RunClientAsync(serverSide, node: node, state: null).ConfigureAwait(false);
                         },

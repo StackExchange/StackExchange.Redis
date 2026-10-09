@@ -79,6 +79,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "commandMap",
                 "configChannel",
                 "configCheckSeconds",
+                "ConnectionAttemptCompleted",
                 "connectRetry",
                 "connectTimeout",
                 "defaultDatabase",
