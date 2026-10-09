@@ -726,6 +726,9 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         // than the idle time, and then claiming them is correct. Only "not yet idle" is asserted.
         if (sinceFirstRead.Elapsed < idleTime) Assert.Empty(groups); // nothing available from any group
 
+        // ...and if that read DID claim them, it was a delivery, which the count below has to include
+        var expectedDeliveries = groups.Length == 0 ? 1 : 2;
+
         // wait long enough for the messages to be considered idle
         await Task.Delay(idleTime + idleTime);
 
@@ -736,7 +739,7 @@ public class StreamTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(2, grp.Entries.Length);
         foreach (var entry in grp.Entries)
         {
-            Assert.Equal(1, entry.DeliveryCount); // this is a redelivery
+            Assert.Equal(expectedDeliveries, entry.DeliveryCount); // this is a redelivery
             Assert.True(entry.IdleTime > TimeSpan.Zero); // and is considered idle
         }
     }
