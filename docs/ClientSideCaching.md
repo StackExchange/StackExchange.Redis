@@ -118,6 +118,43 @@ Controlling it
 | `RefreshAfter` | off | Once an entry is this old, a read still gets it, *and* a refresh is started in the background - so a hot key never goes from "cached" to "missing" for everyone at once. |
 | `InvalidationGracePeriod` | off | After *another client's* change invalidates an entry, keep serving the old value for up to this long while a refresh runs. This deliberately serves a value the server has said is out of date, to protect a very hot key from every reader missing at the same instant. It never applies to your own writes. |
 
+### Serving stale while refreshing
+
+Without either of the last two settings, an entry goes from "cached" to "gone" in one step - and for a hot key, every concurrent reader misses at that same instant and goes to the server together. Both settings replace that cliff with a window in which the old value is still answered *and* one background refresh fetches the new one. They differ in what opens the window:
+
+- **`RefreshAfter`** - **read-while-ageing**: the window opens by age. An entry younger than `RefreshAfter` is simply fresh; between `RefreshAfter` and `TimeToLive` it is served and refreshed; past `TimeToLive` it is a miss like any other. Nothing here serves a value the server has said is wrong - only one that is older than you would like. A typical setting is a fraction of `TimeToLive` (say `TimeToLive = 1 minute`, `RefreshAfter = 45 seconds`), so a key that is read steadily is refreshed before it ever expires.
+- **`InvalidationGracePeriod`** - **read-while-stale**: the window opens when *another client* changes the key. The server has said the cached value is out of date, and for up to this long it is served anyway while the refresh runs. This is the stronger choice: an invalidation reaches every reader of a key at once, so it is the stampede that `RefreshAfter` cannot help with, but it means answering with a value already known to be superseded. Keep it short - milliseconds to a few seconds - and use it only for data where a slightly late update is harmless.
+
+How the window behaves, for both:
+
+- **One refresh per entry.** The first read inside the window starts the refresh; the other readers are answered from the cache and do not start their own. The read that starts it is not delayed either: the refresh runs in the background, and that caller also gets the cached value.
+- **The refresh is the original request, re-sent.** There is nothing to supply - no factory or callback - because the cached request *is* the recipe.
+- **A failed refresh is retried by a later read.** The old value goes on being served for the rest of the window, then the entry expires as usual.
+- **A change wins over a refresh in flight.** If the key changes while a refresh is on the wire, the refresh's reply is not stored, exactly as for an ordinary fill.
+- **The grace period is measured from the invalidation**, not from the first read to notice it, and it is the cap. A key nobody reads during the window simply expires - nothing resurrects it later - and on a key written faster than it can be refreshed, stale answers stop when the window ends rather than continuing indefinitely.
+- **Neither extends an entry's life.** `TimeToLive` remains the longest any entry is served, and a context's `WithMaxCacheAge` is honoured inside the window too: a caller who asked for fresher gets a miss, not a stale answer.
+
+When the window does **not** apply:
+
+- **Your own writes.** A write through this multiplexer invalidates the keys it names immediately and permanently for those entries: the next read goes to the server, whatever the grace period. You always read your own writes.
+- **A lost connection, or `FLUSHDB` / `FLUSHALL`.** The whole cache is discarded with no grace: changes made while the client was not listening were never announced, so nothing in it can be trusted.
+- **Entries that were never cached** - a miss is a miss; neither setting pre-fetches anything.
+
+Both settings are off by default, and that is deliberate: serving an old value is a decision about correctness, not a performance tweak, so it should be made explicitly. They can be set in `DefaultPolicy` for the whole cache:
+
+```csharp
+options.ClientCache = new CacheOptions
+{
+    Prefixes = ["catalog:"],
+    DefaultPolicy = new CachePolicy
+    {
+        TimeToLive = TimeSpan.FromMinutes(1),
+        RefreshAfter = TimeSpan.FromSeconds(45),                    // refresh steadily-read entries before they expire
+        InvalidationGracePeriod = TimeSpan.FromMilliseconds(250),   // ride out the herd when a hot key changes
+    },
+};
+```
+
 ### Tracking modes and prefixes
 
 - **`Broadcast`** (the default): the server announces every change to every key matching your `Prefixes`, whoever made it, and keeps no record of what you read. Cheap for the server; the cost is on the client, which hears about keys it never cached. **Set `Prefixes` to the parts of the keyspace you actually want cached**: with none, this connection hears about every write to every key in the instance, which on a busy server is a lot of traffic. Keys outside the prefixes are simply not cached. Prefixes must not overlap one another (`"app:"` and `"app:user:"` together are rejected), and they are compared with the key as sent - so if you use `WithKeyPrefix`, include that prefix.

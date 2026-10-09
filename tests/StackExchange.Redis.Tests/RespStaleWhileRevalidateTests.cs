@@ -235,6 +235,51 @@ public class RespStaleWhileRevalidateTests
     }
 
     [Fact]
+    public async Task TheGracePeriodNeverOutlivesTimeToLive()
+    {
+        // TimeToLive is documented as the longest an entry is EVER served - the backstop against missed
+        // invalidations - and an invalidation is not a reason to serve something older than that
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        {
+            InvalidationGracePeriod = TimeSpan.FromSeconds(5),
+            TimeToLive = TimeSpan.FromMilliseconds(100),
+        } });
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var context = Context(executor, cache);
+
+        Assert.Equal("a", await Get(context));
+        await Task.Delay(200);                              // past TimeToLive...
+        cache.OnInvalidate(Encoding.UTF8.GetBytes("k"));   // ...and only now invalidated, well inside the grace
+
+        Assert.Equal("b", await Get(context));             // a miss, not a stale serve
+        Assert.Equal(0, cache.ServedStale);
+        Assert.Equal(2, executor.Sends);
+    }
+
+    [Fact]
+    public async Task TheGracePeriodHonoursTheCallersMaxAge()
+    {
+        // WithMaxCacheAge is the caller's own freshness requirement; the grace period is the POLICY's
+        // willingness to serve stale, and cannot overrule a caller who asked for fresher
+        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        {
+            InvalidationGracePeriod = TimeSpan.FromSeconds(5),
+            TimeToLive = TimeSpan.FromMinutes(5),
+        } });
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var context = Context(executor, cache);
+
+        Assert.Equal("a", await Get(context));
+        await Task.Delay(200);
+        cache.OnInvalidate(Encoding.UTF8.GetBytes("k"));
+
+        var strict = context.WithMaxCacheAge(TimeSpan.FromMilliseconds(100));
+        Assert.Equal("b", await Get(strict));
+        Assert.Equal(0, cache.ServedStale);
+        Assert.Equal(2, executor.Sends);
+    }
+
+    [Fact]
     public async Task ServingThroughInvalidationIsOffByDefault()
     {
         Assert.Equal(TimeSpan.Zero, CachePolicy.Default.InvalidationGracePeriod);

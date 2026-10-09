@@ -407,7 +407,7 @@ namespace StackExchange.Redis.Caching
 
             // invalidated, but perhaps still servable for a moment - see TryServeStale for why that is a
             // decision rather than a shortcut
-            if (!entry.IsValid) return TryServeStale(entry, out payload, out shouldRefresh);
+            if (!entry.IsValid) return TryServeStale(entry, maxAgeTicks, out payload, out shouldRefresh);
 
             if (entry.Payload.TryRetain())
             {
@@ -469,9 +469,14 @@ namespace StackExchange.Redis.Caching
         /// every refresh is invalidated before it can be stored, so without a bound this would serve stale
         /// for ever.
         /// </description></item>
+        /// <item><description>
+        /// <b>Within the same age limits as a valid entry</b>: <see cref="CachePolicy.TimeToLive"/>, the backstop
+        /// against missed invalidations, and the caller's own <see cref="RespContext.WithMaxCacheAge"/>. The grace
+        /// period shortens an entry's life after an invalidation; it never extends it.
+        /// </description></item>
         /// </list>
         /// </remarks>
-        private bool TryServeStale(Entry entry, out RespPayload? payload, out bool shouldRefresh)
+        private bool TryServeStale(Entry entry, long maxAgeTicks, out RespPayload? payload, out bool shouldRefresh)
         {
             shouldRefresh = false;
             payload = null;
@@ -482,6 +487,7 @@ namespace StackExchange.Redis.Caching
             // for an hour should expire, not be resurrected by the next reader to wander past
             var staleSince = entry.StaleSince;
             if (staleSince == 0 || CachePolicy.IsOlderThan(staleSince, Policy.ServeStaleTicks)) return false;
+            if (CachePolicy.IsOlderThan(entry.FilledAt, Math.Min(Policy.TimeToLiveTicks, maxAgeTicks))) return false;
 
             if (!entry.Payload.TryRetain()) return false;
 
