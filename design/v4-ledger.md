@@ -47,6 +47,11 @@ Each has a default the work proceeds on until answered.
   12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
 - **Fixed 2026-10-09:** `ReadOnlyLeaseTests.PrimitiveElementsAreNotClearedOnReturn` (Windows CI twice) asserted
   on whatever the process-shared `ArrayPool` handed back; it now asserts only when it is the same array.
+- **Watch: one "nothing inbound" timeout on CI after the stall fix** (2026-10-09, Ubuntu, PR run of 804da1c9; the
+  push run of the same commit passed): `RespCacheChurnTests.ChurnDoesNotDisableTheCache("scoped", 16 callers)`,
+  `Timeout awaiting response (outbound=12KiB, inbound=0KiB, 5915ms)`, 16 SETs in flight. Purely async test, so not
+  the old sync-on-reader shape. Locally: 25 runs of the class and 5 net10 full suites, all clean, no timeouts. If it
+  recurs, take a dump mid-stall (the old fix was found that way) rather than retrying.
 - **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`, `RespAggregateProtoTests.ADeferredWalkNeedsNoStorageAtAll` (net8, full suite only; per-thread allocation measure);
   `RedisBatchTests.AWatchConflictIsDistinctFromAFailedCondition` timed out once (fake transport) on a
   heavily loaded machine, 20/20 since.
