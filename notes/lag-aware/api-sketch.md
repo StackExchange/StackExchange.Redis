@@ -82,13 +82,14 @@ stale reading evicts the active member. Measured: only the member *behind* flips
 one being written to, so for a single-writer deployment that eviction does not happen, and for a
 multi-writer one it would be wrong. This is a deliberate deviation.
 
-**As built**, with one consequence worth reviewing: because the active member is never evicted by its
-failback check, a member chosen by the liveness fallback (no eligible member was up at the time) stays
-active while it is alive, even after an eligible member appears. That matches go-redis's "never evict"
-and is what weight alone would do if the fallback member has the higher weight; the alternative (treat
-a fallback-selected active member as provisional, and move to an eligible one when it appears) is a
-small change if preferred. Tested in `FailbackHealthCheckTests`; the fixture holds all members down until
-every connection is up, precisely because a start-up race otherwise exercises this case.
+**As built.** One refinement, decided 2026-10-08 by "do what the other clients do": a member chosen by
+the liveness fallback is **provisional**. It is left for an eligible member as soon as one is available
+(whatever the weights), and its own failback check keeps running so that it becomes an ordinary active
+member once it passes. Rationale: Lettuce, Jedis and redis-py treat a lagging database as unhealthy, and
+go-redis never selects a lagging candidate, so none of them can end up on an unverified member while a
+verified one exists; this is the nearest equivalent that still serves when every member is behind.
+Tested in `FailbackHealthCheckTests`; the fixture holds all members down until every connection is up, so
+that a start-up race does not pick a provisional member before the test means it to.
 
 Implementing it also surfaced an existing bug: `HealthCheckProbePolicy.AllSuccess` (the default) reported
 `Healthy` for a run of nothing but `Inconclusive` probes, contrary to its own comment. Harmless for
