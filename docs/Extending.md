@@ -207,6 +207,19 @@ public static RedisValue Substring(this in ContosoCommands contoso, RedisKey key
 
 This is how the synchronous `IDatabase` methods work. A command that takes several round trips works too, because each send completes before the next is issued. It does not wait for a thread-pool thread to wake the caller, which is the usual hazard of blocking on an async API. A retrying context blocks too, pausing between attempts on the calling thread. The exception is a batch or transaction, whose commands are not sent until it is executed - see the remarks on `RespContext.Blocking`.
 
+### `Task`-returning forms
+
+If your library keeps an older surface whose methods return `Task` - the shape of `IDatabaseAsync` - serve it from the group with `AsTask` on the database, not with `ValueTask.AsTask()`:
+
+```csharp
+public Task<RedisValue> SubstringAsync(RedisKey key, long start, long end)
+    => _db.AsTask(_db.Contoso().SubstringAsync(key, start, end));
+```
+
+It returns the task `IDatabaseAsync`'s own methods would: it carries the database's `AsyncState`, and a fault is marked observed as it happens, so a caller who discards the task (`_ = tran.SomethingAsync(...)`, then a transaction that aborts) never sees `TaskScheduler.UnobservedTaskException`. `ValueTask.AsTask()` does neither. Pass the command's `CommandFlags` as a second argument if it can be fire-and-forget; such a task carries no state.
+
+`Blocking()` for the synchronous methods and `AsTask` for the `Task` ones are the two halves of serving a legacy surface from a group.
+
 ### Announcing your library
 
 Redis records which client library each connection belongs to (`CLIENT SETINFO lib-name`, shown in `CLIENT LIST`). To add your library's name to it, call `AddLibraryNameSuffix` on the multiplexer - which a context exposes:

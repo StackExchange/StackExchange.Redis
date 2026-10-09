@@ -46,6 +46,112 @@ public class RespExtensionAuthorTests(ITestOutputHelper output, SharedConnection
         Assert.Equal(await db.StringGetRangeAsync(key, 0, 4), actual); // the oracle
     }
 
+    /// <summary>
+    /// A legacy <see cref="Task"/>-returning method served from a group: the database's async state rides along,
+    /// against a real server, so the pending path is the one exercised.
+    /// </summary>
+    [Fact]
+    public async Task ATaskFromAGroupCarriesTheDatabasesAsyncState()
+    {
+        await using var conn = Create();
+        var state = new object();
+        var db = conn.GetDatabase(asyncState: state);
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+        await db.StringSetAsync(key, "hello world");
+
+        // what an extender's `Task<RedisValue> SubstringAsync(...)` proxy is, in full
+        Task<RedisValue> task = db.AsTask(db.Contoso().SubstringAsync(key, 0, 4));
+        Assert.Same(state, task.AsyncState);
+        Assert.Equal("hello", await task);
+
+        // the non-generic form, for a group method that returns plain ValueTask
+        Task done = db.AsTask(db.Context.SendAsync($"{RedisCommand.SET}{(RedisKey)key}{(RedisValue)"x"}"));
+        Assert.Same(state, done.AsyncState);
+        await done;
+
+        // fire-and-forget carries no state, as the shipped surface's never has
+        Task<RedisValue> fired = db.AsTask(db.Contoso().SubstringAsync(key, 0, 0, CommandFlags.FireAndForget), CommandFlags.FireAndForget);
+        Assert.Null(fired.AsyncState);
+    }
+
+    /// <summary>
+    /// A fault on a task nobody awaits is marked observed, as v3's always were - where <c>ValueTask.AsTask()</c>
+    /// raises <see cref="TaskScheduler.UnobservedTaskException"/>. A transaction that aborts faults every
+    /// discarded <c>_ = tran.SomethingAsync(...)</c>, so this is load-bearing for a wrapper library.
+    /// </summary>
+    [Fact]
+    public void ADroppedFaultIsObserved()
+    {
+        IDatabaseAsync db = new RespDatabaseContext(new RespContext().WithExecutor(new FakeExecutor("+OK\r\n")))
+            .AsDatabase(NSubstitute.Substitute.For<IConnectionMultiplexer>());
+
+        var unobserved = new List<Exception>();
+        void OnUnobserved(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            lock (unobserved) unobserved.AddRange(e.Exception.InnerExceptions);
+        }
+
+        TaskScheduler.UnobservedTaskException += OnUnobserved;
+        try
+        {
+            // the control: the same drop through ValueTask.AsTask(). If the runtime does not finalize it here, the
+            // assertion below would pass for the wrong reason, so the test says it could not tell instead
+            var control = new InvalidOperationException("control");
+            Drop(pending => _ = pending.AsTask(), control);
+            Collect();
+            lock (unobserved)
+            {
+                if (!unobserved.Contains(control)) Assert.Skip("the runtime did not finalize the control task; nothing can be concluded");
+            }
+
+            var ours = new InvalidOperationException("ours");
+            Drop(pending => _ = db.AsTask(pending), ours);
+            Collect();
+            lock (unobserved) Assert.DoesNotContain(ours, unobserved);
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= OnUnobserved;
+        }
+
+        // in a frame of its own, so nothing in the test's frame still references the dropped task
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        static void Drop(Action<ValueTask<int>> convert, Exception fault)
+        {
+            // backed by an IValueTaskSource, as a group method's result is: AsTask() then makes a task of its own
+            var source = new PendingSource();
+            convert(new ValueTask<int>(source, source.Version));
+            source.Fault(fault); // faults while pending: the path a dropped command's task takes
+        }
+
+        static void Collect()
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+        }
+    }
+
+    /// <summary>The smallest <see cref="IValueTaskSource{TResult}"/>: pending until faulted.</summary>
+    private sealed class PendingSource : System.Threading.Tasks.Sources.IValueTaskSource<int>
+    {
+        private System.Threading.Tasks.Sources.ManualResetValueTaskSourceCore<int> _core;
+
+        public short Version => _core.Version;
+
+        public void Fault(Exception fault) => _core.SetException(fault);
+
+        public int GetResult(short token) => _core.GetResult(token);
+
+        public System.Threading.Tasks.Sources.ValueTaskSourceStatus GetStatus(short token) => _core.GetStatus(token);
+
+        public void OnCompleted(Action<object?> continuation, object? state, short token, System.Threading.Tasks.Sources.ValueTaskSourceOnCompletedFlags flags)
+            => _core.OnCompleted(continuation, state, token, flags);
+    }
+
     [Fact]
     public async Task ACustomHandlerReadsAReplyTheClientDoesNotKnow()
     {
