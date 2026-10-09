@@ -44,6 +44,7 @@ public class HealthCheckPolicyUnitTests
     [InlineData(0, 5, 0, HealthCheckResult.Unhealthy)] // All failures
     [InlineData(1, 0, 2, HealthCheckResult.Healthy)] // Early success
     [InlineData(0, 1, 2, HealthCheckResult.Inconclusive)] // Early failure but more probes remain
+    [InlineData(0, 0, 0, HealthCheckResult.Inconclusive)] // Every probe inconclusive: not a failure
     public void AnySuccess_EvaluatesCorrectly(int success, int failure, int remaining, HealthCheckResult expected)
     {
         var policy = HealthCheckProbePolicy.AnySuccess;

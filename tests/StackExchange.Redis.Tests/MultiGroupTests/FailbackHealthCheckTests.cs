@@ -277,6 +277,33 @@ public class FailbackHealthCheckTests(ITestOutputHelper log)
         Assert.All(perMember.Calls.Values, n => Assert.Equal(1, n));
     }
 
+    [Theory]
+    [InlineData(nameof(HealthCheckProbePolicy.AllSuccess))]
+    [InlineData(nameof(HealthCheckProbePolicy.AnySuccess))]
+    [InlineData(nameof(HealthCheckProbePolicy.MajoritySuccess))]
+    public async Task ARunOfInconclusiveProbesIsInconclusiveUnderEveryPolicy(string policy)
+    {
+        // "could not tell" is neither a pass nor a failure, whichever policy collates it
+        using var server = new InProcessTestServer(log, endpoint: Alpha);
+        await using var conn = await server.ConnectAsync();
+        var probe = new ScriptedProbe();
+        probe.Set(Alpha, HealthCheckResult.Inconclusive);
+        HealthCheck check = new HealthCheck.Builder
+        {
+            Probe = probe,
+            ProbeCount = 3,
+            ProbeInterval = TimeSpan.Zero,
+            ProbePolicy = policy switch
+            {
+                nameof(HealthCheckProbePolicy.AllSuccess) => HealthCheckProbePolicy.AllSuccess,
+                nameof(HealthCheckProbePolicy.AnySuccess) => HealthCheckProbePolicy.AnySuccess,
+                _ => HealthCheckProbePolicy.MajoritySuccess,
+            },
+        };
+
+        Assert.Equal(HealthCheckResult.Inconclusive, await check.CheckHealthAsync(conn));
+    }
+
     [Fact]
     public void OptionsCarryTheFailbackHealthCheck()
     {

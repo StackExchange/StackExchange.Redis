@@ -431,7 +431,7 @@ The probe policy determines how multiple probe results are evaluated to determin
 
 #### HealthCheckProbePolicy.AnySuccess
 
-The health check passes if **any** probe succeeds. This provides the most lenient evaluation:
+The health check passes if **any** probe succeeds, and fails only if at least one probe failed and none succeeded. This provides the most lenient evaluation. A run in which every probe was `Inconclusive` reports `Inconclusive`, not `Unhealthy`:
 
 ```csharp
 HealthCheck healthCheck = new HealthCheck.Builder
