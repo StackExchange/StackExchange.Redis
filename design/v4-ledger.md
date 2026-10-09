@@ -52,6 +52,11 @@ Each has a default the work proceeds on until answered.
   `Timeout awaiting response (outbound=12KiB, inbound=0KiB, 5915ms)`, 16 SETs in flight. Purely async test, so not
   the old sync-on-reader shape. Locally: 25 runs of the class and 5 net10 full suites, all clean, no timeouts. If it
   recurs, take a dump mid-stall (the old fix was found that way) rather than retrying.
+- **Watch: `BacklogTests.TotalOutstandingIncludesBacklogQueue` is intermittent, and was before today** (2026-10-09):
+  three pings queued after `SimulateConnectionFailure` with `AllowConnect = false` sometimes show
+  `PendingUnsentItems == 0`. Looked like a regression (2 of 3 alone at the head), but a bisect plus re-runs put the
+  morning's 286170a8 at 1 of 8 as well, the same rate as the head - so pre-existing and environment-sensitive.
+  Not investigated further; first suspect is the pings completing (or faulting) before the counters are read.
 - **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`, `RespAggregateProtoTests.ADeferredWalkNeedsNoStorageAtAll` (net8, full suite only; per-thread allocation measure); `ClusterTopologyUnitTests.SlotLessNodesAreKnownButNotConnected` (net8 full suite once, 2026-10-09; 3/3 alone);
   `RedisBatchTests.AWatchConflictIsDistinctFromAFailedCondition` timed out once (fake transport) on a
   heavily loaded machine, 20/20 since.
