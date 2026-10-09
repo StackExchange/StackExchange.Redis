@@ -1,4 +1,4 @@
-Ad-hoc commands
+﻿Ad-hoc commands
 ===
 
 If you are *shipping a library* of such commands rather than calling one, see [Extending the client](Extending), which starts here and goes on to a surface of your own.
@@ -50,8 +50,10 @@ Building a command in pieces: `Compose`
 A single interpolated string needs every argument at the call site. When some are only known at run time - an optional modifier, a variable number of keys - start the command with `Compose`, append the rest, and send it:
 
 ```csharp
-// declared once: a command name in a field is encoded once, not on every call (see SER309)
-private static readonly RespCommand Set = "SET".Command(), Del = "DEL".Command();
+// declared once, rather than parsed from literal text on every call (see SER309, and
+// "Declaring commands and tokens" in Extending the client); the type must be partial
+[Resp("SET")] private static partial RespCommand Set { get; }
+[Resp("DEL")] private static partial RespCommand Del { get; }
 
 // Compose and its SendAsync live on the untyped context
 RespContext ctx = (RespContext)db.Context;

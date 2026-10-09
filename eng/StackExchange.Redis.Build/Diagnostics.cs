@@ -328,7 +328,7 @@ internal static class Diagnostics
     public static readonly DiagnosticDescriptor RespLiteralNotSent = new(
         id: "SER309",
         title: "Literal text in a RESP command is resolved on every call",
-        messageFormat: "Literal text \"{0}\" is parsed and encoded on every call; resolve it once - a [Resp] fragment for a token, or a .Command() field for a command",
+        messageFormat: "Literal text \"{0}\" is parsed and encoded on every call; resolve it once - declare it with [Resp], as a RespFragment for a token or a RespCommand for a command",
         category: UsageCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
@@ -380,7 +380,7 @@ internal static class Diagnostics
         category: BuildCategory,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "The RespFragment generator implements [Resp] partial properties of type RespFragment; a declaration it cannot match is skipped, which would otherwise appear only as a missing implementation part.",
+        description: "The RespFragment generator implements [Resp] partial properties of type RespFragment or RespCommand; a declaration it cannot match is skipped, which would otherwise appear only as a missing implementation part.",
         helpLinkUri: HelpLink("SER351"));
 
     /// <summary>

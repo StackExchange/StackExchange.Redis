@@ -11,7 +11,8 @@ namespace StackExchange.Redis.Build;
 
 /// <summary>
 /// Implements <c>[Resp] partial RespFragment Foo { get; }</c> by emitting the body: the tokens, pre-framed as
-/// RESP bulk strings, with the argument count that goes with them.
+/// RESP bulk strings, with the argument count that goes with them - and <c>[Resp] partial RespCommand Foo { get; }</c>,
+/// a command name resolved once.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -25,12 +26,20 @@ namespace StackExchange.Redis.Build;
 /// keywords (<c>yes</c>, <c>lib-name</c>, <c>replica</c>, the geo units) and lower-case is what goes on the
 /// wire today.
 /// </para>
+/// <para>
+/// <b>Commands go through <c>Command()</c>, not raw bytes.</b> A <c>RespCommand</c> has an identity a fragment
+/// does not: a name the client knows resolves to it, so the connection's command map can still rename or disable
+/// it. So the generated body is a static field initialised by <c>"NAME"u8.Command()</c> - the name validated here,
+/// at build time, and the framing (for a name the client does not know) still done by the library, once.
+/// </para>
 /// </remarks>
 [Generator(LanguageNames.CSharp)]
 public class RespFragmentGenerator : IIncrementalGenerator
 {
     private const string RespAttributeName = "StackExchange.Redis.Protocol.RespAttribute";
     private const string FragmentType = "global::StackExchange.Redis.Protocol.RespFragment";
+    private const string CommandType = "global::StackExchange.Redis.Protocol.RespCommand";
+    private const string CommandFactory = "global::StackExchange.Redis.Protocol.RespCommands.Command";
 
     /// <summary>u8 literals need C# 11; below that we say so rather than emitting code that cannot compile.</summary>
     private const LanguageVersion MinimumLanguageVersion = LanguageVersions.CSharp11;
@@ -84,9 +93,11 @@ public class RespFragmentGenerator : IIncrementalGenerator
         if (context.TargetSymbol is not IPropertySymbol property) return null;
 
         var location = context.TargetNode.GetLocation();
-        if (property.Type.ToDisplayString() != "StackExchange.Redis.Protocol.RespFragment")
+        var declaredType = property.Type.ToDisplayString();
+        var isCommand = declaredType == "StackExchange.Redis.Protocol.RespCommand";
+        if (!isCommand && declaredType != "StackExchange.Redis.Protocol.RespFragment")
         {
-            return FragmentInfo.Rejected(property.Name, location, $"its type is '{property.Type.Name}', not RespFragment");
+            return FragmentInfo.Rejected(property.Name, location, $"its type is '{property.Type.Name}', not RespFragment or RespCommand");
         }
 
         if (context.TargetNode is not PropertyDeclarationSyntax { } decl || !decl.Modifiers.Any(SyntaxKind.PartialKeyword))
@@ -119,6 +130,24 @@ public class RespFragmentGenerator : IIncrementalGenerator
         // no tokens given: infer one from the member name, upper-cased (see the remarks on this type)
         if (tokens.IsEmpty) tokens = ImmutableArray.Create(property.Name.ToUpperInvariant());
 
+        if (isCommand)
+        {
+            // a command is one token; anything after it is an operand, and belongs in a fragment
+            if (tokens.Length != 1)
+            {
+                return FragmentInfo.Rejected(property.Name, location, $"a RespCommand is a single command name, but {tokens.Length} tokens were given; put the subcommand or operands in a RespFragment");
+            }
+
+            // the checks Command() makes at run time, made here instead: a bad name fails the build, not the first call
+            foreach (var c in tokens[0])
+            {
+                if (c <= ' ' || c > '~')
+                {
+                    return FragmentInfo.Rejected(property.Name, location, $"the command name '{tokens[0]}' must be printable ASCII without whitespace");
+                }
+            }
+        }
+
         var containers = new List<string>();
         for (var type = property.ContainingType; type is not null; type = type.ContainingType)
         {
@@ -133,7 +162,8 @@ public class RespFragmentGenerator : IIncrementalGenerator
             property.IsStatic,
             tokens,
             location,
-            null);
+            null,
+            isCommand);
     }
 
     private static string DeclarationOf(INamedTypeSymbol type)
@@ -202,6 +232,12 @@ public class RespFragmentGenerator : IIncrementalGenerator
 
     private static void WriteFragment(CodeWriter writer, FragmentInfo fragment)
     {
+        if (fragment.IsCommand)
+        {
+            WriteCommand(writer, fragment);
+            return;
+        }
+
         var bytes = new StringBuilder();
         foreach (var token in fragment.Tokens)
         {
@@ -223,6 +259,26 @@ public class RespFragmentGenerator : IIncrementalGenerator
               .Append(" => new(\"").Append(bytes.ToString()).Append("\"u8");
         if (fragment.Tokens.Length != 1) writer.Append(", ").Append(fragment.Tokens.Length);
         writer.Append(");").NewLine().NewLine();
+    }
+
+    /// <summary>A command: a static field resolved once, and the property returning it.</summary>
+    /// <remarks>
+    /// The field is static even for an instance property: the name is a constant, so one resolution serves every
+    /// instance. Its name is mangled so it cannot collide with anything the author declared.
+    /// </remarks>
+    private static void WriteCommand(CodeWriter writer, FragmentInfo fragment)
+    {
+        var token = fragment.Tokens[0];
+        var field = "__RespCommand_" + fragment.Name;
+
+        writer.Append("private static readonly ").Append(CommandType).Append(' ').Append(field)
+              .Append(" = ").Append(CommandFactory).Append("(\"").Append(Escape(token)).Append("\"u8);").NewLine();
+
+        writer.Append("/// <summary>The <c>").Append(EscapeXml(token)).Append("</c> command, resolved once.</summary>").NewLine();
+        writer.Append(fragment.Accessibility).Append(' ');
+        if (fragment.IsStatic) writer.Append("static ");
+        writer.Append("partial ").Append(CommandType).Append(' ').Append(fragment.Name)
+              .Append(" => ").Append(field).Append(';').NewLine().NewLine();
     }
 
     private static string Escape(string value)
@@ -256,7 +312,8 @@ public class RespFragmentGenerator : IIncrementalGenerator
         bool isStatic,
         ImmutableArray<string> tokens,
         Location? location,
-        string? problem)
+        string? problem,
+        bool isCommand = false)
     {
         /// <summary>A declaration that cannot be implemented, carrying why.</summary>
         public static FragmentInfo Rejected(string name, Location location, string problem)
@@ -277,5 +334,7 @@ public class RespFragmentGenerator : IIncrementalGenerator
         public bool IsStatic => isStatic;
 
         public ImmutableArray<string> Tokens => tokens;
+
+        public bool IsCommand => isCommand;
     }
 }

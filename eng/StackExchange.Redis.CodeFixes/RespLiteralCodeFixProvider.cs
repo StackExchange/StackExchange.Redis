@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -123,7 +123,8 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
 
     /// <summary>
     /// Offer the right way to say a leading command: the <c>RedisCommand</c> enum where it is accessible,
-    /// otherwise a resolved-once <c>RespCommand</c> field.
+    /// otherwise a declared <c>[Resp] partial RespCommand</c> property - or, below C# 13, which has no partial
+    /// properties, a resolved-once <c>RespCommand</c> field.
     /// </summary>
     /// <remarks>
     /// The fork is accessibility, not preference. <c>RedisCommand</c> is internal, so this library's own
@@ -167,6 +168,21 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
 
         var field = MemberNameFor(token) + "Command";
         var typeName = commandType.ToMinimalDisplayString(model, host.SpanStart);
+
+        // the same declaration a fragment gets, generated the same way - one spelling for both - where the
+        // language allows it; the generated half also needs C# 13, so below that the field is the only option
+        if (SupportsPartialProperties(text))
+        {
+            context.RegisterCodeFix(
+                CodeAction.Create(
+                    title: "Declare '" + field + "' here and use it",
+                    createChangedDocument: _ => Task.FromResult(
+                        Declare(context.Document, root, text, host, field, token, typeName)),
+                    equivalenceKey: LiteralNotSentId + ":command-resp"),
+                diagnostic);
+            return;
+        }
+
         context.RegisterCodeFix(
             CodeAction.Create(
                 title: "Declare '" + field + "' here and use it",
@@ -175,6 +191,11 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
                 equivalenceKey: LiteralNotSentId + ":command-field"),
             diagnostic);
     }
+
+    /// <summary>Whether the document's language version has partial properties (C# 13).</summary>
+    private static bool SupportsPartialProperties(SyntaxNode node)
+        => node.SyntaxTree.Options is CSharpParseOptions options
+           && options.LanguageVersion.MapSpecifiedToEffectiveVersion() >= (LanguageVersion)1300;
 
     /// <summary>Declare a resolved-once command field and use it in place of the literal.</summary>
     private static Document DeclareCommand(
@@ -267,10 +288,29 @@ public sealed class RespLiteralCodeFixProvider : CodeFixProvider
         // the generator supplies the body as another part, so the type has to be partial
         if (!newHost.Modifiers.Any(SyntaxKind.PartialKeyword))
         {
-            newHost = newHost.AddModifiers(SyntaxFactory.Token(SyntaxKind.PartialKeyword));
+            newHost = WithPartial(newHost);
         }
 
         return document.WithSyntaxRoot(afterLiteral.ReplaceNode(currentHost, newHost));
+    }
+
+    /// <summary>Add <c>partial</c>, keeping the declaration's layout.</summary>
+    /// <remarks>
+    /// With no modifiers, the type keyword carries the declaration's leading trivia - its newline and indentation -
+    /// so a modifier simply added in front of it lands before that trivia and the declaration gains a blank line.
+    /// The trivia moves to the new first token instead. With modifiers, <c>partial</c> goes last, immediately
+    /// before the keyword, which is where the language requires it.
+    /// </remarks>
+    private static TypeDeclarationSyntax WithPartial(TypeDeclarationSyntax type)
+    {
+        if (type.Modifiers.Count == 0)
+        {
+            var keyword = type.Keyword;
+            var partial = SyntaxFactory.Token(keyword.LeadingTrivia, SyntaxKind.PartialKeyword, SyntaxFactory.TriviaList(SyntaxFactory.Space));
+            return type.WithKeyword(keyword.WithLeadingTrivia(SyntaxFactory.TriviaList())).WithModifiers(SyntaxFactory.TokenList(partial));
+        }
+
+        return type.AddModifiers(SyntaxFactory.Token(SyntaxKind.PartialKeyword).WithTrailingTrivia(SyntaxFactory.Space));
     }
 
     /// <summary>

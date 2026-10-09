@@ -149,9 +149,14 @@ namespace StackExchange.Redis.Protocol
     }
 
     /// <summary>
-    /// Declares the tokens a generated <see cref="RespFragment"/> property should emit.
-    /// Omit the tokens to infer a single token from the member name, as <c>AsciiHashAttribute</c> does.
+    /// Declares the tokens a generated <see cref="RespFragment"/> property should emit, or the name a generated
+    /// <see cref="RespCommand"/> property resolves. Omit the tokens to infer a single token from the member name,
+    /// upper-cased.
     /// </summary>
+    /// <remarks>
+    /// A <see cref="RespCommand"/> takes exactly one token, checked when you build, and resolves as
+    /// <see cref="RespCommands.Command(string, bool)"/> does: a name the client knows stays deferred to the command map.
+    /// </remarks>
     [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
     public sealed class RespAttribute : Attribute
     {

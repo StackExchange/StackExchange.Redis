@@ -89,10 +89,12 @@ public readonly struct ContosoCommands(in RespContext context)
     public RespContext Context { get; } = context;
 }
 
-public static class ContosoExtensions
+public static partial class ContosoExtensions
 {
-    // rendered once, not per call: the name is a constant, and `preform` keeps its RESP bulk string ready
-    private static readonly RespCommand Substr = "SUBSTR".Command(preform: true);
+    // the command name, declared once; the generator shipped in the package supplies the body, and checks
+    // the name when you build (see "Declaring commands and tokens" below)
+    [Resp("SUBSTR")]
+    private static partial RespCommand Substr { get; }
 
     // 2. the accessor, on any keyspace TARGET: IDatabase, IBatch, ITransaction - and a database context
     //    itself, which is a target too, so a prefixed context (db.Context.AppendKeyPrefix(...)) reaches it.
@@ -138,7 +140,33 @@ That split is deliberate: the context surface is the primary API, the frame mach
 
 `$"{Substr}{key}{start}{end}"` never builds one. The compiler lowers each hole into a call on a handler that writes UTF-8 straight into a pooled buffer, counting arguments as it goes; there is no `string`, no `string.Format`, no `object[]`, and no boxing. Whitespace between holes contributes nothing, so `$"{Substr} {key} {start} {end}"` renders identically - write whichever reads better.
 
-Literal text works too, and is tokenized: `$"JSON.GET {key} {path}"` sends three arguments, with `JSON.GET` as the command. Prefer the `RespCommand` form for a command you send often - a name this client does not know is rendered once at startup instead of being tokenized and encoded per call. (A name it *does* know stays deferred whatever you ask for, because the context's command map may rename or disable it, and already holds the bytes.)
+Literal text works too, and is tokenized: `$"JSON.GET {key} {path}"` sends three arguments, with `JSON.GET` as the command. Prefer a declared `RespCommand` for a command you send often - see below.
+
+### Declaring commands and tokens
+
+Fixed text in a command - the command name, and keyword operands such as `WEIGHTS` or `NX` - is declared once, as a partial property marked `[Resp]`, and the generator that ships in the package writes the body:
+
+```csharp
+public static partial class ContosoExtensions
+{
+    [Resp("CMS.INFO")]                    // a command: one name, exactly as the server spells it
+    private static partial RespCommand CmsInfo { get; }
+
+    [Resp("CMS.INCRBY")]
+    private static partial RespCommand CmsIncrBy { get; }
+
+    [Resp]                                // a token: inferred from the member name, upper-cased - "WEIGHTS"
+    private static partial RespFragment Weights { get; }
+
+    [Resp("MAXLEN", "~")]                 // a fragment can be several arguments
+    private static partial RespFragment MaxLenApprox { get; }
+}
+```
+
+- **A `RespCommand` is checked when you build.** One name, printable ASCII, no whitespace; anything else is warning [SER351](rules/SER351) and nothing is generated. A subcommand (`CLIENT KILL`) is a command plus a fragment.
+- **It resolves exactly as `.Command()` does**, once, into a static field. A name this client does not know - a module's - is framed once, at startup. A name it *does* know (`[Resp("GET")]`) keeps its identity and stays deferred, so the connection's command map can still rename or disable it: wrapping a core command does not bypass the map.
+- **A `RespFragment` is pre-framed at build time** - lengths, casing and argument count correct by construction - and it is never remapped, because operands are not commands. A token given in the attribute is used verbatim (some are lower-case by convention: `lib-name`, `replica`); one inferred from the member name is upper-cased.
+- **The declaring type must be `partial`**, and partial properties need **C# 13**. Below that, declare a command as a field instead - `private static readonly RespCommand CmsInfo = "CMS.INFO".Command(preform: true);` - which behaves identically, minus the build-time check. The [SER309](rules/SER309) code fix offers whichever your language version supports.
 
 ### Keys are keys - this is the rule that matters
 
@@ -188,7 +216,7 @@ The conventions this client's own groups follow, and the ones a caller of yours 
 - **An empty variable-length argument is answered without a round trip** where the answer is obvious - `return new(ReadOnlyLease<long>.Empty);` for "query nothing" - and is an `ArgumentException` only where the command is genuinely malformed without it.
 
 ```csharp
-// Query is a RespCommand field, declared like Substr above
+// Query is a [Resp] RespCommand, declared like Substr above
 public static ValueTask<ReadOnlyLease<long>> QueryAsync(this ContosoCommands contoso, RedisKey key,
     ReadOnlySpan<RedisValue> items, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     => items.IsEmpty

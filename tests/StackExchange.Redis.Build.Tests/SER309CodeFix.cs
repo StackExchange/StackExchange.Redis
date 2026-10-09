@@ -20,6 +20,12 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
     // Both halves are spelled out because the code-fix harness runs analyzers, not generators; in real use
     // the bodies come from RespFragmentGenerator. The fixer only looks for a [Resp] property, so this is
     // faithful to what it actually resolves against.
+    // below C# 13 there are no partial properties, so the declarations above would not compile there
+    private const string CSharp12Usings = """
+        using StackExchange.Redis;
+        using StackExchange.Redis.Protocol;
+        """;
+
     private const string Declarations = """
         #pragma warning disable SER011
         using StackExchange.Redis;
@@ -234,8 +240,8 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
     // testing here: even for a command the library knows, an outside caller gets the field, because the
     // enum it would otherwise use is internal.
     [Fact]
-    public Task LeadingCommand_KnownName_ExternallyDeclaresAField() => VerifyFixAsync(
-        Declarations + """
+    public Task LeadingCommand_KnownName_ExternallyDeclaresAField_BelowCSharp13() => VerifyFixAsync(
+        CSharp12Usings + """
 
         class C
         {
@@ -245,7 +251,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
             }
         }
         """,
-        Declarations + """
+        CSharp12Usings + """
 
         class C
         {
@@ -258,11 +264,12 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         }
         """,
         0,
-        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("SET "));
+        Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp12,
+        [Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("SET ")]);
 
     [Fact]
-    public Task LeadingCommand_UnknownName_DeclaresAPreformedField() => VerifyFixAsync(
-        Declarations + """
+    public Task LeadingCommand_UnknownName_DeclaresAPreformedField_BelowCSharp13() => VerifyFixAsync(
+        CSharp12Usings + """
 
         class C
         {
@@ -272,7 +279,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
             }
         }
         """,
-        Declarations + """
+        CSharp12Usings + """
 
         class C
         {
@@ -285,7 +292,70 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         }
         """,
         0,
-        Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("FT.SEARCH "));
+        Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp12,
+        [Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("FT.SEARCH ")]);
+
+    // From C# 13 the command is declared the way a fragment is - [Resp] on a partial property, its body generated
+    // - so a library author writes one spelling for both. The class is made partial for the generated half.
+    [Fact]
+    public Task LeadingCommand_UnknownName_DeclaresARespCommand() => VerifyFixAsync(
+        Declarations + """
+
+        class C
+        {
+            void M(RespContext ctx, RedisValue value)
+            {
+                using var frame = ctx.Render($"{|#0:FT.SEARCH |}{value}");
+            }
+        }
+        """,
+        Declarations + """
+
+        partial class C
+        {
+            void M(RespContext ctx, RedisValue value)
+            {
+                using var frame = ctx.Render($"{FtSearchCommand} {value}");
+            }
+
+            [Resp("FT.SEARCH")]
+            private static partial RespCommand {|#1:FtSearchCommand|} { get; }
+        }
+        """,
+        0,
+        Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp13,
+        [Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("FT.SEARCH ")],
+        MissingGeneratedBody("C.FtSearchCommand"));
+
+    [Fact]
+    public Task LeadingCommand_KnownName_ExternallyDeclaresARespCommand() => VerifyFixAsync(
+        Declarations + """
+
+        class C
+        {
+            void M(RespContext ctx, RedisKey key, RedisValue value)
+            {
+                using var frame = ctx.Render($"{|#0:SET |}{key}{value}");
+            }
+        }
+        """,
+        Declarations + """
+
+        partial class C
+        {
+            void M(RespContext ctx, RedisKey key, RedisValue value)
+            {
+                using var frame = ctx.Render($"{SetCommand} {key}{value}");
+            }
+
+            [Resp("SET")]
+            private static partial RespCommand {|#1:SetCommand|} { get; }
+        }
+        """,
+        0,
+        Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp13,
+        [Diagnostic("SER309", DiagnosticSeverity.Warning).WithLocation(0).WithArguments("SET ")],
+        MissingGeneratedBody("C.SetCommand"));
 
     [Fact]
     public Task NonLeadingToken_StillOffersTheFragmentFix() => VerifyFixAsync(

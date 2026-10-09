@@ -9,8 +9,54 @@ namespace StackExchange.Redis.Tests;
 /// <summary>
 /// <c>RespCommand</c>: a command name resolved once, usable as the command or as an argument naming one.
 /// </summary>
-public class RespCommandTests
+public partial class RespCommandTests
 {
+    // [Resp] on a RespCommand: the generator emits a static field initialised by "NAME"u8.Command(), so the name
+    // is validated at build time and resolved once - and a known name keeps its identity, so the map still applies
+
+    /// <summary>A module command: unknown to the client, so framed once.</summary>
+    [Resp("CMS.INFO")]
+    private static partial RespCommand CmsInfo { get; }
+
+    /// <summary>A known command, inferred from the member name.</summary>
+    [Resp]
+    private static partial RespCommand Get { get; }
+
+    /// <summary>An instance property works too; the field behind it is static, since the name is a constant.</summary>
+    [Resp("CMS.QUERY")]
+    private partial RespCommand CmsQuery { get; }
+
+    [Fact]
+    public void AGeneratedModuleCommandIsPreformedAndRenders()
+    {
+        Assert.False(CmsInfo.IsKnown);
+        Assert.True(CmsInfo.IsPreformed);
+
+        using var frame = new RespContext().Render($"{CmsInfo}{(RedisKey)"sketch"}");
+        Assert.Equal("*2|$8|CMS.INFO|$6|sketch|", Text(frame));
+    }
+
+    [Fact]
+    public void AGeneratedKnownCommandStaysDeferredSoTheMapStillApplies()
+    {
+        Assert.True(Get.IsKnown);
+        Assert.False(Get.IsPreformed);
+
+        var renamed = CommandMap.Create(new Dictionary<string, string?> { ["GET"] = "FETCH" });
+        using var frame = new RespContext(renamed).Render($"{Get}{(RedisKey)"k"}");
+        Assert.Equal("*2|$5|FETCH|$1|k|", Text(frame));
+    }
+
+    [Fact]
+    public void AGeneratedCommandIsResolvedOnce()
+    {
+        // the same value every time - one static field, not a resolution per read
+        Assert.Equal(CmsQuery.ToString(), CmsQuery.ToString());
+        Assert.True(CmsQuery.IsPreformed);
+        using var frame = new RespContext().Render($"{CmsQuery}{(RedisKey)"sketch"}{(RedisValue)"item"}");
+        Assert.Equal("*3|$9|CMS.QUERY|$6|sketch|$4|item|", Text(frame));
+    }
+
     private static string Text(in RespRequestFrame frame) =>
         Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
 
