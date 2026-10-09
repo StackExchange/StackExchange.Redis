@@ -127,6 +127,14 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     internal override IConnectionMultiplexer? ExposedMultiplexer => _inner.ExposedMultiplexer;
 
     /// <inheritdoc/>
+    /// <remarks>Forwarded, like the other capabilities: a decorator over a batch still accumulates.</remarks>
+    internal override bool Accumulates => _inner.Accumulates;
+
+    /// <inheritdoc/>
+    /// <remarks>Forwarded: the client-side cache must not answer a read inside a transaction, whatever wraps it.</remarks>
+    internal override bool Transactional => _inner.Transactional;
+
+    /// <inheritdoc/>
     /// <remarks>Whenever the executor underneath can: the loop itself blocks happily.</remarks>
     internal override bool CanSendBlocking => _inner.CanSendBlocking;
 

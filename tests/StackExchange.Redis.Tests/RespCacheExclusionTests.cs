@@ -78,6 +78,11 @@ public class RespCacheExclusionTests
             ("ZRANDMEMBER", "$1\r\na\r\n", static c => Discard(c.SortedSets.RandomMemberAsync("k"))),
             ("ZRANDMEMBER count", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.SortedSets.RandomMembersAsync("k", 2))),
             ("ZRANDMEMBER WITHSCORES", "*2\r\n$1\r\na\r\n$1\r\n1\r\n", static c => DiscardLease(c.SortedSets.RandomMembersWithScoresAsync("k", 2))),
+
+            // missed when the vector-set group was added, and found while documenting the cache
+            ("VRANDMEMBER", "$1\r\na\r\n", static c => Discard(c.VectorSets.RandomMemberAsync("k"))),
+            ("VRANDMEMBER count", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.VectorSets.RandomMembersAsync("k", 2))),
+            ("VRANDMEMBER array", "*1\r\n$1\r\na\r\n", static c => Discard(c.VectorSets.RandomMembersArray("k", 2))),
         };
 
         foreach (var (name, reply, run) in cases)

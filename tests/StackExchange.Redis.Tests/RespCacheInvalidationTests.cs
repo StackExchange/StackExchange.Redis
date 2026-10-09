@@ -111,6 +111,56 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
         return (muxer, cache);
     }
 
+    /// <summary>
+    /// A read inside <c>MULTI</c>/<c>EXEC</c> is never answered from the cache: it is queued, and answered by
+    /// <c>EXEC</c>, atomically with the rest of the transaction.
+    /// </summary>
+    /// <remarks>
+    /// It used to be answered at once from a warm cache - the probe ran above the transaction executor - so the
+    /// caller got the value from before the transaction, not the one the transaction saw. The read here is
+    /// deliberately the only command: a write to the same key first would invalidate the entry locally and hide
+    /// the defect.
+    /// </remarks>
+    [Fact]
+    public async Task AReadInsideATransactionIsNeverAnsweredFromTheCache()
+    {
+        var me = Me();
+        var (muxer, cache) = await TrackedAsync(me);
+        using var _ = muxer;
+        var db = muxer.GetDatabase();
+        RedisKey key = me + ":tx";
+
+        await db.Strings.SetAsync(key, "before");
+        await PrimeAsync(db, cache, key, "before");
+
+        using var tran = db.BeginTransaction();
+        var read = tran.Strings.GetAsync(key);
+        Assert.False(read.IsCompleted, "a read inside a transaction must wait for EXEC, not come from the cache");
+
+        Assert.True(await tran.ExecuteAsync());
+        Assert.Equal("before", (string?)await read);
+    }
+
+    /// <summary>...whereas a batch is pipelining, not atomicity, and a batched read may be served from cache.</summary>
+    [Fact]
+    public async Task ABatchedReadMayStillBeAnsweredFromTheCache()
+    {
+        var me = Me();
+        var (muxer, cache) = await TrackedAsync(me);
+        using var _ = muxer;
+        var db = muxer.GetDatabase();
+        RedisKey key = me + ":batch";
+
+        await db.Strings.SetAsync(key, "cached");
+        await PrimeAsync(db, cache, key, "cached");
+
+        var batch = db.BeginBatch();
+        var read = batch.Strings.GetAsync(key);
+        Assert.True(read.IsCompletedSuccessfully, "a cached answer needs no round trip, batched or not");
+        Assert.Equal("cached", (string?)await read);
+        await batch.ExecuteAsync();
+    }
+
     [Fact]
     public async Task AWriteElsewhereInvalidatesWhatTheMultiplexerCached()
     {

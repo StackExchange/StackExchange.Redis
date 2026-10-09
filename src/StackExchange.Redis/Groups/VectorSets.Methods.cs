@@ -113,7 +113,7 @@ public static partial class VectorSets
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<RedisValue> RandomMemberAsync(this RespVectorSets sets, RedisKey key, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<RedisValue>(
-            $"{RedisCommand.VRANDMEMBER}{key}", flags, cancellationToken: cancellationToken);
+            $"{RedisCommand.VRANDMEMBER}{key}", flags.NeverCached(), cancellationToken: cancellationToken);
 
     /// <summary>VRANDMEMBER with a count; negative allows repeats.</summary>
     /// <param name="sets">The vector-set command group.</param>
@@ -123,7 +123,7 @@ public static partial class VectorSets
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     public static ValueTask<ReadOnlyLease<RespValue>> RandomMembersAsync(this RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<ReadOnlyLease<RespValue>>(
-            $"{RedisCommand.VRANDMEMBER}{key}{count}", flags, cancellationToken: cancellationToken);
+            $"{RedisCommand.VRANDMEMBER}{key}{count}", flags.NeverCached(), cancellationToken: cancellationToken);
 
     /// <summary>VGETATTR: the JSON attributes attached to a member, or nil if it has none.</summary>
     /// <param name="sets">The vector-set command group.</param>
@@ -432,7 +432,7 @@ public static partial class VectorSets
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     internal static ValueTask<RedisValue[]> RandomMembersArray(this RespVectorSets sets, RedisKey key, long count, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sets.Context.SendAsync<RedisValue[]>(
-            $"{RedisCommand.VRANDMEMBER}{key}{count}", flags, cancellationToken: cancellationToken);
+            $"{RedisCommand.VRANDMEMBER}{key}{count}", flags.NeverCached(), cancellationToken: cancellationToken);
 
     /// <summary>The one renderer for VSIM; the handler is what differs between the two shapes.</summary>
     private static ValueTask<TResult> SimilaritySearchCore<TResult>(

@@ -1111,7 +1111,7 @@ namespace StackExchange.Redis
 
             // NoClientCache suppresses the PROBE as well as the store: opting out must mean the caller does
             // not get a cached answer either, not merely that this reply is not kept
-            if (cache is not null && cache.PermitsCaching(flags))
+            if (cache is not null && UsesCache(executor, cache, flags))
             {
                 if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, out var cached)) return cached;
 
@@ -1221,7 +1221,7 @@ namespace StackExchange.Redis
             var cache = context.Cache;
             NoteLocalWrite(cache, in request, flags);
 
-            if (cache is not null && cache.PermitsCaching(flags))
+            if (cache is not null && UsesCache(executor, cache, flags))
             {
                 if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, out var cached))
                 {
@@ -1432,6 +1432,25 @@ namespace StackExchange.Redis
         /// send path return tasks, and a caller - an <c>async</c> method composing several sends, say - may hold
         /// one before reading it. Allocates only on failure.
         /// </remarks>
+        /// <summary>Whether a send may be answered from, or stored into, the client-side cache.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Never inside a transaction.</b> A read queued between <c>MULTI</c> and <c>EXEC</c> is part of an
+        /// atomic unit: its answer is whatever the key holds when <c>EXEC</c> runs, interleaved with the
+        /// transaction's own writes. Answering it from the cache instead returns a value from before the
+        /// transaction - immediately, without queueing it - which is exactly the atomicity the caller asked for
+        /// and did not get. Storing the reply would be harmless, but there is nothing to gain from treating the
+        /// two halves differently.
+        /// </para>
+        /// <para>
+        /// A <b>batch</b> is not excluded: it is pipelining, not atomicity, and a cached answer to a batched
+        /// read is as good as any other. Local-write invalidation still runs for a transaction's writes - that
+        /// happens before this check, and erring early there only costs a refill.
+        /// </para>
+        /// </remarks>
+        private static bool UsesCache(RespExecutorBase executor, Caching.RespClientCache cache, CommandFlags flags)
+            => !executor.Transactional && cache.PermitsCaching(flags);
+
         /// <summary>Whether a send through <paramref name="context"/> should block, rather than go the asynchronous way.</summary>
         /// <remarks>
         /// <b>Asked of the executor as well as the context</b>, because not every executor can: one that queues
