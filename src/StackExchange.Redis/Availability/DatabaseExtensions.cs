@@ -54,9 +54,10 @@ public static class DatabaseExtensions
     /// groups, the cache, the key prefix - is untouched and unaware.
     /// </para>
     /// <para>
-    /// <b>Asynchronous only.</b> A synchronous send through the result throws: every pause a retry takes
-    /// is a <c>Task.Delay</c>, and the shipped retrying database refuses synchronous callers for the same
-    /// reason - it implements <see cref="IDatabaseAsync"/> and not <see cref="IDatabase"/>.
+    /// <b>Synchronous sends retry too</b> - including every send through a <see cref="RespContext.Blocking"/>
+    /// context made from the result - pausing between attempts by blocking the calling thread, which a
+    /// synchronous caller has already agreed to. The retrying database (the overload above) still implements
+    /// only <see cref="IDatabaseAsync"/>.
     /// </para>
     /// <para>
     /// <b>The policy is not resolved from configuration here</b>, as the database overload resolves it

@@ -21,11 +21,12 @@ namespace StackExchange.Redis.Availability;
 /// <see cref="RetryController"/>, so the two paths cannot disagree about policy.
 /// </para>
 /// <para>
-/// <b>Asynchronous only</b>, for the reason <see cref="RetryDatabase"/> gives for implementing only
-/// <see cref="IDatabaseAsync"/>: retry is inherently delay-ish, and every pause the controller asks for is
-/// a <see cref="Task.Delay(int)"/>. A synchronous send through a retrying context therefore throws rather
-/// than quietly getting no retry - which would be the same invisible loss that stops
-/// <c>RetryDatabase.GetContextCore</c> forwarding the inner context.
+/// <b>Synchronous too.</b> A synchronous send - which is what a <see cref="RespContext.Blocking"/> context
+/// makes every send - runs the same loop over the inner executor's synchronous <c>Send</c>, and pauses by
+/// blocking (<see cref="RetryController.FailoverOrDelay"/>) rather than with <see cref="Task.Delay(int)"/>.
+/// It used to throw, on the grounds that every pause was asynchronous; but a synchronous caller has
+/// already agreed to block for the whole operation, backoff included, and refusing made a retrying
+/// context the one kind that could not serve a library's synchronous methods.
 /// </para>
 /// <para>
 /// <b>Failover is not wired up yet.</b> <see cref="RetryDatabase"/> takes its next-failover token from
@@ -103,15 +104,28 @@ internal sealed class RespRetryExecutor : RespExecutorBase
 
     /// <inheritdoc/>
     /// <remarks><inheritdoc cref="RespRetryExecutor" path="/remarks/para[2]"/></remarks>
-    public override RespPayload Send(in RespRequest request) => throw NoSynchronousRetry();
+    public override RespPayload Send(in RespRequest request)
+    {
+        if (!_controller.CanEverRetry(request.Flags)) return _inner.Send(in request);
+
+        int attempt = 0;
+        CancellationToken failover = GetNextFailover(); // before the first attempt, as in Awaited
+        while (true)
+        {
+            try
+            {
+                return _inner.Send(in request);
+            }
+            catch (Exception ex) when (_controller.CanRetry(++attempt, ex, ref failover, out var delay))
+            {
+                _controller.FailoverOrDelay(delay);
+            }
+        }
+    }
 
     /// <inheritdoc/>
-    /// <remarks>No, for the reason <see cref="Send(in RespRequest)"/> refuses.</remarks>
-    internal override bool CanSendBlocking => false;
-
-    internal static InvalidOperationException NoSynchronousRetry() => new(
-        "A retrying context has no synchronous send: every pause a retry takes is asynchronous. "
-        + "Use the asynchronous surface, or compose the command from a context without retry.");
+    /// <remarks>Whenever the executor underneath can: the loop itself blocks happily.</remarks>
+    internal override bool CanSendBlocking => _inner.CanSendBlocking;
 
     /// <inheritdoc/>
     /// <remarks>
@@ -160,6 +174,27 @@ internal sealed class RespRetryExecutor : RespExecutorBase
         return pending.IsCompletedSuccessfully
             ? pending
             : AwaitedPair(pending, _inner, preamble, request, gate, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>The pair as one attempt, retried as one, as in <see cref="AwaitedPair"/>.</remarks>
+    internal override RespPayload Send(RespRequest preamble, RespRequest request, IRespPreambleGate? gate)
+    {
+        if (!_controller.CanEverRetry(request.Flags)) return _inner.Send(preamble, request, gate);
+
+        int attempt = 0;
+        CancellationToken failover = GetNextFailover();
+        while (true)
+        {
+            try
+            {
+                return _inner.Send(preamble, request, gate);
+            }
+            catch (Exception ex) when (_controller.CanRetry(++attempt, ex, ref failover, out var delay))
+            {
+                _controller.FailoverOrDelay(delay);
+            }
+        }
     }
 
     /// <summary>The retry loop, borrowed whole from <see cref="RetryDatabase"/>.</summary>

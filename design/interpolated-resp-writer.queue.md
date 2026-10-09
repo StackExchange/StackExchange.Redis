@@ -3621,9 +3621,8 @@ tripwire: when it can no longer find a generated group, the generator is done.
       **transaction** still refuses, and for a reason of its own - a transaction is replayed as a unit, and
       a per-frame retry executor would re-send individual frames inside a `MULTI`.
 
-      **Still open:** a synchronous send through a retrying context throws (every pause is a `Task.Delay`,
-      and the shipped retrying database declines synchronous callers by implementing only
-      `IDatabaseAsync`). And `WithRetry` on a context cannot resolve the configured policy the way the
+      **Closed 2026-10-09:** a synchronous send through a retrying context retries synchronously
+      (`RetryController.FailoverOrDelay`); it used to throw. **Still open:** `WithRetry` on a context cannot resolve the configured policy the way the
       `IDatabaseAsync` overload does, because a context carries no multiplexer - so it takes
       `RetryPolicy.Default` unless told otherwise. Attaching the policy as a context service would fix
       that.

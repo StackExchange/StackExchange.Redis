@@ -1420,9 +1420,9 @@ namespace StackExchange.Redis
         /// <summary>Whether a send through <paramref name="context"/> should block, rather than go the asynchronous way.</summary>
         /// <remarks>
         /// <b>Asked of the executor as well as the context</b>, because not every executor can: one that queues
-        /// (a batch, a transaction) has nothing to wait for until it is executed, and a retrying one pauses
-        /// between attempts asynchronously. Those take the ordinary path, and a synchronous caller blocks on
-        /// that task instead - which is what it did before blocking contexts existed, pool dependency included.
+        /// (a batch, a transaction) has nothing to wait for until it is executed. Those take the ordinary path,
+        /// and a synchronous caller blocks on that task instead - which is what it did before blocking contexts
+        /// existed, pool dependency included. (A retrying executor can: it retries synchronously.)
         /// </remarks>
         private static bool Blocks(RespContext context) => context.IsBlocking && context.Executor is { CanSendBlocking: true };
 

@@ -205,7 +205,7 @@ public static RedisValue Substring(this in ContosoCommands contoso, RedisKey key
     => new ContosoCommands(contoso.Context.Blocking()).SubstringAsync(key, start, end, flags).GetAwaiter().GetResult();
 ```
 
-This is how the synchronous `IDatabase` methods work. A command that takes several round trips works too, because each send completes before the next is issued. It does not wait for a thread-pool thread to wake the caller, which is the usual hazard of blocking on an async API. The exceptions are a batch, a transaction and a retrying context, which cannot block and send asynchronously instead - see the remarks on `RespContext.Blocking`.
+This is how the synchronous `IDatabase` methods work. A command that takes several round trips works too, because each send completes before the next is issued. It does not wait for a thread-pool thread to wake the caller, which is the usual hazard of blocking on an async API. A retrying context blocks too, pausing between attempts on the calling thread. The exception is a batch or transaction, whose commands are not sent until it is executed - see the remarks on `RespContext.Blocking`.
 
 ### What you do not have to do
 

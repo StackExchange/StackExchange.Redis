@@ -215,7 +215,7 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
   the blocked thread - so the group method returns an already-completed `ValueTask` and `Wait` only takes the
   result. No continuation runs anywhere, so a saturated pool cannot strand a reply that has arrived (given a
   reader that does not itself need the pool: see the ledger on `DedicatedThreads`). A composite command is
-  several sends, each completing inline. Contexts that cannot block - retrying ones, batches, transactions -
+  several sends, each completing inline. Contexts that cannot block - batches and transactions (retry blocks, retrying synchronously) -
   send asynchronously and `Wait` blocks on the task, as everything did before.
 - **Batches and transactions** are `RespOperationBatchExecutor` and `RespTransactionExecutor` contexts behind
   the same shim; `Execute` sends what was queued, and an `IBatch`/`ITransaction` can be executed again.

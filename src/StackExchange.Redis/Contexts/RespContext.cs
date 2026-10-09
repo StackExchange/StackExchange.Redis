@@ -95,11 +95,9 @@ namespace StackExchange.Redis
         /// <b>Not for asynchronous code</b>: every send through it blocks the calling thread until its reply.
         /// </para>
         /// <para>
-        /// <b>Two kinds of context cannot block, and send asynchronously instead</b>: a batch or transaction,
-        /// whose commands are not sent until it is executed, and a retrying context, which pauses between
-        /// attempts asynchronously. There the <c>ValueTask</c> may still be pending, and <c>GetResult</c> on a
-        /// pending one throws rather than waits; to block on those, use <c>.AsTask().GetAwaiter().GetResult()</c>,
-        /// which does wait - and, like any sync-over-async, needs a thread-pool thread to wake it.
+        /// <b>A batch or transaction cannot block</b>, because its commands are not sent until it is executed, so
+        /// its sends stay asynchronous; awaiting one before then is the usual mistake either way. A retrying
+        /// context does block - it retries synchronously, pausing between attempts on the calling thread.
         /// </para>
         /// </remarks>
         /// <returns>The blocking context.</returns>

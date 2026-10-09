@@ -91,7 +91,7 @@ var blocking = db.Context.Blocking();   // once; it is a context like any other
 RedisValue value = blocking.Strings.GetAsync("greeting").GetAwaiter().GetResult();
 ```
 
-This is how the synchronous `IDatabase` methods are implemented, and it is the supported way for a library to offer synchronous forms of its own commands. It does not depend on the thread pool to wake the caller. A batch, a transaction or a retrying context cannot block, and sends asynchronously as usual - see [Sync over async](SyncOverAsync) for why you usually don't want to block at all.
+This is how the synchronous `IDatabase` methods are implemented, and it is the supported way for a library to offer synchronous forms of its own commands. It does not depend on the thread pool to wake the caller. A retrying context blocks too, retries included; a batch or transaction cannot (nothing is sent until it is executed), and sends asynchronously as usual - see [Sync over async](SyncOverAsync) for why you usually don't want to block at all.
 
 Batches and transactions
 ---

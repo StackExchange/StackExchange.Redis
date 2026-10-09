@@ -45,7 +45,7 @@ Each has a default the work proceeds on until answered.
   `RunContinuationsAsynchronously`, which survives a reset: across lives (the inline continuation recycled the
   instance before the `finally` restored it) and within one (TrySetCanceledInline flipped it before claiming).
   12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
-- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`;
+- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`, `RespAggregateProtoTests.ADeferredWalkNeedsNoStorageAtAll` (net8, full suite only; per-thread allocation measure);
   `RedisBatchTests.AWatchConflictIsDistinctFromAFailedCondition` timed out once (fake transport) on a
   heavily loaded machine, 20/20 since.
   Pub/sub under full-suite load, each once and each clean in isolation: `MultiGroupTests...PubSubOrderedRouted`
@@ -247,9 +247,10 @@ Each has a default the work proceeds on until answered.
   `SyncPump` and RESPite's `IContinuationSink`/interposition machinery are deleted. The endpoint's blocking
   wait got the backstop `SyncWait` had (2x sync timeout + 5s when heartbeat-driven), from an explicit
   `SyncTimeoutMilliseconds` rather than via the modelled server, which can be null. Executors that cannot
-  block (`CanSendBlocking`: retry, batch, transaction) send asynchronously and `SyncWait` blocks on the task,
-  so `ctx.WithRetry().AsDatabase(mux)` sync calls still work - pool-dependent, as before. **Open:** a real
-  synchronous retry loop (`Thread.Sleep`/failover wait handle) would remove that last exception.
+  block (`CanSendBlocking`: batch, transaction) send asynchronously and `SyncWait` blocks on the task.
+  Retry blocks since 2026-10-09: `RespRetryExecutor.Send` (single and pair) runs the loop over the inner
+  synchronous send, pausing with `RetryController.FailoverOrDelay` (`Thread.Sleep`, or the failover token's
+  wait handle) - prompted by the NRedisStack port, which proxies through the retry wrapper.
 
 - **2026-10-08: InlineSends, ON by default since 10 clean full-suite runs (opt out: `SEREDIS_INLINESENDS=0`).** A caller whose request is
   alone in flight on its connection sends its own bytes instead of waking the writer loop; bounded to what was

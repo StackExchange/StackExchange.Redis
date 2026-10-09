@@ -42,7 +42,16 @@ public class RespRetryExecutorTests
 
         public override int Database => 0;
 
-        public override RespPayload Send(in RespRequest request) => throw new NotSupportedException();
+        /// <summary>How many sends came through the synchronous path.</summary>
+        public int SyncSends { get; private set; }
+
+        // the same script either way: the synchronous path throws what the asynchronous one faults with
+        public override RespPayload Send(in RespRequest request)
+        {
+            SyncSends++;
+            var pending = SendAsync(request);
+            return pending.IsCompletedSuccessfully ? pending.Result : throw pending.AsTask().Exception!.InnerException!;
+        }
 
         public override ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
         {
@@ -142,24 +151,73 @@ public class RespRetryExecutorTests
     }
 
     /// <summary>
-    /// A synchronous send through a retrying context refuses, rather than quietly not retrying.
+    /// A synchronous send retries too, through the inner executor's synchronous send.
     /// </summary>
     /// <remarks>
-    /// The same position the shipped retrying database takes by implementing <see cref="IDatabaseAsync"/>
-    /// and not <see cref="IDatabase"/>: every pause a retry takes is asynchronous, so there is no honest
-    /// synchronous answer. Silently forwarding would lose the retry invisibly, which is the failure
-    /// <c>RetryDatabase.GetContextCore</c> refuses to ship.
+    /// It used to refuse, because every pause was asynchronous; but a synchronous caller has already agreed
+    /// to block, and refusing made a retrying context the one kind a blocking context could not serve.
     /// </remarks>
     [Fact]
-    public void ASynchronousSendRefuses()
+    public void ASynchronousSendRetries()
     {
-        // through the raw context, because the group surface has no synchronous spelling to reach it by -
-        // which is itself most of the reason refusing here is tolerable
-        var target = Target(new FlakyExecutor(failures: 0), Fast(5));
+        var executor = new FlakyExecutor(failures: 2);
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => target.Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None));
-        Assert.Contains("no synchronous send", ex.Message);
+        Assert.Equal("marc", (string?)Target(executor, Fast(5)).Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None));
+
+        Assert.Equal(3, executor.SyncSends); // every attempt synchronous: nothing went the asynchronous way
+        Assert.All(executor.Sent, sent => Assert.Equal("*2|$3|GET|$1|k|", sent));
+    }
+
+    [Fact]
+    public void ASynchronousSendCapsAttemptsAndPropagatesTheLastFault()
+    {
+        var executor = new FlakyExecutor(failures: 10);
+
+        var ex = Assert.Throws<RedisConnectionException>(
+            () => Target(executor, Fast(3)).Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None));
+
+        Assert.Equal("boom", ex.Message);
+        Assert.Equal(3, executor.SyncSends);
+    }
+
+    [Fact]
+    public void ASynchronousSendHonoursAPolicyThatRefuses()
+    {
+        var executor = new FlakyExecutor(failures: 10, status: CommandStatus.Sent);
+
+        Assert.Throws<RedisConnectionException>(
+            () => Target(executor, Fast(5)).Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None));
+
+        Assert.Equal(1, executor.SyncSends);
+    }
+
+    /// <summary>
+    /// A blocking context over a retrying one blocks, retries included: the group method hands back a task
+    /// that has already completed, which is what a library's synchronous method relies on.
+    /// </summary>
+    [Fact]
+    public void ABlockingContextRetriesAndCompletesInline()
+    {
+        var executor = new FlakyExecutor(failures: 2);
+
+        var done = Target(executor, Fast(5)).Blocking().Strings.GetAsync("k");
+
+        Assert.True(done.IsCompletedSuccessfully);
+        Assert.Equal("marc", (string?)done.GetAwaiter().GetResult());
+        Assert.Equal(3, executor.SyncSends);
+    }
+
+    /// <summary>The synchronous pause is a real pause: the policy's delay still separates the attempts.</summary>
+    [Fact]
+    public void ASynchronousRetryWaitsTheConfiguredDelay()
+    {
+        var executor = new FlakyExecutor(failures: 2);
+        var policy = new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.FromMilliseconds(50), JitterMax = TimeSpan.Zero }.Create();
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Equal("marc", (string?)Target(executor, policy).Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)"k"}", CommandFlags.None));
+
+        Assert.True(watch.ElapsedMilliseconds >= 90, $"two pauses of 50ms took {watch.ElapsedMilliseconds}ms");
     }
 
     /// <summary>

@@ -190,6 +190,31 @@ internal sealed class RetryController
         return Task.Delay(_delayMillis + ServerSelectionStrategy.SharedRandom.Next(_jitterMillis), CancellationToken.None);
     }
 
+    /// <summary>As <see cref="FailoverOrDelayAsync"/>, blocking the calling thread for the pause.</summary>
+    /// <param name="delay">The failover to wait for, or an uncancellable token for a routine pause.</param>
+    /// <remarks>
+    /// For a synchronous caller, which is already prepared to block for the whole operation - so blocking
+    /// for the backoff too is what it asked for, and needs no thread-pool thread to resume it. The same
+    /// pauses as the asynchronous form: the failover wait ends early when the token fires, and the jitter
+    /// is added either way, for the same reason.
+    /// </remarks>
+    public void FailoverOrDelay(CancellationToken delay)
+    {
+        if (delay.CanBeCanceled)
+        {
+            if (!delay.IsCancellationRequested) delay.WaitHandle.WaitOne(_failoverMillis);
+            Pause(ServerSelectionStrategy.SharedRandom.Next(_jitterMillis));
+            return;
+        }
+
+        Pause(_delayMillis + ServerSelectionStrategy.SharedRandom.Next(_jitterMillis));
+
+        static void Pause(int milliseconds)
+        {
+            if (milliseconds > 0) Thread.Sleep(milliseconds);
+        }
+    }
+
     private async Task AwaitFailover(CancellationToken failover)
     {
         if (!failover.IsCancellationRequested)

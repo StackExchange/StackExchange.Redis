@@ -498,9 +498,11 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.Equal("abc", (string?)await context.Strings.GetAsync(key));
 
         // the retry really is in the chain, rather than the inner executor having been handed back
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => context.Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)key}", CommandFlags.None));
-        Assert.Contains("no synchronous send", ex.Message);
+        Assert.IsType<RespRetryExecutor>(context.Raw.Executor);
+
+        // ...and the synchronous path goes through it to a real server, as a blocking context's sends do
+        Assert.Equal("abc", (string?)context.Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)key}", CommandFlags.None));
+        Assert.Equal("abc", (string?)context.Blocking().Strings.GetAsync(key).GetAwaiter().GetResult());
     }
 
     /// <summary>

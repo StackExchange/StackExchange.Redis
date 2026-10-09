@@ -101,14 +101,14 @@ public class RespBlockingContextTests
     }
 
     [Fact]
-    public void ARetryingContextSendsAsynchronouslyInstead()
+    public void ARetryingContextBlocksToo()
     {
-        // a retry pauses asynchronously, so it cannot block; the context falls back to the ordinary path
-        // rather than refusing, and a synchronous caller blocks on that task as it always did
-        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(new FakeExecutor("$1\r\nv\r\n"))).WithRetry();
-        var done = ctx.Blocking().Strings.GetAsync("k");
+        // the retry loop blocks as happily as anything else, so the context does not fall back to async
+        var executor = new SyncOnlyExecutor("$1\r\nv\r\n");
+        var done = new RespDatabaseContext(new RespContext().WithExecutor(executor)).WithRetry().Blocking().Strings.GetAsync("k");
 
-        Assert.Equal("v", (string?)done.AsTask().GetAwaiter().GetResult());
+        Assert.True(done.IsCompletedSuccessfully);
+        Assert.Equal("v", (string?)done.GetAwaiter().GetResult());
     }
 
     [Fact]
