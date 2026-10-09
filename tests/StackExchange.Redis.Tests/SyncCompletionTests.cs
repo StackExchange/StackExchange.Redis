@@ -69,9 +69,10 @@ public class SyncCompletionTests(ITestOutputHelper output) : TestBase(output)
 
             // ...and costs the pool nothing at all: the connection was opened synchronously, so its socket never
             // registered for asynchronous IO, and a reply wakes the blocked reader without a pool work item (see
-            // RespTransportFactory.RunBlocking). A tenth, not zero, for the timers that share the process.
+            // RespTransportFactory.RunBlocking). A quarter, not zero, for whatever else shares the process: the
+            // regression this guards is one item per call, and a CI runner has measured 60 in 500 without it.
             Assert.True(
-                sync <= Calls / 10,
+                sync <= Calls / 4,
                 $"a dedicated connection's synchronous calls should not need the pool at all: {sync} pool work items for {Calls} calls");
         }
         finally
