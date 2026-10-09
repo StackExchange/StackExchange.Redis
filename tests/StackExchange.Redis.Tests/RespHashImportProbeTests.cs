@@ -51,7 +51,11 @@ public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedCo
 
     private async Task<IConnectionMultiplexer> RequireHashImportAsync()
     {
-        var conn = Create();
+        // NOT shared: these probes count what one connection writes, and a shared multiplexer carries every
+        // concurrently running test's traffic too. A batch or transaction elsewhere holds the write slot for
+        // its run, and a pair sent in that instant takes the sequential path - a second PREPARE, correctly,
+        // and a probe failure ("injections 1, established 2") seen only under a full parallel run.
+        var conn = Create(shared: false);
         var server = conn.GetServers()[0];
         var info = await server.ExecuteAsync("COMMAND", "INFO", "HIMPORT");
         // an unknown command still answers, with a nil entry - which is the "not supported" signal here

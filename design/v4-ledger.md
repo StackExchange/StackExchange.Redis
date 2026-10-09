@@ -45,6 +45,8 @@ Each has a default the work proceeds on until answered.
   `RunContinuationsAsynchronously`, which survives a reset: across lives (the inline continuation recycled the
   instance before the `finally` restored it) and within one (TrySetCanceledInline flipped it before claiming).
   12/12 local full runs clean afterwards, against ~1 in 5-7 stalling before; no 5s timeouts at all.
+- **Fixed 2026-10-09:** `ReadOnlyLeaseTests.PrimitiveElementsAreNotClearedOnReturn` (Windows CI twice) asserted
+  on whatever the process-shared `ArrayPool` handed back; it now asserts only when it is the same array.
 - **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`, `RespAggregateProtoTests.ADeferredWalkNeedsNoStorageAtAll` (net8, full suite only; per-thread allocation measure);
   `RedisBatchTests.AWatchConflictIsDistinctFromAFailedCondition` timed out once (fake transport) on a
   heavily loaded machine, 20/20 since.
@@ -52,7 +54,10 @@ Each has a default the work proceeds on until answered.
   and `...PubSubRouted` (RESP3), `PubSubKeyNotificationTestsCluster.KeyNotification_CanObserveSimple_ViaQueue`.
   `PubSubRouted` and `KeyNotification_CanObserveSimple_ViaQueue` have each now failed in two full runs (RESP2
   and RESP3), always clean in isolation and in the run after; the leading suspect if a pattern holds.
-  (`RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeam...` was a startup race in the TEST, now
+  (`RespHashImportProbeTests.AConnectionLocalPreambleIsTheScriptSeam...` kept recurring after that fix - CI
+  once, local net8 twice - and the second cause was isolation: the probe ran on the SHARED multiplexer, so any
+  concurrent test's batch or transaction holding the write slot sent the next pair sequential. Now
+  `Create(shared: false)`, 2026-10-09. The first cause was a startup race in the TEST, also
   fixed: a pair sent while the post-connect drain holds the write slot goes sequential, which sends the
   PREPARE without asking the gate; the connection-local gate rightly does not claim on being told, so the
   next pair prepared again. Product behaviour is by design: at worst one redundant, idempotent PREPARE per

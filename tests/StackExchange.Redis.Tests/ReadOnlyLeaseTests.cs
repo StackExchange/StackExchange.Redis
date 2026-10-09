@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Buffers;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using RESPite.Messages;
 using StackExchange.Redis;
@@ -139,14 +141,19 @@ public class ReadOnlyLeaseTests
     {
         var lease = ReadOnlyLease<string>.Rent(4, null, out var target);
         for (var i = 0; i < target.Length; i++) target[i] = "value" + i;
+        ref var leased = ref MemoryMarshal.GetReference(target);
         lease.Dispose();
 
         var reused = ArrayPool<string>.Shared.Rent(4);
         try
         {
-            foreach (var slot in reused)
+            // only when it IS the same array: the shared pool serves the whole process, concurrently
+            if (Unsafe.AreSame(ref leased, ref reused[0]))
             {
-                Assert.Null(slot);
+                foreach (var slot in reused)
+                {
+                    Assert.Null(slot);
+                }
             }
         }
         finally
@@ -165,14 +172,20 @@ public class ReadOnlyLeaseTests
     {
         var lease = ReadOnlyLease<byte>.Rent(4, null, out var target);
         target.Fill(0xAB);
+        ref var leased = ref MemoryMarshal.GetReference(target);
         lease.Dispose();
 
         var reused = ArrayPool<byte>.Shared.Rent(4);
         try
         {
-            // if this ever legitimately hands back a different buffer, the assertion below is vacuous
-            // rather than wrong - which is the right way round for a test about an optimisation
-            Assert.Contains(reused, b => b == 0xAB);
+            // if this hands back a different buffer, the assertion is skipped rather than failed - which is the
+            // right way round for a test about an optimisation. It said so before and did not do it: the shared
+            // pool serves the whole test process, so under a parallel run another thread's array came back and
+            // Assert.Contains failed (seen twice on Windows CI).
+            if (Unsafe.AreSame(ref leased, ref reused[0]))
+            {
+                Assert.All(reused.AsSpan(0, 4).ToArray(), b => Assert.Equal(0xAB, b));
+            }
         }
         finally
         {
