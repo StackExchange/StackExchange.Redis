@@ -206,16 +206,26 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// <b>Forwarded, like the other capabilities.</b> Not forwarding it meant a view over a batch or a
-        /// transaction answered "no, I send each command as it arrives" while queueing every one of them -
-        /// and the answer is consulted for correctness, not tuning: <c>Scripts</c> asks it to decide
-        /// whether to inline a script body, so over a wrapper it would pair SCRIPT LOAD with EVALSHA
-        /// inside MULTI/EXEC and shift every result in the EXEC array.
+        /// <para>
+        /// <b>Always false here, and answered without routing.</b> The wrappers forward this (see
+        /// <see cref="RespDatabaseExecutor"/>), because a view over a batch or transaction that answered "I send each
+        /// command as it arrives" while queueing every one would let <c>Scripts</c> pair SCRIPT LOAD with EVALSHA
+        /// inside MULTI/EXEC and shift every EXEC result. But this executor is never such a view: its routes - built in
+        /// <c>RespConnectionManager.Rebind</c>, its only construction - reach endpoint executors and database views
+        /// over them, never a batch or a transaction. Those wrap THIS, not the other way round.
+        /// </para>
+        /// <para>
+        /// <b>Why it matters.</b> This used to forward by resolving a route, which is server selection plus the
+        /// endpoint's connected check - a lock - and it is asked on hot paths: <c>CanSendBlocking</c> on every
+        /// blocking send (the sync <see cref="IDatabase"/> surface), and <see cref="Transactional"/> on every cached
+        /// read - which RespFest's smoke test saw as the cached happy path ~30% slower in 4.0.99, with that lock shared
+        /// by every thread reading through the same endpoint.
+        /// </para>
         /// </remarks>
-        internal override bool Accumulates => ResolveFor(default, RedisCommand.NONE, CommandFlags.None) is { Accumulates: true };
+        internal override bool Accumulates => false;
 
-        /// <inheritdoc/>
-        internal override bool Transactional => ResolveFor(default, RedisCommand.NONE, CommandFlags.None) is { Transactional: true };
+        /// <inheritdoc cref="Accumulates"/>
+        internal override bool Transactional => false;
 
         /// <inheritdoc cref="CanWritePreamble"/>
         public override ValueTask<RespPayload> SendAsync(
