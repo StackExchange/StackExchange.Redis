@@ -210,6 +210,18 @@ namespace StackExchange.Redis
             return ssl.AuthenticateAsClientAsync(host, certificateCollection, allowedProtocols.Value, checkCertificateRevocation);
         }
 
+        /// <inheritdoc cref="AuthenticateAsClientAsync(SslStream, string, SslProtocols?, bool)"/>
+        internal static void AuthenticateAsClient(this SslStream ssl, string host, SslProtocols? allowedProtocols, bool checkCertificateRevocation)
+        {
+            if (!allowedProtocols.HasValue)
+            {
+                ssl.AuthenticateAsClient(host);
+                return;
+            }
+
+            ssl.AuthenticateAsClient(host, new X509CertificateCollection(), allowedProtocols.Value, checkCertificateRevocation);
+        }
+
         /// <summary>
         /// Represent a byte-Lease as a read-only Stream.
         /// </summary>

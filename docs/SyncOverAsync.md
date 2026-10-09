@@ -126,19 +126,19 @@ which usually converts "everything times out" into "the application is slow, and
 blocking". That is a much better place to debug from, and for many applications it is enough to restore
 service while the real fix is made. It is not a licence to keep the blocking calls.
 
-Two caveats worth knowing before you enable it:
+Three things worth knowing before you enable it:
 
 - it costs a reader and a writer thread **for each node you connect to** (not RESP2 pub/sub connections, which
   stay on the thread-pool; RESP3 does not use separate pub/sub connections), so think about it before enabling
   it against a very wide cluster, where that scales with the number of shards;
 - it is deliberately opt-in, and set process-wide at startup rather than per-connection.
-- **on Linux, also set `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS=1`** if the point is to survive a
-  saturated pool. The runtime completes socket readiness notifications on the thread-pool even for a
-  synchronous read on a dedicated thread, once the socket has done any asynchronous operation (connecting
-  does) - so without it, a starved pool can still delay the reader being told the reply has arrived. That
-  setting is process-wide and changes where *all* socket completions run, so measure before adopting it.
+- its connections are opened synchronously - connect and TLS handshake - on a thread of their own. That is
+  what keeps them independent of the pool on Linux, where a socket that has done any asynchronous operation is
+  woken through the thread-pool even for a synchronous read. (Earlier builds needed
+  `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS=1` for this; it is no longer necessary.) A configured `Tunnel`
+  is the exception: its hooks may use the socket asynchronously, so a tunnelled connection connects as usual.
 
-Neither is meant to be permanent, and the first one especially. Work is in progress on dedicated readers built
+The first two are not meant to be permanent, and the first especially. Work is in progress on dedicated readers built
 over the platform's native completion machinery — `io_uring` on Linux, IOCP on Windows — which would service
 many connections from a small fixed set of threads rather than a pair per connection. That is the thing that
 would make this practical at any width. There is no date on it, and nothing here depends on it; but if you

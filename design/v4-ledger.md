@@ -13,7 +13,7 @@ Each has a default the work proceeds on until answered.
 | # | question | default meanwhile |
 |---|---|---|
 | D1 | **#3251's intent (split socket fill from parsing) on v4?** v4 still parses inline on the read loop, async and sync. The throwaway port (`marc/v4-filler-experiment`) measured +39% `get-1k-conc64`, and with a 200-spin park + 64 KiB buffers led every concurrent scenario; cost ~5% on `incr-conc64` and 3-5% sequential. Options: port before the alpha / port as opt-in / after the alpha. | not ported |
-| D2 | **Linux: the `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS` question.** Once a socket has done any async op (connect, TLS), the runtime routes readiness through the thread pool - even for a DedicatedThreads reader. The env var removes it (measured: 500 sync calls, 0 pool items), but it is process-wide and read at runtime start, so the library cannot set it for the caller. Options: (a) document only; (b) connect + TLS synchronously for dedicated connections, so the socket never goes async; (c) both. v3 behaved the same. | (a), documented in `docs/SyncOverAsync.md` |
+| D2 | **Linux: the `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS` question.** Once a socket has done any async op (connect, TLS), the runtime routes readiness through the thread pool - even for a DedicatedThreads reader. The env var removes it (measured: 500 sync calls, 0 pool items), but it is process-wide and read at runtime start, so the library cannot set it for the caller. Options: (a) document only; (b) connect + TLS synchronously for dedicated connections, so the socket never goes async; (c) both. v3 behaved the same. | **(b), 2026-10-09, pending review**: dedicated connections connect and run TLS synchronously (`RespTransportFactory.RunBlocking`), so the socket never registers; the env var is no longer needed. Docs updated. |
 | D3 | **When to cut the first alpha**, and who presses the button: a GitHub Release tagged `v4.0.N-alpha` on `v4` runs `release.yml`. The release dry run (`gh workflow run release.yml --ref v4`) has not been run - it needs your permission. | wait for green `v4` CI, then ask |
 | D4 | **Post the v4-port findings to PR #3251?** Drafted (spin-before-park +2.6% on `incr-conc64` in #3251's own reader; read-size hint is a hypothesis; drain-per-wake does not pay). Outward-facing. | not posted |
 | D5 | **SER014 batch/transaction, unsettled parts:** conditions borrow the shipped `Condition` type (new spelling later?); whether `RespBatch`/`RespTransaction` stay structs. | as shipped in 2ca83a9d |
@@ -133,6 +133,19 @@ Each has a default the work proceeds on until answered.
   alike, and probably v3. `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS=1` removes it entirely. Options: document
   that alongside `DedicatedThreads`, or have the dedicated reader (and writer) wait with `Socket.Poll` - a direct
   syscall - before each blocking call, so it never needs the pool.
+  **2026-10-09, fixed (D2 option b, pending review).** Probed first (scratchpad `sockprobe`, PING round trips over
+  loopback): async connect 57.6us CPU + 1 pool item per round trip; `Poll` before `Receive` 50.9us and STILL 1 pool
+  item - the cost is the epoll registration itself, which queues a pool item per readiness event whether or not
+  anyone waits; `Socket.Blocking = true` changes nothing; a socket that was only ever used synchronously 7.6us and 0.
+  Dispose wakes a blocked `Receive` and a blocked `Poll` alike. After connect, a dedicated connection already did
+  only synchronous IO (the Sync writer never transitions, inline sends defer to it), so the fix is the connect:
+  `Socket.Connect` and `SslStream.AuthenticateAsClient` on a LongRunning thread (the connect timeout races the
+  attempt), with cancellation disposing the socket; not with a tunnel. Results, dedicated, no env var:
+  `IDatabase` sync seq 25.6k ops/s at 16.1us CPU (was 20.4k at 78us); TLS 23.7us vs 105us default, 0 pool items;
+  starved pool, every sync path runs. `SyncCompletionTests` now asserts the absolute (500 -> 0 pool items).
+  **Side finding, not fixed:** in DEFAULT mode an abandoned connect (timeout) keeps its socket in SYN-SENT until
+  the OS gives up - `ConnectAsync` is called without the token. 5 blackholed attempts left 5 sockets; dedicated
+  mode leaves none.
 
 - **Batch/transaction buffer packing**: write a batch's commands adjacently into one shared buffer, rather
   than one rented frame per command, and hand the transport one contiguous run. The abandoned v3-era RESPite

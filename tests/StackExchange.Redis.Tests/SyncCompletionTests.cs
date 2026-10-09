@@ -18,12 +18,12 @@ namespace StackExchange.Redis.Tests;
 /// operation is waited on directly, through a blocking context (see <c>RespContext.Blocking</c>).
 /// </para>
 /// <para>
-/// <b>Measured relative to blocking on the async API</b>, which still pays the hop, rather than as an absolute:
-/// the socket layer has costs of its own that vary by platform - on Linux a socket that has done any async
-/// operation completes even synchronous reads through the pool unless
-/// <c>DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS=1</c> (measured: 0 pool items for 500 sync calls with it, 500
-/// without, either way one fewer per call than the async API). In the non-parallel collection, so nothing
-/// else is using the pool.
+/// <b>Measured relative to blocking on the async API</b>, which still pays the hop, and also as an absolute.
+/// The absolute is the socket's: on Linux a socket that has done any async operation is registered with the
+/// runtime's epoll engine, which wakes even a synchronous read through the pool - so a dedicated connection
+/// is now opened synchronously, and costs none (measured: 500 pool items for 500 sync calls before, 0 after;
+/// <c>DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS=1</c> had the same effect process-wide). In the
+/// non-parallel collection, so nothing else is using the pool.
 /// </para>
 /// </remarks>
 [Collection(NonParallelCollection.Name)]
@@ -66,6 +66,13 @@ public class SyncCompletionTests(ITestOutputHelper output) : TestBase(output)
             Assert.True(
                 sync <= blockedOnAsync - (Calls * 8 / 10),
                 $"a synchronous call should save the completion hop: {sync} vs {blockedOnAsync} pool work items for {Calls} calls");
+
+            // ...and costs the pool nothing at all: the connection was opened synchronously, so its socket never
+            // registered for asynchronous IO, and a reply wakes the blocked reader without a pool work item (see
+            // RespTransportFactory.RunBlocking). A tenth, not zero, for the timers that share the process.
+            Assert.True(
+                sync <= Calls / 10,
+                $"a dedicated connection's synchronous calls should not need the pool at all: {sync} pool work items for {Calls} calls");
         }
         finally
         {

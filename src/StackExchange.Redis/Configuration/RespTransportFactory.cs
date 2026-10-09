@@ -122,6 +122,11 @@ namespace StackExchange.Redis
 #pragma warning disable CS0618 // the TYPE is obsolete for public consumers; this static is the live path
             var socket = connectTo is null ? null : SocketManager.CreateSocket(connectTo, config.TcpKeepAlive);
 #pragma warning restore CS0618
+
+            // A connection with threads of its own never touches the socket asynchronously - see RunBlocking.
+            // Not with a tunnel: its hooks are the caller's code, and may do anything to the socket.
+            var writeMode = ResolveWriteMode(connectionType, config.WriteMode, ConnectionMultiplexer.DedicatedThreads);
+            var blocking = writeMode == BufferedStreamWriter.WriteMode.Sync && tunnel is null && socket is not null;
             try
             {
                 if (socket is not null)
@@ -134,7 +139,14 @@ namespace StackExchange.Redis
                         await tunnel.BeforeSocketConnectAsync(endpoint, connectionType, socket, cancellationToken).ConfigureAwait(false);
                     }
 
-                    await ConnectSocketAsync(socket, connectTo!).ConfigureAwait(false);
+                    if (blocking)
+                    {
+                        await RunBlocking(static state => state.Connect(), new BlockingConnect(socket, connectTo!), socket, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await ConnectSocketAsync(socket, connectTo!).ConfigureAwait(false);
+                    }
                 }
 
                 // a tunnel may hand back its own stream - over our socket for a SOCKS or CONNECT proxy,
@@ -168,6 +180,8 @@ namespace StackExchange.Redis
                         stream,
                         endpoint,
                         config,
+                        blocking ? socket : null,
+                        cancellationToken,
                         ex =>
                         {
                             onAuthSuspect?.Invoke(ex);
@@ -186,7 +200,7 @@ namespace StackExchange.Redis
                 return new ConnectedTransport(
                     new StreamDuplexTransport(
                         stream,
-                        ResolveWriteMode(connectionType, config.WriteMode, ConnectionMultiplexer.DedicatedThreads),
+                        writeMode,
                         config.RequestBufferPool,
                         encrypted,
                         splitReadAndParse: !ConnectionMultiplexer.SingleReadLoop,
@@ -306,8 +320,27 @@ namespace StackExchange.Redis
         /// <c>AuthenticateAsClientAsync</c> is used on which target.
         /// </para>
         /// </remarks>
-        internal static async Task<SslStream> AuthenticateAsync(
+        internal static Task<SslStream> AuthenticateAsync(
             Stream stream, EndPoint endpoint, ConfigurationOptions config, Action<Exception>? onAuthSuspect)
+            => AuthenticateAsync(stream, endpoint, config, null, default, onAuthSuspect);
+
+        /// <inheritdoc cref="AuthenticateAsync(Stream, EndPoint, ConfigurationOptions, Action{Exception}?)"/>
+        /// <param name="stream">The stream to encrypt.</param>
+        /// <param name="endpoint">Stands in for the host to verify against when none is configured.</param>
+        /// <param name="config">Carries the host, callbacks, protocols and revocation setting.</param>
+        /// <param name="blockingSocket">
+        /// The socket under <paramref name="stream"/>, when the handshake must be synchronous so that the socket
+        /// never registers for asynchronous IO; see <see cref="RunBlocking"/>. Null for the ordinary handshake.
+        /// </param>
+        /// <param name="cancellationToken">Abandons a synchronous handshake, by disposing the socket.</param>
+        /// <param name="onAuthSuspect">Told when the handshake fails, before the exception propagates.</param>
+        internal static async Task<SslStream> AuthenticateAsync(
+            Stream stream,
+            EndPoint endpoint,
+            ConfigurationOptions config,
+            Socket? blockingSocket,
+            CancellationToken cancellationToken,
+            Action<Exception>? onAuthSuspect)
         {
             // ConfigurationOptions.ResolveTlsHostName, not a second copy of the rule. This used to read
             // `SslHost, or the endpoint's host if that is blank`, which is what the shipped connection
@@ -324,6 +357,11 @@ namespace StackExchange.Redis
 
             try
             {
+                if (blockingSocket is not null)
+                {
+                    await RunBlocking(static state => state.Authenticate(), new BlockingHandshake(ssl, host!, config), blockingSocket, cancellationToken).ConfigureAwait(false);
+                    return ssl;
+                }
 #if NET
                 var options = config.SslClientAuthenticationOptions?.Invoke(host!);
                 if (options is not null)
@@ -354,5 +392,67 @@ namespace StackExchange.Redis
             DnsEndPoint dns => socket.ConnectAsync(dns.Host, dns.Port),
             _ => socket.ConnectAsync(endpoint),
         };
+
+        /// <summary>The synchronous connect, for <see cref="RunBlocking"/>; a struct, as the library takes no <c>ValueTuple</c>.</summary>
+        private readonly struct BlockingConnect(Socket socket, EndPoint endpoint)
+        {
+            internal void Connect()
+            {
+                if (endpoint is DnsEndPoint dns) socket.Connect(dns.Host, dns.Port);
+                else socket.Connect(endpoint);
+            }
+        }
+
+        /// <summary>The synchronous TLS handshake, with the same choice of overload as the asynchronous one.</summary>
+        private readonly struct BlockingHandshake(SslStream ssl, string host, ConfigurationOptions config)
+        {
+            internal void Authenticate()
+            {
+#if NET
+                var options = config.SslClientAuthenticationOptions?.Invoke(host);
+                if (options is not null)
+                {
+                    ssl.AuthenticateAsClient(options);
+                    return;
+                }
+#endif
+                ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
+            }
+        }
+
+        /// <summary>
+        /// Run a step of connecting <b>synchronously</b>, on a thread of its own, for a connection that must
+        /// never use its socket asynchronously.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Why it matters.</b> On Unix, the first asynchronous operation on a .NET socket registers it with the
+        /// runtime's epoll engine, for good, and from then on every readiness event is dispatched through the
+        /// thread pool - including the one that wakes a <i>synchronous</i> receive. So a <c>DedicatedThreads</c>
+        /// connection that connected with <c>ConnectAsync</c> had a reader thread of its own that still needed a
+        /// pool thread to wake it: under a saturated pool - the case the flag exists for - replies sat unread in
+        /// the socket. Connected synchronously, the socket never registers, and a blocking receive is a plain
+        /// blocking system call. Measured over loopback, a PING round trip went from 57.6us of CPU and one pool
+        /// work item to 7.6us and none; the alternatives (polling before each read, re-setting
+        /// <see cref="Socket.Blocking"/>) still paid the pool item, because the registration is what costs.
+        /// </para>
+        /// <para>
+        /// <b>On a thread of its own</b>, not the caller's: the connect timeout is enforced by racing the attempt,
+        /// which needs the attempt to be running elsewhere - and blocking a pool thread for a connect is the very
+        /// dependency being removed. <b>Cancellation disposes the socket</b>, which is what releases a blocked
+        /// connect or handshake; without it an abandoned attempt would hold its thread until the operating
+        /// system gave up on the connect.
+        /// </para>
+        /// </remarks>
+        private static Task RunBlocking<TState>(Action<TState> step, TState state, Socket socket, CancellationToken cancellationToken)
+            => Task.Factory.StartNew(
+                () =>
+                {
+                    using var abandon = cancellationToken.Register(static s => ((Socket)s!).Dispose(), socket);
+                    step(state);
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
     }
 }
