@@ -70,7 +70,7 @@ A multi-key read such as `MGET a b c` is one entry; a change to any of its keys 
 - **keys outside `Prefixes`**, when prefixes are configured - the server would never announce their changes;
 - anything sent with `CommandFlags.NoClientCache`, or through a context made with `WithoutCache()`.
 
-Commands the client does not know - a module's, say - are not cached unless you declare them read-only with `flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly)` (see [Extending the client](Extending)). Only do that if the server announces changes to the keys the command reads - which depends on the module marking its writes as key modifications; check before relying on it.
+Commands the client does not know - a module's, say - are not cached unless you declare them read-only with `flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly)` (see [Extending the client](Extending)). Only do that if the server announces changes to the keys the command reads. For module commands it usually does: Redis signals a key as modified - which is what drives invalidation - automatically when a module closes a key it opened for writing, unless the module has opted out (`REDISMODULE_OPTION_NO_IMPLICIT_SIGNAL_MODIFIED`) and signals by hand. To confirm for a particular module, cache a read, change the key with the module's own write command from a second connection, and check that the next read sees the change.
 
 Consistency
 ---
@@ -164,7 +164,8 @@ Is it working?
 There are no public counters for the cache in this version. The reliable check is on the server, which cannot be fooled by the client:
 
 - `CLIENT TRACKINGINFO` on the connection, or `CLIENT LIST` (look for `flags=t` on the interactive connections), confirms tracking is on;
-- comparing `total_commands_processed` from `INFO stats` before and after a read-heavy workload shows how many reads reached the server - an operation answered from the cache is one the server never sees. This is how this library's own tests measure hit rate.
+- comparing `total_commands_processed` from `INFO stats` before and after a read-heavy workload shows how many reads reached the server - an operation answered from the cache is one the server never sees. This is how this library's own tests measure hit rate;
+- `INFO commandstats` breaks the same count down per command (`cmdstat_get:calls=...`), which isolates the read under test from handshake, setup and other traffic - the better measure for a test of one command.
 
 See also
 ---
