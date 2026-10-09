@@ -127,6 +127,7 @@ namespace StackExchange.Redis
             {
                 _pageOffset = _pageCount = 0;
                 Recycle(ref _pageOversized, ref _isPooled);
+                AbandonPending();
                 switch (_state)
                 {
                     case State.Initial:
@@ -134,6 +135,18 @@ namespace StackExchange.Redis
                         _state = State.Complete;
                         break;
                 }
+            }
+
+            private void AbandonPending()
+            {
+                // Pages are fetched one ahead of the consumer, so an enumeration that is disposed or reset before
+                // it drains usually has a page in flight that nothing will await again; the same is true after a
+                // synchronous timeout (see Wait). Make sure a fault on it doesn't become an unobserved task
+                // exception (#3260).
+                var pending = _pending;
+                _pending = null;
+                _pendingMessage = null;
+                if (pending is not null && !pending.IsCompletedSuccessfully) pending.ObserveErrors();
             }
 
             /// <summary>
@@ -206,17 +219,35 @@ namespace StackExchange.Redis
             {
                 var pending = SlowNextAsync();
                 if (pending.IsCompletedSuccessfully) return pending.Result;
-                return Wait(pending.AsTask(), _pendingMessage!);
+                return Wait(pending.AsTask(), _pendingMessage);
             }
 
-            private protected TResult Wait<TResult>(Task<TResult> pending, Message message)
+            private protected TResult Wait<TResult>(Task<TResult> pending, Message? message)
             {
                 // the synchronous scan surface: this *is* the blocking path, reached only from a caller who asked
                 // for the sync API, and TryWait is what applies the configured timeout to it
-                #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
-                if (!parent.redis.TryWait(pending)) ThrowTimeout(message);
-                #pragma warning restore SER308
-                return pending.Result;
+                bool completed;
+                try
+                {
+                    #pragma warning disable SER308 // Blocking on a task through the library's Wait helpers
+                    completed = parent.redis.TryWait(pending);
+                    #pragma warning restore SER308
+                }
+                catch (AggregateException)
+                {
+                    // faulted inside the window; GetResult below rethrows the cause itself rather than the wrapper
+                    completed = true;
+                }
+
+                if (!completed)
+                {
+                    // The caller gets the timeout and moves on, but the page is still in flight and nothing will
+                    // await this task again: without this, a later fault surfaces as an unobserved task exception
+                    // (#3260). The page task itself is awaited by AwaitedNextAsync, so observing this one suffices.
+                    pending.ObserveErrors();
+                    ThrowTimeout(message);
+                }
+                return pending.GetAwaiter().GetResult();
             }
 
             /// <summary>
@@ -244,7 +275,7 @@ namespace StackExchange.Redis
                         while ((pending = _pending) != null && _state == State.Running)
                         {
                             if (!pending.IsCompleted) return AwaitedNextAsync(isInitial);
-                            ProcessReply(pending.Result, isInitial);
+                            ProcessReply(GetResult(pending), isInitial);
                             isInitial = false;
                             if (SimpleNext()) return new ValueTask<bool>(true);
                         }
@@ -257,8 +288,23 @@ namespace StackExchange.Redis
                 }
             }
 
+            private ScanResult GetResult(Task<ScanResult> completed)
+            {
+                try
+                {
+                    // a page that has already faulted (typically a prefetch) surfaces as its own exception,
+                    // not as the AggregateException that .Result would wrap it in
+                    return completed.GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    TryAppendExceptionState(ex);
+                    throw;
+                }
+            }
+
             [MethodImpl(MethodImplOptions.NoInlining)]
-            private void ThrowTimeout(Message message)
+            private void ThrowTimeout(Message? message)
             {
                 try
                 {
@@ -297,6 +343,13 @@ namespace StackExchange.Redis
                         TryAppendExceptionState(ex);
                         throw;
                     }
+                    if (_state != State.Running)
+                    {
+                        // disposed while the page was in flight (a synchronous caller that timed out, typically);
+                        // don't fetch another page on its behalf
+                        scanResult.Recycle();
+                        break;
+                    }
                     ProcessReply(scanResult, isInitial);
                     isInitial = false;
                     _pageIndex++;
@@ -333,8 +386,7 @@ namespace StackExchange.Redis
                 _pageOversized = Array.Empty<T>();
                 _isPooled = false;
                 _pageCount = 0;
-                _pending = null;
-                _pendingMessage = null;
+                AbandonPending();
             }
 
             long IScanningCursor.Cursor => (long)_currentCursor; // this may fail on cluster-proxy; I'm OK with this for now
