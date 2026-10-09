@@ -459,7 +459,14 @@ namespace StackExchange.Redis
         {
             // bounded for the reason the synchronous path states; and the publish happens either way,
             // because a publish that reaches nobody is still better than one that never happens
-            await Task.WhenAny(settling, Task.Delay(multiplexer.TimeoutMilliseconds)).ConfigureAwait(false);
+            //
+            // ...and the timer is cancelled once settling wins, which is the usual outcome: left to run, every
+            // publish in a settling window kept a timer alive for the whole timeout (CA2027's pattern)
+            using (var delay = new CancellationTokenSource())
+            {
+                await Task.WhenAny(settling, Task.Delay(multiplexer.TimeoutMilliseconds, delay.Token)).ConfigureAwait(false);
+                delay.Cancel();
+            }
             return await PubSubContext.PubSub.PublishAsync(channel, message, flags)
                 .AsTask(asyncState, flags).ConfigureAwait(false);
         }

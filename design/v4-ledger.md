@@ -143,6 +143,10 @@ Each has a default the work proceeds on until answered.
   attempt), with cancellation disposing the socket; not with a tunnel. Results, dedicated, no env var:
   `IDatabase` sync seq 25.6k ops/s at 16.1us CPU (was 20.4k at 78us); TLS 23.7us vs 105us default, 0 pool items;
   starved pool, every sync path runs. `SyncCompletionTests` now asserts the absolute (500 -> 0 pool items).
+  **.NET 11 (RC1, measured with the same probe):** dotnet/runtime#124200 flips a socket back to blocking after
+  `ConnectAsync`, so async-connect + sync IO drops to 17.8us CPU per round trip - but still 1 pool item (the epoll
+  registration stays), and TLS's async handshake still flips it for good. Sync connect is 7.7us and 0 on both
+  runtimes, so the fix stands on .NET 11 too.
   **Side finding, not fixed:** in DEFAULT mode an abandoned connect (timeout) keeps its socket in SYN-SENT until
   the OS gives up - `ConnectAsync` is called without the token. 5 blackholed attempts left 5 sockets; dedicated
   mode leaves none.
