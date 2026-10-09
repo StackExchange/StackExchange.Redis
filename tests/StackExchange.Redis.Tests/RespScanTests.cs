@@ -182,4 +182,51 @@ public class RespScanTests
 
         Assert.Empty(exec.Sent);
     }
+
+    // ---- #3260 (from main): faults in the scan enumerators -------------------------------------------------------
+    // Main fixed abandoned, prefetched page tasks whose faults surfaced as UnobservedTaskException. This enumerator
+    // never fetches ahead and its synchronous face uses the synchronous send, so there is no abandoned task to observe;
+    // what carries over is the rest of the intent: a page's fault is the scan's own exception, and nothing is fetched
+    // for an enumeration that has been let go.
+
+    [Fact]
+    public async Task AFaultedPageSurfacesAsItsOwnExceptionAsync()
+    {
+        var (ctx, _) = Target(Page(1, "a"), "-ERR boom\r\n");
+
+        var ex = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            await foreach (var _ in ctx.Sets.ScanAsync("s")) { }
+        });
+        Assert.IsNotType<AggregateException>(ex);
+        Assert.Contains("boom", ex.Message);
+    }
+
+    [Fact]
+    public void AFaultedPageSurfacesAsItsOwnExceptionSync()
+    {
+        var (ctx, _) = Target(Page(1, "a"), "-ERR boom\r\n");
+        var sequence = (System.Collections.Generic.IEnumerable<RedisValue>)ctx.Sets.ScanAsync("s");
+
+        var ex = Assert.ThrowsAny<Exception>(() =>
+        {
+            foreach (var _ in sequence) { }
+        });
+        Assert.IsNotType<AggregateException>(ex);
+        Assert.Contains("boom", ex.Message);
+    }
+
+    [Fact]
+    public async Task NothingIsFetchedAfterTheEnumerationIsLetGo()
+    {
+        var (ctx, exec) = Target(Page(1, "a"), Page(0, "b"));
+
+        await using (var iter = ctx.Sets.ScanAsync("s").GetAsyncEnumerator())
+        {
+            Assert.True(await iter.MoveNextAsync());
+        }
+
+        await Task.Delay(50); // anything fetched ahead, or on the abandoned enumeration's behalf, would show by now
+        Assert.Equal(1, exec.Sends);
+    }
 }

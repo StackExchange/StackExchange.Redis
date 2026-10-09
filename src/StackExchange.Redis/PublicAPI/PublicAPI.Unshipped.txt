@@ -74,9 +74,6 @@ StackExchange.Redis.Config
 static StackExchange.Redis.Config.ResetStatisticsAsync(this StackExchange.Redis.RespConfig config, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 static StackExchange.Redis.Config.RewriteAsync(this StackExchange.Redis.RespConfig config, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
 static StackExchange.Redis.Config.SetAsync(this StackExchange.Redis.RespConfig config, StackExchange.Redis.RedisValue setting, StackExchange.Redis.RedisValue value, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask
-override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
-override StackExchange.Redis.Configuration.RedisCloudOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
-override StackExchange.Redis.Configuration.RedisEnterpriseOptionsProvider.MaintenanceNotifications.get -> StackExchange.Redis.MaintenanceNotificationMode
 StackExchange.Redis.ConfigurationOptions.ClientCache.get -> StackExchange.Redis.Caching.CacheOptions?
 StackExchange.Redis.ConfigurationOptions.ClientCache.set -> void
 StackExchange.Redis.Diagnostics

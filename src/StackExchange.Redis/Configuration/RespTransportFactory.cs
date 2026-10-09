@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -66,13 +67,15 @@ namespace StackExchange.Redis
         /// <param name="onAuthSuspect">Told when a TLS failure looks like an authentication problem.</param>
         /// <param name="log">The connect log, told about TLS: when it starts, what it negotiated, and why it failed.</param>
         /// <param name="cancellationToken">Cancels the connect attempt.</param>
+        /// <param name="attempt">Records the stages reached and what TLS saw, when attempts are being reported (#3257).</param>
         internal static async Task<ConnectedTransport> ConnectAsync(
             EndPoint endpoint,
             ConfigurationOptions config,
             ConnectionType connectionType,
             Action<Exception>? onAuthSuspect = null,
             ILogger? log = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            ConnectionAttempt? attempt = null)
         {
             var tunnel = config.Tunnel;
 
@@ -153,7 +156,7 @@ namespace StackExchange.Redis
                 // or instead of one entirely
                 var stream = tunnel is null
                     ? null
-                    : await tunnel.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken).ConfigureAwait(false);
+                    : await BeforeAuthenticateAsync(tunnel, endpoint, connectionType, socket, attempt, cancellationToken).ConfigureAwait(false);
 
                 if (stream is null)
                 {
@@ -176,6 +179,7 @@ namespace StackExchange.Redis
                     // the same events, under the same ids, as the shipped connection: a TLS problem is the
                     // commonest thing a connect log is pasted into an issue to diagnose
                     log?.LogInformationConfiguringTLS();
+                    if (attempt is not null) attempt.Stage = ConnectionAttemptStage.Tls;
                     var ssl = await AuthenticateAsync(
                         stream,
                         endpoint,
@@ -186,7 +190,8 @@ namespace StackExchange.Redis
                         {
                             onAuthSuspect?.Invoke(ex);
                             log?.LogErrorConnectionIssue(ex, ex.Message);
-                        }).ConfigureAwait(false);
+                        },
+                        attempt).ConfigureAwait(false);
 #if NET
                     log?.LogInformationTLSConnectionEstablished(ssl.SslProtocol, ssl.NegotiatedCipherSuite);
 #else
@@ -334,13 +339,15 @@ namespace StackExchange.Redis
         /// </param>
         /// <param name="cancellationToken">Abandons a synchronous handshake, by disposing the socket.</param>
         /// <param name="onAuthSuspect">Told when the handshake fails, before the exception propagates.</param>
+        /// <param name="attempt">Observes the certificates and the TLS host, when attempts are being reported (#3257).</param>
         internal static async Task<SslStream> AuthenticateAsync(
             Stream stream,
             EndPoint endpoint,
             ConfigurationOptions config,
             Socket? blockingSocket,
             CancellationToken cancellationToken,
-            Action<Exception>? onAuthSuspect)
+            Action<Exception>? onAuthSuspect,
+            ConnectionAttempt? attempt = null)
         {
             // ConfigurationOptions.ResolveTlsHostName, not a second copy of the rule. This used to read
             // `SslHost, or the endpoint's host if that is blank`, which is what the shipped connection
@@ -350,31 +357,80 @@ namespace StackExchange.Redis
             // every shard presented with the same inferred host, so every shard but one fails
             // validation. Two copies of a security decision is the drift this boundary exists to avoid.
             var host = config.ResolveTlsHostName(endpoint);
+            if (attempt is not null) attempt.TlsHostName = host;
 
             var validate = config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback();
             var select = config.CertificateSelectionCallback ?? GetAmbientClientCertificateCallback();
+
+            // the options are resolved BEFORE the stream is built (#3257): an observed attempt wraps the
+            // callbacks, and SslStream refuses a constructor callback that differs from one the options also
+            // supply - so only the callbacks the options leave to us are wrapped
+            bool optionsValidate = false, optionsSelect = false;
+#if NET
+            SslClientAuthenticationOptions? options;
+            try
+            {
+                options = config.SslClientAuthenticationOptions?.Invoke(host!);
+            }
+            catch (Exception ex)
+            {
+                onAuthSuspect?.Invoke(ex);
+                throw;
+            }
+
+            if (options is not null)
+            {
+                if (attempt is not null) attempt.TlsHostName = options.TargetHost; // the caller's options decide what is sent
+                optionsValidate = options.RemoteCertificateValidationCallback is not null;
+                optionsSelect = options.LocalCertificateSelectionCallback is not null;
+            }
+#endif
+            var observingDefaultValidation = false; // i.e. we supplied the only validation callback
+            if (attempt is not null)
+            {
+                observingDefaultValidation = !optionsValidate && validate is null;
+                if (!optionsValidate) validate = attempt.ObserveServerCertificate(validate);
+                if (!optionsSelect && select is not null) select = attempt.ObserveClientCertificate(select);
+            }
+
             var ssl = new SslStream(stream, false, validate, select, EncryptionPolicy.RequireEncryption);
 
             try
             {
                 if (blockingSocket is not null)
                 {
-                    await RunBlocking(static state => state.Authenticate(), new BlockingHandshake(ssl, host!, config), blockingSocket, cancellationToken).ConfigureAwait(false);
-                    return ssl;
-                }
 #if NET
-                var options = config.SslClientAuthenticationOptions?.Invoke(host!);
-                if (options is not null)
-                {
-                    await ssl.AuthenticateAsClientAsync(options).ConfigureAwait(false);
+                    await RunBlocking(static state => state.Authenticate(), new BlockingHandshake(ssl, host!, config, options), blockingSocket, cancellationToken).ConfigureAwait(false);
+#else
+                    await RunBlocking(static state => state.Authenticate(), new BlockingHandshake(ssl, host!, config), blockingSocket, cancellationToken).ConfigureAwait(false);
+#endif
                 }
                 else
                 {
-                    await ssl.AuthenticateAsClientAsync(host!, config.SslProtocols, config.CheckCertificateRevocation).ConfigureAwait(false);
-                }
+#if NET
+                    if (options is not null)
+                    {
+                        await ssl.AuthenticateAsClientAsync(options).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await ssl.AuthenticateAsClientAsync(host!, config.SslProtocols, config.CheckCertificateRevocation).ConfigureAwait(false);
+                    }
 #else
-                await ssl.AuthenticateAsClientAsync(host!, config.SslProtocols, config.CheckCertificateRevocation).ConfigureAwait(false);
+                    await ssl.AuthenticateAsClientAsync(host!, config.SslProtocols, config.CheckCertificateRevocation).ConfigureAwait(false);
 #endif
+                }
+
+                attempt?.CaptureSentCertificate(ssl);
+            }
+            catch (AuthenticationException ex) when (observingDefaultValidation && attempt is not null)
+            {
+                // observing replaced the platform's "the remote certificate is invalid: ..." with "rejected by the
+                // provided callback"; put the detail back rather than lose it by observing
+                var described = attempt.Redescribe(ex);
+                onAuthSuspect?.Invoke(described);
+                if (ReferenceEquals(described, ex)) throw;
+                throw described;
             }
             catch (Exception ex)
             {
@@ -385,6 +441,14 @@ namespace StackExchange.Redis
             }
 
             return ssl;
+        }
+
+        /// <summary>The tunnel's pre-authentication step, recorded as the attempt's <see cref="ConnectionAttemptStage.Tunnel"/> stage.</summary>
+        private static ValueTask<Stream?> BeforeAuthenticateAsync(
+            Tunnel tunnel, EndPoint endpoint, ConnectionType connectionType, Socket? socket, ConnectionAttempt? attempt, CancellationToken cancellationToken)
+        {
+            if (attempt is not null) attempt.Stage = ConnectionAttemptStage.Tunnel;
+            return tunnel.BeforeAuthenticateAsync(endpoint, connectionType, socket, cancellationToken);
         }
 
         private static Task ConnectSocketAsync(Socket socket, EndPoint endpoint) => endpoint switch
@@ -404,12 +468,15 @@ namespace StackExchange.Redis
         }
 
         /// <summary>The synchronous TLS handshake, with the same choice of overload as the asynchronous one.</summary>
+#if NET
+        private readonly struct BlockingHandshake(SslStream ssl, string host, ConfigurationOptions config, SslClientAuthenticationOptions? options)
+#else
         private readonly struct BlockingHandshake(SslStream ssl, string host, ConfigurationOptions config)
+#endif
         {
             internal void Authenticate()
             {
 #if NET
-                var options = config.SslClientAuthenticationOptions?.Invoke(host);
                 if (options is not null)
                 {
                     ssl.AuthenticateAsClient(options);

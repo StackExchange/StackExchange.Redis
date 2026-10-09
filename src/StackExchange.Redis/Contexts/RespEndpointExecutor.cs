@@ -72,6 +72,18 @@ namespace StackExchange.Redis
         private Queue<RespPayloadOperation>? _backlog;
         private bool _disposed;
 
+        /// <summary>Cancels the connect in flight, if any; disposal uses it to abandon the attempt.</summary>
+        private CancellationTokenSource? _connectCancel;
+
+        /// <summary>Whether this executor has been disposed; asked when a connect attempt is cancelled, to say why.</summary>
+        internal bool IsDisposed
+        {
+            get
+            {
+                lock (_sync) return _disposed;
+            }
+        }
+
         /// <summary>Whether somebody owns the write side of this connection right now.</summary>
         /// <remarks>
         /// <para>
@@ -2476,9 +2488,13 @@ namespace StackExchange.Redis
         private async Task<RespConnection> ConnectWithinTimeoutAsync()
         {
             var timeoutMilliseconds = _connectTimeoutMilliseconds;
-            if (timeoutMilliseconds <= 0) return await _connect(CancellationToken.None).ConfigureAwait(false);
 
+            // a source even without a timeout: disposal cancels it, which abandons the attempt rather than leaving it
+            // to finish (or not) on its own - and lets the attempt be reported as abandoned (#3257)
             var cancel = new CancellationTokenSource();
+            Volatile.Write(ref _connectCancel, cancel);
+            if (timeoutMilliseconds <= 0) return await _connect(cancel.Token).ConfigureAwait(false);
+
             var pending = _connect(cancel.Token);
 
             if (pending.IsCompleted)
@@ -2574,6 +2590,18 @@ namespace StackExchange.Redis
                 if (!IsSubscriptionEndpoint && connection is RespClientConnection { Server: { } established })
                 {
                     established.OnConnected($"{_endpoint} connected on the new core");
+                }
+                else if (IsSubscriptionEndpoint && _endpoint is { } restoredAt && Server is { } subscriber && !subscriber.Multiplexer.IsDisposed)
+                {
+                    // ...and the dedicated subscription connection says so too, as v3's subscription bridge did:
+                    // ConnectionFailed already reports it by type, so a restore that only ever names Interactive
+                    // leaves a listener counting a subscription outage that never ends. Since #3264 that is every
+                    // RESP3 client by default, not just RESP2 (ConnectingFailDetectionTests.Issue922_ReconnectRaised).
+                    // reconfigure: false - topology is read over the interactive connection, which reconfigures
+                    // on its own restore; the subscription leg is dialled just after the initial connect, so
+                    // reconfiguring here would re-read the topology of every new multiplexer for nothing, and
+                    // collide with a caller's own Configure() (SyncContextTests.SyncConfigure).
+                    subscriber.Multiplexer.OnConnectionRestored(restoredAt, ConnectionType.Subscription, $"{_endpoint} subscription connected on the new core", reconfigure: false);
                 }
 
                 return connection;
@@ -2704,6 +2732,16 @@ namespace StackExchange.Redis
                 if (_disposed) return;
                 _disposed = true;
                 connection = _connection;
+
+                // a connect still in flight is abandoned: nothing will publish what it produces
+                try
+                {
+                    Volatile.Read(ref _connectCancel)?.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // it finished, and its source with it
+                }
                 _connection = null;
                 stranded = _backlog;
                 _backlog = null;

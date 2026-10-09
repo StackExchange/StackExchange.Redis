@@ -80,6 +80,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
                 "commandMap",
                 "configChannel",
                 "configCheckSeconds",
+                "ConnectionAttemptCompleted",
                 "ConnectMode",
                 "connectRetry",
                 "connectTimeout",
@@ -476,7 +477,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.True(conn.IsConnected);
         var servers = conn.GetServerSnapshot();
         Assert.True(servers[0].IsConnected);
-        if (!TestContext.Current.IsResp3())
+        if (!servers[0].SharesSubscriptionConnection())
         {
             Assert.False(servers[0].IsSubscriberConnected);
         }
@@ -715,10 +716,13 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         Assert.Equal(result, options);
     }
 
-    [Fact]
-    public async Task BeforeSocketConnect()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BeforeSocketConnect(bool sharedSubscriptionConnection)
     {
         var options = Parse(TestConfig.Current.PrimaryServerAndPort);
+        options.SharedSubscriptionConnection = sharedSubscriptionConnection;
         int count = 0;
         options.BeforeSocketConnect = (endpoint, connType, socket) =>
         {
@@ -733,7 +737,7 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         // waited for, not read at once: under RESP2 the subscription socket is dialled in the background once
         // the interactive handshake is done, so Connect can return before its callback has run - which a slow
         // net481 runner turned into "expected 2, actual 1" on CI. More than expected is still an immediate fail.
-        var expected = options.TryResp3() ? 1 : 2;
+        var expected = sharedSubscriptionConnection && options.TryResp3() ? 1 : 2;
         await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref count) >= expected);
         Assert.Equal(expected, Volatile.Read(ref count));
 
@@ -934,6 +938,26 @@ public class ConfigTests(ITestOutputHelper output, SharedConnectionFixture fixtu
 
         var parsed = Parse(cs);
         Assert.Equal(expected, parsed.HighIntegrity);
+    }
+
+    [Theory]
+    [InlineData(null, false, "dummy")]
+    [InlineData(false, false, "dummy,sharedSubscriptionConnection=False")]
+    [InlineData(true, true, "dummy,sharedSubscriptionConnection=True")]
+    public void CheckSharedSubscriptionConnection(bool? assigned, bool expected, string cs)
+    {
+        var options = Parse("dummy");
+        if (assigned.HasValue) options.SharedSubscriptionConnection = assigned.Value;
+
+        Assert.Equal(expected, options.SharedSubscriptionConnection);
+        Assert.Equal(cs, RemoveTestDefaults(options.ToString()));
+
+        var clone = options.Clone();
+        Assert.Equal(expected, clone.SharedSubscriptionConnection);
+        Assert.Equal(cs, RemoveTestDefaults(clone.ToString()));
+
+        var parsed = Parse(cs);
+        Assert.Equal(expected, parsed.SharedSubscriptionConnection);
     }
 
     [Theory]

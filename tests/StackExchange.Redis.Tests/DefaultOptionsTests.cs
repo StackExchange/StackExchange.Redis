@@ -218,15 +218,22 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(expected, options.MaintenanceNotifications);
     }
 
+    /// <summary>
+    /// A dedicated subscription connection unless pub/sub is explicitly allowed to share the RESP3 interactive one;
+    /// either way the interactive connection must not be left subscribed (and so classed as pub/sub by the server).
+    /// </summary>
     [Theory]
-    [InlineData(RedisProtocol.Resp2)]
-    [InlineData(RedisProtocol.Resp3)]
-    public async Task AzureManagedRedisConnectsWithoutSubscriptionConnection(RedisProtocol protocol)
+    [InlineData(RedisProtocol.Resp2, false)]
+    [InlineData(RedisProtocol.Resp3, false)]
+    [InlineData(RedisProtocol.Resp2, true)]
+    [InlineData(RedisProtocol.Resp3, true)]
+    public async Task AzureManagedRedisConnectionCount(RedisProtocol protocol, bool sharedSubscriptionConnection)
     {
         using var serverObj = new InProcessTestServer(Output, new DnsEndPoint("contoso.redis.azure.net", 10000), useSsl: true);
         var config = serverObj.GetClientConfig();
         config.ClientName = Guid.NewGuid().ToString().Replace("-", "");
         config.Protocol = protocol;
+        config.SharedSubscriptionConnection = sharedSubscriptionConnection;
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
 
@@ -244,7 +251,10 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(0, self.ShardedSubscriptionCount);
         Assert.Equal(protocol, self.Protocol);
 
-        // One socket, or two on shipped RESP2 - and nothing extra for a second core any more. There used to
+        // One socket before anything subscribes, shared or not: this core dials the subscription socket only
+        // when something needs it - the configuration channel (disabled for Azure Managed Redis) or a
+        // subscriber - so sharing (#3264) changes WHERE pub/sub lives, not whether a socket opens up front.
+        // AssertCanPubSubAsync below is what dials it. And nothing extra for a second core any more. There used to
         // be a transitional allowance here for the shipped bridge's socket sitting beside the new core's;
         // it went when the topology commands moved and the shipped bridge stopped dialling, so the server
         // now sees exactly the one-core shape, which is the shape this test is about.
@@ -259,7 +269,7 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(expectedCount, serverObj.ClientCount);
         Assert.Single(namedClients);
 
-        await AssertCanPubSubAsync(conn, $"{nameof(AzureManagedRedisConnectsWithoutSubscriptionConnection)}:{protocol}");
+        await AssertCanPubSubAsync(conn, $"{nameof(AzureManagedRedisConnectionCount)}:{protocol}:{sharedSubscriptionConnection}");
     }
 
     [Fact]

@@ -138,7 +138,15 @@ namespace StackExchange.Redis
         // ...and where there is no second socket, SupportsSubscriptions is the term that would otherwise
         // go missing: in v3 a bridge for a disabled SUBSCRIBE never connected, so the answer was no by
         // construction, where sharing one connection has to say no on purpose.
-        public bool IsSubscriberConnected => IsConnected && (KnowOrAssumeResp3() || SupportsSubscriptions);
+        public bool IsSubscriberConnected => IsConnected && (SharesSubscriptionConnection() || SupportsSubscriptions);
+
+        /// <summary>
+        /// Whether pub/sub shares the interactive connection: only under RESP3, and only when opted into via
+        /// <see cref="ConfigurationOptions.SharedSubscriptionConnection"/>. Otherwise subscriptions get a dedicated
+        /// connection, as they always do under RESP2 - because the server classifies any connection with a live
+        /// subscription as a pub/sub client, applying the (much tighter) pub/sub output-buffer limits to it; see #3263.
+        /// </summary>
+        public bool SharesSubscriptionConnection() => Multiplexer.RawConfig.SharedSubscriptionConnection && KnowOrAssumeResp3();
 
         public bool KnowOrAssumeResp3()
         {

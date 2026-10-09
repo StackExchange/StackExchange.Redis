@@ -12,22 +12,30 @@ namespace StackExchange.Redis.Tests;
 
 public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
 {
-    [Fact]
-    public async Task ClientKill()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ClientKill(bool sharedSubscriptionConnection)
     {
         SetExpectedAmbientFailureCount(-1);
-        await using var otherConnection = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast, require: RedisFeatures.v7_4_0_rc1);
+        await using var otherConnection = Create(
+            allowAdmin: true,
+            shared: false,
+            backlogPolicy: BacklogPolicy.FailFast,
+            require: RedisFeatures.v7_4_0_rc1,
+            configuration: sharedSubscriptionConnection ? GetConfiguration() + ",sharedSubscriptionConnection=true" : null);
         var id = otherConnection.GetDatabase().Execute(RedisCommand.CLIENT.ToString(), RedisLiterals.ID);
 
         await using var conn = Create(allowAdmin: true, shared: false, backlogPolicy: BacklogPolicy.FailFast);
         var server = conn.GetServer(conn.GetEndPoints()[0]);
 
-        // RESP3 has no separate subscription connection, so the interactive connection carries the
-        // configuration-channel subscription - and the server counts a subscribed client as pubsub, not normal.
+        // when RESP3 shares the interactive connection with pub/sub, it carries the configuration-channel
+        // subscription - and the server counts a subscribed client as pubsub, not normal (which is exactly
+        // why sharing is opt-in: pubsub clients get much tighter output-buffer limits)
         var protocol = TestContext.Current.GetProtocol();
         var client = server.ClientList().Single(x => x.Id == id.AsInt64());
         Assert.Equal(protocol, client.Protocol);
-        var expectedType = protocol == RedisProtocol.Resp3 ? ClientType.PubSub : ClientType.Normal;
+        var expectedType = protocol == RedisProtocol.Resp3 && sharedSubscriptionConnection ? ClientType.PubSub : ClientType.Normal;
         Assert.Equal(expectedType, client.ClientType);
 
         long result = server.ClientKill(id.AsInt64(), expectedType, null, true);

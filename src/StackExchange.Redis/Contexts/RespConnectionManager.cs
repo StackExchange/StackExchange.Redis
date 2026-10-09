@@ -527,24 +527,29 @@ namespace StackExchange.Redis
                 : null;
 
         /// <summary>
-        /// Whether deliveries for this endpoint arrive on its ordinary connection, rather than needing one
-        /// of their own.
+        /// Whether deliveries for this endpoint arrive on its ordinary connection, rather than on one of their own.
         /// </summary>
-        /// <param name="endpoint">The endpoint in question.</param>
+        /// <param name="negotiated">The protocol the ordinary connection settled on.</param>
         /// <remarks>
-        /// <b>Know, or assume - and the difference matters.</b> Once a handshake has completed this is a
-        /// fact; before that it is a guess from configuration, because the answer does not exist yet.
-        /// <c>ServerEndPoint.KnowOrAssumeResp3</c> draws exactly this distinction, as v3 did, and it has
-        /// to: callers ask whether the subscriber is connected long before anything has connected.
         /// <para>
-        /// Under RESP3 a delivery is a push frame on the same connection, so there is no second socket at
-        /// all. Only RESP2 needs one, which is why nothing here creates one speculatively.
+        /// <b>Only under RESP3, and only when opted into</b> via <see cref="ConfigurationOptions.SharedSubscriptionConnection"/>
+        /// (#3264, from <c>main</c>). Under RESP3 a delivery is a push frame and could share the connection - but the
+        /// server classifies any connection with a live subscription as a pub/sub client and applies the pub/sub
+        /// output-buffer limit to it (32mb hard / 8mb for 60s by default), so an ordinary large reply or pipelined
+        /// burst could get the shared connection, and everything in flight on it, closed by the server. So by
+        /// default pub/sub gets a connection of its own under RESP3, as it always has under RESP2.
+        /// </para>
+        /// <para>
+        /// This used to be "RESP3, so share", which is what v4 did until the merge that brought #3264 in.
         /// </para>
         /// </remarks>
-        private bool KnowOrAssumeResp3(EndPoint endpoint)
-            => _protocols.TryGetValue(endpoint, out var known)
-                ? known >= RedisProtocol.Resp3
-                : _multiplexer.RawConfig.TryResp3();
+        private bool SharesSubscriptions(RedisProtocol negotiated)
+            => negotiated >= RedisProtocol.Resp3 && _multiplexer.RawConfig.SharedSubscriptionConnection;
+
+        /// <inheritdoc cref="SharesSubscriptions(RedisProtocol)"/>
+        /// <param name="endpoint">The endpoint, whose protocol must already have been negotiated to count.</param>
+        private bool SharesSubscriptions(EndPoint endpoint)
+            => _protocols.TryGetValue(endpoint, out var negotiated) && SharesSubscriptions(negotiated);
 
         private void OnSlotMoved(int slot, EndPoint endpoint)
         {
@@ -611,7 +616,7 @@ namespace StackExchange.Redis
         /// </remarks>
         private bool TryRerouteSubscription(EndPoint endpoint, RespPayloadOperation operation)
         {
-            if (_protocols.TryGetValue(endpoint, out var negotiated) && negotiated >= RedisProtocol.Resp3)
+            if (SharesSubscriptions(endpoint))
             {
                 return false; // shared is correct here; nothing to move
             }
@@ -663,8 +668,7 @@ namespace StackExchange.Redis
         {
             if (_subscriptions.TryGetValue(endpoint, out var dedicated)) return dedicated.IsConnectedNow;
 
-            return _protocols.TryGetValue(endpoint, out var negotiated)
-                && negotiated >= RedisProtocol.Resp3
+            return SharesSubscriptions(endpoint)
                 && _endpoints.TryGetValue(endpoint, out var interactive)
                 && interactive.IsConnectedNow;
         }
@@ -726,7 +730,7 @@ namespace StackExchange.Redis
             // So an unknown protocol takes the safe branch and opens a socket of its own. Under RESP3 that
             // is one socket more than necessary until something has handshaken this endpoint - which
             // ordinary traffic does almost immediately - and it is never WRONG, which the alternative is.
-            if (_protocols.TryGetValue(endpoint, out var known) && known >= RedisProtocol.Resp3)
+            if (SharesSubscriptions(endpoint))
             {
                 return Endpoint(endpoint);
             }
@@ -951,6 +955,71 @@ namespace StackExchange.Redis
             logger?.LogInformationConnecting(logName);
             logger?.LogInformationBeginConnectAsync(new(endpoint));
 
+            // ConfigurationOptions.ConnectionAttemptCompleted (#3257): one outcome per physical attempt, tracked only
+            // when somebody is listening. Cancellation is how this attempt hears it was given up on - by the
+            // connect timeout, or by its executor being disposed - and the two are reported differently.
+            var attempt = ConnectionAttempt.Begin(_multiplexer, endpoint, connectionType);
+            using var cancelled = attempt is null || !cancellationToken.CanBeCanceled
+                ? default
+                : cancellationToken.Register(() => OnAttemptCancelled(attempt, endpoint, subscription, logName));
+            try
+            {
+                return await ConnectCoreAsync(database, endpoint, subscription, connectionType, logName, attempt, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                attempt?.Failed(ex, logName); // once-only: a cancellation already reported takes precedence
+                throw;
+            }
+        }
+
+        /// <summary>Report an attempt the library gave up on: abandoned by its executor's disposal, or timed out.</summary>
+        private void OnAttemptCancelled(ConnectionAttempt attempt, EndPoint endpoint, bool subscription, string logName)
+        {
+            var owner = subscription
+                ? (_subscriptions.TryGetValue(endpoint, out var dedicated) ? dedicated : null)
+                : (_endpoints.TryGetValue(endpoint, out var interactive) ? interactive : null);
+            if (owner is null || owner.IsDisposed)
+            {
+                attempt.Abandoned(logName);
+            }
+            else
+            {
+                // the same exception, and message, the executor's own timeout raises
+                attempt.TimedOut(
+                    new TimeoutException($"The connection attempt to {Format.ToString(endpoint)} did not complete within {_multiplexer.RawConfig.ConnectTimeout}ms."),
+                    logName);
+            }
+        }
+
+        /// <summary>The attempt itself: transport, handshake, and publishing what was learned.</summary>
+        /// <summary>
+        /// What the handshake reports of refused credentials: passed on to the multiplexer, and kept, because the
+        /// attempt did not authenticate whatever the connection then does (#3257).
+        /// </summary>
+        private sealed class AuthRefusal(ConnectionMultiplexer multiplexer)
+        {
+            public Exception? Exception { get; private set; }
+
+            public void Record(Exception exception)
+            {
+                multiplexer.SetAuthSuspect(exception);
+                Exception = exception;
+            }
+        }
+
+        private async Task<RespConnection> ConnectCoreAsync(
+            int database,
+            EndPoint endpoint,
+            bool subscription,
+            ConnectionType connectionType,
+            string logName,
+            ConnectionAttempt? attempt,
+            CancellationToken cancellationToken)
+        {
+            var config = _multiplexer.RawConfig;
+            var logger = _multiplexer.Logger;
+
             // the shared chain: tunnel, proxy, socket, TLS. This used to be a bare socket here, which
             // silently ignored every one of those - and the TLS I added to it first was a second copy of
             // the v3 logic, which is worse than none: two versions of a security decision, free to
@@ -961,9 +1030,11 @@ namespace StackExchange.Redis
                 connectionType,
                 _multiplexer.SetAuthSuspect,
                 logger,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                attempt).ConfigureAwait(false);
 
             logger?.LogInformationTransportConnected(logName, connected.IsEncrypted);
+            if (attempt is not null) attempt.Stage = ConnectionAttemptStage.Handshake;
             logger?.LogInformationConnected(logName);
 
             // the configured response pool goes to the connection, as it went to the v3 core's reader:
@@ -1008,6 +1079,10 @@ namespace StackExchange.Redis
                 // against the server as it is learned - v3's "Auto-configured ..." lines
                 var server = _multiplexer.GetServerEndPoint(endpoint, ServerProvenance.Configured, activate: false);
 
+                // an object rather than a lambda over a local: a lambda here capturing `this` (for the multiplexer)
+                // puts `this` into the closure scope that `OnPush` below also chains to, and the socket then roots
+                // the multiplexer for its whole life (GarbageCollectionTests.MuxerIsCollected)
+                var refusal = new AuthRefusal(_multiplexer);
                 var result = await RespHandshake.PerformAsync(
                     context,
                     config.User,
@@ -1021,7 +1096,7 @@ namespace StackExchange.Redis
                     subscription ? null : _multiplexer.ClientCache,
                     _multiplexer.GetFullLibraryName(),
                     ServerEndPoint.ClientInfoSanitize(Utils.GetLibVersion()),
-                    _multiplexer.SetAuthSuspect,
+                    refusal.Record,
                     cancellationToken,
                     server: server,
                     connectionType: subscription ? ConnectionType.Subscription : ConnectionType.Interactive).ConfigureAwait(false);
@@ -1125,13 +1200,15 @@ namespace StackExchange.Redis
                 // will ever ask for it - a lazily-dialled socket that waits for a subscribe waits for ever
                 // when the only subscriber is the thing that rides the socket's own handshake.
                 //
-                // Still only on a DOWNGRADE (`TryResp3`), which is what this hook is for. A client that asked
-                // for RESP2 in the first place has already had its socket dialled by `ActivateServer`, which
-                // knew it would need one without having to connect to find out - so dropping that condition
-                // just dials a second time. `RespSubscriptionConnectionTests` counts the sockets and says so.
+                // Still only on a DOWNGRADE (`TryResp3`), which is what this hook is for - and only when sharing
+                // was opted into (`SharedSubscriptionConnection`), the one case in which `ActivateServer` expected
+                // to need no second socket. Otherwise - RESP2 asked for, or the default of a dedicated pub/sub
+                // connection under RESP3 (#3264) - `ActivateServer` has already dialled it, so dropping these
+                // conditions just dials a second time. `RespSubscriptionConnectionTests` counts the sockets.
                 if (!subscription
                     && result.Protocol < RedisProtocol.Resp3
                     && config.TryResp3()
+                    && _multiplexer.RawConfig.SharedSubscriptionConnection
                     && _multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)
                     && (_multiplexer.AnySubscribed()
                         || _multiplexer.ConfigurationChangedChannel is not null))
@@ -1139,8 +1216,9 @@ namespace StackExchange.Redis
                     DialSubscriptionSocket(endpoint);
                 }
 
-                // ...and under RESP3 this connection carries the configuration-change broadcast, because there
-                // is no subscription connection to carry it. Backported alongside #3254, which fixed exactly
+                // ...and when subscriptions share this connection (RESP3, opted into), it carries the
+                // configuration-change broadcast, because there is no subscription connection to carry it; by
+                // default (#3264) there is one, and the broadcast is subscribed there. Backported alongside #3254, which fixed exactly
                 // this for the v3 core: the channel is how a client is told BY HAND that the topology moved,
                 // and left unsubscribed the broadcast reaches nobody. The v3 fix subscribed the bridge's
                 // interactive connection, and with no bridges this connection needs the same, or the fix is
@@ -1154,7 +1232,7 @@ namespace StackExchange.Redis
                 // push arriving before the dispatcher is wired is dropped as unrecognised - so subscribing
                 // any earlier means waiting for a reply that has already been thrown away, which presents as
                 // the connection timing out in its own backlog.
-                if (!subscription && result.Protocol >= RedisProtocol.Resp3)
+                if (!subscription && SharesSubscriptions(result.Protocol))
                 {
                     await SubscribeToConfigurationChannelAsync(context, cancellationToken).ConfigureAwait(false);
                 }
@@ -1207,6 +1285,10 @@ namespace StackExchange.Redis
                     }
                 }
 
+                // the attempt succeeded: the handshake is complete. Reported even if the executor then discards the
+                // connection (disposed meanwhile) - the ATTEMPT worked, which is what this event is about
+                if (refusal.Exception is { } authRefused) attempt?.AuthenticationRefused(authRefused, logName);
+                else attempt?.Succeeded(logName);
                 return connection;
             }
             catch
@@ -1840,7 +1922,7 @@ namespace StackExchange.Redis
             if (connectionType == ConnectionType.Subscription)
             {
                 if (_subscriptions.TryGetValue(endpoint, out var dedicated)) return dedicated.ConnectionId;
-                return _protocols.TryGetValue(endpoint, out var negotiated) && negotiated >= RedisProtocol.Resp3
+                return SharesSubscriptions(endpoint)
                     ? ConnectionId(endpoint, ConnectionType.Interactive)
                     : null;
             }

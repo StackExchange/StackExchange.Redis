@@ -39,12 +39,17 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.True(File.Exists("cluster.zip"));
     }
 
-    [Fact]
-    public async Task ConnectUsesSingleSocket()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConnectUsesSingleSocket(bool sharedSubscriptionConnection)
     {
         for (int i = 0; i < 5; i++)
         {
-            await using var conn = Create(failMessage: i + ": ", log: Writer);
+            await using var conn = Create(
+                failMessage: i + ": ",
+                log: Writer,
+                configuration: sharedSubscriptionConnection ? GetConfiguration() + ",sharedSubscriptionConnection=true" : null);
 
             foreach (var ep in conn.GetEndPoints())
             {
@@ -58,7 +63,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             // subscription socket is dialled asynchronously under the engine flag - connect completes
             // and the socket lands just after, so an immediate read can legitimately see 0 where the
             // shipped core, which creates its bridge inline, could never see anything but 1.
-            var expectedSubscription = TestContext.Current.IsResp3() ? 0 : 1;
+            var expectedSubscription = sharedSubscriptionConnection && TestContext.Current.IsResp3() ? 0 : 1;
             var deadline = DateTime.UtcNow.AddSeconds(5);
             while (DateTime.UtcNow < deadline
                 && conn.GetEndPoints().Any(

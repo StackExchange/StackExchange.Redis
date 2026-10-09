@@ -186,6 +186,7 @@ namespace StackExchange.Redis
                 MaintenanceRelaxedWindowMax = "maintRelaxedWindowMax",
                 MaintenancePostEventRelaxedDuration = "maintPostEventRelaxed",
                 HighIntegrity = "highIntegrity",
+                SharedSubscriptionConnection = "sharedSubscriptionConnection",
                 TcpKeepAlive = "tcpKeepAlive";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
@@ -230,6 +231,7 @@ namespace StackExchange.Redis
                 MaintenanceRelaxedWindowMax,
                 MaintenancePostEventRelaxedDuration,
                 HighIntegrity,
+                SharedSubscriptionConnection,
                 TcpKeepAlive,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
@@ -291,6 +293,8 @@ namespace StackExchange.Redis
             MaintenanceRelaxedWindowMaxHasValue = 1UL << 38,
             MaintenancePostEventRelaxedDurationHasValue = 1UL << 39,
             TopologyRefreshSecondsHasValue = 1UL << 41,
+            SharedSubscriptionConnectionHasValue = 1UL << 42,
+            SharedSubscriptionConnectionValue = 1UL << 43,
         }
 
         private OptionFlags optionFlags;
@@ -385,6 +389,18 @@ namespace StackExchange.Redis
         /// </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly", Justification = "Existing compatibility")]
         public event RemoteCertificateValidationCallback? CertificateValidation;
+
+        /// <summary>
+        /// Raised once for every physical connection attempt (initial connect or reconnect, interactive or subscription), reporting
+        /// whether that attempt completed the Redis handshake, and identifying the client certificate selected for it, if any; note
+        /// that this cannot be specified in the configuration-string.
+        /// </summary>
+        /// <remarks>
+        /// Unlike <see cref="ConnectionMultiplexer.ConnectionFailed"/>, this is not suppressed while a server remains unreachable: every
+        /// failed reconnect attempt is reported. Subscribe before connecting, so that initial attempts are observed. Handlers are invoked
+        /// on a worker thread, not on the connection's own thread.
+        /// </remarks>
+        public event EventHandler<ConnectionAttemptCompletedEventArgs>? ConnectionAttemptCompleted;
 
         /// <summary>
         /// The default (not explicitly configured) options for this connection, fetched based on our parsed endpoints.
@@ -495,6 +511,23 @@ namespace StackExchange.Redis
         {
             get => HasValue(OptionFlags.HighIntegrityHasValue) ? IsSet(OptionFlags.HighIntegrityValue) : Defaults.HighIntegrity;
             set => SetBooleanWithValue(OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue, value);
+        }
+
+        /// <summary>
+        /// A Boolean value that specifies whether, under RESP3, pub/sub should share the interactive connection rather than
+        /// using a dedicated subscription connection. Has no effect under RESP2, which always requires a separate connection.
+        /// </summary>
+        /// <remarks>
+        /// Sharing halves the number of connections, but the server classifies any connection with an active subscription
+        /// (including the library's own configuration channel) as a pub/sub client, which by default applies much stricter
+        /// output-buffer limits (<c>client-output-buffer-limit pubsub 32mb 8mb 60</c>). A large reply, or a burst of pipelined
+        /// replies, can then cause the server to close the connection - taking all in-flight commands with it. Only enable this
+        /// if replies are known to be small, or the server's pub/sub output-buffer limits have been relaxed.
+        /// </remarks>
+        public bool SharedSubscriptionConnection
+        {
+            get => HasValue(OptionFlags.SharedSubscriptionConnectionHasValue) ? IsSet(OptionFlags.SharedSubscriptionConnectionValue) : Defaults.SharedSubscriptionConnection;
+            set => SetBooleanWithValue(OptionFlags.SharedSubscriptionConnectionHasValue, OptionFlags.SharedSubscriptionConnectionValue, value);
         }
 
         /// <summary>
@@ -1035,6 +1068,12 @@ namespace StackExchange.Redis
             private set => CertificateValidation = value;
         }
 
+        internal EventHandler<ConnectionAttemptCompletedEventArgs>? ConnectionAttemptCompletedHandler
+        {
+            get => ConnectionAttemptCompleted;
+            private set => ConnectionAttemptCompleted = value;
+        }
+
         /// <summary>
         /// How often to re-check the replication role of each connected server, in seconds (every minute by
         /// default), or <c>0</c> to never do so.
@@ -1126,6 +1165,7 @@ namespace StackExchange.Redis
             commandMap = commandMap,
             CertificateValidationCallback = CertificateValidationCallback,
             CertificateSelectionCallback = CertificateSelectionCallback,
+            ConnectionAttemptCompletedHandler = ConnectionAttemptCompletedHandler,
             ChannelPrefix = ChannelPrefix.Clone(),
 #pragma warning disable CS0618 // Type or member is obsolete
             SocketManager = SocketManager,
@@ -1246,6 +1286,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.DefaultDatabase, OptionFlags.DefaultDatabaseHasValue, in defaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, OptionFlags.SetClientLibraryHasValue, OptionFlags.SetClientLibraryValue);
             Append(sb, OptionKeys.HighIntegrity, OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue);
+            Append(sb, OptionKeys.SharedSubscriptionConnection, OptionFlags.SharedSubscriptionConnectionHasValue, OptionFlags.SharedSubscriptionConnectionValue);
             if (HasValue(OptionFlags.ProtocolHasValue)) Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
             // only when the caller set it *and* it can be named: an inferred provider must not be baked into
             // the string, or re-parsing would pin a choice that was only ever a guess from the endpoints
@@ -1500,6 +1541,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.HighIntegrity:
                             HighIntegrity = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.SharedSubscriptionConnection:
+                            SharedSubscriptionConnection = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.TcpKeepAlive:
                             TcpKeepAlive = OptionKeys.ParseBoolean(key, value);

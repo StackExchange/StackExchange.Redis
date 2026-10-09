@@ -16,9 +16,10 @@ namespace StackExchange.Redis.Tests;
 /// exists rather than because somebody subscribed spends exactly the resource that effort protects.
 /// </para>
 /// <para>
-/// <b>And RESP2 only.</b> Under RESP3 a delivery is a push frame on the connection that is already
-/// there; a second socket would buy nothing. The protocol is not knowable until the HELLO reply, so this
-/// is a decision made after connecting, never from configuration alone.
+/// <b>And not for shared RESP3.</b> Under RESP3 a delivery is a push frame that could use the connection already
+/// there, which is what <see cref="ConfigurationOptions.SharedSubscriptionConnection"/> opts into; by default
+/// (#3264) RESP3 gets a second socket too. The protocol is not knowable until the HELLO reply, so this is a
+/// decision made after connecting, never from configuration alone.
 /// </para>
 /// </remarks>
 [RunPerProtocol]
@@ -26,34 +27,42 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
 {
     private static RespConnectionManager CoreFor(IConnectionMultiplexer conn) => RespConnectionManagerFixture.CoreFor(conn);
 
-    /// <summary>Under RESP3 nothing opens a second socket for subscribing; under RESP2 the multiplexer opens one up front.</summary>
+    /// <summary>
+    /// Only shared RESP3 opens no second socket for subscribing; otherwise the multiplexer opens one up front, for
+    /// its configuration channel.
+    /// </summary>
     /// <remarks>
     /// This once asserted "never, until something subscribes" - of a side core the test built for itself, which
     /// only dialled on demand. The multiplexer's own core connects eagerly, in the shipped shape: RESP2 gets
     /// its subscription socket at connect (see <c>DefaultOptionsTests.VanillaResp2ConnectsWithSeparatePubSubConnection</c>),
-    /// and RESP3 never needs one.
+    /// and since #3264 so does RESP3 unless <see cref="ConfigurationOptions.SharedSubscriptionConnection"/> opts into
+    /// sharing - the server applies pub/sub output-buffer limits to any connection with a live subscription.
     /// </remarks>
-    [Fact]
-    public async Task NoSubscriptionMeansNoSecondSocket()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NoSubscriptionMeansNoSecondSocket(bool sharedSubscriptionConnection)
     {
-        await using var conn = Create(shared: false);
+        await using var conn = Create(shared: false, configuration: Configuration(sharedSubscriptionConnection));
         var core = CoreFor(conn);
 
         var db = RespConnectionManagerFixture.Wrap(conn, -1, null);
         await db.PingAsync(); // an ordinary connection exists and has handshaken
 
-        var expected = TestContext.Current.GetProtocol() == RedisProtocol.Resp3 ? 0 : 1;
+        var expected = Shares(sharedSubscriptionConnection) ? 0 : 1;
         Assert.Equal(expected, core.SubscriptionConnectionCount);
     }
 
     /// <summary>
-    /// Asking for the delivery endpoint gives one - but under RESP3 it is the connection already open,
+    /// Asking for the delivery endpoint gives one - but under shared RESP3 it is the connection already open,
     /// not a new one.
     /// </summary>
-    [Fact]
-    public async Task Resp3DeliversOnTheConnectionItAlreadyHas()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Resp3DeliversOnTheConnectionItAlreadyHas(bool sharedSubscriptionConnection)
     {
-        await using var conn = Create(shared: false);
+        await using var conn = Create(shared: false, configuration: Configuration(sharedSubscriptionConnection));
         var core = CoreFor(conn);
 
         var db = RespConnectionManagerFixture.Wrap(conn, -1, null);
@@ -62,18 +71,24 @@ public class RespSubscriptionConnectionTests(ITestOutputHelper output, SharedCon
         var endpoint = conn.GetEndPoints()[0];
         var subscription = core.SubscriptionEndpoint(endpoint);
 
-        if (TestContext.Current.GetProtocol() == RedisProtocol.Resp3)
+        if (Shares(sharedSubscriptionConnection))
         {
             Assert.Same(core.InteractiveEndpoint(endpoint), subscription);
             Assert.Equal(0, core.SubscriptionConnectionCount);
         }
         else
         {
-            // RESP2: a socket of its own, and only now that one was asked for
+            // RESP2, or RESP3 not opted into sharing: a socket of its own
             Assert.NotSame(core.InteractiveEndpoint(endpoint), subscription);
             Assert.Equal(1, core.SubscriptionConnectionCount);
         }
     }
+
+    private string Configuration(bool sharedSubscriptionConnection)
+        => GetConfiguration() + ",sharedSubscriptionConnection=" + sharedSubscriptionConnection;
+
+    private static bool Shares(bool sharedSubscriptionConnection)
+        => sharedSubscriptionConnection && TestContext.Current.GetProtocol() == RedisProtocol.Resp3;
 
     /// <summary>
     /// The whole point of the machinery: a subscription made on the new core receives a real message from

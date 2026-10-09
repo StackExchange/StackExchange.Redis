@@ -71,6 +71,7 @@ internal static partial class LoggerExtensions
     // awkwardly they read. If a name genuinely must change, pin the old one via the attribute's EventName.
     [LoggerMessage(
         Level = LogLevel.Error,
+        EventId = 127,
         Message = "Connection failed: {EndPoint} ({ConnectionType}, {FailureType}): {ErrorMessage}")]
     internal static partial void LogErrorConnectionFailed(this ILogger logger, Exception? exception, EndPointLogValue endPoint, ConnectionType connectionType, ConnectionFailureType failureType, string errorMessage);
 
@@ -768,7 +769,7 @@ internal static partial class LoggerExtensions
     // established" arrived under one id on netfx and another on modern TFMs, for no gain to anyone.
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 99,
+        EventId = 126,
         Message = "TLS connection established successfully using protocol: {SslProtocol}, cipher suite: {CipherSuite}")]
     internal static partial void LogInformationTLSConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol, System.Net.Security.TlsCipherSuite cipherSuite);
 #endif
@@ -781,13 +782,13 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 116,
+        EventId = 124,
         Message = "{Server}: Requesting maintenance notifications ({Mode})")]
     internal static partial void LogInformationRequestingMaintenanceNotifications(this ILogger logger, ServerEndPointLogValue server, MaintenanceNotificationMode mode);
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 117,
+        EventId = 125,
         Message = "{Server}: Maintenance notifications accepted")]
     internal static partial void LogInformationMaintenanceNotificationsAccepted(this ILogger logger, ServerEndPointLogValue server);
 
@@ -829,19 +830,19 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 124,
+        EventId = 128,
         Message = "Refreshed the slot map from {EndPoint}: {RangeCount} range(s)")]
     internal static partial void LogInformationSlotMapRefreshed(this ILogger logger, EndPointLogValue endPoint, int rangeCount);
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 125,
+        EventId = 129,
         Message = "{EndPoint} could not refresh the slot map: {ErrorMessage}")]
     internal static partial void LogInformationSlotMapRefreshFailed(this ILogger logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 126,
+        EventId = 130,
         Message = "{EndPoint} could not refresh its role: {ErrorMessage}")]
     internal static partial void LogInformationRoleRefreshFailed(this ILogger logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
 
@@ -849,7 +850,7 @@ internal static partial class LoggerExtensions
     // case that is not - a subscription the server is delivering to that the registry cannot match.
     [LoggerMessage(
         Level = LogLevel.Debug,
-        EventId = 127,
+        EventId = 131,
         Message = "A pub/sub delivery for {Channel} (subscription {Subscription}) matched no subscription and was dropped")]
     internal static partial void LogDebugDeliveryUnmatched(this ILogger logger, string? channel, string? subscription);
 }
