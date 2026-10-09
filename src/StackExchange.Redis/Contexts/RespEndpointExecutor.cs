@@ -75,6 +75,15 @@ namespace StackExchange.Redis
         /// <summary>Cancels the connect in flight, if any; disposal uses it to abandon the attempt.</summary>
         private CancellationTokenSource? _connectCancel;
 
+        /// <summary>Whether a connect attempt is in flight right now; for tests that need one to act on.</summary>
+        internal bool IsDialling
+        {
+            get
+            {
+                lock (_sync) return _connecting is not null;
+            }
+        }
+
         /// <summary>Whether this executor has been disposed; asked when a connect attempt is cancelled, to say why.</summary>
         internal bool IsDisposed
         {

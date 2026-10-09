@@ -144,14 +144,16 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
                 EndPoints = { endpoint },
                 Ssl = true,
                 AbortOnConnectFail = false,
-                ConnectTimeout = 1000,
+                ConnectTimeout = 3000, // a wide window for the retire below to land inside an attempt
             };
             var attempts = Observe(options);
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
             // v4 has no ResetNonConnected (v3's initial-connect retry path); the library gives up on an attempt in
-            // flight when the endpoint's executor is disposed, which retiring the endpoint does
+            // flight when the endpoint's executor is disposed, which retiring the endpoint does - so retire it while
+            // one IS in flight: the initial attempt has timed out by now, and the retry may not have started yet
+            await WaitForAsync(() => conn.Connections.InteractiveEndpoint(endpoint).IsDialling);
             await conn.Connections.RetireEndpointAsync(endpoint);
 
             await WaitForAsync(() => attempts.Any(a => a.FailureType == ConnectionFailureType.ConnectionDisposed));
