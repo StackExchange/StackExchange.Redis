@@ -824,8 +824,8 @@ namespace StackExchange.Redis
                 && Protocol is RedisProtocol.Resp2
                 && ServerEndPoint.TryRerouteToSubscriptionBridge(message, this))
             {
-                // this was queued while we expected RESP3 - where subscriptions share the interactive
-                // connection - but the handshake resolved to RESP2, which needs them on their own connection.
+                // this was queued while we expected RESP3 - where subscriptions can share the interactive
+                // connection (SharedSubscriptionConnection) - but the handshake resolved to RESP2, which needs them on their own connection.
                 // Writing it here would put *this* connection into subscriber mode, which rejects every
                 // ordinary command on it from then on; see #3154
                 Trace($"Rerouting {message.CommandAndKey} to the subscription connection (RESP2)");

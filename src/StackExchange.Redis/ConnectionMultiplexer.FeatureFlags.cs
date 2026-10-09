@@ -80,8 +80,9 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <remarks>
     /// For tests and diagnostics: the <see cref="FeatureFlags.DedicatedThreads"/> flag is a request, and this
-    /// is what actually happened. Note that under RESP3 there is no separate subscription connection, so
-    /// asking about <see cref="ConnectionType.Subscription"/> answers about the shared one.
+    /// is what actually happened. Note that under RESP3 with <see cref="ConfigurationOptions.SharedSubscriptionConnection"/>
+    /// there is no separate subscription connection, so asking about <see cref="ConnectionType.Subscription"/> answers
+    /// about the shared one.
     /// </remarks>
     bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endpoint, ConnectionType connectionType)
         => GetPhysical(endpoint, connectionType)?.IsSyncReader;

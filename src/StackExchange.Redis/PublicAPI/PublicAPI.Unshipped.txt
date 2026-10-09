@@ -1,4 +1,7 @@
 ﻿#nullable enable
+StackExchange.Redis.ConfigurationOptions.SharedSubscriptionConnection.get -> bool
+StackExchange.Redis.ConfigurationOptions.SharedSubscriptionConnection.set -> void
+virtual StackExchange.Redis.Configuration.DefaultOptionsProvider.SharedSubscriptionConnection.get -> bool
 StackExchange.Redis.ConfigurationOptions.ConnectionAttemptCompleted -> System.EventHandler<StackExchange.Redis.ConnectionAttemptCompletedEventArgs!>?
 StackExchange.Redis.ConnectionAttemptCompletedEventArgs
 StackExchange.Redis.ConnectionAttemptCompletedEventArgs.ClientCertificateIssuer.get -> string?

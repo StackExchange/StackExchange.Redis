@@ -142,7 +142,16 @@ namespace StackExchange.Redis
 
         public bool IsConnecting => interactive?.IsConnecting == true;
         public bool IsConnected => interactive?.IsConnected == true;
-        public bool IsSubscriberConnected => KnowOrAssumeResp3() ? IsConnected : subscription?.IsConnected == true;
+        public bool IsSubscriberConnected => SharesSubscriptionConnection() ? IsConnected : subscription?.IsConnected == true;
+
+        /// <summary>
+        /// Whether pub/sub shares the interactive connection: only under RESP3, and only when opted into via
+        /// <see cref="ConfigurationOptions.SharedSubscriptionConnection"/>. Otherwise subscriptions get a dedicated
+        /// connection, as they always do under RESP2 - because the server classifies any connection with a live
+        /// subscription as a pub/sub client, applying the (much tighter) pub/sub output-buffer limits to it; see #3263.
+        /// </summary>
+        public bool SharesSubscriptionConnection() => Multiplexer.RawConfig.SharedSubscriptionConnection && KnowOrAssumeResp3();
+
         public bool KnowOrAssumeResp3()
         {
             var protocol = interactive?.Protocol;
@@ -214,7 +223,7 @@ namespace StackExchange.Redis
         }
 
         internal State InteractiveConnectionState => interactive?.ConnectionState ?? State.Disconnected;
-        internal State SubscriptionConnectionState => KnowOrAssumeResp3() ? InteractiveConnectionState : subscription?.ConnectionState ?? State.Disconnected;
+        internal State SubscriptionConnectionState => SharesSubscriptionConnection() ? InteractiveConnectionState : subscription?.ConnectionState ?? State.Disconnected;
 
         public long OperationCount => (interactive?.OperationCount ?? 0) + (subscription?.OperationCount ?? 0);
 
@@ -415,10 +424,10 @@ namespace StackExchange.Redis
             switch (type)
             {
                 case ConnectionType.Interactive:
-                case ConnectionType.Subscription when KnowOrAssumeResp3():
-                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null);
+                case ConnectionType.Subscription when SharesSubscriptionConnection():
+                    return interactive ?? (create ? GetOrCreateBridge(ref interactive, ConnectionType.Interactive, log) : null);
                 case ConnectionType.Subscription:
-                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null);
+                    return subscription ?? (create ? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, log) : null);
                 default:
                     return null;
             }
@@ -443,9 +452,9 @@ namespace StackExchange.Redis
                     break;
             }
 
-            return (message.IsForSubscriptionBridge && !KnowOrAssumeResp3())
-                ? subscription ??= CreateBridge(ConnectionType.Subscription, null)
-                : interactive ??= CreateBridge(ConnectionType.Interactive, null);
+            return (message.IsForSubscriptionBridge && !SharesSubscriptionConnection())
+                ? subscription ?? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, null)
+                : interactive ?? GetOrCreateBridge(ref interactive, ConnectionType.Interactive, null);
         }
 
         /// <summary>
@@ -458,7 +467,7 @@ namespace StackExchange.Redis
             if (isDisposed) return false;
 
             // deliberately not via GetBridge: that consults the same expectation that got us here
-            var target = subscription ??= CreateBridge(ConnectionType.Subscription, null);
+            var target = subscription ?? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, null);
             if (target is null || ReferenceEquals(target, from)) return false;
 
             target.AcceptRerouted(message);
@@ -476,13 +485,13 @@ namespace StackExchange.Redis
                 case RedisCommand.PUNSUBSCRIBE:
                 case RedisCommand.SSUBSCRIBE:
                 case RedisCommand.SUNSUBSCRIBE:
-                    if (!KnowOrAssumeResp3())
+                    if (!SharesSubscriptionConnection())
                     {
-                        return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null);
+                        return subscription ?? (create ? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, null) : null);
                     }
                     break;
             }
-            return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, null) : null);
+            return interactive ?? (create ? GetOrCreateBridge(ref interactive, ConnectionType.Interactive, null) : null);
         }
 
         public RedisFeatures GetFeatures() => new RedisFeatures(version);
@@ -753,7 +762,8 @@ namespace StackExchange.Redis
             try
             {
                 var tmp = GetBridge(connectionType, create: false);
-                if (tmp == null || !tmp.IsConnected || !Multiplexer.CommandMap.IsAvailable(RedisCommand.QUIT))
+                if (tmp == null || !tmp.IsConnected || !Multiplexer.CommandMap.IsAvailable(RedisCommand.QUIT)
+                    || (connectionType == ConnectionType.Subscription && ReferenceEquals(tmp, interactive))) // shared: QUIT once, via Interactive
                 {
                     return Task.CompletedTask;
                 }
@@ -947,7 +957,7 @@ namespace StackExchange.Redis
             if (bridge == interactive)
             {
                 CompletePendingConnectionMonitors("Disconnected");
-                if (Protocol is RedisProtocol.Resp3)
+                if (SharesSubscriptionConnection())
                 {
                     Multiplexer.UpdateSubscriptions();
                 }
@@ -1046,9 +1056,10 @@ namespace StackExchange.Redis
         private static int NudgeFromZeroTicks(int ticks) => ticks == 0 ? 1 : ticks;
 
         /// <summary>
-        /// Subscribes to the configuration-change broadcast on a RESP3 connection. With RESP3 there is no
-        /// separate subscription connection, and so no subscription handshake - which is where RESP2 subscribes
-        /// to it. Left at that, the channel would silently have no subscriber, and the manual
+        /// Subscribes to the configuration-change broadcast on a RESP3 interactive connection that is shared with
+        /// pub/sub (<see cref="ConfigurationOptions.SharedSubscriptionConnection"/>). Then there is no separate
+        /// subscription connection, and so no subscription handshake - which is where a dedicated subscription
+        /// connection subscribes to it. Left at that, the channel would silently have no subscriber, and the manual
         /// <c>PUBLISH</c> that clients have long used to announce a topology change would reach nobody.
         /// </summary>
         /// <remarks>
@@ -1082,28 +1093,32 @@ namespace StackExchange.Redis
 
                     // is *this specific* connection using RESP3? (without reference to config preferences)
                     bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
+                    // and if so, is pub/sub sharing it? (if not, subscriptions live on a dedicated connection)
+                    bool shared = isResp3 && bridge == interactive && Multiplexer.RawConfig.SharedSubscriptionConnection;
 
                     if (connection is not null && bridge == interactive)
                     {
                         ReconcileMaintenanceNotifications(connection);
                     }
-                    if (bridge == subscription || isResp3)
+                    if (bridge == subscription || shared)
                     {
                         // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
                         // TracerProcessor which is executing this line inside a SetResultCore().
                         // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
                         Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
-                        if (isResp3 && bridge == interactive)
+                        if (shared)
                         {
                             SubscribeToConfigurationChannel(bridge);
                         }
                     }
-                    else if (SupportsSubscriptions && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
+                    else if (bridge == interactive && !isResp3 && SupportsSubscriptions
+                        && Multiplexer.RawConfig.SharedSubscriptionConnection && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
                     {
-                        // interactive, and we wanted RESP3+, but we didn't get it; spin up pub/sub
+                        // interactive, and we wanted to share it with pub/sub under RESP3+, but we didn't get it; spin up
+                        // pub/sub (when not sharing, ActivateServer has already done so, as under RESP2)
                         Activate(ConnectionType.Subscription, null);
                     }
-                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || isResp3))
+                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || shared))
                     {
                         // Only connect on the second leg - we can accomplish this by checking both
                         // Or the first leg, if we're only making 1 connection because subscriptions aren't supported
@@ -1325,6 +1340,27 @@ namespace StackExchange.Redis
                 result.GetAwaiter().GetResult();
             }
             return default;
+        }
+
+        /// <summary>
+        /// Lazily creates (and starts connecting) the bridge in <paramref name="field"/>, safely against a concurrent
+        /// caller doing the same - e.g. <c>ActivateServer</c> on the caller's thread racing <c>OnFullyEstablished</c>
+        /// on an IO thread. A bridge connects as soon as it is created, so a plain <c>??=</c> that loses the race
+        /// leaks a second, unreferenced connection to the server.
+        /// </summary>
+        private PhysicalBridge? GetOrCreateBridge(ref PhysicalBridge? field, ConnectionType type, ILogger? log)
+        {
+            var existing = Volatile.Read(ref field);
+            if (existing is not null) return existing;
+
+            var created = CreateBridge(type, log);
+            if (created is null) return null;
+
+            existing = Interlocked.CompareExchange(ref field, created, null);
+            if (existing is null) return created;
+
+            created.Dispose(); // lost the race: use the winner, and close the connection we started
+            return existing;
         }
 
         private PhysicalBridge? CreateBridge(ConnectionType type, ILogger? log)

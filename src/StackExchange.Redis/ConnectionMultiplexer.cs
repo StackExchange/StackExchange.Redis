@@ -1742,7 +1742,8 @@ namespace StackExchange.Redis
         /// anything we are about to depend on being connected.
         /// </para>
         /// <para>
-        /// Both legs, where the subscription connection is a separate one: under RESP2 the waiters registered
+        /// Both legs, where the subscription connection is a separate one (always under RESP2, and under RESP3
+        /// unless <see cref="ConfigurationOptions.SharedSubscriptionConnection"/> is enabled): under RESP2 the waiters registered
         /// by <see cref="ServerEndPoint.OnConnectedAsync"/> are only completed once that second connection is
         /// up, so activating the interactive bridge alone leaves such a wait hanging.
         /// </para>
@@ -1751,8 +1752,8 @@ namespace StackExchange.Redis
         {
             // bool hasSubscriptions = GetSubscriptionsCount() != 0;
             server.Activate(ConnectionType.Interactive, log);
-            // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-            if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+            // if (hasSubscriptions && server.SupportsSubscriptions && !server.SharesSubscriptionConnection())
+            if (server.SupportsSubscriptions && !server.SharesSubscriptionConnection())
             {
                 // Intentionally not logging the sub connection
                 server.Activate(ConnectionType.Subscription, null);

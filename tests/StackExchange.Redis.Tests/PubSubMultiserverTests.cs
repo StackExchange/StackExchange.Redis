@@ -70,7 +70,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
         Log("Connected to: " + initialServer);
 
         conn.AllowConnect = false;
-        if (TestContext.Current.IsResp3())
+        if (subscribedServerEndpoint.SharesSubscriptionConnection())
         {
             subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.All);
 
@@ -156,7 +156,7 @@ public class PubSubMultiserverTests(ITestOutputHelper output, SharedConnectionFi
         Log("Connected to: " + initialServer);
 
         conn.AllowConnect = false;
-        if (TestContext.Current.IsResp3())
+        if (subscribedServerEndpoint.SharesSubscriptionConnection())
         {
             subscribedServerEndpoint.SimulateConnectionFailure(SimulatedFailureType.All); // need to kill the main connection
             Assert.False(subscribedServerEndpoint.IsConnected, "subscribedServerEndpoint.IsConnected");
