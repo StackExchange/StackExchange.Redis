@@ -128,7 +128,9 @@ The contexts, the targets and `SendAsync` are all in the `StackExchange.Redis` n
 
 That split is deliberate: the context surface is the primary API, the frame machinery is not, and a namespace is the cheapest way to say which is which. It is also why level 2 needs nothing extra - `db.Context.SendAsync<RedisValue>($"SUBSTR {key} {0} {4}")` names no protocol type, because the interpolated string is lowered into one rather than written as one.
 
-> On C# 14 the accessor can be an extension **property** (`extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget { public ContosoCommands Contoso => new((RespContext)target.Context); }`), giving `db.Contoso.SubstringAsync(...)` without the parentheses - the shape this client's own groups use. The classic form above compiles everywhere.
+> **The accessor, as a property and as a method.** On C# 14 the accessor can be an extension **property** - `extension<TTarget>(TTarget target) where TTarget : IRespKeyspaceTarget { public ContosoCommands Contoso => new((RespContext)target.Context); }` - giving `db.Contoso.SubstringAsync(...)` without the parentheses, the shape this client's own groups use. But a property declared that way is **invisible to your consumers' compilers below C# 14** - which includes the .NET 8 SDK's default (C# 12) and every .NET Framework project - so on its own it leaves them nothing to call but `get_Contoso(db)`.
+>
+> So ship both, as this client does: the property in your main namespace, and the classic method above in a separate namespace of its own (this client's is `StackExchange.Redis.Downlevel`) that only down-level consumers import. Keep them apart deliberately: on C# 14, with both in scope, `db.Contoso` is ambiguous (`CS9339`) - a compile error, never a silent misbind, since both build the same value. If you would rather not ship two, ship the method alone; it compiles everywhere.
 >
 > One generic accessor rather than one per type: the constraint is satisfied by a struct context exactly as by an interface, and for a struct the JIT specialises the call, so `ctx.Contoso` costs what a hand-written accessor on the context would - measured identical once tiered compilation has reached tier 1.
 
@@ -175,6 +177,27 @@ A singleton, not a lambda: the handler is stateless, so one instance serves ever
 
 `RespReader` gives you the reply where it landed - `ReadInt64()`, `ReadRedisValue()`, `ReadString()`, `CopyTo(Span<byte>)`, `CopyTo(Span<char>, Encoding?)` for text without a `string`, and `ScalarChunks()` when you want the bytes as they arrived. Test the shape of a reply with `IsScalar`/`IsAggregate`/`IsNull` rather than comparing `Prefix` to a literal: RESP2 and RESP3 spell the same reply differently, and the category tests cover both.
 
+### Shaping the signature
+
+The conventions this client's own groups follow, and the ones a caller of yours will expect:
+
+- **Return `ValueTask<T>` (or `ValueTask`), named `...Async`,** and end with `CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default`. Document the token as this client does: *cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.*
+- **Keys are `RedisKey`; values are `RedisValue`** or a primitive. See [Keys are keys](#keys-are-keys---this-is-the-rule-that-matters).
+- **Variable-length arguments are `ReadOnlySpan<T>`**, not arrays or `IEnumerable<T>`: a span accepts an array, a slice, a stack buffer or a collection expression, and costs the caller nothing to build. Pairs can be a span of tuples - `ReadOnlySpan<(RedisValue Item, long Increment)>` - appended with `Compose`.
+- **Variable-length replies are `ReadOnlyLease<T>`**, not `T[]`: one pooled array per call instead of a fresh allocation, returned to the pool when the caller disposes it. It is a reply type the client already knows, so `SendAsync<ReadOnlyLease<long>>(...)` needs no handler of yours. Scalars are returned as themselves; a reply with a fixed shape - a handful of named fields - is a small type of your own, with a handler.
+- **An empty variable-length argument is answered without a round trip** where the answer is obvious - `return new(ReadOnlyLease<long>.Empty);` for "query nothing" - and is an `ArgumentException` only where the command is genuinely malformed without it.
+
+```csharp
+// Query is a RespCommand field, declared like Substr above
+public static ValueTask<ReadOnlyLease<long>> QueryAsync(this ContosoCommands contoso, RedisKey key,
+    ReadOnlySpan<RedisValue> items, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    => items.IsEmpty
+        ? new(ReadOnlyLease<long>.Empty)
+        : contoso.Context.SendAsync<ReadOnlyLease<long>>($"{Query}{key}{items}", flags, cancellationToken: cancellationToken);
+```
+
+A legacy surface that returns arrays copies out of the lease - `using var lease = await ...; return lease.Span.ToArray();` - rather than keeping a second, array-returning command alongside.
+
 ### Say whether your command can be retried
 
 This one is easy to miss and has no visible symptom. The client keeps a retry category per command - can this be replayed safely after a reconnect? - and it has no entry for yours, so it assumes **the worst**: not replayed, not cached.
@@ -188,6 +211,12 @@ This one is easy to miss and has no visible symptom. The client keeps a retry ca
 ```
 
 `WithRetryCategory` is **caller-wins**: a caller who passes an explicit category keeps it, so this sets a default rather than overriding a decision. Use `CommandRetryReadOnly` for a read, `CommandRetryWriteChecked` for a write whose replay converges (conditional or idempotent), and leave it alone if a replay could double an effect.
+
+**Declaring a command read-only also makes it [client-side cacheable](ClientSideCaching)**, for callers who have enabled the cache: its reply may be served from memory until a change to one of its keys invalidates it. That is right for an ordinary read - and for a module's, since Redis signals a key as modified when a module closes a key it opened for writing. It is wrong for a read whose answer changes **without a write** to the keys it names: one that reports idle or elapsed time, returns something random, or reads keys it does not name as `RedisKey`. For those, declare the category and opt out of the cache too:
+
+```csharp
+flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly) | CommandFlags.NoClientCache
+```
 
 ### Synchronous forms
 
