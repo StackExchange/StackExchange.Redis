@@ -787,6 +787,10 @@ The rules:
   regions every member can be behind at once, and a group that refused to serve from any of them would turn a
   consistency precaution into an outage. When the active member is lost, the best eligible survivor is
   preferred, then the best live one.
+- **A member chosen that way is provisional.** It is left for an eligible member as soon as one is
+  available, whatever their weights, and becomes an ordinary active member once it passes its own failback
+  check. Other clients never select a member that fails its lag check at all; this is the nearest
+  equivalent that still serves when every member is behind.
 - **An explicit `TryFailoverTo(member)` overrides it**, as it does `IsUnhealthy`.
 
 A probe that asks about the database as a whole, rather than one endpoint, can set

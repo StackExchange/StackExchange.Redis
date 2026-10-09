@@ -71,8 +71,8 @@ public class FailbackHealthCheckTests(ITestOutputHelper log)
                 HealthCheckInterval = TimeSpan.MaxValue, // passes are driven by the test
             };
             // Hold every member down until all of their connections are up, so the first real selection
-            // sees the whole group: otherwise whichever member connects first is selected by the liveness
-            // fallback and, by design, is never evicted by a failback check - a race, not the rule under test.
+            // sees the whole group: otherwise whichever member connects first can be selected by the liveness
+            // fallback (provisionally) before the others are up - a race, not the rule under test.
             foreach (var endpoint in _endpoints) Liveness.Set(endpoint, HealthCheckResult.Unhealthy);
             Group = await ConnectionMultiplexer.ConnectGroupAsync(Members, options);
 
@@ -148,6 +148,46 @@ public class FailbackHealthCheckTests(ITestOutputHelper log)
         f.Failback.Set(Alpha, HealthCheckResult.Unhealthy);
         f.Failback.Set(Beta, HealthCheckResult.Unhealthy);
         await f.ConnectAsync();
+        Assert.Equal("beta", f.Active);
+    }
+
+    [Fact]
+    public async Task AFallbackChoiceIsLeftForAnEligibleMember()
+    {
+        // other clients never select a member that fails its lag check; the nearest equivalent that still
+        // serves when every member is behind is to leave a fallback choice as soon as anything is eligible
+        await using var f = new Fixture(log, (Alpha, 1), (Beta, 9));
+        f.Failback.Set(Alpha, HealthCheckResult.Unhealthy);
+        f.Failback.Set(Beta, HealthCheckResult.Unhealthy);
+        await f.ConnectAsync();
+        Assert.Equal("beta", f.Active); // provisional
+
+        f.Failback.Set(Alpha, HealthCheckResult.Healthy);
+        await f.PassAsync();
+        Assert.Equal("alpha", f.Active); // eligible beats provisional, whatever the weights
+
+        f.Failback.Set(Beta, HealthCheckResult.Healthy);
+        await f.PassAsync();
+        Assert.Equal("beta", f.Active); // and ordinary failback by weight resumes
+    }
+
+    [Fact]
+    public async Task AProvisionalMemberThatCatchesUpBecomesOrdinary()
+    {
+        await using var f = new Fixture(log, (Alpha, 1), (Beta, 9));
+        f.Failback.Set(Alpha, HealthCheckResult.Unhealthy);
+        f.Failback.Set(Beta, HealthCheckResult.Unhealthy);
+        await f.ConnectAsync();
+        Assert.Equal("beta", f.Active); // provisional
+
+        f.Failback.Set(Beta, HealthCheckResult.Healthy); // still checked while provisional
+        await f.PassAsync();
+        Assert.Equal("beta", f.Active); // verified: no longer provisional
+
+        // now an ordinary active member: never evicted by its own failback check
+        f.Failback.Set(Alpha, HealthCheckResult.Healthy);
+        f.Failback.Set(Beta, HealthCheckResult.Unhealthy);
+        await f.PassAsync();
         Assert.Equal("beta", f.Active);
     }
 
