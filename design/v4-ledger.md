@@ -168,9 +168,6 @@ Each has a default the work proceeds on until answered.
   `BlockBufferSerializer` remarks are the surviving trace).
   **Check first** whether the interpolated writer's reserved prologue - the `*N` count is back-filled into
   padding reserved ahead of each frame - still lets frames sit adjacently, or leaves gaps that cost a copy.
-- **Retry: the two `WithRetry` overloads default differently.** `IDatabaseAsync.WithRetry()` resolves the
-  connection's configured policy (`MultiGroupOptions`/`ConfigurationOptions.RetryPolicy`); the context
-  overload (`DatabaseExtensions.cs`, `RespDatabaseContext.WithRetry`) falls straight to `RetryPolicy.Default`.
 - **Retry: stale comments.** `RetryDatabase.ExecuteAsync` says the policy "will live here in due course; for
   now it is a straight pass-through" (it retries); `RespRetryExecutor`'s remarks say "Failover is not wired
   up yet" (it is, via `GetFailoverSource()`).
