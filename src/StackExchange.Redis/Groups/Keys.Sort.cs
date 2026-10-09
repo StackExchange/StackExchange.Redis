@@ -149,6 +149,12 @@ public static partial class Keys
         };
 
         var context = keys.Context;
+
+        // BY and GET patterns read keys the command never names, so nothing would invalidate a cached
+        // result when one of them changed - the same gap as a script reading an undeclared key. Only a
+        // pattern with a '*' looks anything up: BY nosort, a starless BY, and GET # read nothing else.
+        if (ReadsOtherKeys(by, get)) flags = flags.NeverCached();
+
         var command = SelectCommand(context, in destination, in key, ref flags);
 
         // these defaults mean "everything", and the server already assumes them
@@ -200,6 +206,19 @@ public static partial class Keys
     }
 
     /// <summary>SORT or SORT_RO, and what that means for retries and routing.</summary>
+    private static bool ReadsOtherKeys(RedisValue by, ReadOnlySpan<RedisValue> get)
+    {
+        if (HasWildcard(by)) return true;
+        foreach (var pattern in get)
+        {
+            if (HasWildcard(pattern)) return true;
+        }
+
+        return false;
+
+        static bool HasWildcard(RedisValue pattern) => !pattern.IsNull && ((string?)pattern)?.IndexOf('*') >= 0;
+    }
+
     private static RedisCommand SelectCommand(RespContext context, in RedisKey destination, in RedisKey key, ref CommandFlags flags)
     {
         var readOnly = destination.IsNull

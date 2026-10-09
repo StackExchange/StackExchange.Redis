@@ -1173,7 +1173,7 @@ public static partial class Streams
         CancellationToken cancellationToken = default)
     {
         var cmd = ConsumerInfoCommand(streams.Context, key, group);
-        return streams.Context.SendAsync(ref cmd, flags, ConsumerInfoHandler.Lease, cancellationToken);
+        return streams.Context.SendAsync(ref cmd, flags.NeverCached(), ConsumerInfoHandler.Lease, cancellationToken);
     }
 
     /// <inheritdoc cref="ConsumerInfoAsync"/>
@@ -1186,9 +1186,14 @@ public static partial class Streams
         CancellationToken cancellationToken = default)
     {
         var cmd = ConsumerInfoCommand(streams.Context, key, group);
-        return streams.Context.SendAsync(ref cmd, flags, ConsumerInfoHandler.Array, cancellationToken);
+        return streams.Context.SendAsync(ref cmd, flags.NeverCached(), ConsumerInfoHandler.Array, cancellationToken);
     }
 
+    /// <remarks>
+    /// <b>Never cached</b> by its callers: each consumer's <c>idle</c> and <c>inactive</c> are milliseconds
+    /// since it last acted, which change with no write to the key - the server tags it
+    /// <c>nondeterministic_output</c>.
+    /// </remarks>
     private static RespRequestFrame ConsumerInfoCommand(RespContext context, RedisKey key, RedisValue group)
         => context.Render($"{RedisCommand.XINFO}{RespLiterals.Consumers}{key}{group}");
 
@@ -1374,7 +1379,7 @@ public static partial class Streams
         CancellationToken cancellationToken = default)
     {
         var cmd = PendingMessagesCommand(streams.Context, key, group, count, consumer, minId, maxId, minIdleTime);
-        return streams.Context.SendAsync(ref cmd, flags, PendingMessagesReplyHandler, cancellationToken);
+        return streams.Context.SendAsync(ref cmd, flags.NeverCached(), PendingMessagesReplyHandler, cancellationToken);
     }
 
     /// <inheritdoc cref="PendingMessagesAsync(RespStreams, RedisKey, RedisValue, int, RedisValue, RedisValue?, RedisValue?, TimeSpan?, CommandFlags, CancellationToken)"/>
@@ -1392,11 +1397,16 @@ public static partial class Streams
         CancellationToken cancellationToken = default)
     {
         var cmd = PendingMessagesCommand(streams.Context, key, group, count, consumer, minId, maxId, minIdleTime);
-        return streams.Context.SendAsync(ref cmd, flags, StreamTypesHandler.PendingMessages, cancellationToken);
+        return streams.Context.SendAsync(ref cmd, flags.NeverCached(), StreamTypesHandler.PendingMessages, cancellationToken);
     }
 
     /// <summary>Render the extended <c>XPENDING</c> - the one place the command is composed.</summary>
     /// <remarks><inheritdoc cref="RangeCommand" path="/remarks"/></remarks>
+    /// <remarks>
+    /// <b>Never cached</b> by its callers: each entry's idle time grows with no write to the key, and an
+    /// <c>IDLE</c> filter admits entries as time passes - the server tags <c>XPENDING</c>
+    /// <c>nondeterministic_output</c>. The summary form, which reports counts and ids only, stays cacheable.
+    /// </remarks>
     private static RespRequestFrame PendingMessagesCommand(
         RespContext context,
         RedisKey key,

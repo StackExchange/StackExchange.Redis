@@ -118,6 +118,55 @@ public class RespCacheExclusionTests
         Assert.True(whenCached, "HPEXPIRETIME should be cacheable: an instant does not drift");
     }
 
+    /// <summary>
+    /// Reads whose answer changes with no write to the key they name - found by checking our read-only table
+    /// against the server's own <c>COMMAND</c> tips (<c>nondeterministic_output</c>) and key specs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>XINFO CONSUMERS</c> reports each consumer's idle time, and the full form of <c>XPENDING</c> each entry's;
+    /// both grow with the clock, not with writes.
+    /// </para>
+    /// <para>
+    /// <c>SORT</c> with a <c>BY</c> or <c>GET</c> pattern reads keys it never names, so nothing invalidates a cached
+    /// result when one of them changes - the same gap as a script reading an undeclared key. Only a pattern with a
+    /// <c>*</c> looks anything up, which is why a plain <c>SORT</c> and <c>GET #</c> stay cacheable (below).
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ReadsThatDriftWithoutAWriteAreNeverCached()
+    {
+        var cases = new (string Name, string Reply, Func<RespDatabaseContext, ValueTask> Run)[]
+        {
+            ("XINFO CONSUMERS", "*0\r\n", static c => DiscardLease(c.Streams.ConsumerInfoAsync("k", "g"))),
+            ("XPENDING (full)", "*0\r\n", static c => DiscardDisposable(c.Streams.PendingMessagesAsync("k", "g", 10))),
+            ("SORT BY pattern", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.Keys.SortAsync("k", by: "weight_*"))),
+            ("SORT GET pattern", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.Keys.SortAsync("k", get: ["object_*"]))),
+            ("SORT GET hash field", "*1\r\n$1\r\na\r\n", static c => DiscardLease(c.Keys.SortAsync("k", get: ["#", "obj_*->name"]))),
+        };
+
+        foreach (var (name, reply, run) in cases)
+        {
+            var (cached, refused) = await RunTwice(reply, run);
+            Assert.False(cached, $"{name} was served from cache");
+            Assert.True(refused > 0, $"{name} was not refused by flags");
+        }
+
+        // and the SORTs that read nothing else stay cacheable, so the rule above is the rule and not a blanket
+        var cacheable = new (string Name, Func<RespDatabaseContext, ValueTask> Run)[]
+        {
+            ("SORT", static c => DiscardLease(c.Keys.SortAsync("k"))),
+            ("SORT BY nosort", static c => DiscardLease(c.Keys.SortAsync("k", by: "nosort"))),
+            ("SORT GET #", static c => DiscardLease(c.Keys.SortAsync("k", get: ["#"]))),
+        };
+
+        foreach (var (name, run) in cacheable)
+        {
+            var (cached, _) = await RunTwice("*1\r\n$1\r\na\r\n", run);
+            Assert.True(cached, $"{name} should be cacheable");
+        }
+    }
+
     /// <summary>An ordinary read of the same shape still caches - so the tests above prove a rule, not a bug.</summary>
     /// <remarks>
     /// Without this the assertions above would pass just as well if caching were broken outright, which is
@@ -137,4 +186,8 @@ public class RespCacheExclusionTests
     private static async ValueTask Discard<T>(ValueTask<T> pending) => await pending;
 
     private static async ValueTask DiscardLease<T>(ValueTask<ReadOnlyLease<T>> pending) => (await pending).Dispose();
+
+    private static async ValueTask DiscardDisposable<T>(ValueTask<T> pending)
+        where T : IDisposable
+        => (await pending).Dispose();
 }

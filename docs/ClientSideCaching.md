@@ -61,7 +61,8 @@ A multi-key read such as `MGET a b c` is one entry; a change to any of its keys 
 - **writes** - and a write from this client invalidates what it touches *before* it is sent (see [Consistency](#consistency));
 - **commands that name no key** - `SCAN`, `KEYS`, `INFO`, `DBSIZE`, `RANDOMKEY`, ... - because the server can only announce changes to keys, so nothing could ever invalidate them;
 - **random reads** - `SRANDMEMBER`, `HRANDFIELD`, `ZRANDMEMBER`, `VRANDMEMBER` - which would otherwise return the same "random" answer every time;
-- **reads that report time or access** - `TTL`, `PTTL`, the hash-field TTL reads, `TOUCH`, and `OBJECT FREQ` / `IDLETIME` / `REFCOUNT` - whose answers change without any write;
+- **reads that report time or access** - `TTL`, `PTTL`, the hash-field TTL reads, `TOUCH`, `OBJECT FREQ` / `IDLETIME` / `REFCOUNT`, `XINFO CONSUMERS`, and the per-entry form of `XPENDING` - whose answers change without any write;
+- **`SORT` with a `BY` or `GET` pattern** (`BY weight_*`, `GET object_*->name`) - it reads keys it never names, so their changes could not invalidate it. A plain `SORT`, `BY nosort` and `GET #` are cached;
 - **error replies**;
 - **reads inside a transaction** (`MULTI`/`EXEC`): those are answered by `EXEC`, atomically with the transaction. Reads inside a *batch* do use the cache - a batch is pipelining, not atomicity;
 - **fire-and-forget** commands (`CommandFlags.FireAndForget`) - there is no reply to keep;
