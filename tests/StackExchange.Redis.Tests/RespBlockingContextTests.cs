@@ -5,10 +5,10 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 /// <summary>
-/// <c>Synchronous()</c>: a context whose sends complete before they return, so a command group's asynchronous
+/// <c>Blocking()</c>: a context whose sends complete before they return, so a command group's asynchronous
 /// method serves a synchronous caller - <c>.GetAwaiter().GetResult()</c> - without a synchronous twin.
 /// </summary>
-public class RespSynchronousContextTests
+public class RespBlockingContextTests
 {
     private static readonly RespCommand Ping = "PING".Command();
 
@@ -24,16 +24,16 @@ public class RespSynchronousContextTests
     [Fact]
     public void AnOrdinaryContextLeavesTheSendPending()
     {
-        // the control: without Synchronous(), the group method goes the asynchronous way
+        // the control: without Blocking(), the group method goes the asynchronous way
         var pending = Context(new SyncOnlyExecutor("$1\r\nv\r\n")).Strings.GetAsync("k");
         Assert.False(pending.IsCompleted);
     }
 
     [Fact]
-    public void ASynchronousContextCompletesBeforeReturning()
+    public void ABlockingContextCompletesBeforeReturning()
     {
         var executor = new SyncOnlyExecutor("$1\r\nv\r\n");
-        var done = Context(executor).Synchronous().Strings.GetAsync("k");
+        var done = Context(executor).Blocking().Strings.GetAsync("k");
 
         Assert.True(done.IsCompletedSuccessfully);
         Assert.Equal("v", (string?)done.GetAwaiter().GetResult());
@@ -43,7 +43,7 @@ public class RespSynchronousContextTests
     [Fact]
     public void TheVoidSendCompletesToo()
     {
-        var ctx = (RespContext)Context(new SyncOnlyExecutor("+PONG\r\n")).Synchronous();
+        var ctx = (RespContext)Context(new SyncOnlyExecutor("+PONG\r\n")).Blocking();
         Assert.True(ctx.SendAsync($"{Ping}").IsCompletedSuccessfully);
     }
 
@@ -51,7 +51,7 @@ public class RespSynchronousContextTests
     public void AFailureIsAFaultedTaskNotAThrow()
     {
         // as from the asynchronous path: a caller may hold the task before reading it
-        var done = Context(new SyncOnlyExecutor("-ERR boom\r\n")).Synchronous().Strings.GetAsync("k");
+        var done = Context(new SyncOnlyExecutor("-ERR boom\r\n")).Blocking().Strings.GetAsync("k");
 
         Assert.True(done.IsFaulted);
 
@@ -61,11 +61,11 @@ public class RespSynchronousContextTests
     }
 
     [Fact]
-    public void SynchronousComposesWithTheRestOfTheContext()
+    public void BlockingComposesWithTheRestOfTheContext()
     {
         // a service like any other: a key prefix applied before or after still applies
         var executor = new SyncOnlyExecutor("$1\r\nv\r\n");
-        var done = Context(executor).Synchronous().AppendKeyPrefix("t:").Strings.GetAsync("k");
+        var done = Context(executor).Blocking().AppendKeyPrefix("t:").Strings.GetAsync("k");
 
         Assert.True(done.IsCompletedSuccessfully);
         Assert.Equal("*2|$3|GET|$3|t:k|", Assert.Single(executor.Sent));

@@ -68,7 +68,7 @@ namespace StackExchange.Redis
             ScriptCache = TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
             ChannelPrefix = TryGetService<ChannelPrefixService>(out var prefix) ? prefix.Channel : default;
             MaxCacheAgeTicks = TryGetService<MaxCacheAgeService>(out var maxAge) ? maxAge.Ticks : long.MaxValue;
-            IsSynchronous = TryGetService<SynchronousService>(out _);
+            IsBlocking = TryGetService<BlockingService>(out _);
         }
 
         /// <summary>
@@ -82,26 +82,32 @@ namespace StackExchange.Redis
         /// handing back a pending task. So a command group's asynchronous method serves a synchronous caller
         /// without a synchronous twin, and a library's own groups get the same for nothing:
         /// <code>
-        /// RedisValue value = db.Context.Synchronous().Strings.GetAsync(key).GetAwaiter().GetResult();
+        /// RedisValue value = db.Context.Blocking().Strings.GetAsync(key).GetAwaiter().GetResult();
         /// </code>
         /// A command that takes several round trips works too, because each of its sends completes inline.
         /// </para>
         /// <para>
+        /// <b>Nothing to do with <see cref="System.Threading.SynchronizationContext"/>.</b> It does not capture or
+        /// install one, nor change where any continuation runs; it is this context - the configuration a command is
+        /// sent through - in blocking mode, and it affects only the commands sent through it.
+        /// </para>
+        /// <para>
         /// <b>Not for asynchronous code</b>: every send through it blocks the calling thread until its reply. And a
-        /// command reached through a path other than the shared send (rare) still completes asynchronously, so
-        /// <c>GetResult</c> waits on it as it would on any task.
+        /// command reached through a path other than the shared send (rare) still completes asynchronously - where
+        /// <c>GetResult</c> on the pending <c>ValueTask</c> throws rather than waits, which is the error this mode
+        /// exists to avoid; those paths are being brought under it.
         /// </para>
         /// </remarks>
-        /// <returns>The synchronous context.</returns>
-        public RespContext Synchronous() => IsSynchronous ? this : WithServices(SynchronousService.Instance);
+        /// <returns>The blocking context.</returns>
+        public RespContext Blocking() => IsBlocking ? this : WithServices(BlockingService.Instance);
 
-        /// <summary>Whether sends through this context complete before they return; see <see cref="Synchronous"/>.</summary>
-        internal bool IsSynchronous { get; }
+        /// <summary>Whether sends through this context complete before they return; see <see cref="Blocking"/>.</summary>
+        internal bool IsBlocking { get; }
 
-        /// <summary>The marker <see cref="Synchronous"/> adds; a service, so it composes with everything else.</summary>
-        private sealed class SynchronousService
+        /// <summary>The marker <see cref="Blocking"/> adds; a service, so it composes with everything else.</summary>
+        private sealed class BlockingService
         {
-            internal static readonly SynchronousService Instance = new();
+            internal static readonly BlockingService Instance = new();
         }
 
         /// <summary>Where commands composed from this context are sent; <c>null</c> if none is configured.</summary>

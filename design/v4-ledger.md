@@ -216,8 +216,8 @@ Each has a default the work proceeds on until answered.
   `Scripts` and `PubSub` had no target accessor, so `server.Config` did not compile on an `IServer`; it does now,
   and so does `db.PubSub`.
 
-- **2026-10-08: `Synchronous()` contexts - a supported sync path for command groups, ours and libraries'.**
-  `ctx.Synchronous()` (on `RespContext`, `RespDatabaseContext`, `RespServerContext`) makes the shared send path
+- **2026-10-08: `Blocking()` contexts (named `Synchronous()` until 2026-10-09) - a supported sync path for command groups, ours and libraries'.**
+  `ctx.Blocking()` (on `RespContext`, `RespDatabaseContext`, `RespServerContext`) makes the shared send path
   call the executor's blocking `Send`, so every `...Async` group method returns an already-completed task and
   `.GetAwaiter().GetResult()` is correct (on an ordinary context it is not: a pending `ValueTask` throws on
   `GetResult`). Starvation harness (2 pool workers, both blocked; caller on its own thread): healthy pool, sync

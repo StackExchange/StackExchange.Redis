@@ -1102,7 +1102,7 @@ namespace StackExchange.Redis
             // the inbuilt handler for TResult - so a command factory does not force its callers to spell
             // out a handler they were happy to leave implicit before the factory existed.
             handler ??= RespHandlers.Inbuilt<TResult>.Require();
-            if (context.IsSynchronous) return SendSynchronously(context, ref request, flags, handler, cancellationToken);
+            if (context.IsBlocking) return SendBlocking(context, ref request, flags, handler, cancellationToken);
             DemandCancellable(context, cancellationToken);
 
             // THE one place a command's retry category is applied. The frame already carries the
@@ -1232,9 +1232,9 @@ namespace StackExchange.Redis
         {
             DemandCancellable(context, ref request, cancellationToken);
             var frame = request.Complete();
-            if (context.IsSynchronous)
+            if (context.IsBlocking)
             {
-                var done = SendSynchronously(context, ref frame, flags, RespHandlers.Success, cancellationToken);
+                var done = SendBlocking(context, ref frame, flags, RespHandlers.Success, cancellationToken);
                 return done.IsCompletedSuccessfully ? default : new ValueTask(done.AsTask());
             }
 
@@ -1326,13 +1326,13 @@ namespace StackExchange.Redis
             return Send(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require(), cancellationToken);
         }
 
-        /// <summary>A send through a synchronous context: complete before returning; see <see cref="RespContext.Synchronous"/>.</summary>
+        /// <summary>A send through a blocking context: complete before returning; see <see cref="RespContext.Blocking"/>.</summary>
         /// <remarks>
         /// A failure is a FAULTED task rather than a throw, as from the asynchronous path: the methods built on the
         /// send path return tasks, and a caller - an <c>async</c> method composing several sends, say - may hold
         /// one before reading it. Allocates only on failure.
         /// </remarks>
-        private static ValueTask<TResult> SendSynchronously<TResult>(
+        private static ValueTask<TResult> SendBlocking<TResult>(
             RespContext context, ref RespRequestFrame request, CommandFlags flags, IRespHandler<TResult> handler, CancellationToken cancellationToken)
         {
             try
