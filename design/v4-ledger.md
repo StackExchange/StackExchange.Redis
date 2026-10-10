@@ -46,6 +46,11 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   - [ ] Second chance at slab eviction: a write-once "touched" flag per entry; touched entries copied forward rather
     than evicted with their slab. Only if the Zipf workload shows hot keys churning out.
   - [ ] The cached miss sends untyped and parses afterwards, where an uncached send parses typed on the reader.
+  - [ ] `RespMultiplexerExecutor.CanWritePreamble` still resolves a route (server selection + the endpoint lock) on
+    every paired send. Unlike `Transactional`/`Accumulates`/`CanCancel` (made constant in c5370268, 40ca69ee) the
+    answer is route-dependent - a database view (`RespDatabaseExecutor`) does not override it, so says false, where
+    an endpoint says true - though the executor is bound to one database, so it is probably fixed per instance.
+    Check, then compute it once.
   - [ ] `RespKeyTable` nodes: check whether a key's node outlives every entry that depended on it (growth with the
     keyspace, not the cache).
   - [ ] Slab recycling via per-thread reader counters - only if large-object churn (gen2) shows up as a cost.
