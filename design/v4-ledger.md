@@ -36,6 +36,13 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   append. Tools: `CacheHitSendBenchmarks` (run with `--inProcess` - the `.claude/worktrees` copies break BDN's
   out-of-process build), `-- cache-scaling 3 127.0.0.1:6379` (real multiplexer rows), `DOTNET_JitDisasm`.
   Fallback if fill-time copies hurt the churn league: global striped-epoch reclamation instead of GC arrays.
+  **Update, same day:** RespFest saw the miss path -15% with GC-owned arrays (mid-life objects: promoted, then
+  evicted). 1bd841e6 moves replies into slabs - fill-ordered, GC-owned 128 KiB-1 MiB arrays evicted whole - which
+  restores miss throughput (all-miss 64 callers: 177-190k -> 275-287k/s, CPU/miss 58 -> 33us, below the pooled
+  original's 51.6us) and keeps the hit wins. The pooled original held only ~900 1 KiB entries in 32 MiB (inbound-
+  block pinning). Harness: `cache-scaling miss 8 127.0.0.1:6379`. Finalizer-driven slab recycling was considered
+  and rejected (interior pointers outlive the wrapper; finalizable objects are mid-life by construction). The
+  builder-inlining draft is parked in a patch, unmeasured.
 
 - **CI: `GetServerTestsCluster.GetServerByKeyMemoization` (RESP3) fails on Windows net481** - 2 of the first 3
   `v4` runs, each after a cluster connect that waited the full 20s at the very start of the net481 run (three
