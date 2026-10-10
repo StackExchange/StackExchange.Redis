@@ -36,7 +36,8 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
     replies (counts) reported ~5 MB while holding ~350 MB of entry objects.
   - [x] Cache key bytes into the slab beside the reply: hits ~+10% at 100k keys / 24 threads (locality: the
     key a lookup finds sits beside its reply); misses neutral - one object fewer is lost in the remaining GC cost.
-  - [ ] Fold the single-dependency case into `Entry` (drops `Dependency[]` for most entries).
+  - [x] Fold the single-dependency case into `Entry`: one dependent load fewer per hit (+3-5% at 100k keys / 24
+    threads), and the fill's array now dies young (all-miss GC pause ~25% -> ~19%).
   - [ ] A skewed mixed (Zipf) workload, in the harness and proposed for RespFest, to decide whether
     `OnRepeatedMiss` becomes the default: one extra miss per hot key vs one-off reads no longer evicting it.
   - [ ] Second chance at slab eviction: a write-once "touched" flag per entry; touched entries copied forward rather

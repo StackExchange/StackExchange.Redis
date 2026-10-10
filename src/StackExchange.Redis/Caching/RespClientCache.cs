@@ -1319,6 +1319,9 @@ namespace StackExchange.Redis.Caching
                 return false;
             }
 
+            /// <summary>The earliest recorded invalidation of this one key, or zero; see the array form.</summary>
+            internal long EarliestInvalidation() => IsValid ? 0 : _node.InvalidatedAt;
+
             internal static bool AllValid(Dependency[] dependencies)
             {
                 foreach (var dependency in dependencies)
@@ -1379,6 +1382,12 @@ namespace StackExchange.Redis.Caching
 
         private sealed class Entry(RespPayload payload, Dependency[] dependencies, RespRequest key, Slab? slab = null)
         {
+            // A single dependency - every single-key command, which is most of them - is held inline, and an array
+            // only for more. Every hit asks IsValid, and the array was one more dependent load between the entry and
+            // the generation it compares (and one more mid-life object per entry). The fill's own array dies young.
+            private readonly Dependency _single = dependencies.Length == 1 ? dependencies[0] : default;
+            private readonly Dependency[]? _many = dependencies.Length == 1 ? null : dependencies;
+
             /// <summary>The slab the reply lives in, or <see langword="null"/> when it has an array of its own.</summary>
             internal Slab? Slab { get; } = slab;
 
@@ -1412,7 +1421,7 @@ namespace StackExchange.Redis.Caching
             /// <summary>When this entry was filled, for expiry. See <see cref="CachePolicy.TimeToLive"/>.</summary>
             internal long FilledAt { get; } = CacheClock.Now;
 
-            internal bool IsValid => Dependency.AllValid(dependencies);
+            internal bool IsValid => _many is null ? _single.IsValid : Dependency.AllValid(_many);
 
             /// <summary>Whether this process wrote any of the keys this entry depends on, since it was filled.</summary>
             /// <remarks>
@@ -1420,7 +1429,7 @@ namespace StackExchange.Redis.Caching
             /// afterwards, however briefly - that is not staleness the caller can shrug at, it is the caller
             /// being handed back the value they just replaced.
             /// </remarks>
-            internal bool WrittenLocally => Dependency.AnyLocalWrite(dependencies);
+            internal bool WrittenLocally => _many is null ? _single.LocalWriteSince : Dependency.AnyLocalWrite(_many);
 
             /// <summary>
             /// When this entry became stale: the earliest invalidation among the keys it depends on.
@@ -1430,7 +1439,7 @@ namespace StackExchange.Redis.Caching
             /// a second key does not restart the grace period. Zero when nothing recorded a time, which
             /// means the policy was not asking for one.
             /// </remarks>
-            internal long StaleSince => Dependency.EarliestInvalidation(dependencies);
+            internal long StaleSince => _many is null ? _single.EarliestInvalidation() : Dependency.EarliestInvalidation(_many);
 
             /// <summary>
             /// Claim the right to refresh this entry, once.
