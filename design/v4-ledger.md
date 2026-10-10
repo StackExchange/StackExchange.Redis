@@ -24,26 +24,33 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
 
 ## Pending work (no decision needed)
 
-- **PAUSED 2026-10-10: cache hit-path performance - waiting on Marc's RespFest re-run against 4.0.104.** Shipped
-  today: c5370268 (the multiplexer executor answered `Transactional`/`Accumulates` by routing - server selection
-  plus the endpoint lock - on every cached read and blocking send; the ~30% RespFest regression, and the lock made
-  throughput FALL past 6 threads), 04ef29d9 (cache entries own GC arrays: no refcount CAS per hit; 1 hot key at
-  24 threads 11.5 -> 140 M/s), 0023c9e6 (`CacheClock`: `TickCount64` for entry ages, `Stopwatch` kept for the
-  grace window). Single-thread hit 134 -> 114ns. **Next, once the league confirms:** the interpolated builder -
-  ~26ns over a 4ns hand-written floor, plus 10-15ns on every group method because one level deeper the JIT's
-  inline budget runs out and `RespRequestBuilder`'s key path (`CommitBulk`, `CountArguments`, `FoldSlot`) stays
-  as calls (6548bffe). Ideas: a small always-inlined fast path for command + one key; hot/cold split of the key
-  append. Tools: `CacheHitSendBenchmarks` (run with `--inProcess` - the `.claude/worktrees` copies break BDN's
-  out-of-process build), `-- cache-scaling 3 127.0.0.1:6379` (real multiplexer rows), `DOTNET_JitDisasm`.
-  Fallback if fill-time copies hurt the churn league: global striped-epoch reclamation instead of GC arrays.
-  **Update, same day:** RespFest saw the miss path -15% with GC-owned arrays (mid-life objects: promoted, then
-  evicted). 1bd841e6 moves replies into slabs - fill-ordered, GC-owned 128 KiB-1 MiB arrays evicted whole - which
-  restores miss throughput (all-miss 64 callers: 177-190k -> 275-287k/s, CPU/miss 58 -> 33us, below the pooled
-  original's 51.6us) and keeps the hit wins. The pooled original held only ~900 1 KiB entries in 32 MiB (inbound-
-  block pinning). Harness: `cache-scaling miss 8 127.0.0.1:6379`. Finalizer-driven slab recycling was considered
-  and rejected (interior pointers outlive the wrapper; finalizable objects are mid-life by construction). The
-  builder-inlining draft is parked in a patch, unmeasured.
-
+- **Cache performance (2026-10-10) - shipped, and the list of ideas still to explore.** Shipped: c5370268
+  (routing to answer a constant on every cached read: the ~30% RespFest regression), 04ef29d9 + 1bd841e6 (replies
+  in GC-owned slabs: no refcount CAS per hit, no mid-life reply arrays; 1 hot key at 24 threads 11.5 -> 149 M/s),
+  0023c9e6 (`CacheClock`), a5af2dec (eviction-queue leak; lazy in-flight completion), a7325526
+  (`CacheOptions.Admission`, TinyLFU doorkeeper; all-miss 307k -> 593k ops/s, GC pause 29% -> 4%). Single-thread hit
+  134 -> 114ns. Tools: `CacheHitSendBenchmarks` (`--inProcess`: the `.claude/worktrees` copies break BDN's
+  out-of-process build), `cache-scaling [s] host:port` (hits), `cache-scaling miss 8 host:port [nocache|admit]`,
+  `dotnet-trace` + the alloc-by-type summariser recipe in memory. **To explore, roughly in order:**
+  - [ ] Charge a per-entry overhead to `MaxBytes`: since slabs only reply bytes count, so a million tiny replies
+    (counts) report ~5 MB while holding ~350 MB of entry objects. A correctness fix more than a tuning. *(in progress)*
+  - [ ] Cache key bytes into the slab beside the reply (drops the key-copy object; tiny replies end up inline with
+    their key).
+  - [ ] Fold the single-dependency case into `Entry` (drops `Dependency[]` for most entries).
+  - [ ] A skewed mixed (Zipf) workload, in the harness and proposed for RespFest, to decide whether
+    `OnRepeatedMiss` becomes the default: one extra miss per hot key vs one-off reads no longer evicting it.
+  - [ ] Second chance at slab eviction: a write-once "touched" flag per entry; touched entries copied forward rather
+    than evicted with their slab. Only if the Zipf workload shows hot keys churning out.
+  - [ ] The cached miss sends untyped and parses afterwards, where an uncached send parses typed on the reader.
+  - [ ] `RespKeyTable` nodes: check whether a key's node outlives every entry that depended on it (growth with the
+    keyspace, not the cache).
+  - [ ] Slab recycling via per-thread reader counters - only if large-object churn (gen2) shows up as a cost.
+  - [ ] The interpolated builder: ~26ns over a 4ns floor, plus 10-15ns on every group method from inline-budget
+    exhaustion (6548bffe). Draft parked in the session scratchpad as `builder-inlining.patch` (forced inlining of
+    `CommitBulk`/`CountArguments`, hot/cold `FoldSlot`); unmeasured.
+  Rejected, with reasons in the commits: per-entry striped refcounts (~150 MB of padded counters), pinned-object heap
+  for entries (no better), finalizer-driven slab recycling (interior pointers outlive the wrapper; finalizable
+  objects are mid-life by construction).
 - **CI: `GetServerTestsCluster.GetServerByKeyMemoization` (RESP3) fails on Windows net481** - 2 of the first 3
   `v4` runs, each after a cluster connect that waited the full 20s at the very start of the net481 run (three
   cluster connects stalled together). Suspected lost wake-up, fixed speculatively in d45eadf7 (announce
