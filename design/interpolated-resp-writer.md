@@ -1625,7 +1625,7 @@ fact about the same enum.
 | `SCAN`, `HSCAN`, `SSCAN`, `ZSCAN` | cursor state; a cached page is meaningless |
 | **`TTL`, `PTTL`** | **time-dependent**: the answer changes with the clock, with no key write, so *nothing ever invalidates it*. The same failure class as a keyless command — permanently wrong, not briefly |
 | **`TOUCH`** | **the side effect is the point**: it bumps LRU/LFU state, and a cache hit skips that entirely, so the command silently stops doing its job |
-| **`PFCOUNT`** | **a read that writes**: it caches the computed cardinality back into the HLL header, so a cache hit skips a real mutation |
+| ~~**`PFCOUNT`**~~ | ~~**a read that writes**: it caches the computed cardinality back into the HLL header, so a cache hit skips a real mutation~~ **Settled 2026-10-10: cacheable and retryable.** The write is the HyperLogLog's internal bookkeeping, not the command's meaning - a hit that skips it skips nothing observable - and refreshing the header signals the key modified, so that PFCOUNT invalidates its own reply and the next one caches. Pinned by `CommandCategoryTests.PfCountIsARead` |
 
 `TOUCH` is worth dwelling on, because the codebase already contains the evidence that the two axes
 diverge. Its entry in the category table reads:
@@ -3373,7 +3373,8 @@ Added while building the cache (§6.6-6.9):
 
 - **Command metadata for cacheability.** Read-only and keyed, so the flag gates pass them today:
   non-deterministic (`SRANDMEMBER`, `HRANDFIELD`, `ZRANDMEMBER`), cursor-based
-  (`SCAN`/`HSCAN`/`SSCAN`/`ZSCAN`), time-dependent (`TTL`, `PTTL`), side-effecting (`TOUCH`, `PFCOUNT`).
+  (`SCAN`/`HSCAN`/`SSCAN`/`ZSCAN`), time-dependent (`TTL`, `PTTL`), side-effecting (`TOUCH`; `PFCOUNT` was
+  listed here, and is settled as cacheable - see the table in 6.9).
   Wants a per-command fact beside the retry category in `CommandFlags.Category.cs`, *not* a `CommandFlags`
   bit — see §6.9. `DUMP` was also proposed; I would challenge it, since it looks correctly invalidated, so
   that is a benefit call rather than a safety one.

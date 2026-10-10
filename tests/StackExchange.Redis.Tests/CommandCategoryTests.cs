@@ -97,6 +97,20 @@ public class CommandCategoryTests
     /// <c>BLOCK</c>, <c>SORT</c> with <c>STORE</c> - say so, and it is why the surface can apply a default
     /// unconditionally without overriding anybody.
     /// </remarks>
+    /// <summary>
+    /// PFCOUNT is a read - retryable, and so cacheable - although it can write: it caches the computed cardinality back
+    /// into the HyperLogLog's header.
+    /// </summary>
+    /// <remarks>
+    /// That write is the data structure's own bookkeeping, not part of what the command means: re-running it gives the
+    /// same answer, and a cache hit that skips it skips nothing anyone can observe. Rewriting the header does signal
+    /// the key as modified, so the PFCOUNT that refreshes it invalidates its own cached reply and the next one is
+    /// cached - one extra miss, not a wrong answer. Decided 2026-10-10; the design notes had called it wrong to cache.
+    /// </remarks>
+    [Fact]
+    public void PfCountIsARead()
+        => Assert.Equal(CommandFlags.CommandRetryReadOnly, CommandFlagsExtensions.GetDefaultCategory(RedisCommand.PFCOUNT));
+
     [Fact]
     public void TheCallersCategoryWins()
     {
