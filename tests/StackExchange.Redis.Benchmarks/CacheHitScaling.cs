@@ -155,13 +155,18 @@ internal static class CacheHitScaling
             long ops = 0;
             var measuring = 0;
             var stop = 0;
+            // each caller walks a share of the keyspace of its own, as RespFest does (200,000 / 64 = 3,125 each): with
+            // shared walks the callers trail one another through the same keys, and all but the first HIT - which
+            // measured a ~95% hit rate, not the miss path
+            var share = KeyCount / callers;
             async Task Caller(int caller)
             {
-                var index = (caller * 7919) % KeyCount;
+                var first = caller * share;
+                var step = 0;
                 while (Volatile.Read(ref stop) == 0)
                 {
-                    _ = await context.Strings.GetAsync(keys[index]).ConfigureAwait(false);
-                    index = (index + 7919) % KeyCount;
+                    _ = await context.Strings.GetAsync(keys[first + step]).ConfigureAwait(false);
+                    if (++step == share) step = 0;
                     if (Volatile.Read(ref measuring) == 1) Interlocked.Increment(ref ops);
                 }
             }
@@ -172,7 +177,7 @@ internal static class CacheHitScaling
             var g0 = GC.CollectionCount(0);
             var g1 = GC.CollectionCount(1);
             var g2 = GC.CollectionCount(2);
-            var allocated = GC.GetTotalAllocatedBytes(precise: false);
+            var allocated = AllocatedBytes();
             var cpu = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime;
             var watch = System.Diagnostics.Stopwatch.StartNew();
             Volatile.Write(ref measuring, 1);
@@ -180,7 +185,7 @@ internal static class CacheHitScaling
             Volatile.Write(ref measuring, 0);
             var elapsed = watch.Elapsed;
             var cpuUsed = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime - cpu;
-            var allocatedNow = GC.GetTotalAllocatedBytes(precise: false);
+            var allocatedNow = AllocatedBytes();
             var (d0, d1, d2) = (GC.CollectionCount(0) - g0, GC.CollectionCount(1) - g1, GC.CollectionCount(2) - g2);
             Volatile.Write(ref stop, 1);
             Task.WaitAll(running);
@@ -189,8 +194,15 @@ internal static class CacheHitScaling
             Console.WriteLine($"{callers,8} {done / elapsed.TotalSeconds / 1e3,10:N1} {cpuUsed.TotalMilliseconds * 1000 / done,10:N2} {d0,6} {d1,6} {d2,6} {(allocatedNow - allocated) / done,11:N0}");
         }
 
-        Console.WriteLine($"cache: {muxer.ClientCache?.Count:N0} entries, {muxer.ClientCache?.Bytes:N0} bytes, {muxer.ClientCache?.Stored:N0} stored");
+        Console.WriteLine($"cache: {muxer.ClientCache?.Count:N0} entries, {muxer.ClientCache?.Bytes:N0} bytes, {muxer.ClientCache?.Stored:N0} stored, {muxer.ClientCache?.RedundantFills:N0} redundant");
     }
+
+    /// <summary>Bytes allocated so far by this process; zero on .NET Framework, which cannot say.</summary>
+#if NET
+    private static long AllocatedBytes() => GC.GetTotalAllocatedBytes(precise: false);
+#else
+    private static long AllocatedBytes() => 0;
+#endif
 
     private static ConnectionMultiplexer Multiplexer(string server)
     {
