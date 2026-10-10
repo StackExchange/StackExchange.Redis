@@ -126,28 +126,68 @@ namespace StackExchange.Redis.Caching
         /// <summary>Whether an invalidated entry may be served while it is refreshed.</summary>
         internal bool ServesStale => InvalidationGracePeriod > TimeSpan.Zero;
 
-        /// <summary><see cref="InvalidationGracePeriod"/> as a <see cref="Stopwatch"/> tick count.</summary>
-        internal long ServeStaleTicks => ToTicks(InvalidationGracePeriod);
+        /// <summary>
+        /// <see cref="InvalidationGracePeriod"/> as a <see cref="Stopwatch"/> tick count - the PRECISE clock, unlike
+        /// the ages below: a grace window can be tens of milliseconds, and it is only consulted for an entry that
+        /// has already been invalidated, so its clock read is off the hit path.
+        /// </summary>
+        internal long ServeStaleTicks => ToPreciseTicks(InvalidationGracePeriod);
 
-        /// <summary><see cref="RefreshAfter"/> as a <see cref="Stopwatch"/> tick count.</summary>
+        /// <summary><see cref="RefreshAfter"/> in <see cref="CacheClock"/> ticks.</summary>
         internal long RefreshAfterTicks => ToTicks(RefreshAfter);
 
-        /// <summary><see cref="TimeToLive"/> as a <see cref="Stopwatch"/> tick count.</summary>
-        /// <remarks>
-        /// <see cref="Stopwatch.GetTimestamp"/> rather than <c>Environment.TickCount64</c>, which does not
-        /// exist on <c>net461</c>/<c>netstandard2.0</c> - and whose 32-bit form wraps every ~49 days, which
-        /// is exactly the kind of thing that bites once a quarter.
-        /// </remarks>
+        /// <summary><see cref="TimeToLive"/> in <see cref="CacheClock"/> ticks.</summary>
         internal long TimeToLiveTicks => ToTicks(TimeToLive);
 
+        /// <summary>A span in <see cref="CacheClock"/> ticks: the coarse clock that entry ages are measured on.</summary>
         internal static long ToTicks(TimeSpan value)
+            => value == TimeSpan.MaxValue
+                ? long.MaxValue
+                : (long)(value.TotalSeconds * CacheClock.Frequency);
+
+        /// <summary>A span in <see cref="Stopwatch"/> ticks, for the one window that needs precision.</summary>
+        internal static long ToPreciseTicks(TimeSpan value)
             => value == TimeSpan.MaxValue
                 ? long.MaxValue
                 : (long)(value.TotalSeconds * Stopwatch.Frequency);
 
-        /// <summary>Whether an entry filled at <paramref name="filledAt"/> has outlived <paramref name="ticks"/>.</summary>
+        /// <summary>Whether an entry filled at <paramref name="filledAt"/> has outlived <paramref name="ticks"/> (<see cref="CacheClock"/>).</summary>
         internal static bool IsOlderThan(long filledAt, long ticks)
-            => ticks != long.MaxValue && Stopwatch.GetTimestamp() - filledAt > ticks;
+            => ticks != long.MaxValue && CacheClock.Now - filledAt > ticks;
+
+        /// <summary>Whether a <see cref="Stopwatch"/> stamp is older than <paramref name="ticks"/>, also in <see cref="Stopwatch"/> ticks.</summary>
+        internal static bool IsOlderThanPrecise(long stamp, long ticks)
+            => ticks != long.MaxValue && Stopwatch.GetTimestamp() - stamp > ticks;
+    }
+
+    /// <summary>
+    /// The clock that cache entry ages are measured on: coarse, and cheap enough to read on every hit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Every hit reads it</b> - the <see cref="CachePolicy.TimeToLive"/> test - and <see cref="Stopwatch.GetTimestamp"/>
+    /// measured at ~15ns of a ~134ns hit, against ~4ns for <c>Environment.TickCount64</c>. Ages here are seconds to
+    /// hours, so a resolution of a few milliseconds (~16ms on Windows) costs nothing anyone can observe - the same
+    /// trade as a timer-updated "now-ish" field, without the timer.
+    /// </para>
+    /// <para>
+    /// <b>Down-level keeps <see cref="Stopwatch"/>.</b> <c>Environment.TickCount64</c> does not exist on
+    /// <c>net461</c>/<c>netstandard2.0</c>, and the 32-bit <c>TickCount</c> wraps every ~49 days - exactly the kind
+    /// of thing that bites once a quarter. Ticks are whatever this clock says they are: compare them only with each
+    /// other, and convert spans with <see cref="CachePolicy.ToTicks"/>.
+    /// </para>
+    /// </remarks>
+    internal static class CacheClock
+    {
+#if NET
+        internal const long Frequency = 1000;
+
+        internal static long Now => Environment.TickCount64;
+#else
+        internal static readonly long Frequency = Stopwatch.Frequency;
+
+        internal static long Now => Stopwatch.GetTimestamp();
+#endif
     }
 
     /// <summary>

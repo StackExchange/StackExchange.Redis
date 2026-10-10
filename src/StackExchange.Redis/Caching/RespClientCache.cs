@@ -66,7 +66,7 @@ namespace StackExchange.Redis.Caching
         /// so nothing in this queue has a lifetime to manage.
         /// </remarks>
         private readonly ConcurrentQueue<EntryKey> _evictionOrder = new();
-        private long _lastSweep = Stopwatch.GetTimestamp();
+        private long _lastSweep = CacheClock.Now;
         private long _refusedRaced;
         private long _redundantFills;
         private long _refusedError;
@@ -486,7 +486,7 @@ namespace StackExchange.Redis.Caching
             // measured from the INVALIDATION, not from whenever somebody first looked: a key nobody has read
             // for an hour should expire, not be resurrected by the next reader to wander past
             var staleSince = entry.StaleSince;
-            if (staleSince == 0 || CachePolicy.IsOlderThan(staleSince, Policy.ServeStaleTicks)) return false;
+            if (staleSince == 0 || CachePolicy.IsOlderThanPrecise(staleSince, Policy.ServeStaleTicks)) return false;
             if (CachePolicy.IsOlderThan(entry.FilledAt, Math.Min(Policy.TimeToLiveTicks, maxAgeTicks))) return false;
 
             if (!entry.Payload.TryRetain()) return false;
@@ -936,7 +936,7 @@ namespace StackExchange.Redis.Caching
             if (!Options.Sweeps) return 0;
 
             var last = Volatile.Read(ref _lastSweep);
-            var now = Stopwatch.GetTimestamp();
+            var now = CacheClock.Now;
             if (now - last < Options.SweepIntervalTicks) return 0;
             if (Interlocked.CompareExchange(ref _lastSweep, now, last) != last) return 0;
 
@@ -1325,7 +1325,7 @@ namespace StackExchange.Redis.Caching
             internal int Bytes { get; } = payload.RetainedBytes;
 
             /// <summary>When this entry was filled, for expiry. See <see cref="CachePolicy.TimeToLive"/>.</summary>
-            internal long FilledAt { get; } = Stopwatch.GetTimestamp();
+            internal long FilledAt { get; } = CacheClock.Now;
 
             internal bool IsValid => Dependency.AllValid(dependencies);
 

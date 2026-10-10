@@ -118,6 +118,8 @@ Controlling it
 | `RefreshAfter` | off | Once an entry is this old, a read still gets it, *and* a refresh is started in the background - so a hot key never goes from "cached" to "missing" for everyone at once. |
 | `InvalidationGracePeriod` | off | After *another client's* change invalidates an entry, keep serving the old value for up to this long while a refresh runs. This deliberately serves a value the server has said is out of date, to protect a very hot key from every reader missing at the same instant. It never applies to your own writes. |
 
+Entry ages - `TimeToLive`, `RefreshAfter` and `WithMaxCacheAge` - are measured on a coarse clock that is cheap enough to read on every hit, so they are accurate to a few milliseconds (about 16 ms on Windows). `InvalidationGracePeriod` is measured precisely.
+
 ### Serving stale while refreshing
 
 Without either of the last two settings, an entry goes from "cached" to "gone" in one step - and for a hot key, every concurrent reader misses at that same instant and goes to the server together. Both settings replace that cliff with a window in which the old value is still answered *and* one background refresh fetches the new one. They differ in what opens the window:
