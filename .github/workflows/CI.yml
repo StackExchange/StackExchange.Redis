@@ -4,7 +4,7 @@ run-name: "CI${{ github.event.inputs.client-libs-test-image-tag != '' && format(
 on:
   pull_request:
   push:
-    branches: [ 'main', 'v3' ]
+    branches: [ 'main', 'v3', 'v4' ]
     paths:
       - '**'
       - '!/docs/*' # Don't run workflow when files are only in the /docs directory
@@ -145,23 +145,33 @@ jobs:
           TOPOLOGY='${{ github.event.inputs.windows-topology || 'full' }}'
           echo "topology: $TOPOLOGY"
 
-          redis-server ../Basic/primary-6379.conf &
-          redis-server ../Basic/replica-6380.conf &
-          redis-server ../Basic/secure-6381.conf &
-          redis-server ../Failover/primary-6382.conf &
-          redis-server ../Failover/replica-6383.conf &
+          # Replicas load the initial sync from the socket, never from disk. These data directories
+          # sit on the Windows mount (/mnt/...), where a replica receives the RDB to a file and then
+          # fails to load it ("Failed trying to load the MASTER synchronization DB from disk"), retrying
+          # forever - so no replica on this job had ever synced. That went unnoticed while the client
+          # read replicas from CLUSTER NODES, which lists them regardless; CLUSTER SLOTS rightly leaves
+          # out a replica that has never synced, so the new core saw a cluster with no replicas.
+          LOAD="--repl-diskless-load swapdb"
+
+          redis-server ../Basic/primary-6379.conf $LOAD &
+          redis-server ../Basic/replica-6380.conf $LOAD &
+          redis-server ../Basic/secure-6381.conf $LOAD &
+          redis-server ../Failover/primary-6382.conf $LOAD &
+          redis-server ../Failover/replica-6383.conf $LOAD &
           PORTS="6379 6380 6381 6382 6383"
+          REPLICAS="6380 6383"
 
           if [ "$TOPOLOGY" = "full" ]; then
             for p in 7000 7001 7002 7003 7004 7005; do
-              redis-server "../Cluster/cluster-$p.conf" --dir ../Cluster &
+              redis-server "../Cluster/cluster-$p.conf" --dir ../Cluster $LOAD &
             done
-            redis-server ../Sentinel/redis-7010.conf &
-            redis-server ../Sentinel/redis-7011.conf &
+            redis-server ../Sentinel/redis-7010.conf $LOAD &
+            redis-server ../Sentinel/redis-7011.conf $LOAD &
             for p in 26379 26380 26381; do
               redis-server "../Sentinel/sentinel-$p.conf" --sentinel &
             done
             PORTS="$PORTS 7000 7001 7002 7003 7004 7005 7010 7011 26379 26380 26381"
+            REPLICAS="$REPLICAS 7003 7004 7005 7011"
           fi
 
           # Poll rather than `sleep 5`: on a fast machine this returns almost immediately, and on a
@@ -197,11 +207,53 @@ jobs:
             exit 1
           fi
 
+          # ...and a replica that is listening but has never synced is just as misleading, and quieter:
+          # replica-routing tests then pass or fail on what the client happens to read, not on the
+          # client. Fatal for the same reason as above.
+          unsynced=""
+          for p in $REPLICAS; do
+            synced=""
+            for _ in $(seq 1 30); do
+              if redis-cli -p "$p" INFO replication 2>/dev/null | grep -q "master_link_status:up"; then
+                synced="yes"; break
+              fi
+              sleep 1
+            done
+            if [ -n "$synced" ]; then
+              echo "replica $p synced"
+            else
+              echo "replica $p DID NOT SYNC:"
+              redis-cli -p "$p" INFO replication 2>&1 || true
+              unsynced="$unsynced $p"
+            fi
+          done
+          if [ -n "$unsynced" ]; then
+            echo "::error::replicas not synced:$unsynced"
+            exit 1
+          fi
+
+          # CLUSTER SLOTS lists a replica only once its primary has heard, by gossip, that it has an
+          # offset - a second or so after the sync above. Wait for all six nodes to be listed.
+          if [ "$TOPOLOGY" = "full" ]; then
+            listed=0
+            for _ in $(seq 1 30); do
+              listed=$(redis-cli -p 7000 CLUSTER SLOTS 2>/dev/null | grep -c '^700[0-5]$' || true)
+              [ "$listed" -ge 6 ] && break
+              sleep 1
+            done
+            echo "CLUSTER SLOTS lists $listed of 6 nodes"
+            if [ "$listed" -lt 6 ]; then
+              redis-cli -p 7000 CLUSTER NODES 2>&1 || true
+              echo "::error::CLUSTER SLOTS does not list every replica"
+              exit 1
+            fi
+          fi
+
       - name: .NET Build
         run: dotnet build Build.csproj -c Release /p:CI=true
       # The analyzer and the props that configures it reach consumers only through the package, and a
       # packaging regression is silent: no diagnostics, ever, for anybody, with a build that still succeeds.
-      # The real pack below runs only on pushes to main/v3, so check it here where PRs will see it too.
+      # The real pack below runs only on pushes to main/v3/v4, so check it here where PRs will see it too.
       - name: Verify package contents
         run: |
           $out = "${env:GITHUB_WORKSPACE}\.packcheck"
@@ -222,10 +274,14 @@ jobs:
             exit 1
           }
       - name: StackExchange.Redis.Tests
+        # A hung test otherwise holds the job until GitHub's six-hour limit, and says nothing about which
+        # test it was. --blame-hang names it (in the run's Sequence file and the log) and kills it, so the
+        # rest still report; the step timeout is the backstop if even that does not return.
+        timeout-minutes: 30
         run: |
           $exitCode = 0
           foreach ($tfm in @("net10.0", "net481")) {
-            dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj --no-build -c Release -f $tfm --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+            dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj --no-build -c Release -f $tfm --logger trx --logger GitHubActions --results-directory ./test-results/ --blame-hang-timeout 10m --blame-hang-dump-type none /p:CI=true
             if ($LASTEXITCODE -ne 0) {
               $exitCode = $LASTEXITCODE
             }

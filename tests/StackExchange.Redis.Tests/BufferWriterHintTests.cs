@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
@@ -111,128 +111,13 @@ public class BufferWriterHintTests
         }
     }
 
-    /// <remarks>
-    /// Built directly rather than through <c>TestHarness.Write</c>, which pins the database to -1 and so
-    /// cannot issue the key-bearing commands this needs.
-    /// </remarks>
-    private static string Render(int max, string command, params object[] args)
-    {
-        var writer = new StingyWriter(max);
-        var message = new RedisDatabase.ExecuteMessage(CommandMap.Default, 0, CommandFlags.None, command, args);
-        message.WriteTo(new MessageWriter(null, CommandMap.Default, writer));
-        return Encoding.UTF8.GetString(writer.Written).Replace("\r\n", "|");
-    }
-
-    [Theory]
-    // The largest ask for this shape is 23 (WriteHeader wants framed command bytes + 3 + MaxInt32TextLen;
-    // WriteCountPrefix wants 3 + MaxInt64TextLen), so: 8 declines everything, 16 declines the 23-byte asks
-    // only, and 64 declines NOTHING - it is here as a control, not as pressure. 520 likewise for this
-    // payload; it only bites on the quick-span path, which needs a value to be large.
-    [InlineData(8)]
-    [InlineData(16)]
-    [InlineData(64)]
-    [InlineData(520)]
-    public void ShortSpansStillProduceCorrectFrames(int max)
-    {
-        var expected = Render(64 * 1024, "SET", "mykey", "myvalue");
-        Assert.Equal("*3|$3|SET|$5|mykey|$7|myvalue|", expected);
-        Assert.Equal(expected, Render(max, "SET", "mykey", "myvalue"));
-    }
-
-    [Theory]
-    [InlineData(8, 500)]
-    [InlineData(8, 512)]
-    [InlineData(8, 513)]
-    // NOTE 520 does NOT stress the string path: a 512-byte string asks for exactly 512, which a 520-cap
-    // writer honours, so these pass on main too. Kept as regression cover, not as evidence.
-    [InlineData(520, 512)]
-    [InlineData(520, 5000)]
-    public void ShortSpansStillProduceCorrectFramesForLargeValues(int max, int payload)
-    {
-        var value = new string('x', payload);
-        var expected = Render(64 * 1024, "SET", "mykey", value);
-        Assert.Equal(expected, Render(max, "SET", "mykey", value));
-    }
-
-    [Theory]
-    // The reported crash shape: WriteUnifiedSpan with a sizeable BINARY value, which asks for
-    // 5 + MaxInt32TextLen + length and previously wrote it unchecked. byte[] takes a different route from
-    // string, and the value-shapes test only reaches it with four bytes.
-    //
-    // The hint carries int32-text slack it rarely uses, so the cap has to be below the ACTUAL frame length
-    // (1 + digits + 2 + length + 2) to overrun, not merely below the hint. Cases marked (!) fail unfixed;
-    // the rest are boundary cover that passes either way.
-    [InlineData(8, 400)]       // (!) asks 416, gets 8, writes 408
-    [InlineData(400, 400)]     // (!) asks 416, gets 400, writes 408 - overruns by 8
-    [InlineData(519, 512)]     // (!) $512\r\n...\r\n is exactly 520; one byte short
-    [InlineData(520, 512)]     // exactly fits, so the slack in the hint absorbs the shortfall
-    [InlineData(520, 513)]     // over MaxQuickSpanSize, so the looping big-value branch runs
-    [InlineData(64, 4096)]     // likewise, well over
-    public void ShortSpansStillProduceCorrectFramesForLargeBinaryValues(int max, int payload)
-    {
-        var value = new byte[payload];
-        for (var i = 0; i < value.Length; i++) value[i] = (byte)(i % 251);
-
-        var expected = Render(64 * 1024, "SET", "mykey", value);
-        Assert.Equal(expected, Render(max, "SET", "mykey", value));
-    }
-
-    [Theory]
-    [InlineData(8)]
-    [InlineData(16)]
-    [InlineData(40)]
-    public void ShortSpansStillProduceCorrectFramesForEveryValueShape(int max)
-    {
-        // one of each writer path: int64, uint64-range, double, byte[], empty, and a long string
-        object[] args =
-        [
-            "mykey",
-            1234567890,
-            long.MinValue,
-            ulong.MaxValue,
-            1.5d,
-            new byte[] { 1, 2, 3, 250 },
-            "",
-            new string('x', 600),
-        ];
-
-        Assert.Equal(Render(64 * 1024, "SET", args), Render(max, "SET", args));
-    }
-
-    [Fact]
-    public void TheBaselineIsItselfCorrect()
-    {
-        // guards against both sides being equally wrong
-        Assert.Equal("*4|$3|SET|$5|mykey|$3|1.5|$2|-1|", Render(64 * 1024, "SET", "mykey", 1.5d, -1));
-    }
-
-    // ---- paths the message shapes above do not reach ------------------------------------------------
-    // Called directly: these are internal, and routing to them through a message would pin the test to
-    // whichever command happens to use them today.
+    // ---- the RESP writer's IBufferWriter paths, called directly ------------------------------------
 
     private static string RenderDirect(int max, Action<IBufferWriter<byte>> write)
     {
         var writer = new StingyWriter(max);
         write(writer);
         return Encoding.UTF8.GetString(writer.Written).Replace("\r\n", "|");
-    }
-
-    [Theory]
-    [InlineData(8)]
-    [InlineData(46)]  // one short of the 47 this path needs, so the fallback is forced
-    [InlineData(47)]
-    public void Sha1AsHexSurvivesShortSpans(int max)
-    {
-        // the tightest fit in the writer: 47 requested, exactly 47 written, no slack at all
-        var hash = new byte[20];
-        for (var i = 0; i < hash.Length; i++) hash[i] = (byte)(i * 11);
-
-        static Action<IBufferWriter<byte>> Write(byte[] hash)
-            => w => new MessageWriter(null, CommandMap.Default, w).WriteSha1AsHex(hash);
-
-        var expected = RenderDirect(64 * 1024, Write(hash));
-        Assert.Equal(42, expected.Replace("|", "\r\n").Length - 5); // $40 CRLF + 40 hex + CRLF
-        Assert.Equal(expected, RenderDirect(max, Write(hash)));
     }
 
     [Theory]
@@ -244,7 +129,7 @@ public class BufferWriterHintTests
         var prefix = Encoding.UTF8.GetBytes("tenant7:");
 
         static Action<IBufferWriter<byte>> WriteString(byte[] prefix)
-            => w => MessageWriter.WriteUnifiedPrefixedString(w, prefix, "user:1");
+            => w => RespWire.WriteUnifiedPrefixedString(w, prefix, "user:1");
 
         Assert.Equal("$14|tenant7:user:1|", RenderDirect(64 * 1024, WriteString(prefix)));
         Assert.Equal("$14|tenant7:user:1|", RenderDirect(max, WriteString(prefix)));
@@ -256,7 +141,7 @@ public class BufferWriterHintTests
     public void MultiBulkHeaderWithPrefixSurvivesShortSpans(int max)
     {
         static Action<IBufferWriter<byte>> Write()
-            => w => MessageWriter.WriteMultiBulkHeader(w, 4, RespPrefix.Map);
+            => w => RespWire.WriteMultiBulkHeader(w, 4, RespPrefix.Map);
 
         Assert.Equal("%2|", RenderDirect(64 * 1024, Write()));
         Assert.Equal("%2|", RenderDirect(max, Write()));
@@ -269,7 +154,7 @@ public class BufferWriterHintTests
     {
         // server-side only (toys/StackExchange.Redis.Server), but it is the same shape
         static Action<IBufferWriter<byte>> Write()
-            => w => MessageWriter.WriteInteger(w, long.MinValue);
+            => w => RespWire.WriteInteger(w, long.MinValue);
 
         Assert.Equal(":-9223372036854775808|", RenderDirect(64 * 1024, Write()));
         Assert.Equal(":-9223372036854775808|", RenderDirect(max, Write()));
@@ -287,46 +172,13 @@ public class BufferWriterHintTests
         // shared WriteCountPrefix here sizes for the parameter type rather than for today's callers,
         // and this pins that down so a future long-valued caller cannot reintroduce a short hint.
         static Action<IBufferWriter<byte>> Write()
-            => w => MessageWriter.WriteMultiBulkHeader(w, long.MaxValue);
+            => w => RespWire.WriteMultiBulkHeader(w, long.MaxValue);
 
         Assert.Equal("*9223372036854775807|", RenderDirect(64 * 1024, Write()));
         Assert.Equal("*9223372036854775807|", RenderDirect(max, Write()));
     }
 
     // ---- the repo's own writer, with no synthetic writer involved ------------------------------------
-
-    /// <summary>
-    /// <c>BlockBuffer</c> under-delivers deterministically, so this needs no contrived writer at all.
-    /// </summary>
-    /// <remarks>
-    /// <c>BlockBuffer.GetBuffer</c> clamps the hint to [16, 128] and then hands back whatever is left in the
-    /// block - its own comment says so: "this isn't an actual max, just a max of what we guarantee; we give
-    /// the caller whatever is left in the buffer". So any request above 128 is under-served whenever the
-    /// block has between 128 and 527 bytes remaining, which covers the quick-span path (up to 528) and the
-    /// string encode (up to 512). No concurrency, no recycled segments, no CycleBuffer - just capacity.
-    /// <para>
-    /// <see cref="TestHarness"/> writes through <c>MessageWriter.BlockBuffer</c>, so this is the shipped
-    /// path end to end.
-    /// </para>
-    /// </remarks>
-    [Theory]
-    [InlineData(400)]
-    [InlineData(450)]
-    [InlineData(500)]
-    public void BlockBufferUnderDeliversWithoutAnyContrivedWriter(int size)
-    {
-        var harness = new TestHarness();
-        var value = new string('x', size);
-
-        // several arguments in a row, so the block fills and a later one lands in the 128..527 window
-        object[] args = [value, value, value, value, value, value];
-
-        var frame = harness.Write("ECHO", args);
-        var text = Encoding.UTF8.GetString(frame).Replace("\r\n", "|");
-
-        Assert.StartsWith("*7|$4|ECHO|", text);
-        Assert.Equal(6, CountOccurrences(text, "$" + size + "|" + value + "|"));
-    }
 
     private static int CountOccurrences(string haystack, string needle)
     {

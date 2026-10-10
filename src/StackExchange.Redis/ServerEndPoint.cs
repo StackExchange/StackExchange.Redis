@@ -10,7 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Availability;
-using static StackExchange.Redis.PhysicalBridge;
+using StackExchange.Redis.Caching;
 
 namespace StackExchange.Redis
 {
@@ -60,19 +60,12 @@ namespace StackExchange.Redis
         private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
 
         private int databases, writeEverySeconds;
-        private PhysicalBridge? interactive, subscription;
         private bool isDisposed, replicaReadOnly, isReplica, allowReplicaWrites;
         private bool? supportsDatabases, supportsPrimaryWrites;
         private ServerType serverType;
         private TracerKeyCache? tracerKeyCache;
         private volatile UnselectableFlags unselectableReasons;
         private Version version;
-
-        internal void ResetNonConnected()
-        {
-            interactive?.ResetNonConnected();
-            subscription?.ResetNonConnected();
-        }
 
         public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, ServerProvenance provenance)
         {
@@ -140,9 +133,12 @@ namespace StackExchange.Redis
             set => SetConfig(ref databases, value);
         }
 
-        public bool IsConnecting => interactive?.IsConnecting == true;
-        public bool IsConnected => interactive?.IsConnected == true;
-        public bool IsSubscriberConnected => SharesSubscriptionConnection() ? IsConnected : subscription?.IsConnected == true;
+        public bool IsConnecting => false; // the new core dials on demand and reports only whether it is connected
+        public bool IsConnected => Multiplexer.ConnectionsIfCreated?.IsConnected(EndPoint) == true;
+        // ...and where there is no second socket, SupportsSubscriptions is the term that would otherwise
+        // go missing: in v3 a bridge for a disabled SUBSCRIBE never connected, so the answer was no by
+        // construction, where sharing one connection has to say no on purpose.
+        public bool IsSubscriberConnected => IsConnected && (SharesSubscriptionConnection() || SupportsSubscriptions);
 
         /// <summary>
         /// Whether pub/sub shares the interactive connection: only under RESP3, and only when opted into via
@@ -154,7 +150,7 @@ namespace StackExchange.Redis
 
         public bool KnowOrAssumeResp3()
         {
-            var protocol = interactive?.Protocol;
+            var protocol = Protocol;
             return protocol is not null
                 ? protocol.GetValueOrDefault() >= RedisProtocol.Resp3 // <= if we've completed handshake, use what we *know for sure*
                 : Multiplexer.RawConfig.TryResp3(); // otherwise, use what we *expect*
@@ -173,10 +169,6 @@ namespace StackExchange.Redis
             async Task<string> IfConnectedAsync(ILogger? log, bool sendTracerIfConnected, bool autoConfigureIfConnected)
             {
                 log?.LogInformationOnConnectedAsyncAlreadyConnectedStart(new(this));
-                if (autoConfigureIfConnected)
-                {
-                    await AutoConfigureAsync(null, log).ForAwait();
-                }
                 if (sendTracerIfConnected)
                 {
                     await SendTracerAsync(log).ForAwait();
@@ -187,7 +179,7 @@ namespace StackExchange.Redis
 
             if (!IsConnected)
             {
-                log?.LogInformationOnConnectedAsyncInit(new(this), interactive?.ConnectionState);
+                log?.LogInformationOnConnectedAsyncInit(new(this), InteractiveConnectionState);
                 var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _ = tcs.Task.ContinueWith(t => log?.LogInformationOnConnectedAsyncCompleted(new(this), t.Result));
                 lock (_pendingConnectionMonitors)
@@ -206,26 +198,16 @@ namespace StackExchange.Redis
         }
 
         internal Exception? LastException
-        {
-            get
-            {
-                var snapshot = interactive;
-                var subEx = subscription?.LastException;
-                var subExData = subEx?.Data;
+            => Multiplexer.ConnectionsIfCreated?.LastConnectFault(EndPoint, ConnectionType.Interactive)
+            ?? Multiplexer.ConnectionsIfCreated?.LastConnectFault(EndPoint, ConnectionType.Subscription);
 
-                // check if subscription endpoint has a better last exception
-                if (subExData != null && subExData.Contains("Redis-FailureType") && subExData["Redis-FailureType"]?.ToString() != nameof(ConnectionFailureType.UnableToConnect))
-                {
-                    return subEx;
-                }
-                return snapshot?.LastException;
-            }
-        }
+        internal BridgeState InteractiveConnectionState
+            => Multiplexer.ConnectionsIfCreated?.IsInteractiveConnected(EndPoint) == true ? BridgeState.ConnectedEstablished : BridgeState.Disconnected;
 
-        internal State InteractiveConnectionState => interactive?.ConnectionState ?? State.Disconnected;
-        internal State SubscriptionConnectionState => SharesSubscriptionConnection() ? InteractiveConnectionState : subscription?.ConnectionState ?? State.Disconnected;
+        internal BridgeState SubscriptionConnectionState
+            => Multiplexer.ConnectionsIfCreated?.IsSubscriptionConnected(EndPoint) == true ? BridgeState.ConnectedEstablished : InteractiveConnectionState;
 
-        public long OperationCount => (interactive?.OperationCount ?? 0) + (subscription?.OperationCount ?? 0);
+        public long OperationCount => Multiplexer.ConnectionsIfCreated?.OperationCount(EndPoint) ?? 0;
 
         public bool RequiresReadMode => serverType == ServerType.Cluster && IsReplica;
 
@@ -238,7 +220,17 @@ namespace StackExchange.Redis
         public bool IsReplica
         {
             get => isReplica;
-            set => SetConfig(ref isReplica, value);
+            set
+            {
+                var changed = isReplica != value;
+                SetConfig(ref isReplica, value);
+
+                // ...and tell the core's own topology, which learns roles only from its handshakes and
+                // dials lazily: without this the replica of an ordinary standalone pair is never dialled, so
+                // its role is never learned, so a DemandReplica read has no replica to choose and goes to the
+                // primary. See RespConnectionManager.OnRole.
+                if (changed) PublishRole();
+            }
         }
 
         public bool ReplicaReadOnly
@@ -263,10 +255,16 @@ namespace StackExchange.Redis
             set => SetConfig(ref version, value);
         }
 
-        /// <summary>
-        /// If we have a connection (interactive), report the protocol being used.
-        /// </summary>
-        public RedisProtocol? Protocol => interactive?.Protocol;
+        /// <summary>What this server is being spoken to in, as far as any connection to it has settled.</summary>
+        /// <remarks>
+        /// <b>Asked of the core, which records what each endpoint's handshake actually agreed.</b> In v3 this
+        /// read the interactive bridge; here <c>null</c> means nothing has handshaken this endpoint yet, not
+        /// that the answer is unknowable. Reporting <c>null</c> for a server that has been answering RESP3
+        /// since the first command would be a diagnostic that is wrong exactly when somebody is trying to
+        /// find out what the protocol is.
+        /// </remarks>
+        public RedisProtocol? Protocol
+            => Multiplexer?.ConnectionsIfCreated?.ObservedProtocol(EndPoint);
 
         public int WriteEverySeconds
         {
@@ -314,8 +312,8 @@ namespace StackExchange.Redis
         /// <remarks>
         /// The design notes proposed also resetting this whenever the server had been *used* since the last
         /// absence, on the grounds that "recently useful" is stronger evidence than "not listed". That is not
-        /// implementable as stated and turns out to be unnecessary: the only usage counter available
-        /// (<c>PhysicalBridge.IncrementOpCount</c>) is incremented by our own heartbeat pings as well as by
+        /// implementable as stated and turned out to be unnecessary: the only usage counter v3 had
+        /// (<c>PhysicalBridge.IncrementOpCount</c>) was incremented by our own heartbeat pings as well as by
         /// callers, so an idle-but-connected server never looks unused - and every case it was meant to
         /// protect is already covered by <see cref="IsIdle"/>, since a server actually carrying traffic owns
         /// slots in the map. What remains uncovered is a server used only via <c>GetServer</c> by hand while
@@ -336,10 +334,15 @@ namespace StackExchange.Redis
         /// Whether retiring this server would abandon anything: slots it owns, subscriptions it carries, or
         /// work it still owes.
         /// </summary>
+        /// <remarks>
+        /// Subscriptions are asked of the registry. In v3 they were asked of the bridges too, whose counters
+        /// were the record of what those bridges subscribed and so were silent about a subscription carried
+        /// any other way - a server whose only work was one of those looked idle and was pruned while still
+        /// delivering. The registry entry is the fact that does not depend on who carried it.
+        /// </remarks>
         internal bool IsIdle()
             => !Multiplexer.ServerSelectionStrategy.OwnsAnySlot(this)
-            && (subscription?.SubscriptionCount ?? 0) == 0
-            && (interactive?.SubscriptionCount ?? 0) == 0
+            && !Multiplexer.AnySubscriptionNames(EndPoint)
             && !HasCallerWork();
 
         /// <summary>
@@ -355,7 +358,7 @@ namespace StackExchange.Redis
         /// property, and is excluded by the same test, since both set the internal-call flag.
         /// </remarks>
         internal bool HasCallerWork()
-            => interactive?.HasCallerWork() == true || subscription?.HasCallerWork() == true;
+            => Multiplexer.ConnectionsIfCreated?.HasCallerWork(EndPoint) == true;
 
         /// <summary>
         /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in
@@ -408,90 +411,9 @@ namespace StackExchange.Redis
 
         public void Dispose()
         {
+            // the connections belong to the new core, which drops this endpoint's when the multiplexer retires
+            // the server (RespConnectionManager.RetireEndpointAsync) and all of them when it is disposed
             isDisposed = true;
-            var tmp = interactive;
-            interactive = null;
-            tmp?.Dispose();
-
-            tmp = subscription;
-            subscription = null;
-            tmp?.Dispose();
-        }
-
-        public PhysicalBridge? GetBridge(ConnectionType type, bool create = true, ILogger? log = null)
-        {
-            if (isDisposed) return null;
-            switch (type)
-            {
-                case ConnectionType.Interactive:
-                case ConnectionType.Subscription when SharesSubscriptionConnection():
-                    return interactive ?? (create ? GetOrCreateBridge(ref interactive, ConnectionType.Interactive, log) : null);
-                case ConnectionType.Subscription:
-                    return subscription ?? (create ? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, log) : null);
-                default:
-                    return null;
-            }
-        }
-
-        public PhysicalBridge? GetBridge(Message message)
-        {
-            if (isDisposed) return null;
-
-            // Subscription commands go to a specific bridge - so we need to set that up.
-            // There are other commands we need to send to the right connection (e.g. subscriber PING with an explicit SetForSubscriptionBridge call),
-            // but these always go subscriber.
-            switch (message.Command)
-            {
-                case RedisCommand.SUBSCRIBE:
-                case RedisCommand.UNSUBSCRIBE:
-                case RedisCommand.PSUBSCRIBE:
-                case RedisCommand.PUNSUBSCRIBE:
-                case RedisCommand.SSUBSCRIBE:
-                case RedisCommand.SUNSUBSCRIBE:
-                    message.SetForSubscriptionBridge();
-                    break;
-            }
-
-            return (message.IsForSubscriptionBridge && !SharesSubscriptionConnection())
-                ? subscription ?? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, null)
-                : interactive ?? GetOrCreateBridge(ref interactive, ConnectionType.Interactive, null);
-        }
-
-        /// <summary>
-        /// Moves a subscription message that was queued against the interactive bridge over to the subscription
-        /// bridge, which is where it belongs now that we know the connection is RESP2 (see #3154).
-        /// </summary>
-        /// <returns><c>true</c> if the message is now the subscription bridge's responsibility.</returns>
-        internal bool TryRerouteToSubscriptionBridge(Message message, PhysicalBridge from)
-        {
-            if (isDisposed) return false;
-
-            // deliberately not via GetBridge: that consults the same expectation that got us here
-            var target = subscription ?? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, null);
-            if (target is null || ReferenceEquals(target, from)) return false;
-
-            target.AcceptRerouted(message);
-            return true;
-        }
-
-        public PhysicalBridge? GetBridge(RedisCommand command, bool create = true)
-        {
-            if (isDisposed) return null;
-            switch (command)
-            {
-                case RedisCommand.SUBSCRIBE:
-                case RedisCommand.UNSUBSCRIBE:
-                case RedisCommand.PSUBSCRIBE:
-                case RedisCommand.PUNSUBSCRIBE:
-                case RedisCommand.SSUBSCRIBE:
-                case RedisCommand.SUNSUBSCRIBE:
-                    if (!SharesSubscriptionConnection())
-                    {
-                        return subscription ?? (create ? GetOrCreateBridge(ref subscription, ConnectionType.Subscription, null) : null);
-                    }
-                    break;
-            }
-            return interactive ?? (create ? GetOrCreateBridge(ref interactive, ConnectionType.Interactive, null) : null);
         }
 
         public RedisFeatures GetFeatures() => new RedisFeatures(version);
@@ -587,6 +509,7 @@ namespace StackExchange.Redis
                 if (unselectableReasons != oldFlags)
                 {
                     Multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                    PublishSelectable();
                 }
             }
         }
@@ -600,18 +523,56 @@ namespace StackExchange.Redis
                 if (unselectableReasons != oldFlags)
                 {
                     Multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                    PublishSelectable();
                 }
             }
         }
 
+        /// <summary>Tell the core's topology what reconfiguration has just decided about this server.</summary>
+        /// <remarks>
+        /// <b>A decision, not an observation</b>: whether a server is retiring or redundant is something the
+        /// client concludes during reconfiguration, so there is nothing for the topology to discover on a
+        /// connection - it has to be told. Pushed only when the answer CHANGES, which is rare.
+        /// <para>
+        /// <b><c>DidNotRespond</c> is excluded, and that reversed an earlier decision.</b> It was left in on
+        /// the reasoning that agreeing about a server which did not respond costs nothing - but it was set
+        /// until the v3 bridge had connected at least once, and while both cores coexisted those bridges
+        /// largely did not connect at all. So every endpoint they had not dialled was published as
+        /// unselectable, permanently: a replica the new core would happily have used was barred from ever
+        /// being chosen, and a <c>DemandReplica</c> read went to the primary instead. Connectivity is the one
+        /// thing the core tracks for itself, and it distinguishes "nobody has dialled this yet" from "this is
+        /// down" - which this flag cannot.
+        /// </para>
+        /// </remarks>
+        private void PublishSelectable()
+            => Multiplexer.ConnectionsIfCreated?.OnSelectable(
+                EndPoint,
+                (unselectableReasons & ~UnselectableFlags.DidNotRespond) == UnselectableFlags.None);
+
+        /// <summary>Tell the core's topology what this server turned out to be.</summary>
+        /// <remarks>
+        /// The core learns roles from its own handshakes and dials lazily, so an endpoint it has not needed
+        /// has no role - and a <c>DemandReplica</c> read then has no replica to choose. See
+        /// <c>RespConnectionManager.OnRole</c>, which says the rest.
+        /// </remarks>
+        private void PublishRole()
+            => Multiplexer?.ConnectionsIfCreated?.OnRole(EndPoint, isReplica);
+
         public override string ToString() => Format.ToString(EndPoint);
 
-        [Obsolete("prefer async")]
-        public WriteResult TryWriteSync(Message message) => GetBridge(message)?.TryWriteSync(message, isReplica) ?? WriteResult.NoConnectionAvailable;
-
-        public ValueTask<WriteResult> TryWriteAsync(Message message) => GetBridge(message)?.TryWriteAsync(message, isReplica) ?? new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
-
-        internal void Activate(ConnectionType type, ILogger? log) => GetBridge(type, true, log);
+        /// <summary>Whether this endpoint is believed to already hold <paramref name="script"/>.</summary>
+        /// <remarks>
+        /// The belief is <b>soft</b>, and safely so in both directions: believing wrongly that it is held
+        /// costs a <c>NOSCRIPT</c> and a retry, and believing wrongly that it is not costs a redundant
+        /// <c>SCRIPT LOAD</c>, which is idempotent. So it needs no careful invalidation beyond the
+        /// <c>RunId</c> check and <see cref="FlushScriptCache"/> that already exist.
+        /// <para>
+        /// Unlike <see cref="GetScriptHash"/> this has no side effect: that one adopts a hash it was handed
+        /// as an <c>EVALSHA</c> argument, which is a write, and is the wrong question to ask when all you
+        /// want to know is whether a preamble can be skipped.
+        /// </para>
+        /// </remarks>
+        internal bool IsScriptLoaded(string script) => knownScripts[script] is not null;
 
         internal void AddScript(string script, byte[] hash)
         {
@@ -627,128 +588,6 @@ namespace StackExchange.Redis
         /// <remarks>Reset at the start of each handshake, and set when the <c>HELLO</c> reply is processed.</remarks>
         internal bool RoleKnownFromHello { get; set; }
 
-        /// <summary>
-        /// Issues the topology/configuration discovery commands for this server.
-        /// </summary>
-        /// <param name="connection">The connection to write to; <c>null</c> for an already-established connection.</param>
-        /// <param name="log">The log to write handshake details to.</param>
-        /// <param name="extraFlags">Additional flags to apply to the messages issued.</param>
-        /// <param name="helloPending">
-        /// Whether a <c>HELLO</c> has been written to this same batch, but not yet answered; in that case
-        /// we expect to learn our role from it, so we can skip the key-based fallback probe.
-        /// </param>
-        internal async Task AutoConfigureAsync(PhysicalConnection? connection, ILogger? log = null, CommandFlags extraFlags = CommandFlags.None, bool helloPending = false)
-        {
-            if (!serverType.SupportsAutoConfigure())
-            {
-                // Don't try to detect configuration.
-                // All the config commands are disabled and the fallback primary/replica detection won't help
-                return;
-            }
-
-            log?.LogInformationAutoConfiguring(new(this));
-
-            var commandMap = Multiplexer.CommandMap;
-            var flags = CommandFlags.FireAndForget | CommandFlags.NoRedirect | extraFlags;
-            var features = GetFeatures();
-            Message msg;
-
-            var autoConfigProcessor = ResultProcessor.AutoConfigureProcessor.Create(log);
-
-            if (commandMap.IsAvailable(RedisCommand.CONFIG))
-            {
-                if (Multiplexer.RawConfig.KeepAlive <= 0)
-                {
-                    msg = Message.Create(-1, flags | Message.NoFlushFlag, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.timeout);
-                    msg.SetInternalCall();
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
-                }
-                msg = Message.Create(-1, flags | Message.NoFlushFlag, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
-                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.databases);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
-            }
-            if (commandMap.IsAvailable(RedisCommand.SENTINEL))
-            {
-                // SENTINEL MASTERS only reads the sentinel's view, despite SENTINEL defaulting to server-admin
-                msg = Message.Create(-1, flags.WithCategory(CommandFlags.CommandRetryReadOnly | Message.CommandServerSpecific), RedisCommand.SENTINEL, RedisLiterals.MASTERS);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
-            }
-            if (commandMap.IsAvailable(RedisCommand.INFO))
-            {
-                lastInfoReplicationCheckTicks = Environment.TickCount;
-                if (features.InfoSections)
-                {
-                    // note: Redis 7.0 has a multi-section usage, but we don't know
-                    // the server version at this point; we *could* use the optional
-                    // value on the config, but let's keep things simple: these
-                    // commands are suitably cheap
-                    msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.replication);
-                    msg.SetInternalCall();
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
-
-                    msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.server);
-                    msg.SetInternalCall();
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
-                }
-                else
-                {
-                    msg = Message.Create(-1, flags, RedisCommand.INFO);
-                    msg.SetInternalCall();
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
-                }
-            }
-            // Cluster replicas return MOVED rather than READONLY for writes to their primary's slots, so no
-            // hash tag can make this role probe reliable; skip it whenever cluster mode is already known.
-            // On the first handshake, serverType is seeded as Standalone until the CLUSTER NODES reply is
-            // processed, so neither this guard nor the tie-breaker GET guard below suppresses their initial probes.
-            else if (commandMap.IsAvailable(RedisCommand.SET)
-                && !(helloPending || RoleKnownFromHello)
-                && ServerType != ServerType.Cluster)
-            {
-                // This is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
-                // (note we only get here when HELLO isn't going to tell us: the HELLO reply carries "role", and
-                // unlike this probe it doesn't need a key - which matters when ACLs restrict key patterns; see #2968)
-                RedisKey key = Multiplexer.UniqueId;
-                // The actual value here doesn't matter (we detect the error code if it fails).
-                // The value here is to at least give some indication to anyone watching via "monitor",
-                // but we could send two GUIDs (key/value) and it would work the same.
-                msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.replica_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfigProcessor).ForAwait();
-            }
-            if (commandMap.IsAvailable(RedisCommand.CLUSTER))
-            {
-                // SLOTS first, deliberately: replies arrive in request order, so this is processed before
-                // the NODES reply below, and the identities it carries are therefore known before NODES
-                // starts creating servers by address. Without that ordering, a node created from a redirect
-                // under its announced hostname is duplicated under its address moments later by its own
-                // autoconfigure. Costs nothing: the burst stays a single pipeline with no round-trip stall
-                msg = RedisServer.GetClusterSlotsMessage(flags);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterSlots).ForAwait();
-
-                msg = RedisServer.GetClusterNodesMessage(flags);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.ClusterNodes).ForAwait();
-            }
-            // If we are going to fetch a tie breaker, do so last and we'll get it in before the tracer fires completing the connection
-            // But if GETs are disabled on this, do not fail the connection - we just don't get tiebreaker benefits
-            if (ServerType != ServerType.Cluster
-                && Multiplexer.RawConfig.TryGetTieBreaker(out var tieBreakerKey)
-                && Multiplexer.CommandMap.IsAvailable(RedisCommand.GET))
-            {
-                log?.LogInformationRequestingTieBreak(new(EndPoint), tieBreakerKey);
-                msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
-                msg.SetInternalCall();
-                msg = LoggingMessage.Create(log, msg);
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TieBreaker).ForAwait();
-            }
-        }
-
         private int _nextReplicaOffset;
 
         /// <summary>
@@ -756,27 +595,6 @@ namespace StackExchange.Redis
         /// </summary>
         internal uint NextReplicaOffset()
             => (uint)Interlocked.Increment(ref _nextReplicaOffset);
-
-        internal Task Close(ConnectionType connectionType)
-        {
-            try
-            {
-                var tmp = GetBridge(connectionType, create: false);
-                if (tmp == null || !tmp.IsConnected || !Multiplexer.CommandMap.IsAvailable(RedisCommand.QUIT)
-                    || (connectionType == ConnectionType.Subscription && ReferenceEquals(tmp, interactive))) // shared: QUIT once, via Interactive
-                {
-                    return Task.CompletedTask;
-                }
-                else
-                {
-                    return WriteDirectAsync(Message.Create(-1, CommandFlags.None, RedisCommand.QUIT), ResultProcessor.DemandOK, bridge: tmp);
-                }
-            }
-            catch (Exception ex)
-            {
-                return Task.FromException(ex);
-            }
-        }
 
         internal void FlushScriptCache()
         {
@@ -809,33 +627,30 @@ namespace StackExchange.Redis
         internal ServerCounters GetCounters()
         {
             var counters = new ServerCounters(EndPoint);
-            interactive?.GetCounters(counters.Interactive);
-            subscription?.GetCounters(counters.Subscription);
+            // filled from the core, which is where the queues, sockets and op counts are - see
+            // RespConnectionManager.BacklogCount
+            if (Multiplexer.ConnectionsIfCreated is { } core)
+            {
+                core.AddCounters(EndPoint, ConnectionType.Interactive, counters.Interactive);
+                core.AddCounters(EndPoint, ConnectionType.Subscription, counters.Subscription);
+            }
+
             return counters;
         }
 
         internal BridgeStatus GetBridgeStatus(ConnectionType connectionType)
-        {
-            try
-            {
-                return GetBridge(connectionType, false)?.GetStatus() ?? BridgeStatus.Zero;
-            }
-            catch (Exception ex)
-            {
-                // only needs to be best efforts
-                System.Diagnostics.Debug.WriteLine(ex.Message);
-            }
-
-            return BridgeStatus.Zero;
-        }
+            => Multiplexer.ConnectionsIfCreated?.ConnectionStatus(EndPoint, connectionType) ?? BridgeStatus.Zero;
 
         internal string GetProfile()
         {
             var sb = new StringBuilder(Format.ToString(EndPoint)).Append(": ");
             sb.Append("Circular op-count snapshot; int:");
-            interactive?.AppendProfile(sb);
+            var core = Multiplexer.ConnectionsIfCreated;
+            if (core is null) sb.Append(" n/a");
+            else core.AppendProfile(EndPoint, ConnectionType.Interactive, sb);
             sb.Append("; sub:");
-            subscription?.AppendProfile(sb);
+            if (core is null) sb.Append(" n/a");
+            else core.AppendProfile(EndPoint, ConnectionType.Subscription, sb);
             return sb.ToString();
         }
 
@@ -852,43 +667,6 @@ namespace StackExchange.Redis
                 }
             }
             return found;
-        }
-
-        internal string? GetStormLog(Message message) => GetBridge(message)?.GetStormLog();
-
-        internal Message GetTracerMessage(bool checkResponse)
-        {
-            // Different configurations block certain commands, as can ad-hoc local configurations, so
-            //   we'll do the best with what we have available.
-            // Note: muxer-ctor asserts that one of ECHO, PING, TIME of GET is available
-            // See also: TracerProcessor
-            var map = Multiplexer.CommandMap;
-            Message msg;
-            const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
-            if (checkResponse && map.IsAvailable(RedisCommand.ECHO))
-            {
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
-            }
-            else if (map.IsAvailable(RedisCommand.PING))
-            {
-                msg = Message.Create(-1, flags, RedisCommand.PING);
-            }
-            else if (map.IsAvailable(RedisCommand.TIME))
-            {
-                msg = Message.Create(-1, flags, RedisCommand.TIME);
-            }
-            else if (!checkResponse && map.IsAvailable(RedisCommand.ECHO))
-            {
-                // We'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
-            }
-            else
-            {
-                map.AssertAvailable(RedisCommand.EXISTS);
-                msg = Message.Create(0, flags, RedisCommand.EXISTS, GetTracerKey());
-            }
-            msg.SetInternalCall();
-            return msg;
         }
 
         /// <summary>
@@ -933,11 +711,16 @@ namespace StackExchange.Redis
         internal bool IsSelectable(RedisCommand command, bool allowDisconnected = false)
         {
             // Until we've connected at least once, we're going to have a DidNotRespond unselectable reason present
-            var bridge = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond)
-                ? GetBridge(command, true)
-                : null;
+            var usable = unselectableReasons == 0 || (allowDisconnected && unselectableReasons == UnselectableFlags.DidNotRespond);
 
-            return bridge != null && (allowDisconnected || bridge.IsConnected);
+            return usable
+                && (allowDisconnected || Multiplexer.ConnectionsIfCreated?.IsConnected(EndPoint) == true);
+        }
+
+        internal void OnConnected(string source)
+        {
+            CompletePendingConnectionMonitors(source);
+            Multiplexer.OnConnectionRestored(EndPoint, ConnectionType.Interactive, source);
         }
 
         private void CompletePendingConnectionMonitors(string source)
@@ -950,54 +733,6 @@ namespace StackExchange.Redis
                 }
                 _pendingConnectionMonitors.Clear();
             }
-        }
-
-        internal void OnDisconnected(PhysicalBridge bridge)
-        {
-            if (bridge == interactive)
-            {
-                CompletePendingConnectionMonitors("Disconnected");
-                if (SharesSubscriptionConnection())
-                {
-                    Multiplexer.UpdateSubscriptions();
-                }
-            }
-            else if (bridge == subscription)
-            {
-                Multiplexer.UpdateSubscriptions();
-            }
-        }
-
-        internal Task OnEstablishingAsync(PhysicalConnection connection, ILogger? log)
-        {
-            static async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
-            {
-                try
-                {
-                    await handshake.ForAwait();
-                }
-                catch (Exception ex)
-                {
-                    connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-                }
-            }
-
-            try
-            {
-                if (connection == null) return Task.CompletedTask;
-
-                var handshake = HandshakeAsync(connection, log);
-
-                if (!handshake.IsCompletedSuccessfully)
-                {
-                    return OnEstablishingAsyncAwaited(connection, handshake);
-                }
-            }
-            catch (Exception ex)
-            {
-                connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-            }
-            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -1055,88 +790,6 @@ namespace StackExchange.Redis
         /// <summary>Zero means "never", so a tick count that lands on it moves by one.</summary>
         private static int NudgeFromZeroTicks(int ticks) => ticks == 0 ? 1 : ticks;
 
-        /// <summary>
-        /// Subscribes to the configuration-change broadcast on a RESP3 interactive connection that is shared with
-        /// pub/sub (<see cref="ConfigurationOptions.SharedSubscriptionConnection"/>). Then there is no separate
-        /// subscription connection, and so no subscription handshake - which is where a dedicated subscription
-        /// connection subscribes to it. Left at that, the channel would silently have no subscriber, and the manual
-        /// <c>PUBLISH</c> that clients have long used to announce a topology change would reach nobody.
-        /// </summary>
-        /// <remarks>
-        /// Done once the connection is known to be RESP3 rather than as part of the handshake: a connection
-        /// that fell back to RESP2 must not be put into subscriber mode.
-        /// </remarks>
-        private void SubscribeToConfigurationChannel(PhysicalBridge bridge)
-        {
-            var channel = Multiplexer.ConfigurationChangedChannel;
-            if (channel is null || !SupportsSubscriptions || !Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)) return;
-
-            var msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, RedisChannel.Literal(channel));
-            msg.SetSource(ResultProcessor.TrackSubscriptions, null);
-#pragma warning disable CS0618 // Type or member is obsolete
-            bridge.TryWriteSync(msg, isReplica);
-#pragma warning restore CS0618
-        }
-
-        internal void OnFullyEstablished(PhysicalConnection connection, string source)
-        {
-            try
-            {
-                var bridge = connection?.BridgeCouldBeNull;
-                if (bridge != null)
-                {
-                    // Clear the unselectable flag ASAP since we are open for business
-                    ClearUnselectable(UnselectableFlags.DidNotRespond);
-
-                    // whatever a handoff pointed us at, we are connected now: resume normal resolution
-                    ClearHandoffTarget();
-
-                    // is *this specific* connection using RESP3? (without reference to config preferences)
-                    bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
-                    // and if so, is pub/sub sharing it? (if not, subscriptions live on a dedicated connection)
-                    bool shared = isResp3 && bridge == interactive && Multiplexer.RawConfig.SharedSubscriptionConnection;
-
-                    if (connection is not null && bridge == interactive)
-                    {
-                        ReconcileMaintenanceNotifications(connection);
-                    }
-                    if (bridge == subscription || shared)
-                    {
-                        // Note: this MUST be fire and forget, because we might be in the middle of a Sync processing
-                        // TracerProcessor which is executing this line inside a SetResultCore().
-                        // Since we're issuing commands inside a SetResult path in a message, we'd create a deadlock by waiting.
-                        Multiplexer.EnsureSubscriptions(CommandFlags.FireAndForget);
-                        if (shared)
-                        {
-                            SubscribeToConfigurationChannel(bridge);
-                        }
-                    }
-                    else if (bridge == interactive && !isResp3 && SupportsSubscriptions
-                        && Multiplexer.RawConfig.SharedSubscriptionConnection && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
-                    {
-                        // interactive, and we wanted to share it with pub/sub under RESP3+, but we didn't get it; spin up
-                        // pub/sub (when not sharing, ActivateServer has already done so, as under RESP2)
-                        Activate(ConnectionType.Subscription, null);
-                    }
-                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || shared))
-                    {
-                        // Only connect on the second leg - we can accomplish this by checking both
-                        // Or the first leg, if we're only making 1 connection because subscriptions aren't supported
-                        CompletePendingConnectionMonitors(source);
-                    }
-
-                    Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());
-                }
-            }
-            catch (Exception ex)
-            {
-                connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-            }
-        }
-
-        internal int LastInfoReplicationCheckSecondsAgo =>
-            unchecked(Environment.TickCount - Volatile.Read(ref lastInfoReplicationCheckTicks)) / 1000;
-
         private EndPoint? primaryEndPoint;
         public EndPoint? PrimaryEndPoint
         {
@@ -1149,26 +802,6 @@ namespace StackExchange.Redis
         /// </summary>
         internal string? TieBreakerResult { get; set; }
 
-        internal bool CheckInfoReplication()
-        {
-            lastInfoReplicationCheckTicks = Environment.TickCount;
-            ResetExponentiallyReplicationCheck();
-
-            if (version.IsAtLeast(RedisFeatures.v2_8_0) && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
-                && GetBridge(ConnectionType.Interactive, false) is PhysicalBridge bridge)
-            {
-                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
-                msg.SetInternalCall();
-                msg.SetSource(ResultProcessor.AutoConfigure, null);
-#pragma warning disable CS0618 // Type or member is obsolete
-                bridge.TryWriteSync(msg, isReplica);
-#pragma warning restore CS0618
-                return true;
-            }
-            return false;
-        }
-
-        private int lastInfoReplicationCheckTicks;
         internal volatile int ConfigCheckSeconds;
         [ThreadStatic]
         private static Random? r;
@@ -1192,79 +825,45 @@ namespace StackExchange.Redis
             }
         }
 
-        private int _heartBeatActive;
-        internal void OnHeartbeat()
-        {
-            // Don't overlap heartbeat operations on an endpoint
-            if (Interlocked.CompareExchange(ref _heartBeatActive, 1, 0) == 0)
-            {
-                try
-                {
-                    interactive?.OnHeartbeat(false);
-                    subscription?.OnHeartbeat(false);
-                }
-                catch (Exception ex)
-                {
-                    Multiplexer.OnInternalError(ex, EndPoint);
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref _heartBeatActive, 0);
-                }
-            }
-        }
-
-        internal Task<T?> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, PhysicalBridge? bridge = null)
-        {
-            static async Task<T?> Awaited(ServerEndPoint @this, Message message, ValueTask<WriteResult> write, TaskCompletionSource<T?> tcs)
-            {
-                var result = await write.ForAwait();
-                if (result != WriteResult.Success)
-                {
-                    var ex = @this.Multiplexer.GetException(result, message, @this);
-                    ConnectionMultiplexer.ThrowFailed(tcs, ex);
-                }
-                return await tcs.Task.ForAwait();
-            }
-
-            var source = TaskResultBox<T?>.Create(out var tcs, null);
-            message.SetSource(processor, source);
-            bridge ??= GetBridge(message);
-
-            WriteResult result;
-            if (bridge == null)
-            {
-                result = WriteResult.NoConnectionAvailable;
-            }
-            else
-            {
-                var write = bridge.TryWriteAsync(message, isReplica);
-                if (!write.IsCompletedSuccessfully)
-                {
-                    return Awaited(this, message, write, tcs);
-                }
-                result = write.Result;
-            }
-
-            if (result != WriteResult.Success)
-            {
-                var ex = Multiplexer.GetException(result, message, this);
-                ConnectionMultiplexer.ThrowFailed(tcs, ex);
-            }
-            return tcs.Task;
-        }
-
-        internal void ReportNextFailure()
-        {
-            interactive?.ReportNextFailure();
-            subscription?.ReportNextFailure();
-        }
-
         internal Task<bool> SendTracerAsync(ILogger? log = null)
         {
-            var msg = GetTracerMessage(false);
-            msg = LoggingMessage.Create(log, msg);
-            return WriteDirectAsync(msg, ResultProcessor.Tracer);
+            // On the connection that carries this endpoint's commands. The tracer is how availability is
+            // PROVED - `ReconfigureAsync` sends it down the "already connected, show me" path of
+            // `OnConnectedAsync`. v3 wrote it to the bridge via `WriteDirectAsync`; while both cores
+            // coexisted that proved the wrong connection, and once the bridge stopped dialling the tracer was
+            // written to a connection that would never carry it, never completed, and the endpoint ran out
+            // the whole connect timeout (`ConnectFailTimeoutTests.NoticesConnectFail`). See design notes 9n.
+            // Nothing to prove on a connection the core does not hold: not available, rather than a guess
+            return TryTraceAsync() ?? Task.FromResult(false);
+        }
+
+        /// <summary>Prove this endpoint answers, on the core's connection.</summary>
+        /// <returns>The pending proof, or null when the core has no connection to this endpoint.</returns>
+        /// <remarks>
+        /// Declines unless the core actually HAS this endpoint connected: a tracer is a question about a
+        /// connection, and sending it on one that has not been dialled would turn the question into a dial.
+        /// </remarks>
+        private Task<bool>? TryTraceAsync()
+        {
+            if (Multiplexer.ConnectionsIfCreated is not { } core) return null;
+            if (!core.IsConnected(EndPoint)) return null;
+
+            return Traced(core.ServerContext(EndPoint).PingAsync(CommandFlags.NoRedirect));
+        }
+
+        private static async Task<bool> Traced(ValueTask pending)
+        {
+            try
+            {
+                await pending.ForAwait();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // the v3 tracer answered false rather than throwing, and callers branch on that
+                Debug.WriteLine(ex.Message);
+                return false;
+            }
         }
 
         internal string Summary()
@@ -1275,22 +874,8 @@ namespace StackExchange.Redis
             if (databases > 0) sb.Append("; ").Append(databases).Append(" databases");
             if (writeEverySeconds > 0)
                 sb.Append("; keep-alive: ").Append(TimeSpan.FromSeconds(writeEverySeconds));
-            var tmp = interactive;
-            sb.Append("; int: ").Append(tmp?.ConnectionState.ToString() ?? "n/a");
-            tmp = subscription;
-            if (tmp == null)
-            {
-                sb.Append("; sub: n/a");
-            }
-            else
-            {
-                var state = tmp.ConnectionState;
-                sb.Append("; sub: ").Append(state);
-                if (state == PhysicalBridge.State.ConnectedEstablished)
-                {
-                    sb.Append(", ").Append(tmp.SubscriptionCount).Append(" active");
-                }
-            }
+            sb.Append("; int: ").Append(InteractiveConnectionState);
+            sb.Append("; sub: ").Append(SubscriptionConnectionState);
 
             var flags = unselectableReasons;
             if (flags != 0)
@@ -1298,310 +883,6 @@ namespace StackExchange.Redis
                 sb.Append("; not in use: ").Append(flags);
             }
             return sb.ToString();
-        }
-
-        /// <summary>
-        /// Write the message directly to the pipe or fail...will not queue.
-        /// </summary>
-        /// <typeparam name="T">The type of the result processor.</typeparam>
-        internal ValueTask WriteDirectOrQueueFireAndForgetAsync<T>(PhysicalConnection? connection, Message message, ResultProcessor<T> processor)
-        {
-            static async ValueTask Awaited(ValueTask<WriteResult> l_result) => await l_result.ForAwait();
-
-            if (message != null)
-            {
-                message.SetSource(processor, null);
-                ValueTask<WriteResult> result;
-                if (connection == null)
-                {
-                    Multiplexer.Trace($"{Format.ToString(this)}: Enqueue (async): " + message);
-                    // A bridge will be created if missing, so not nullable here
-                    result = GetBridge(message)!.TryWriteAsync(message, isReplica);
-                }
-                else
-                {
-                    Multiplexer.Trace($"{Format.ToString(this)}: Writing direct (async): " + message);
-                    var bridge = connection.BridgeCouldBeNull;
-                    if (bridge == null)
-                    {
-                        throw new ObjectDisposedException(connection.ToString());
-                    }
-                    else
-                    {
-                        result = bridge.WriteMessageTakingWriteLockAsync(connection, message, bypassBacklog: true);
-                    }
-                }
-
-                if (!result.IsCompletedSuccessfully)
-                {
-                    return Awaited(result);
-                }
-                // Must consume the ValueTask even on success path
-                result.GetAwaiter().GetResult();
-            }
-            return default;
-        }
-
-        /// <summary>
-        /// Lazily creates (and starts connecting) the bridge in <paramref name="field"/>, safely against a concurrent
-        /// caller doing the same - e.g. <c>ActivateServer</c> on the caller's thread racing <c>OnFullyEstablished</c>
-        /// on an IO thread. A bridge connects as soon as it is created, so a plain <c>??=</c> that loses the race
-        /// leaks a second, unreferenced connection to the server.
-        /// </summary>
-        private PhysicalBridge? GetOrCreateBridge(ref PhysicalBridge? field, ConnectionType type, ILogger? log)
-        {
-            var existing = Volatile.Read(ref field);
-            if (existing is not null) return existing;
-
-            var created = CreateBridge(type, log);
-            if (created is null) return null;
-
-            existing = Interlocked.CompareExchange(ref field, created, null);
-            if (existing is null) return created;
-
-            created.Dispose(); // lost the race: use the winner, and close the connection we started
-            return existing;
-        }
-
-        private PhysicalBridge? CreateBridge(ConnectionType type, ILogger? log)
-        {
-            if (Multiplexer.IsDisposed) return null;
-            Multiplexer.Trace(type.ToString());
-            var bridge = new PhysicalBridge(this, type, Multiplexer.TimeoutMilliseconds);
-            bridge.TryConnect(log);
-            return bridge;
-        }
-
-        /// <summary>
-        /// Issues <c>HELLO</c>, optionally carrying the credentials and client name.
-        /// </summary>
-        /// <remarks>The server can reject RESP3 either with an error (<c>HELLO</c> not understood, or an
-        /// unsupported protocol version) or by simply reporting RESP2, so we don't assign the protocol here:
-        /// that happens when the reply is processed (and as a last resort, when the tracer completes).</remarks>
-        private async Task WriteHelloAsync(PhysicalConnection connection, ILogger? log, int protocolVersion, string? user, string? password, string? clientName)
-        {
-            var hello = Message.CreateHello(protocolVersion, user, password, clientName, CommandFlags.FireAndForget | Message.NoFlushFlag);
-            hello.SetInternalCall();
-            await WriteDirectOrQueueFireAndForgetAsync(connection, hello, ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
-        }
-
-        private async Task HandshakeAsync(PhysicalConnection connection, ILogger? log)
-        {
-            log?.LogInformationServerHandshake(new(this));
-            if (connection == null)
-            {
-                Multiplexer.Trace("No connection!?");
-                return;
-            }
-
-            Message msg;
-            var config = Multiplexer.RawConfig;
-            var user = config.User;
-            // Note that we need "" (not null) for password in the case of 'nopass' logins
-            var password = config.Password ?? "";
-            var clientName = Multiplexer.ClientName;
-
-            if (!string.IsNullOrWhiteSpace(clientName))
-            {
-                clientName = nameSanitizer.Replace(clientName, "");
-            }
-
-            // NOTE:
-            // we might send the auth and client-name *twice* in RESP3 mode; this is intentional:
-            // - we don't know for sure which commands are available; HELLO is not always available,
-            //   even on v6 servers, and we don't usually even know the server version yet; likewise,
-            //   CLIENT could be disabled/renamed
-            // - on an authenticated server, you MUST issue HELLO with AUTH, so we can't avoid it there
-            // - but if the HELLO with AUTH isn't recognized, we might still need to auth; the following is
-            //   legal in all scenarios, and results in a consistent state:
-            //
-            //   (auth enabled)
-            //
-            //   HELLO 3 AUTH {user} {password} SETNAME {client}
-            //   AUTH {user} {password}
-            //   CLIENT SETNAME {client}
-            //
-            //   (auth disabled)
-            //
-            //   HELLO 3 SETNAME {client}
-            //   CLIENT SETNAME {client}
-            //
-            // this might look a little redundant, but: we only do it once per connection, and it isn't
-            // many bytes different; this allows us to pipeline the entire handshake without having to
-            // add latency
-
-            // note on the use of FireAndForget here; in F+F, the result processor is still invoked, which
-            // is what we need for things to work; what *doesn't* happen is the result-box activation etc;
-            // that's fine and doesn't cause a problem; if we wanted we could probably just discard (`_ =`)
-            // the various tasks and just `return connection.FlushAsync();` - however, since handshake is low
-            // volume, we can afford to optimize for a good stack-trace rather than avoiding state machines.
-            ResultProcessor<bool>? autoConfig = null;
-            bool isInteractive = connection.BridgeCouldBeNull?.ConnectionType == ConnectionType.Interactive;
-            if (isInteractive)
-            {
-                // forget what the previous connection's HELLO told us; re-established below, if this one repeats it
-                // (the subscription handshake is deliberately left out of this: it doesn't do the discovery step)
-                RoleKnownFromHello = false;
-
-                // likewise per-connection: re-armed from this handshake's reply, if we ask
-                _maintenanceNotificationsActive = _maintenanceNotificationsRequested = false;
-                _maintenanceNotificationsRefusal = null;
-            }
-
-            // HELLO serves two purposes: negotiating RESP3, and reporting details we would otherwise need INFO or
-            // CONFIG for (see #2968) - so we issue it whenever the server should understand it, at 2 or 3.
-            bool helloAvailable = Multiplexer.RawConfig.TryHello(out int helloProtocol); // includes an availability check on HELLO
-            bool negotiateResp3 = helloAvailable && helloProtocol >= 3;
-
-            // HELLO can carry the credentials, but we only use that when we have no other way of authenticating,
-            // and *never* both HELLO AUTH and a standalone AUTH. This is defensive against a redis bug (7.4
-            // through at least 8.x; valkey is unaffected): inside a pipelined batch, a *failing* AUTH only gets
-            // a reply if it is the first command in that batch - otherwise the error is silently dropped, which
-            // desynchronizes every reply that follows it on the connection. When that happens during the
-            // handshake, the tracer never gets its answer and the connection never becomes usable: what should
-            // have been a clean authentication failure instead presents as a connection that times out
-            // everything. So AUTH goes first in the batch, and HELLO follows it (bare).
-            bool haveCredentials = !string.IsNullOrWhiteSpace(user) || !string.IsNullOrWhiteSpace(password);
-            bool canAuthDirectly = Multiplexer.CommandMap.IsAvailable(RedisCommand.AUTH);
-            bool helloCarriesCredentials = helloAvailable && haveCredentials && !canAuthDirectly;
-
-            // ...which also means HELLO doesn't have to come first: only the credential-carrying flavour does,
-            // as nothing else can authenticate the connection in that case
-            if (helloCarriesCredentials)
-            {
-                log?.LogInformationAuthenticatingViaHello(new(this));
-                await WriteHelloAsync(connection, log, helloProtocol, user, password, clientName).ForAwait();
-            }
-            else if (!negotiateResp3)
-            {
-                // whether or not we issue HELLO for discovery below, we're RESP2
-                connection.SetProtocol(RedisProtocol.Resp2);
-            }
-
-            if (!string.IsNullOrWhiteSpace(user) && canAuthDirectly)
-            {
-                log?.LogInformationAuthenticatingUserPassword(new(this));
-                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, user.AsRedisValue(), password.AsRedisValue());
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
-            }
-            else if (!string.IsNullOrWhiteSpace(password) && canAuthDirectly)
-            {
-                log?.LogInformationAuthenticatingPassword(new(this));
-                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.AUTH, password.AsRedisValue());
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
-            }
-
-            // a bare HELLO, now that the connection is authenticated; for RESP2 this is discovery only, so we
-            // limit it to the interactive connection (the subscription connection does no discovery)
-            bool bareHello = helloAvailable && !helloCarriesCredentials && (negotiateResp3 || isInteractive);
-            if (bareHello)
-            {
-                await WriteHelloAsync(connection, log, helloProtocol, user: null, password: null, clientName: null).ForAwait();
-            }
-
-            if (Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT))
-            {
-                if (!string.IsNullOrWhiteSpace(clientName))
-                {
-                    log?.LogInformationSettingClientName(new(this), clientName);
-                    msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETNAME, clientName.AsRedisValue());
-                    msg.SetInternalCall();
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
-                }
-
-                if (config.SetClientLibrary)
-                {
-                    // note that this is a relatively new feature, but usually we won't know the
-                    // server version, so we will use this speculatively and hope for the best
-                    log?.LogInformationSettingClientLibVer(new(this));
-
-                    var libName = Multiplexer.GetFullLibraryName();
-                    if (!string.IsNullOrWhiteSpace(libName))
-                    {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_name, libName.AsRedisValue());
-                        msg.SetInternalCall();
-                        await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
-                    }
-
-                    var version = ClientInfoSanitize(Utils.GetLibVersion());
-                    if (!string.IsNullOrWhiteSpace(version))
-                    {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.SETINFO, RedisLiterals.lib_ver, version.AsRedisValue());
-                        msg.SetInternalCall();
-                        await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
-                    }
-                }
-
-                msg = Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.ID);
-                msg.SetInternalCall();
-                await WriteDirectOrQueueFireAndForgetAsync(connection, msg, autoConfig ??= ResultProcessor.AutoConfigureProcessor.Create(log)).ForAwait();
-
-                // A suppressed opt-in has to be visible: a caller who wrote maintNotifications=Enabled asked for
-                // a guarantee and is not getting it, and the alternative to saying so is a deployment where
-                // the feature is silently absent and nothing explains why.
-                if (isInteractive && Multiplexer.IsGroupMember
-                    && Multiplexer.RawConfig.MaintenanceNotifications != MaintenanceNotificationMode.Disabled)
-                {
-                    log?.LogWarningMaintenanceNotificationsSuppressedForGroup(
-                        new(this), Multiplexer.RawConfig.MaintenanceNotifications);
-                }
-
-                if (ShouldRequestMaintenanceNotifications(isInteractive, negotiateResp3))
-                {
-                    _maintenanceNotificationsRequested = true;
-                    // speculative in the same way as the AUTH above: we don't yet know what HELLO negotiated,
-                    // so we ask whenever we asked for RESP3, and ReconcileMaintenanceNotifications sorts out a
-                    // downgrade once the reply has been processed. A bare ON is explicitly valid: the server
-                    // then picks the endpoint type, which is what we want until we derive one ourselves.
-                    log?.LogInformationRequestingMaintenanceNotifications(new(this), MaintenanceMode);
-
-                    // A bare ON leaves the endpoint type to the server, and every MOVING observed that way
-                    // carried no address at all - so when a caller asks for a specific form, say so.
-                    var endpointType = MaintenanceMovingEndpointTypeLiteral(connection);
-                    msg = endpointType.IsNull
-                        ? Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON)
-                        : Message.Create(-1, CommandFlags.FireAndForget | Message.NoFlushFlag, RedisCommand.CLIENT, [RedisLiterals.MAINT_NOTIFICATIONS, RedisLiterals.ON, RedisLiterals.moving_endpoint_type, endpointType]);
-                    msg.SetInternalCall();
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.MaintenanceNotifications).ForAwait();
-                }
-            }
-
-            var bridge = connection.BridgeCouldBeNull;
-            if (bridge is null)
-            {
-                return;
-            }
-
-            var connType = bridge.ConnectionType;
-            if (connType == ConnectionType.Interactive)
-            {
-                await AutoConfigureAsync(connection, log, extraFlags: Message.NoFlushFlag, helloPending: helloAvailable).ForAwait();
-            }
-
-            // note that the final messages *are* flushed (no Message.NoFlushFlag)
-            var tracer = GetTracerMessage(true);
-            tracer.SetHandshakeCompletion();
-            tracer = LoggingMessage.Create(log, tracer);
-            log?.LogInformationSendingCriticalTracer(new(this), tracer.CommandAndKey);
-            Debug.Assert(tracer.IsHandshakeCompletion, "Tracer message should identify as handshake completion");
-            await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
-
-            // Note: this **must** be the last thing on the subscription handshake, because after this
-            // we will be in subscriber mode: regular commands cannot be sent
-            if (connType == ConnectionType.Subscription)
-            {
-                var configChannel = Multiplexer.ConfigurationChangedChannel;
-                if (configChannel != null)
-                {
-                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, RedisChannel.Literal(configChannel));
-                    // Note: this is NOT internal, we want it to queue in a backlog for sending when ready if necessary
-                    await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TrackSubscriptions).ForAwait();
-                }
-            }
-            log?.LogInformationFlushingOutboundBuffer(new(this));
-            connection.Flush();
         }
 
         private void SetConfig<T>(ref T field, T value, [CallerMemberName] string? caller = null)
@@ -1618,28 +899,35 @@ namespace StackExchange.Redis
         internal static string ClientInfoSanitize(string? value)
             => string.IsNullOrWhiteSpace(value) ? "" : nameSanitizer.Replace(value!.Trim(), "-");
 
+        /// <summary>A client name the server will accept, or empty if there is nothing to set.</summary>
+        /// <param name="value">The configured name.</param>
+        /// <remarks>
+        /// <b>Characters are REMOVED rather than replaced</b>, which is the difference from
+        /// <see cref="ClientInfoSanitize"/> and is not arbitrary: <c>CLIENT SETNAME</c> rejects a name with a
+        /// space outright, so "Test Rig" has to become "TestRig" and not "Test-Rig" - <c>ConfigTests.ClientName</c>
+        /// reads the result. Shared so that a second handshake cannot get it subtly different; the new core's
+        /// did, sent the name with its space in, had it refused, and left the connection nameless.
+        /// </remarks>
+        internal static string SanitizeClientName(string? value)
+            => string.IsNullOrWhiteSpace(value) ? "" : nameSanitizer.Replace(value!, "");
+
         private void ClearMemoized()
         {
             supportsDatabases = null;
             supportsPrimaryWrites = null;
         }
 
-        internal bool CanSimulateConnectionFailure => interactive?.CanSimulateConnectionFailure == true;
+        internal bool CanSimulateConnectionFailure => Multiplexer.RawConfig.AllowAdmin && IsConnected;
 
-        /// <summary>
-        /// For testing only.
-        /// </summary>
         internal void SimulateConnectionFailure(SimulatedFailureType failureType)
         {
-            interactive?.SimulateConnectionFailure(failureType);
-            subscription?.SimulateConnectionFailure(failureType);
-        }
+            // admin-only, as it always was: it breaks real connections
+            if (!Multiplexer.RawConfig.AllowAdmin)
+            {
+                throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.DEBUG, null, this); // close enough
+            }
 
-        internal bool HasPendingCallerFacingItems()
-        {
-            // check whichever bridges exist
-            if (interactive?.HasPendingCallerFacingItems() == true) return true;
-            return subscription?.HasPendingCallerFacingItems() ?? false;
+            Multiplexer.ConnectionsIfCreated?.SimulateConnectionFailure(EndPoint, failureType);
         }
 
         public void SetLatency(DateTime startTime)

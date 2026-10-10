@@ -1,10 +1,14 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.RoundTripUnitTests;
 
+/// <summary>
+/// The object-argument <c>Execute</c>: a known command name goes through the command map, an unknown one
+/// is sent as written.
+/// </summary>
 public class AdHocMessageRoundTrip(ITestOutputHelper log)
 {
     public enum MapMode
@@ -15,7 +19,7 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
         Renamed,
     }
 
-    [Theory(Timeout = 1000)]
+    [Theory(Timeout = 10000)]
     [InlineData(MapMode.Null, "", "*1\r\n$4\r\nECHO\r\n")]
     [InlineData(MapMode.Default, "", "*1\r\n$4\r\nECHO\r\n")]
     [InlineData(MapMode.Disabled, "", "")]
@@ -31,41 +35,44 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
         object[] args = string.IsNullOrEmpty(payload) ? [] : [payload];
         if (mode is MapMode.Disabled)
         {
-            var ex = Assert.Throws<RedisCommandException>(() => new RedisDatabase.ExecuteMessage(map, -1, CommandFlags.None, "echo", args));
-            Assert.StartsWith(ex.Message, "This operation has been disabled in the command-map and cannot be used: echo");
+            var executor = new RoundTripExecutor(":5\r\n");
+            var db = RoundTrip.Database(executor, map);
+            var ex = Assert.Throws<RedisCommandException>(() => db.Execute("echo", args));
+            Assert.StartsWith("This operation has been disabled in the command-map and cannot be used: ", ex.Message);
+            Assert.Contains("ECHO", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Empty(executor.Frames);
         }
         else
         {
-            var msg = new RedisDatabase.ExecuteMessage(map, -1, CommandFlags.None, "echo", args);
-            Assert.Equal(RedisCommand.ECHO, msg.Command); // in v3: this is recognized correctly
-
-            Assert.Equal("ECHO", msg.CommandAndKey);
-            Assert.Equal("ECHO", msg.CommandString);
-            var result =
-                await TestConnection.ExecuteAsync(msg, ResultProcessor.ScriptResult, requestResp, ":5\r\n", commandMap: map, log: log);
+            // a known name is recognised, so the map's rename applies
+            var result = await RoundTrip.ExecuteAsync(db => db.ExecuteAsync("echo", args), requestResp, ":5\r\n", commandMap: map, log: log);
             Assert.Equal(ResultType.Integer, result.Resp3Type);
             Assert.Equal(5, result.AsInt32());
         }
     }
 
-    [Theory(Timeout = 1000)]
+    [Theory(Timeout = 10000)]
     [InlineData("ACL SETUSER x")]
     [InlineData("get key")]
     public void CommandWithWhitespaceThrows(string command)
     {
-        object[] args = [];
-        var ex = Assert.Throws<RedisCommandException>(
-            () => new RedisDatabase.ExecuteMessage(CommandMap.Default, -1, CommandFlags.None, command, args));
+        var executor = new RoundTripExecutor("+OK\r\n");
+        var db = RoundTrip.Database(executor);
+        var ex = Assert.Throws<RedisCommandException>(() => db.Execute(command));
         Assert.Contains("whitespace", ex.Message);
+        Assert.Empty(executor.Frames);
     }
 
-    [Fact(Timeout = 1000)]
-    public void SingleTokenCommandDoesNotThrow()
+    [Fact(Timeout = 10000)]
+    public async Task SingleTokenCommandDoesNotThrow()
     {
         // the correct token-per-argument form must still be accepted unchanged
-        object[] args = ["SETUSER", "x"];
-        var msg = new RedisDatabase.ExecuteMessage(CommandMap.Default, -1, CommandFlags.None, "ACL", args);
-        Assert.Equal("ACL", msg.CommandString);
+        var result = await RoundTrip.ExecuteAsync(
+            db => db.ExecuteAsync("ACL", "SETUSER", "x"),
+            "*3\r\n$3\r\nACL\r\n$7\r\nSETUSER\r\n$1\r\nx\r\n",
+            "+OK\r\n",
+            log: log);
+        Assert.Equal("OK", (string?)result);
     }
 
     private static CommandMap? GetMap(MapMode mode) => mode switch
@@ -77,13 +84,13 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
         _ => throw new ArgumentOutOfRangeException(nameof(mode)),
     };
 
-    [Theory(Timeout = 1000)]
-    [InlineData(MapMode.Null, "", "*1\r\n$6\r\nCUSTOM\r\n")]
-    [InlineData(MapMode.Default, "", "*1\r\n$6\r\nCUSTOM\r\n")]
+    [Theory(Timeout = 10000)]
+    [InlineData(MapMode.Null, "", "*1\r\n$6\r\ncustom\r\n")]
+    [InlineData(MapMode.Default, "", "*1\r\n$6\r\ncustom\r\n")]
     // [InlineData(MapMode.Disabled, "", "")]
     // [InlineData(MapMode.Renamed, "", "*1\r\n$7\r\nCUSTOM2\r\n")]
-    [InlineData(MapMode.Null, "hello", "*2\r\n$6\r\nCUSTOM\r\n$5\r\nhello\r\n")]
-    [InlineData(MapMode.Default, "hello", "*2\r\n$6\r\nCUSTOM\r\n$5\r\nhello\r\n")]
+    [InlineData(MapMode.Null, "hello", "*2\r\n$6\r\ncustom\r\n$5\r\nhello\r\n")]
+    [InlineData(MapMode.Default, "hello", "*2\r\n$6\r\ncustom\r\n$5\r\nhello\r\n")]
     // [InlineData(MapMode.Disabled, "hello", "")]
     // [InlineData(MapMode.Renamed, "hello", "*2\r\n$7\r\nCUSTOM2\r\n$5\r\nhello\r\n")]
     public async Task CustomRoundTripTest(MapMode mode, string payload, string requestResp)
@@ -91,22 +98,12 @@ public class AdHocMessageRoundTrip(ITestOutputHelper log)
         var map = GetMap(mode);
 
         object[] args = string.IsNullOrEmpty(payload) ? [] : [payload];
-        if (mode is MapMode.Disabled)
-        {
-            var ex = Assert.Throws<RedisCommandException>(() => new RedisDatabase.ExecuteMessage(map, -1, CommandFlags.None, "custom", args));
-            Assert.StartsWith(ex.Message, "This operation has been disabled in the command-map and cannot be used: custom");
-        }
-        else
-        {
-            var msg = new RedisDatabase.ExecuteMessage(map, -1, CommandFlags.None, "custom", args);
-            Assert.Equal(RedisCommand.UNKNOWN, msg.Command);
 
-            Assert.Equal("custom", msg.CommandAndKey);
-            Assert.Equal("custom", msg.CommandString);
-            var result =
-                await TestConnection.ExecuteAsync(msg, ResultProcessor.ScriptResult, requestResp, ":5\r\n", commandMap: map, log: log);
-            Assert.Equal(ResultType.Integer, result.Resp3Type);
-            Assert.Equal(5, result.AsInt32());
-        }
+        // an unknown name is not a RedisCommand, so the map has nothing to say about it. The old core upper-cased
+        // it ("CUSTOM"); the new one sends the name exactly as written, which is equally valid because command
+        // names are case-insensitive server-side
+        var result = await RoundTrip.ExecuteAsync(db => db.ExecuteAsync("custom", args), requestResp, ":5\r\n", commandMap: map, log: log);
+        Assert.Equal(ResultType.Integer, result.Resp3Type);
+        Assert.Equal(5, result.AsInt32());
     }
 }

@@ -181,6 +181,68 @@ namespace StackExchange.Redis.Server
             node.AssertKey(key);
 
             if ((flags & KeyFlags.ReadOnly) == 0) node.Touch(Database, key);
+            else NoteTrackedRead(Database, key); // per-key tracking registers on read; no-op otherwise
+        }
+
+        /// <summary>Whether CLIENT TRACKING is on for this connection.</summary>
+        public bool TrackingEnabled { get; private set; }
+
+        /// <summary>Whether tracking is in BCAST mode; the alternative is per-key.</summary>
+        public bool TrackingBroadcast { get; private set; }
+
+        private List<string> _trackingPrefixes;
+        private HashSet<(int Database, string Key)> _trackedReads;
+
+        /// <summary>The prefixes this connection asked to be told about; empty means "everything".</summary>
+        /// <remarks>
+        /// Exposed so tests can assert what the client actually negotiated, rather than what it believes it
+        /// negotiated: the two only differ when there is a bug, which is the whole point of looking.
+        /// </remarks>
+        public IReadOnlyList<string> TrackingPrefixes => _trackingPrefixes ?? (IReadOnlyList<string>)Array.Empty<string>();
+
+        /// <summary>Turn tracking on, in one mode or the other.</summary>
+        /// <remarks>
+        /// Prefixes are broadcast-only, as on a real server: there is nothing to filter when the server is
+        /// announcing what this client read.
+        /// </remarks>
+        public void SetTracking(bool enabled, bool broadcast, List<string> prefixes)
+        {
+            TrackingEnabled = enabled;
+            TrackingBroadcast = enabled && broadcast;
+            _trackingPrefixes = enabled ? prefixes : null;
+            _trackedReads = enabled && !broadcast ? new() : null;
+        }
+
+        /// <summary>In per-key mode, note that this client has read a key, so a change to it is announced.</summary>
+        public void NoteTrackedRead(int database, in RedisKey key)
+        {
+            if (!TrackingEnabled || TrackingBroadcast) return;
+            _trackedReads?.Add((database, (string)key));
+        }
+
+        /// <summary>
+        /// Whether a change to this key should be announced to this client, consuming the registration.
+        /// </summary>
+        /// <remarks>
+        /// Per-key mode forgets a key once it has told you about it - which is why a client that keeps
+        /// reading has to keep re-registering, and why the default mode has the staleness hazard that makes
+        /// NOLOOP dangerous. Broadcast mode never forgets, because it never remembered.
+        /// </remarks>
+        public bool ShouldAnnounce(int database, in RedisKey key)
+        {
+            if (!TrackingEnabled) return false;
+            if (!TrackingBroadcast) return _trackedReads is not null && _trackedReads.Remove((database, (string)key));
+
+            var prefixes = _trackingPrefixes;
+            if (prefixes is null || prefixes.Count == 0) return true;
+
+            var name = (string)key;
+            foreach (var prefix in prefixes)
+            {
+                if (name is not null && name.StartsWith(prefix, StringComparison.Ordinal)) return true;
+            }
+
+            return false;
         }
 
         public void Touch(int database, in RedisKey key)

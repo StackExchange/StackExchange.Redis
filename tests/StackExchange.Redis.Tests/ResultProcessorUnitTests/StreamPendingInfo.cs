@@ -1,9 +1,14 @@
+﻿using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // XPENDING (summary form), as the command sends it
+    private static readonly IRespHandler<global::StackExchange.Redis.StreamPendingInfo> Handler
+        = GroupHandlers.Get<global::StackExchange.Redis.StreamPendingInfo>(typeof(global::StackExchange.Redis.Streams), "StreamTypesHandler", "PendingInfo");
+
     [Fact]
     public void SingleConsumer_Success()
     {
@@ -22,7 +27,7 @@ public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(
                    "$12\r\nconsumer-123\r\n" + // Consumer name
                    "$1\r\n1\r\n"; // Pending count as string
 
-        var result = Execute(resp, ResultProcessor.StreamPendingInfo);
+        var result = Execute(resp, Handler);
 
         Assert.Equal(1, result.PendingMessageCount);
         Assert.Equal("1526984818136-0", result.LowestPendingMessageId);
@@ -55,7 +60,7 @@ public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(
                    "$3\r\nJoe\r\n" +
                    "$1\r\n8\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamPendingInfo);
+        var result = Execute(resp, Handler);
 
         Assert.Equal(10, result.PendingMessageCount);
         Assert.Equal("1526569498055-0", result.LowestPendingMessageId);
@@ -77,7 +82,7 @@ public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(
                    "$15\r\n1526569506935-0\r\n" +
                    "$-1\r\n"; // null
 
-        var result = Execute(resp, ResultProcessor.StreamPendingInfo);
+        var result = Execute(resp, Handler);
 
         Assert.Equal(0, result.PendingMessageCount);
         Assert.Empty(result.Consumers);
@@ -92,7 +97,7 @@ public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(
                    "$15\r\n1526984818136-0\r\n" +
                    "$15\r\n1526984818136-0\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamPendingInfo);
+        ExecuteUnexpected(resp, Handler);
     }
 
     [Fact]
@@ -100,7 +105,7 @@ public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(
     {
         var resp = "$5\r\nhello\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamPendingInfo);
+        ExecuteUnexpected(resp, Handler);
     }
 
     [Fact]
@@ -108,6 +113,6 @@ public class StreamPendingInfo(ITestOutputHelper log) : ResultProcessorUnitTest(
     {
         var resp = "$-1\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamPendingInfo);
+        ExecuteUnexpected(resp, Handler);
     }
 }

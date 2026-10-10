@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp.Testing;
@@ -46,6 +46,65 @@ public abstract class CodeFixVerifier<TAnalyzer, TCodeFix>
 
         TestSetup.Configure(test, referenceLibrary: true, minServerVersion: null);
         test.ExpectedDiagnostics.AddRange(expected);
+        return test.RunAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// As <see cref="VerifyFixAsync"/>, but where the fixed code is expected to carry diagnostics of its own.
+    /// </summary>
+    /// <remarks>
+    /// Needed when a fix emits a declaration whose body comes from a <em>generator</em>: this harness runs
+    /// analyzers and code fixes, not generators, so the result legitimately reports "partial property must
+    /// have an implementation part". Spelling that out beats weakening the fixed source to something that
+    /// compiles here but is not what the fix actually produces.
+    /// </remarks>
+    /// <summary>As <see cref="VerifyFixAsync(string, string, int, DiagnosticResult[])"/>, at a given language version.</summary>
+    /// <remarks>For fixes whose output depends on the language: a partial property needs C# 13, so below that a fix offers something else.</remarks>
+    protected static Task VerifyFixAsync(
+        string source,
+        string fixedSource,
+        int codeActionIndex,
+        Microsoft.CodeAnalysis.CSharp.LanguageVersion languageVersion,
+        DiagnosticResult[] expected,
+        params DiagnosticResult[] afterFix)
+    {
+        var test = new CSharpCodeFixTest<TAnalyzer, TCodeFix, DefaultVerifier>
+        {
+            TestCode = TestSetup.WithPreamble(source),
+            FixedCode = TestSetup.WithPreamble(fixedSource),
+            CodeActionIndex = codeActionIndex,
+        };
+
+        TestSetup.Configure(test, referenceLibrary: true, minServerVersion: null);
+        test.SolutionTransforms.Add((solution, projectId) =>
+        {
+            var options = (Microsoft.CodeAnalysis.CSharp.CSharpParseOptions)solution.GetProject(projectId)!.ParseOptions!;
+            return solution.WithProjectParseOptions(projectId, options.WithLanguageVersion(languageVersion));
+        });
+        test.ExpectedDiagnostics.AddRange(expected);
+        test.FixedState.ExpectedDiagnostics.AddRange(afterFix);
+        return test.RunAsync(TestContext.Current.CancellationToken);
+    }
+
+    protected static Task VerifyFixAsync(
+        string source,
+        string fixedSource,
+        int codeActionIndex,
+        DiagnosticResult[] expected,
+        params DiagnosticResult[] afterFix)
+    {
+        var test = new CSharpCodeFixTest<TAnalyzer, TCodeFix, DefaultVerifier>
+        {
+            TestCode = TestSetup.WithPreamble(source),
+            FixedCode = TestSetup.WithPreamble(fixedSource),
+            CodeActionIndex = codeActionIndex,
+        };
+
+        TestSetup.Configure(test, referenceLibrary: true, minServerVersion: null);
+        test.ExpectedDiagnostics.AddRange(expected);
+        // NOT StateInheritanceMode.Explicit: that drops the inherited references too, and the fixed state
+        // stops being able to see StackExchange.Redis at all
+        test.FixedState.ExpectedDiagnostics.AddRange(afterFix);
         return test.RunAsync(TestContext.Current.CancellationToken);
     }
 

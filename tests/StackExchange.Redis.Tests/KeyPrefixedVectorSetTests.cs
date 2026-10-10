@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using NSubstitute;
 using Xunit;
@@ -22,11 +22,11 @@ namespace StackExchange.Redis.Tests
         {
             if (BitConverter.IsLittleEndian)
             {
-                Assert.True(VectorSetAddMessage.CanUseFp32);
+                Assert.True(VectorSetAddRequest.CanUseFp32);
             }
             else
             {
-                Assert.False(VectorSetAddMessage.CanUseFp32);
+                Assert.False(VectorSetAddRequest.CanUseFp32);
             }
         }
 

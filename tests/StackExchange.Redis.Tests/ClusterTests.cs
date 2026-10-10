@@ -58,12 +58,26 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
                 Log($"{i}; interactive, {ep}, count: {counters.Interactive.SocketCount}");
                 Log($"{i}; subscription, {ep}, count: {counters.Subscription.SocketCount}");
             }
+            // One socket each, and the point is the upper bound: a reconnect loop that opened a second
+            // one would show as 2 and still fail. The lower bound needs a moment's grace, because the
+            // subscription socket is dialled asynchronously under the engine flag - connect completes
+            // and the socket lands just after, so an immediate read can legitimately see 0 where the
+            // shipped core, which creates its bridge inline, could never see anything but 1.
+            var expectedSubscription = sharedSubscriptionConnection && TestContext.Current.IsResp3() ? 0 : 1;
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline
+                && conn.GetEndPoints().Any(
+                    ep => conn.GetServer(ep).GetCounters().Subscription.SocketCount < expectedSubscription))
+            {
+                await Task.Delay(50, TestContext.Current.CancellationToken);
+            }
+
             foreach (var ep in conn.GetEndPoints())
             {
                 var srv = conn.GetServer(ep);
                 var counters = srv.GetCounters();
                 Assert.Equal(1, counters.Interactive.SocketCount);
-                Assert.Equal(sharedSubscriptionConnection && TestContext.Current.IsResp3() ? 0 : 1, counters.Subscription.SocketCount);
+                Assert.Equal(expectedSubscription, counters.Subscription.SocketCount);
             }
         }
     }
@@ -144,7 +158,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var conn = Create();
 
         RedisKey key = Guid.NewGuid().ToByteArray();
-        var ep = conn.GetDatabase().IdentifyEndpoint(key);
+        var ep = GetDatabase(conn).IdentifyEndpoint(key);
         Assert.NotNull(ep);
         Assert.Equal(ep, conn.GetServer(ep).ClusterConfiguration?.GetBySlot(key)?.EndPoint);
     }
@@ -163,7 +177,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         var key = Me();
         const string value = "abc";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, value, flags: CommandFlags.FireAndForget);
         await servers[0].PingAsync();
@@ -215,7 +229,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         for (var i = 0; i < NoRedirectRoutingProbeCount; i++)
         {
             var tag = Guid.NewGuid().ToString("N");
@@ -243,7 +257,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         for (var i = 0; i < NoRedirectRoutingProbeCount; i++)
         {
             var tag = Guid.NewGuid().ToString("N");
@@ -281,7 +295,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         for (var i = 0; i < NoRedirectRoutingProbeCount; i++)
         {
             var tag = Guid.NewGuid().ToString("N");
@@ -306,7 +320,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         for (var i = 0; i < NoRedirectRoutingProbeCount; i++)
         {
             var tag = Guid.NewGuid().ToString("N");
@@ -343,7 +357,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         for (var i = 0; i < NoRedirectRoutingProbeCount; i++)
         {
             var tag = Guid.NewGuid().ToString("N");
@@ -366,7 +380,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var ex = await Assert.ThrowsAsync<RedisCommandException>(async () =>
         {
             // connect
-            var cluster = conn.GetDatabase();
+            var cluster = GetDatabase(conn);
             var anyServer = conn.GetServer(conn.GetEndPoints()[0]);
             await anyServer.PingAsync();
             Assert.Equal(ServerType.Cluster, anyServer.ServerType);
@@ -424,7 +438,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var ex = await Assert.ThrowsAsync<RedisCommandException>(async () =>
         {
             // connect
-            var cluster = conn.GetDatabase();
+            var cluster = GetDatabase(conn);
             var anyServer = conn.GetServer(conn.GetEndPoints()[0]);
             await anyServer.PingAsync();
             var config = anyServer.ClusterConfiguration;
@@ -480,7 +494,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var conn = Create();
 
         // connect
-        var cluster = conn.GetDatabase();
+        var cluster = GetDatabase(conn);
         var anyServer = conn.GetServer(conn.GetEndPoints()[0]);
         await anyServer.PingAsync();
         var config = anyServer.ClusterConfiguration;
@@ -587,7 +601,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var conn = Create();
 
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         int totalUnfiltered = 0, totalFiltered = 0;
@@ -636,7 +650,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         await using var conn = Create(allowAdmin: true);
 
-        var cluster = conn.GetDatabase();
+        var cluster = GetDatabase(conn);
         int slotMovedCount = 0;
         conn.HashSlotMoved += (s, a) =>
         {
@@ -713,7 +727,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         await using var conn = Create(allowAdmin: true);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         for (int i = 0; i < 500; i++)
         {
             var key = Guid.NewGuid().ToString();
@@ -733,7 +747,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         var profiler = new ProfilingSession();
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         conn.RegisterProfiler(() => profiler);
@@ -811,7 +825,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         }
 
         Assert.True(checkedNodes > 1, "expected more than one slot-serving node");
-        Assert.True((await conn.GetDatabase().StringGetAsync(Me())).IsNull);
+        Assert.True((await GetDatabase(conn).StringGetAsync(Me())).IsNull);
     }
 
     [Fact]
@@ -848,7 +862,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         await using var conn = Create();
 
-        var ex = Assert.Throws<RedisCommandException>(() => conn.GetDatabase(0).StringGet(keys));
+        var ex = Assert.Throws<RedisCommandException>(() => GetDatabase(conn, 0).StringGet(keys));
         Assert.Contains("Multi-key operations must involve a single slot", ex.Message);
     }
 
@@ -890,7 +904,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         Log($"{grouped.Count} groups, min: {grouped.Min(x => x.Count())}, max: {grouped.Max(x => x.Count())}, avg: {grouped.Average(x => x.Count())}");
 
-        var db = conn.GetDatabase(0);
+        var db = GetDatabase(conn, 0);
         var all = grouped.SelectMany(grp =>
         {
             var grpKeys = grp.ToArray();
@@ -916,7 +930,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         var endpoints = conn.GetEndPoints();
         var servers = endpoints.Select(e => conn.GetServer(e));
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key);
         db.StringSet(key, Value);
         var config = servers.First().ClusterConfiguration;
@@ -966,7 +980,10 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         {
             Assert.True(msg.CommandCreated != default(DateTime));
             Assert.True(msg.CreationToEnqueued > TimeSpan.Zero);
-            Assert.True(msg.EnqueuedToSending > TimeSpan.Zero);
+            // can be immeasurably fast too: the new core stamps "enqueued" and then reserves the write with
+            // nothing between them, often under 100ns - and TimeSpan's resolution is 100ns, so the span is a
+            // real interval that rounds to zero, exactly as ResponseToCompletion's can below
+            Assert.True(msg.EnqueuedToSending >= TimeSpan.Zero);
             Assert.True(msg.SentToResponse > TimeSpan.Zero);
             Assert.True(msg.ResponseToCompletion >= TimeSpan.Zero); // this can be immeasurably fast
             Assert.True(msg.ElapsedTime > TimeSpan.Zero);
@@ -989,14 +1006,14 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
     {
         await using var conn = Create(keepAlive: 1, connectTimeout: 3000, shared: false);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         await db.PingAsync();
         Assert.True(conn.IsConnected);
 
         foreach (var server in conn.GetServerSnapshot())
         {
-            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.InteractiveConnectionState);
-            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.SubscriptionConnectionState);
+            Assert.Equal(BridgeState.ConnectedEstablished, server.InteractiveConnectionState);
+            Assert.Equal(BridgeState.ConnectedEstablished, server.SubscriptionConnectionState);
         }
     }
 
@@ -1046,7 +1063,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
 
         List<(RedisChannel, RedisValue)> received = [];
         var queue = await pubsub.SubscribeAsync(channel, CommandFlags.NoRedirect);
-        _ = Task.Run(async () =>
+        var consumer = Task.Run(async () =>
         {
             // use queue API to have control over order
             await foreach (var item in queue)
@@ -1064,7 +1081,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         {
             Assert.Equal(eps.Single(), subscribedEp);
         }
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         await Task.Delay(50); // let the sub settle (this isn't needed on RESP3, note)
         await db.PingAsync();
         for (int i = 0; i < 10; i++)
@@ -1078,9 +1095,15 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
             Assert.Equal(1, receivers);
         }
 
-        await Task.Delay(250); // let the sub settle (this isn't needed on RESP3, note)
+        // WAIT FOR THE CONSUMER, not a fixed delay: the messages are read by the Task.Run above, which under
+        // a starved thread pool can lag the deliveries by seconds. Once on net481 the server confirmed all ten
+        // receivers and the snapshot below still read 0 - the consumer simply had not run yet when the
+        // unsubscribe and the snapshot happened (both took ~3s that run). Count what was delivered, then
+        // unsubscribe, then let the consumer finish draining before reading what it collected.
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => { lock (received) { return received.Count >= 10; } });
         await db.PingAsync();
         await pubsub.UnsubscribeAsync(channel);
+        await Task.WhenAny(consumer, Task.Delay(5000));
 
         (RedisChannel Channel, RedisValue Value)[] snap;
         lock (received)

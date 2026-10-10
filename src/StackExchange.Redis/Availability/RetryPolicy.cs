@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
@@ -137,9 +137,24 @@ public class RetryPolicy
     /// Controls which operations can be repeated, optionally indicating that this should progress to
     /// a new server.
     /// </summary>
+    /// <param name="fault">What went wrong, and what the command was.</param>
+    /// <remarks>
+    /// <b>Not consulted at all when the command's retry category is
+    /// <see cref="CommandFlags.CommandRetryNever"/></b>, nor when it carries no category (which is read as
+    /// the same thing), nor when it is <see cref="CommandFlags.FireAndForget"/>. Those are the caller's
+    /// vetoes rather than policy questions - the command must not be replayed, or nobody is waiting on the
+    /// outcome to improve - and they are applied before this is reached, so an override cannot lose them
+    /// and a retrying sender can decline before sending rather than only after a fault. Everything else,
+    /// including how much side effect is tolerable and whether a given fault is transient, is this
+    /// method's to decide.
+    /// </remarks>
     public virtual RetryResult CanRetry(in FaultContext fault)
     {
-        var actual = fault.Flags & Message.MaskRetryCategory;
+        var actual = fault.Flags & CommandFlagsInternal.MaskRetryCategory;
+
+        // note the veto above this - an unset or CommandRetryNever category never reaches here through
+        // RetryController - is repeated rather than assumed, because this is public and virtual: a caller
+        // may invoke it directly, and a derived type calling base must get the same answer either way
         if (actual is 0) actual = CommandFlags.CommandRetryNever; // if not set, assume the worst (as FaultContext does)
 
         if (actual is CommandFlags.CommandRetryNever)
@@ -161,7 +176,7 @@ public class RetryPolicy
         {
             // assume we can send it everywhere
             var result = RetryResult.SameServer | RetryResult.FailoverServer;
-            if ((fault.Flags & Message.CommandServerSpecific) != 0)
+            if ((fault.Flags & CommandFlagsInternal.CommandServerSpecific) != 0)
                 result &= ~RetryResult.FailoverServer;
             return result;
         }
@@ -193,7 +208,7 @@ public class RetryPolicy
         if (!IsExpressibleAsMilliseconds(builder.FailoverDelay)) throw new ArgumentOutOfRangeException(nameof(builder.FailoverDelay), builder.FailoverDelay, "The failover delay is too large.");
 
         var category = builder.MaxCommandRetryCategory;
-        if ((category & Message.MaskRetryCategory) is 0 | (category & ~Message.MaskRetryCategory) is not 0)
+        if ((category & CommandFlagsInternal.MaskRetryCategory) is 0 | (category & ~CommandFlagsInternal.MaskRetryCategory) is not 0)
         {
             throw new ArgumentException("A single valid CommandRetry* flag should be specified.", nameof(builder.MaxCommandRetryCategory));
         }

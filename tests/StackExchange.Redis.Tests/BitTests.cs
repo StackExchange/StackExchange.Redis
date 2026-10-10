@@ -13,7 +13,7 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     public async Task BasicOps()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -26,7 +26,7 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     public async Task BitPositionUnboundedEndLooksPastEndOfString()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -53,7 +53,7 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     public async Task BitFieldBasicOps()
     {
         await using var conn = Create(require: RedisFeatures.v3_2_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -72,7 +72,7 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     public async Task BitFieldBatchAppliesInOrder()
     {
         await using var conn = Create(require: RedisFeatures.v3_2_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -96,7 +96,7 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     public async Task BitFieldEmptyBatchIsANoOp()
     {
         await using var conn = Create(require: RedisFeatures.v3_2_0);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
 
         using var lease = db.StringBitField(key, ReadOnlyMemory<BitFieldOperation>.Empty);
@@ -116,7 +116,7 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
             conn.GetEndPoints().Any(ep => conn.GetServer(ep).IsReplica),
             "No replica in this configuration");
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         var session = new ProfilingSession();
         conn.RegisterProfiler(() => session);

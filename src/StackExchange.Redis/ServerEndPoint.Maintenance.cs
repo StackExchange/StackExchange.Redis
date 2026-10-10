@@ -56,35 +56,28 @@ internal sealed partial class ServerEndPoint
     /// satisfied: under <see cref="MaintenanceNotificationMode.Enabled"/> the reconcile below fails the
     /// connection for exactly this case.) We can't know what was *negotiated* at write time
     /// (the handshake is pipelined, and <c>HELLO</c> hasn't been answered yet), so this tests what we asked
-    /// for and <see cref="ReconcileMaintenanceNotifications"/> settles it once the reply has been processed.
+    /// for and <see cref="ReconcileMaintenanceNotifications(RedisProtocol)"/> settles it once the reply has been processed.
     /// </remarks>
-    private bool ShouldRequestMaintenanceNotifications(bool isInteractive, bool negotiateResp3)
-        => isInteractive
-        && negotiateResp3
+    /// <param name="negotiateResp3">Whether that connection settled on RESP3.</param>
+    internal bool ShouldRequestMaintenanceNotifications(bool negotiateResp3)
+        => negotiateResp3
         && MaintenanceMode != MaintenanceNotificationMode.Disabled
         && Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT);
 
-    /// <summary>
-    /// The server agreed to send them.
-    /// </summary>
+    /// <summary>The wire value for <c>moving-endpoint-type</c>, classified from how we actually connected.</summary>
+    /// <param name="remoteAddress">The address reached, or null when it was not an IP one.</param>
+    /// <param name="isEncrypted">Whether the connection ended up encrypted.</param>
     /// <remarks>
-    /// Logged as well as recorded, so that the connect log answers "is this actually on?" outright. Previously
-    /// only the *refusal* was logged, which meant a working feature left no trace and could only be inferred
-    /// from the absence of a complaint - and that is indistinguishable from never having asked.
+    /// <b>The two facts, rather than a connection to read them off.</b> Only whoever built the transport
+    /// knows them - the address REACHED is not the endpoint dialled, and encryption can be a tunnel's
+    /// decision - so the core that connected reports them and the classification stays in one place.
     /// </remarks>
-    /// <summary>
-    /// The wire value for the configured <c>moving-endpoint-type</c>, or null to send no preference.
-    /// </summary>
-    private RedisValue MaintenanceMovingEndpointTypeLiteral(PhysicalConnection connection)
+    internal RedisValue MaintenanceMovingEndpointTypeLiteral(IPAddress? remoteAddress, bool isEncrypted)
     {
         var configured = Multiplexer.RawConfig.MaintenanceMovingEndpointType;
         if (configured == MaintenanceEndpointType.Auto)
         {
-            // classify the address we actually reached, not the endpoint we dialled - the latter is usually a
-            // name, and where it resolved to is what decides whether we are inside the deployment's network
-            configured = MaintenanceEndpointTypeResolver.Derive(
-                (connection.VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address,
-                connection.IsEncrypted);
+            configured = MaintenanceEndpointTypeResolver.Derive(remoteAddress, isEncrypted);
         }
 
         return ToLiteral(configured);
@@ -100,7 +93,15 @@ internal sealed partial class ServerEndPoint
         _ => RedisValue.Null, // ServerDefault: a bare ON, which is what we have always sent
     };
 
-    internal void OnMaintenanceNotificationsAccepted(PhysicalConnection connection)
+    /// <summary>
+    /// The server agreed to send them.
+    /// </summary>
+    /// <remarks>
+    /// Logged as well as recorded, so that the connect log answers "is this actually on?" outright. Previously
+    /// only the *refusal* was logged, which meant a working feature left no trace and could only be inferred
+    /// from the absence of a complaint - and that is indistinguishable from never having asked.
+    /// </remarks>
+    internal void OnMaintenanceNotificationsAccepted()
     {
         _maintenanceNotificationsActive = true;
         Multiplexer.Logger?.LogInformationMaintenanceNotificationsAccepted(new(this));
@@ -108,9 +109,10 @@ internal sealed partial class ServerEndPoint
 
     /// <summary>
     /// The server declined our request. Recorded rather than acted on: whether that matters is a question for
-    /// <see cref="ReconcileMaintenanceNotifications"/>, which sees the negotiated protocol too.
+    /// <see cref="ReconcileMaintenanceNotifications(RedisProtocol)"/>, which sees the negotiated protocol too.
     /// </summary>
-    internal void OnMaintenanceNotificationsRefused(PhysicalConnection connection, string reason)
+    /// <param name="reason">What the server said.</param>
+    internal void OnMaintenanceNotificationsRefused(string reason)
     {
         _maintenanceNotificationsActive = false;
         _maintenanceNotificationsRefusal = reason;
@@ -121,16 +123,24 @@ internal sealed partial class ServerEndPoint
         Multiplexer.Logger?.LogInformationMaintenanceNotificationsRefused(new(this), reason);
     }
 
-    /// <summary>
-    /// Settles the feature for this connection now that the handshake is complete and the protocol is known.
-    /// </summary>
+    /// <summary>Settle the feature now the protocol is known, and say why it cannot be honoured.</summary>
+    /// <param name="protocol">What the connection negotiated.</param>
+    /// <returns>The message to fail the connection with, or null if there is nothing wrong.</returns>
     /// <remarks>
-    /// The opt-in reply precedes the tracer on the same pipelined connection, so by the time this runs every
-    /// fact is in: whether we asked, what the server said, and what protocol we ended up on.
+    /// <para>
+    /// The decision rather than the consequence, so the caller acts on it in its own terms - the handshake
+    /// throws, where the v3 bridge recorded a connection failure. Same rule, same message, one copy.
+    /// </para>
+    /// <para>
+    /// <b><c>Enabled</c> means required: no notifications, no connection.</b> That includes a configuration
+    /// that never got as far as asking - requiring a RESP3-only feature over RESP2 is a contradiction, and
+    /// failing it is more useful than honouring half of it. Note the cross-client spec only calls for
+    /// failing when the <i>server</i> errors; extending that to the RESP2 cases is ours, and deliberate.
+    /// </para>
     /// </remarks>
-    private void ReconcileMaintenanceNotifications(PhysicalConnection connection)
+    internal string? ReconcileMaintenanceNotifications(RedisProtocol protocol)
     {
-        bool resp3 = connection.Protocol is >= RedisProtocol.Resp3;
+        bool resp3 = protocol >= RedisProtocol.Resp3;
         if (!resp3)
         {
             // whatever the server said about the opt-in, nothing can arrive on a RESP2 connection
@@ -139,21 +149,23 @@ internal sealed partial class ServerEndPoint
 
         if (_maintenanceNotificationsActive || MaintenanceMode != MaintenanceNotificationMode.Enabled)
         {
-            return;
+            return null;
         }
 
-        // Enabled means required: no notifications, no connection. That includes a configuration that never
-        // got as far as asking - requiring a RESP3-only feature over RESP2 is a contradiction, and failing it
-        // is more useful than honouring half of it. Note the cross-client spec only calls for failing when
-        // the *server* errors; extending that to the RESP2 cases is ours, and deliberate
         var reason = !resp3
             ? (_maintenanceNotificationsRequested ? "the connection negotiated RESP2" : "RESP3 was not requested")
             : _maintenanceNotificationsRefusal ?? "the server did not accept the request";
 
-        connection.RecordConnectionFailed(
-            ConnectionFailureType.ProtocolFailure,
-            new RedisConnectionException(ConnectionFailureType.ProtocolFailure, CommandFlags.None, $"Maintenance notifications are enabled, but unavailable: {reason}", innerException: null));
+        return $"Maintenance notifications are enabled, but unavailable: {reason}";
     }
+
+    /// <summary>Record that the handshake has asked this server for notifications.</summary>
+    /// <remarks>
+    /// Separate from the accept/refuse report because it is a different fact: it distinguishes "we asked
+    /// and were turned down" from "we never asked", which is the difference between the two RESP2 messages
+    /// <see cref="ReconcileMaintenanceNotifications(RedisProtocol)"/> can produce.
+    /// </remarks>
+    internal void OnMaintenanceNotificationsRequested() => _maintenanceNotificationsRequested = true;
 
     // The relaxed-timeout window, expressed as a single deadline in Environment.TickCount terms so that it
     // can be read without a lock from the heartbeat sweeps. Zero means "no window"; a deadline that computes
@@ -272,8 +284,9 @@ internal sealed partial class ServerEndPoint
         // relaxed timeouts, and reported any timeout inside it as caused by maintenance that was long over.
         //
         // Note this declines to *open* a window rather than closing one. Relaxation belongs to the
-        // ServerEndPoint and is shared by both bridges, so a catch-up arriving on a reconnecting subscription
-        // bridge must not cancel a window that a live notification opened on the established interactive one.
+        // ServerEndPoint and is shared by all its connections, so a catch-up arriving on a reconnecting
+        // subscription socket must not cancel a window that a live notification opened on the established
+        // interactive one.
         if (isCatchUp)
         {
             Multiplexer.Trace($"{type}: catch-up copy of a finished event; no relaxation", ToString());
@@ -382,7 +395,13 @@ internal sealed partial class ServerEndPoint
     /// notification is delivered on the read loop, which must not wait for a DNS poll.
     /// </para>
     /// </remarks>
-    internal void OnMovingAnnounced(TimeSpan? window, EndPoint? successor, PhysicalConnection connection)
+    /// <param name="window">How long the server says the disruption will last.</param>
+    /// <param name="successor">Where it says to go instead, when it named somewhere.</param>
+    /// <param name="current">
+    /// The address the announcing connection actually reached. A parameter rather than a connection because
+    /// it is the only thing the handoff wanted from one, and it keeps this free of any transport type.
+    /// </param>
+    internal void OnMovingAnnounced(TimeSpan? window, EndPoint? successor, IPAddress? current)
     {
         // One at a time per server. A rolling operation delivers one MOVING per connection, so a second one
         // arriving while a handoff is in flight is a repeat or a much later event; either way, starting a
@@ -396,8 +415,6 @@ internal sealed partial class ServerEndPoint
         var budget = window is { } value && value > TimeSpan.Zero
             ? value
             : Multiplexer.RawConfig.MaintenanceRelaxedTimeout; // no window given: use the relaxation floor
-        var current = (connection.VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address;
-
         _ = HandoffAsync(budget, successor, current);
     }
 
@@ -479,9 +496,9 @@ internal sealed partial class ServerEndPoint
     /// because the server closes the socket at the end of it regardless - so anything not drained by then was
     /// going to fail either way, and draining strictly dominates.
     /// <para>
-    /// Both bridges, not just the one that was told. The measured blast radius is the *node*: four connections
-    /// to one proxy, differing only in handshake, all closed simultaneously, and only the ones that had opted in
-    /// were warned.
+    /// Every connection to the node, not just the one that was told. The measured blast radius is the *node*:
+    /// four connections to one proxy, differing only in handshake, all closed simultaneously, and only the ones
+    /// that had opted in were warned.
     /// </para>
     /// </remarks>
     private async Task DrainThenRecycleAsync(TimeSpan budget, string reason)
@@ -493,7 +510,8 @@ internal sealed partial class ServerEndPoint
         }
 
         var drained = !HasCallerWork();
-        var recycled = (interactive?.RecycleConnection(reason) == true) | (subscription?.RecycleConnection(reason) == true);
+        // the handoff exists to stop using a connection before the server closes it
+        var recycled = Multiplexer.ConnectionsIfCreated?.RecycleConnections(EndPoint) == true;
         if (recycled) Interlocked.Increment(ref _handoffRecycles);
         Multiplexer.Trace(
             $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
@@ -575,7 +593,7 @@ internal sealed partial class ServerEndPoint
 
     /// <summary>How long after a window closes a fault may still be attributed to it, at minimum.</summary>
     /// <remarks>
-    /// The bridge heartbeat raises timeouts on roughly a one-second cadence rather than at the deadline, so a
+    /// The heartbeat raises timeouts on roughly a one-second cadence rather than at the deadline, so a
     /// timeout can be reported up to about a second after the moment it actually expired.
     /// </remarks>
     private const int FaultAttributionFloorMilliseconds = 1000;
@@ -759,7 +777,7 @@ internal sealed partial class ServerEndPoint
     /// </summary>
     /// <remarks>
     /// Mostly belt-and-braces: a server that migrates a slot also sends an unsolicited <c>SUNSUBSCRIBE</c>,
-    /// and <see cref="PhysicalConnection.OnOutOfBand"/> already resubscribes on that. This adds two things.
+    /// and <c>PhysicalConnection.OnOutOfBand</c> already resubscribes on that. This adds two things.
     /// It is *pre-emptive* where <c>SMIGRATED</c> arrives first, and it *covers* the case where the
     /// unsolicited unsubscribe never arrives or is lost - in which case the only other signal is a message
     /// that silently stops being delivered, which nothing detects.

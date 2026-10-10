@@ -278,11 +278,8 @@ public class SharedConnectionFixture : IDisposable
             TestBase.Log(output, "Connection Counts: " + conn.GetCounters().ToString());
             foreach (var ep in conn.GetServerSnapshot())
             {
-                var interactive = ep.GetBridge(ConnectionType.Interactive);
-                TestBase.Log(output, $"  {Format.ToString(interactive)}: {interactive?.GetStatus()}");
-
-                var subscription = ep.GetBridge(ConnectionType.Subscription);
-                TestBase.Log(output, $"  {Format.ToString(subscription)}: {subscription?.GetStatus()}");
+                TestBase.Log(output, $"  {Format.ToString(ep.EndPoint)}/Interactive: {ep.GetBridgeStatus(ConnectionType.Interactive)}");
+                TestBase.Log(output, $"  {Format.ToString(ep.EndPoint)}/Subscription: {ep.GetBridgeStatus(ConnectionType.Subscription)}");
             }
         }
     }

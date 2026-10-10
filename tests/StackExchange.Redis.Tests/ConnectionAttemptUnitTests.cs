@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Linq;
@@ -25,7 +25,18 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
-        await WaitForAsync(() => attempts.Count(a => a.IsSuccess) >= 2);
+        // v4 dials the subscription connection when something needs it (pay-per-play) rather than with the
+        // interactive one, so subscribe: that attempt is the one being checked
+        await conn.GetSubscriber().SubscribeAsync(RedisChannel.Literal("attempts"), (_, _) => { });
+
+        try
+        {
+            await WaitForAsync(() => attempts.Count(a => a.IsSuccess) >= 2);
+        }
+        finally
+        {
+            foreach (var a in attempts) output.WriteLine($"{a.ConnectionType}: {a.IsSuccess} {a.Stage} {a.FailureType} {a.Exception?.Message}");
+        }
         var interactive = Assert.Single(attempts, a => a.ConnectionType == ConnectionType.Interactive);
         var subscription = Assert.Single(attempts, a => a.ConnectionType == ConnectionType.Subscription);
         foreach (var attempt in new[] { interactive, subscription })
@@ -133,12 +144,17 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
                 EndPoints = { endpoint },
                 Ssl = true,
                 AbortOnConnectFail = false,
-                ConnectTimeout = 1000,
+                ConnectTimeout = 3000, // a wide window for the retire below to land inside an attempt
             };
             var attempts = Observe(options);
 
             await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
-            conn.GetServerSnapshot()[0].ResetNonConnected();
+
+            // v4 has no ResetNonConnected (v3's initial-connect retry path); the library gives up on an attempt in
+            // flight when the endpoint's executor is disposed, which retiring the endpoint does - so retire it while
+            // one IS in flight: the initial attempt has timed out by now, and the retry may not have started yet
+            await WaitForAsync(() => conn.Connections.InteractiveEndpoint(endpoint).IsDialling);
+            await conn.Connections.RetireEndpointAsync(endpoint);
 
             await WaitForAsync(() => attempts.Any(a => a.FailureType == ConnectionFailureType.ConnectionDisposed));
             var abandoned = attempts.First(a => a.FailureType == ConnectionFailureType.ConnectionDisposed);
@@ -163,7 +179,10 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         var attempts = Observe(options);
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
-        Assert.False(conn.IsConnected);
+
+        // not asserted here, unlike v3: this core keeps a connection whose AUTH was refused (connecting succeeds with
+        // the refusal recorded, and commands fail with the server's words - see RespHandshake), so IsConnected is
+        // not the question. The attempt itself did not authenticate, and is reported so.
 
         var attempt = await FirstAttemptAsync(attempts);
         output.WriteLine($"wrong password: {attempt.Stage}, {attempt.FailureType}: {attempt.Exception?.Message}");
@@ -253,7 +272,7 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
         var attempts = Observe(options);
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
-        Assert.False(conn.IsConnected);
+        // IsConnected is not asserted: see WrongPasswordIsAnAuthenticationFailureDuringTheHandshake
 
         var attempt = await FirstAttemptAsync(attempts);
         Assert.False(attempt.IsSuccess);

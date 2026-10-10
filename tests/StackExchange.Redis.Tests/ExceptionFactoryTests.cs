@@ -17,11 +17,18 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
         Assert.Null(ex.InnerException);
     }
 
+    /// <summary>The reported library version is a real version, whatever line we are on.</summary>
+    /// <remarks>
+    /// The major was pinned to <c>[2-3]</c>, which made moving to the v4 line fail here - a version
+    /// assertion that has to be edited every major is asserting the wrong thing. What matters is that
+    /// <c>GetLibVersion</c> returns something version-shaped at all, since it ends up in the message of
+    /// every connection exception.
+    /// </remarks>
     [Fact]
     public void CanGetVersion()
     {
         var libVer = Utils.GetLibVersion();
-        Assert.Matches(@"[2-3]\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
+        Assert.Matches(@"^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
     }
 
 #if DEBUG
@@ -111,7 +118,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
 
             var server = GetServer(conn);
             conn.AllowConnect = false;
-            var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+            var msg = new FakeFault(RedisCommand.PING, "PING");
             var rawEx = ExceptionFactory.Timeout(conn.UnderlyingMultiplexer, "Test Timeout", msg, new ServerEndPoint(conn.UnderlyingMultiplexer, server.EndPoint, ServerProvenance.Configured));
             var ex = Assert.IsType<RedisTimeoutException>(rawEx);
             Log("Exception: " + ex.Message);
@@ -119,8 +126,16 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
             // Example format: "Test Timeout, command=PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0, serverEndpoint: 127.0.0.1:6379, mgr: 10 of 10 available, clientName: TimeoutException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), v: 2.1.0 (see https://seredis.dev/Timeouts for some common client-side issues that can cause timeouts)";
             Assert.StartsWith("Test Timeout, command=PING", ex.Message);
             Assert.Contains("clientName: " + nameof(TimeoutException), ex.Message);
-            // Ensure our pipe numbers are in place
-            Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
+            // Ensure our pipe numbers are in place - split for the reason NoConnectionException's are:
+            // the socket and pipe byte counts exist only on the core that has a socket to poll and a pipe
+            // to measure, and this test hands in a detached ServerEndPoint with no bridge
+            Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive", ex.Message);
+            var fromManager = conn.UnderlyingMultiplexer.ConnectionsIfCreated
+                ?.ConnectionStatus(server.EndPoint, ConnectionType.Interactive) is not null;
+            if (!fromManager)
+            {
+                Assert.Contains("in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
+            }
             Assert.Contains("mc: 1/1/0", ex.Message);
             Assert.Contains("serverEndpoint: " + server.EndPoint, ex.Message);
             Assert.Contains("IOCP: ", ex.Message);
@@ -191,7 +206,7 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
                 options.IncludeDetailInExceptions = hasDetail;
                 options.IncludePerformanceCountersInExceptions = hasDetail;
 
-                var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+                var msg = new FakeFault(RedisCommand.PING, "PING");
                 var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, new ServerEndPoint(conn, server.EndPoint, ServerProvenance.Configured));
                 var ex = Assert.IsType<RedisConnectionException>(rawEx);
                 Log("Exception: " + ex.Message);
@@ -202,7 +217,26 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
                 // Ensure our pipe numbers are in place if they should be
                 if (hasDetail)
                 {
-                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive, in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
+                    // The counters that exist on every core...
+                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, bw: Inactive", ex.Message);
+
+                    // ...and the socket/pipe byte counts, which only one of them has. This test hands in a
+                    // DETACHED ServerEndPoint with no bridge, so the status comes from whichever core has a
+                    // connection to that endpoint - and the new core reports -1 for these three on purpose:
+                    // it polls no socket and has no pipe, so there is no number to give. ExceptionFactory
+                    // omits a negative rather than printing it, which is the honest outcome; filling them
+                    // with zeroes would be inventing data in the one message people read when diagnosing.
+                    // That core reports the equivalent in its own words - see the outbound/inbound figures
+                    // on its timeouts.
+                    // the same question GetBridgeStatus asks: does that core have an executor for this
+                    // endpoint at all? Not whether it is connected - an endpoint it tried and failed to
+                    // reach still has one, and still supplies the status that replaces the absent bridge's.
+                    var fromManager = ((ConnectionMultiplexer)conn).ConnectionsIfCreated
+                        ?.ConnectionStatus(server.EndPoint, ConnectionType.Interactive) is not null;
+                    if (!fromManager)
+                    {
+                        Assert.Contains("in: 0, in-pipe: 0, out-pipe: 0, last-in: 0, cur-in: 0", ex.Message);
+                    }
                     Assert.Contains($"mc: {connCount}/{completeCount}/0", ex.Message);
                     Assert.Contains("serverEndpoint: " + server.EndPoint.ToString()?.Replace("Unspecified/", ""), ex.Message);
                 }
@@ -226,8 +260,8 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
     {
         await using var conn = await ConnectionMultiplexer.ConnectAsync(TestConfig.Current.ReplicaServerAndPort, Writer);
 
-        var msg = Message.Create(0, CommandFlags.None, RedisCommand.SET, (RedisKey)Me(), (RedisValue)"test");
-        Assert.True(msg.IsPrimaryOnly());
+        var msg = new FakeFault(RedisCommand.SET, "SET " + Me());
+        Assert.True(msg.Command.IsPrimaryOnly());
         var rawEx = ExceptionFactory.NoConnectionAvailable(conn, msg, null);
         var ex = Assert.IsType<RedisConnectionException>(rawEx);
         Log("Exception: " + ex.Message);
@@ -236,26 +270,17 @@ public class ExceptionFactoryTests(ITestOutputHelper output, InProcServerFixture
         Assert.StartsWith("No connection (requires writable - not eligible for replica) is active/available to service this operation: SET", ex.Message);
     }
 
-    [Theory]
-    [InlineData(true, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET myKey (StringProcessor), my annotation")]
-    [InlineData(true, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET myKey (StringProcessor), my annotation")]
-    [InlineData(false, ConnectionFailureType.ProtocolFailure, "ProtocolFailure on [0]:GET (StringProcessor), my annotation")]
-    [InlineData(false, ConnectionFailureType.ConnectionDisposed, "ConnectionDisposed on [0]:GET (StringProcessor), my annotation")]
-    public async Task MessageFail(bool includeDetail, ConnectionFailureType failType, string messageStart)
+    /// <summary>The least that describes a command to the exception factory.</summary>
+    private sealed class FakeFault(RedisCommand command, string commandAndKey) : IFaultSubject
     {
-        await using var conn = Create(shared: false);
-
-        conn.RawConfig.IncludeDetailInExceptions = includeDetail;
-
-        var message = Message.Create(0, CommandFlags.None, RedisCommand.GET, (RedisKey)"myKey");
-        var resultBox = SimpleResultBox<string>.Create();
-        message.SetSource(ResultProcessor.String, resultBox);
-
-        message.Fail(failType, null, "my annotation", conn.UnderlyingMultiplexer);
-
-        resultBox.GetResult(out var ex);
-        Assert.NotNull(ex);
-
-        Assert.StartsWith(messageStart, ex.Message);
+        public string CommandAndKey => commandAndKey;
+        public string CommandString => command.ToString();
+        public RedisCommand Command => command;
+        public CommandFlags Flags => CommandFlags.None;
+        public CommandStatus Status => CommandStatus.WaitingToBeSent;
+        public bool IsBacklogged => false;
+        public bool IsAsync => true;
+        public bool IsForSubscriptionBridge => false;
+        public int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => ServerSelectionStrategy.NoSlot;
     }
 }

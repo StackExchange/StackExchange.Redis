@@ -121,6 +121,10 @@ namespace StackExchange.Redis
             SAVE = RedisValue.FromRaw("SAVE"u8),
             SEGFAULT = RedisValue.FromRaw("SEGFAULT"u8),
             SET = RedisValue.FromRaw("SET"u8),
+            TRACKING = RedisValue.FromRaw("TRACKING"u8),
+            // ON is declared once, up with OFF; CLIENT TRACKING and CLIENT MAINT_NOTIFICATIONS share it
+            BCAST = RedisValue.FromRaw("BCAST"u8),
+            PREFIX = RedisValue.FromRaw("PREFIX"u8),
             SETINFO = RedisValue.FromRaw("SETINFO"u8),
             SETNAME = RedisValue.FromRaw("SETNAME"u8),
             SKIPME = RedisValue.FromRaw("SKIPME"u8),

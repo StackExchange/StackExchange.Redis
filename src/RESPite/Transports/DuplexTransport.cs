@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
@@ -39,9 +39,40 @@ public abstract class DuplexTransport : IBufferWriter<byte>, IAsyncDisposable
     /// survive it.</summary>
     public abstract void Advance(int count);
 
+    /// <summary>Stage a complete payload: copy it in and commit it.</summary>
+    /// <remarks>
+    /// A convenience over <see cref="GetSpan"/>/<see cref="Advance"/> for a caller that already has the bytes,
+    /// and a seam for a transport that can do it more cheaply than a pair of calls per segment - the stream
+    /// transport takes its lock once here, where the pair took it twice per segment.
+    /// </remarks>
+    internal virtual void Write(ReadOnlySpan<byte> payload)
+    {
+        while (!payload.IsEmpty)
+        {
+            var destination = GetSpan(payload.Length);
+            if (destination.IsEmpty) throw new InvalidOperationException("The transport offered no space.");
+
+            var take = Math.Min(destination.Length, payload.Length);
+            payload.Slice(0, take).CopyTo(destination);
+            Advance(take);
+            payload = payload.Slice(take);
+        }
+    }
+
     /// <summary>Hand everything staged since the last flush to the wire, as one send where the
     /// transport allows. Returns false if the transport is closed (staged bytes are dropped).</summary>
     public abstract bool Flush();
+
+    /// <summary>
+    /// Flush the bytes of a request that is the only one in flight on its connection: a sequential caller.
+    /// </summary>
+    /// <remarks>
+    /// The transport may send them on the calling thread rather than hand them to its writer (see
+    /// <c>InlineSends</c>). Only for a request with nothing else in flight: measured, sending inline whenever the
+    /// writer happened to be idle cost <c>incr-conc64</c> 4%, because a busy connection's writer idles between
+    /// bursts and each caller then sent a tiny run of its own; a sequential caller is exactly the case it pays for.
+    /// </remarks>
+    internal virtual bool FlushAlone() => Flush();
 
     /// <summary>Begin inbound delivery. Exactly one receiver, set once, before any data is expected;
     /// delivery runs on the transport's schedule and threads.</summary>

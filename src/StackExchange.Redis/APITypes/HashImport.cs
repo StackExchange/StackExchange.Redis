@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -28,6 +28,41 @@ namespace StackExchange.Redis;
 /// hygiene for long-lived connections.
 /// </para>
 /// <para>A single <see cref="HashImport"/> is safe to use concurrently and against multiple databases/multiplexers.</para>
+/// <para>
+/// <b>Why this cannot currently move to the interpolated command surface.</b> Every other command moved so far
+/// is a pure function from arguments to bytes; <c>HIMPORT SET</c> is not, because it references state that must
+/// already exist on the socket it lands on. The nearest sibling is <c>EVALSHA</c>, which has the same shape -
+/// an optimistic short reference to a named, cached payload, where the client's belief that the payload is
+/// present can be wrong - and the comparison is instructive precisely because of where it breaks:
+/// </para>
+/// <list type="bullet">
+/// <item><description>
+/// <b>Scope.</b> The script cache is server-wide, so an <c>EVALSHA</c> recovery can be routed like any other
+/// command. A field-set is connection-local, so a recovery must reach one specific socket.
+/// </description></item>
+/// <item><description>
+/// <b>Fallback form.</b> <c>EVAL &lt;script&gt;</c> is a single self-contained command carrying everything the
+/// hash referenced, so a <c>NOSCRIPT</c> is recovered by re-rendering one message (see
+/// <c>ResultProcessor.RespResult</c>, which keeps the request buffer alive for exactly that). <c>HIMPORT SET</c>
+/// has <b>no</b> such form. <c>HSET</c> is not it: this command <i>replaces</i> the hash at the key, where
+/// <c>HSET</c> merges into it, so the inline expansion would be <c>DEL</c> plus <c>HSET</c> - two commands,
+/// not atomic, and a different failure profile. Recovery is therefore inherently two ordered commands that
+/// must share a connection.
+/// </description></item>
+/// </list>
+/// <para>
+/// Which is why the <c>PREPARE</c> is injected inside the bridge's write lock rather than anywhere earlier:
+/// that is the only point at which the connection is known and nothing has been written yet, and it is exactly
+/// the window a two-command, connection-local recovery needs. Acting there is what lets this type avoid pinning
+/// a connection at all. A frame-based surface has no such point - it hands an opaque payload to an executor and
+/// the connection is chosen afterwards - so expressing this outside the bridge would need <i>connection</i>
+/// affinity across a retry, and <c>CommandServerSpecific</c> pins an endpoint, not a connection.
+/// </para>
+/// <para>
+/// Note the comparison with <c>SELECT</c> injection is a red herring, tempting though the shared mechanism is:
+/// a database index is a register the client mirrors and is the sole author of, so it can never miss. This and
+/// <c>EVALSHA</c> are lookups by name that can.
+/// </para>
 /// </remarks>
 public sealed class HashImport : IDisposable, IAsyncDisposable
 {
@@ -92,11 +127,19 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     // writes the opaque field-set name: the id's 8 raw bytes as a bulk string. Endianness is irrelevant (the server
     // treats the name as an arbitrary byte string, and a token never leaves the process), so an unaligned blit of the
     // id is enough - and identical for this token's every PREPARE/SET/DISCARD, which is all that matters.
-    internal void WriteName(in MessageWriter writer)
+
+    /// <summary>The same opaque name, written through the interpolated builder.</summary>
+    /// <remarks>
+    /// A second spelling rather than a shared one, as <c>ArrayGrepRequest</c>'s predicates are: the two
+    /// writers have no common interface. The bytes are identical by construction - both blit the same
+    /// <see cref="long"/> - which is the property that matters, since the name is what ties a
+    /// <c>PREPARE</c>, its <c>SET</c>s and its <c>DISCARD</c> together.
+    /// </remarks>
+    internal void WriteName(scoped ref Protocol.RespRequestBuilder handler)
     {
         Span<byte> name = stackalloc byte[8];
         Unsafe.WriteUnaligned(ref name[0], _id);
-        writer.WriteBulkString(name);
+        handler.AppendFormatted(name);
     }
 
     // rejects use of a disposed field-set before anything is sent; a disposed field-set may already have been DISCARDed
@@ -105,11 +148,6 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
     {
         if (_disposed) throw new ObjectDisposedException(nameof(HashImport));
     }
-
-    // creates the HIMPORT PREPARE injected (fire-and-forget) ahead of a SET on a connection that has not yet
-    // prepared this field-set; its result is never surfaced - a genuinely broken PREPARE re-appears as the SET
-    // failing with a "no such field-set" server error.
-    internal Message CreatePrepareMessage(int db) => new HashImportPrepareMessage(db, CommandFlags.FireAndForget, this);
 
     // Records (once per server) that this field-set is now prepared somewhere on the given server, so disposal can
     // target a DISCARD there.
@@ -181,91 +219,48 @@ public sealed class HashImport : IDisposable, IAsyncDisposable
         }
     }
 
-    private async Task SafeDiscardAsync(ServerEndPoint server, int db)
+    /// <summary>Compose and send <c>HIMPORT DISCARD</c> for this field-set; synchronous up to the send, since the frame is a ref struct.</summary>
+    private ValueTask<bool> SendDiscard(RespContext context)
     {
+        var cmd = context.Compose(RedisCommand.HIMPORT, 2);
+        Protocol.RespRequestFrame frame;
         try
         {
-            await server.WriteDirectAsync(new HashImportDiscardMessage(db, CommandFlags.FireAndForget, this), ResultProcessor.DemandOK).ForAwait();
+            cmd.AppendFormatted(RedisLiterals.DISCARD);
+            WriteName(ref cmd);
+            frame = cmd.Complete();
         }
         catch
         {
-            // best-effort: the field-set dies with the connection regardless, so cleanup failures are benign
+            cmd.Dispose();
+            throw;
+        }
+
+        try
+        {
+            return context.SendAsync(ref frame, CommandFlags.FireAndForget, Protocol.RespHandlers.Success, default);
+        }
+        finally
+        {
+            frame.Dispose(); // a no-op once the send has detached it
         }
     }
-}
 
-// HIMPORT SET <key> <field-set> <value...>: the user-facing per-row import. Carries a reference to its field-set so
-// the write path can inject a PREPARE the first time this field-set is seen on a connection (see PhysicalBridge).
-internal sealed class HashImportSetMessage : Message.CommandKeyBase, IRenderedArgsOwner
-{
-    private readonly HashImport _fieldSet;
-
-    // rendered at construction rather than aliased: this is the per-row bulk-import API, so reusing one
-    // values buffer per row is the intended usage - and a batch defers every write to Execute(), by which
-    // point that buffer holds only the last row. Not readonly; see RenderedArgs.
-    private RenderedArgs _values;
-
-    public HashImportSetMessage(int db, CommandFlags flags, HashImport fieldSet, in RedisKey key, ReadOnlyMemory<RedisValue> values, MemoryPool<byte>? pool)
-        : base(db, flags, RedisCommand.HIMPORT, key)
+    private async Task SafeDiscardAsync(ServerEndPoint server, int db)
     {
-        _fieldSet = fieldSet;
-        _values = RenderedArgs.Create(default, values.Span, pool);
+        // nothing was prepared on a core that was never created, so there is nothing to discard
+        if (server.Multiplexer.ConnectionsIfCreated is not { } core) return;
+
+        // on the connection the PREPARE went out on, which is where the gate claimed it. The claim goes first, so
+        // it never outlives the server's own copy; the DISCARD is fire-and-forget, as it always was.
+        core.ReleaseClaim(server.EndPoint, Id);
+        try
+        {
+            await SendDiscard(new RedisServer(server, null).Context.Raw.WithDatabase(db)).ConfigureAwait(false);
+        }
+        catch
+        {
+            // best-effort: a field-set the server still holds is reclaimed with its connection
+        }
     }
-
-    void IRenderedArgsOwner.ReleaseRenderedArgs() => RenderedArgs.Recycle(ref _values);
-
-    internal HashImport FieldSet => _fieldSet;
-
-    protected override void WriteImpl(in MessageWriter writer)
-    {
-        writer.WriteHeader(RedisCommand.HIMPORT, ArgCount);
-        writer.WriteBulkString(RedisLiterals.SET);
-        writer.Write(Key);
-        _fieldSet.WriteName(writer);
-        _values.WriteTo(writer);
-    }
-
-    public override int ArgCount => 3 + _values.Count;
-}
-
-// HIMPORT PREPARE <field-set> <field...>: injected fire-and-forget ahead of the first SET for a field-set on a
-// connection; defines the connection-local name->fields mapping the SET references.
-internal sealed class HashImportPrepareMessage : Message
-{
-    private readonly HashImport _fieldSet;
-
-    public HashImportPrepareMessage(int db, CommandFlags flags, HashImport fieldSet)
-        : base(db, flags, RedisCommand.HIMPORT) => _fieldSet = fieldSet;
-
-    protected override void WriteImpl(in MessageWriter writer)
-    {
-        var fields = _fieldSet.Fields.Span;
-        writer.WriteHeader(RedisCommand.HIMPORT, 2 + fields.Length);
-        writer.WriteBulkString(RedisLiterals.PREPARE);
-        _fieldSet.WriteName(writer);
-        for (int i = 0; i < fields.Length; i++) writer.WriteBulkString(fields[i]);
-    }
-
-    public override int ArgCount => 2 + _fieldSet.FieldCount;
-}
-
-// HIMPORT DISCARD <field-set>: targeted cleanup of a single field-set, issued on disposal. Deliberately not
-// DISCARDALL, which would drop sibling field-sets sharing the connection.
-internal sealed class HashImportDiscardMessage : Message
-{
-    private readonly HashImport _fieldSet;
-
-    public HashImportDiscardMessage(int db, CommandFlags flags, HashImport fieldSet)
-        : base(db, flags, RedisCommand.HIMPORT) => _fieldSet = fieldSet;
-
-    internal long FieldSetId => _fieldSet.Id;
-
-    protected override void WriteImpl(in MessageWriter writer)
-    {
-        writer.WriteHeader(RedisCommand.HIMPORT, 2);
-        writer.WriteBulkString(RedisLiterals.DISCARD);
-        _fieldSet.WriteName(writer);
-    }
-
-    public override int ArgCount => 2;
 }

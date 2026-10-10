@@ -13,7 +13,6 @@ using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
 using RESPite.Transports;
-using static StackExchange.Redis.PhysicalConnection;
 
 namespace StackExchange.Redis.Configuration;
 
@@ -53,7 +52,7 @@ public abstract class LoggingTunnel : Tunnel
                     RedisResult? parsed;
                     if (withData)
                     {
-                        if (!RedisResult.TryCreate(null, ref reader, out parsed))
+                        if (!RedisResult.TryCreate(ref reader, out parsed))
                         {
                             ThrowInvalidReadStatus(OperationStatus.InvalidData);
                         }
@@ -87,7 +86,7 @@ public abstract class LoggingTunnel : Tunnel
                 const int MAX_TYPE_LEN = 16;
                 var span = reader.TryGetSpan(out var tmp)
                     ? tmp
-                    : StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
+                    : RespParsers.StackCopyLengthChecked(in reader, stackalloc byte[MAX_TYPE_LEN]);
 
                 if (PushKindMetadata.TryParse(span, out var kind))
                 {
@@ -412,8 +411,8 @@ public abstract class LoggingTunnel : Tunnel
         var ssl = new SslStream(
             innerStream: stream,
             leaveInnerStreamOpen: false,
-            userCertificateValidationCallback: _options.CertificateValidationCallback ?? PhysicalConnection.GetAmbientIssuerCertificateCallback(),
-            userCertificateSelectionCallback: _options.CertificateSelectionCallback ?? PhysicalConnection.GetAmbientClientCertificateCallback(),
+            userCertificateValidationCallback: _options.CertificateValidationCallback ?? RespTransportFactory.GetAmbientIssuerCertificateCallback(),
+            userCertificateSelectionCallback: _options.CertificateSelectionCallback ?? RespTransportFactory.GetAmbientClientCertificateCallback(),
             encryptionPolicy: EncryptionPolicy.RequireEncryption);
 
 #if NET
@@ -518,6 +517,7 @@ public abstract class LoggingTunnel : Tunnel
     }
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+
     /// <summary>
     /// Captures the traffic of a push-mode <see cref="DuplexTransport"/> into a pair of streams, in the
     /// same format <see cref="LoggingDuplexStream"/> produces, so the same replay/validate tooling reads

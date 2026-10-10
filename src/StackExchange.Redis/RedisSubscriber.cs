@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
@@ -56,6 +58,70 @@ namespace StackExchange.Redis
             return false;
         }
 
+        /// <summary>Whether the core holds any of this client's subscriptions on an endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// <b>What the subscriber's <c>Ping</c> needs to know, and the reason it is a different question
+        /// from "does the core have a subscription socket".</b> A server that will not answer <c>PING</c>
+        /// in subscriber mode is pinged by unsubscribing from something nobody subscribed to - which is a
+        /// round trip only where a subscription already exists, because an unsubscribe against a
+        /// connection holding none has nothing to confirm. So the ping has to go on the connection that
+        /// holds THIS CLIENT's subscriptions, and <c>Subscription</c> is the only thing that knows where
+        /// those are. See design notes D2.5.
+        /// </remarks>
+        internal bool HoldsSubscriptionsOn(EndPoint endpoint)
+        {
+            foreach (var pair in subscriptions)
+            {
+                if (pair.Value.IsHeldOn(endpoint)) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether the core owns any subscription at all, placed or not.</summary>
+        /// <remarks><inheritdoc cref="Subscription.IsSubscribed" path="/remarks"/></remarks>
+        internal bool AnySubscribed()
+        {
+            foreach (var pair in subscriptions)
+            {
+                if (pair.Value.IsSubscribed) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>Forget every subscription recorded against an endpoint, because its socket is new.</summary>
+        /// <param name="endpoint">The endpoint whose subscription connection has just been established.</param>
+        /// <remarks>
+        /// <b>A fresh socket carries no subscriptions, so a record naming it is stale by definition</b> -
+        /// and nothing else notices, which is the gap this closes. Liveness for this core is
+        /// "is there a connected subscription socket for that endpoint", which a REPLACEMENT socket
+        /// satisfies while carrying nothing; the re-ensure that should follow a reconnect then reads
+        /// "already subscribed" and does nothing. The v3 core got this for free, because its liveness was
+        /// the bridge connection's own state and a disconnect cleared the records on the way through.
+        /// </remarks>
+        internal void ForgetSubscriptionsOn(EndPoint endpoint)
+        {
+            foreach (var pair in subscriptions)
+            {
+                // NOT one that is landing right now. A subscribe in flight is very often the reason this
+                // socket is being established at all, and its record is not stale - it is about to be
+                // confirmed. Forgetting it anyway lets the re-ensure below treat the channel as unplaced
+                // and place it somewhere else, which for a key-routed channel means the slot's owner
+                // rather than the server the caller explicitly asked for.
+                // `ClusterShardedTests.SubscribeToWrongServerAsync(sharded: false)` catches exactly that,
+                // intermittently, as the subscription arriving at the right node instead of the chosen one.
+                if (pair.Value.HasSendInFlight) continue;
+
+                if (pair.Value.NamesEndpoint(endpoint)
+                    && TryResolveServerEndPoint(endpoint) is { } server)
+                {
+                    pair.Value.TryRemoveEndpoint(server);
+                }
+            }
+        }
+
         /// <summary>
         /// Gets which server, if any, there's a registered subscription to for this channel.
         /// </summary>
@@ -73,6 +139,25 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Whether any subscription names this endpoint, whether or not it is connected there.
+        /// </summary>
+        /// <remarks>
+        /// <b>The registry is asked, not a connection.</b> v3 asked the bridge, whose subscription counter
+        /// only knew about subscriptions that bridge itself carried - so while a second core carried them
+        /// it stayed at zero, and a server whose only work was a subscription looked idle and was retired
+        /// out from under the deliveries it was still receiving. The registry entry is true whoever
+        /// carries the subscription.
+        /// </remarks>
+        internal bool AnySubscriptionNames(EndPoint endpoint)
+        {
+            foreach (var pair in subscriptions)
+            {
+                if (pair.Value.NamesEndpoint(endpoint)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Handler that executes whenever a message comes in, this doles out messages to any registered handlers.
         /// </summary>
         internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, in RedisValue payload)
@@ -83,6 +168,11 @@ namespace StackExchange.Redis
             {
                 completable = sub.ForInvoke(channel, payload, out queues);
             }
+            else
+            {
+                Logger?.LogDebugDeliveryUnmatched(channel.ToString(), subscription.ToString());
+            }
+
             if (queues != null)
             {
                 ChannelMessageQueue.WriteAll(ref queues, channel, payload);
@@ -144,22 +234,66 @@ namespace StackExchange.Redis
     /// </remarks>
     internal sealed class RedisSubscriber : RedisBase, ISubscriber
     {
+        /// <inheritdoc/>
+        /// <remarks>
+        /// Straight through to <see cref="RedisBase.GetContext"/>, which for a subscriber is still the
+        /// throw: nothing about pub/sub composes through the context surface yet.
+        /// </remarks>
+        RespContext IRespTarget.Context => GetContext();
+
         internal RedisSubscriber(ConnectionMultiplexer multiplexer, object? asyncState) : base(multiplexer, asyncState)
         {
         }
 
         public EndPoint? IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            msg.SetInternalCall();
-            return ExecuteSync(msg, ResultProcessor.ConnectionIdentity);
-        }
+            => SyncWait.Wait(new ValueTask<EndPoint?>(IdentifyConnectionAsync(channel, flags)), multiplexer, null);
 
         public Task<EndPoint?> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
+            => IdentifyConnectionAsync(channel, flags);
+
+        /// <summary>
+        /// Ask a server about a channel and answer which server that was.
+        /// </summary>
+        /// <param name="channel">The channel to ask about.</param>
+        /// <param name="flags">The caller's flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>The answer is the server that was ASKED, which is the same thing the v3 path reported by a
+        /// longer route.</b> Its <c>ResultProcessor.ConnectionIdentity</c> ignored the payload entirely
+        /// and read the endpoint off the connection the reply arrived on - and that connection was
+        /// whichever one routing chose. Here the choice is made before the send, so it is already known;
+        /// the round trip is what makes it an observation rather than a guess, and it still happens.
+        /// </para>
+        /// <para>
+        /// <b>Safe to answer from the pre-chosen server because <c>PUBSUB NUMSUB</c> cannot be
+        /// redirected</b>, being keyless and node-local - which is exactly what made the SUBSCRIBE case
+        /// hard and this one easy. A sharded channel does not change that: the v3 path asked
+        /// <c>NUMSUB</c> regardless of the channel's kind, so this does too.
+        /// </para>
+        /// </remarks>
+        private Task<EndPoint?> IdentifyConnectionAsync(in RedisChannel channel, CommandFlags flags)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            msg.SetInternalCall();
-            return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
+            // routed as the v3 PUBSUB NUMSUB was: a slot only for a KEY-ROUTED channel - a plain channel is
+            // not slot-bound, so it goes to any node, which is what ClusterTests.ClusterPubSub expects to see vary
+            var strategy = multiplexer.ServerSelectionStrategy;
+            var slot = channel.IsKeyRouted && strategy.ServerType is ServerType.Cluster or ServerType.Twemproxy
+                ? strategy.HashSlot(channel)
+                : ServerSelectionStrategy.NoSlot;
+            if (strategy.Select(slot, RedisCommand.PUBSUB, flags, allowDisconnected: false) is not { } server)
+            {
+                return Task.FromException<EndPoint?>(ExceptionFactory.NoConnectionAvailable(
+                    multiplexer, null, null, multiplexer.GetServerSnapshot(), command: RedisCommand.PUBSUB));
+            }
+
+            var endpoint = server.EndPoint;
+            var context = new RespPubSub((RespContext)multiplexer.Connections.ServerContext(endpoint));
+            return Answer(context.SubscriberCountAsync(channel, flags), endpoint);
+
+            static async Task<EndPoint?> Answer(ValueTask<long> pending, EndPoint endpoint)
+            {
+                _ = await pending.ConfigureAwait(false);
+                return endpoint;
+            }
         }
 
         /// <summary>
@@ -173,40 +307,87 @@ namespace StackExchange.Redis
         }
 
         public override TimeSpan Ping(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = CreatePingMessage(flags);
-            return ExecuteSync(msg, ResultProcessor.ResponseTimer);
-        }
+            => SyncWait.Wait(new ValueTask<TimeSpan>(PingConnectionAsync(flags)), multiplexer, null);
 
         public override Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
+            => PingConnectionAsync(flags);
+
+        /// <summary>
+        /// Time a round trip on the connection deliveries arrive on.
+        /// </summary>
+        /// <param name="flags">The caller's flags.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>This has to travel on the SUBSCRIBER connection, and that is the whole point of it.</b>
+        /// Callers ping the subscriber to flush it - "has my <c>SUBSCRIBE</c> been processed yet?" - so a
+        /// ping on any other socket answers a question nobody asked, and a publish issued afterwards can
+        /// still overtake the subscribe at the server. <c>PubSubTests.TestBasicPubSubFireAndForget</c> is
+        /// that sequence exactly, and a five-second wait cannot recover a message that was never going to
+        /// arrive.
+        /// </para>
+        /// <para>
+        /// <b>And only when the core holds subscriptions there</b>, not merely when it has a subscription
+        /// socket: the fallback probe for a server that will not answer <c>PING</c> in subscriber mode is
+        /// an unsubscribe from something nobody subscribed to, which has nothing to confirm on a
+        /// connection holding none. See <c>ConnectionMultiplexer.HoldsSubscriptionsOn</c>.
+        /// </para>
+        /// </remarks>
+        private Task<TimeSpan> PingConnectionAsync(CommandFlags flags)
         {
-            var msg = CreatePingMessage(flags);
-            return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
+            // PING where the server answers it on a subscriber connection, else the unsubscribe-from-nothing
+            // probe - the choice v3's CreatePingMessage made, and routed as that message was: no key, so no slot
+            var command = PingOnSubscriber(flags) ? RedisCommand.PING : RedisCommand.UNSUBSCRIBE;
+            if (multiplexer.ServerSelectionStrategy.Select(ServerSelectionStrategy.NoSlot, command, flags, allowDisconnected: false) is not { } server)
+            {
+                return Task.FromException<TimeSpan>(ExceptionFactory.NoConnectionAvailable(
+                    multiplexer, null, null, multiplexer.GetServerSnapshot(), command: command));
+            }
+            if (!multiplexer.HoldsSubscriptionsOn(server.EndPoint))
+            {
+                // No subscriptions here, so no subscriber connection to flush - and while there were two
+                // cores, handing back null sent the ping down the v3 path, which built a bridge (and dialled
+                // it) just to answer. The round trip that remains meaningful is the one on the ordinary
+                // connection to that server.
+                var direct = new RespContext(multiplexer.RawConfig.CommandMap, database: -1)
+                    .WithExecutor(multiplexer.Connections.ServerExecutor(server.EndPoint));
+                return Measured(new RespDatabaseContext(direct).PingMeasureAsync(flags));
+            }
+
+            var context = multiplexer.Connections.SubscriptionContext(server.EndPoint);
+            if (command == RedisCommand.PING)
+            {
+                return Measured(new RespDatabaseContext(context).PingMeasureAsync(flags));
+            }
+
+            // the timestamp is taken BEFORE the send, not before the await: a ValueTask handed to a timing
+            // helper has already done its writing by the time the helper runs
+            var started = Stopwatch.GetTimestamp();
+            return Timed(
+                new RespPubSub(context).UnsubscribeAsync(RedisChannel.Literal(multiplexer.UniqueId), flags), started);
+
+            static async Task<TimeSpan> Measured(ValueTask<TimeSpan> pending) => await pending.ConfigureAwait(false);
+
+            static async Task<TimeSpan> Timed(ValueTask<long> pending, long started)
+            {
+                _ = await pending.ConfigureAwait(false);
+                return TimeSpan.FromTicks(
+                    (long)((TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency)
+                        * (Stopwatch.GetTimestamp() - started)));
+            }
         }
 
-        private Message CreatePingMessage(CommandFlags flags)
+        /// <summary>Whether a <c>PING</c> is answered on a subscriber connection here; when not, the probe unsubscribes from nothing.</summary>
+        private bool PingOnSubscriber(CommandFlags flags)
         {
-            bool usePing = false;
-            if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
+            if (!multiplexer.CommandMap.IsAvailable(RedisCommand.PING)) return false;
+            try
             {
-                try { usePing = GetFeatures(default, flags, RedisCommand.PING, out _).PingOnSubscriber; }
-                catch { }
+                return GetFeatures(default, flags, RedisCommand.PING, out _).PingOnSubscriber;
             }
-
-            Message msg;
-            if (usePing)
+            catch
             {
-                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+                return false;
             }
-            else
-            {
-                // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
-                RedisValue channel = multiplexer.UniqueId;
-                msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
-            }
-            // Ensure the ping is sent over the intended subscriber connection, which wouldn't happen in GetBridge() by default with PING;
-            msg.SetForSubscriptionBridge();
-            return msg;
         }
 
         private static void ThrowIfNull(in RedisChannel channel)
@@ -217,20 +398,77 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>This subscriber's context for publishing.</summary>
+        /// <remarks>
+        /// <b>Publishing is the one pub/sub member that is simply a command</b>, so it was the one that could
+        /// move before the rest of the surface did. It routes itself: <c>PubSub.PublishAsync</c> asks the
+        /// executor to resolve the channel, which prefers the server this client already holds a
+        /// subscription on - the same rule the v3 path expressed by passing <c>GetSubscribedServer</c> as
+        /// the server, and the stronger one for <c>SPUBLISH</c>, where the slot decides and a subscription
+        /// elsewhere cannot override it.
+        /// <para>
+        /// Worth moving first on volume alone: an inventory of everything still travelling as a
+        /// <c>Message</c> under the engine flag came to 22,542 across the suite, and <b>15,820 of them were
+        /// this member</b> - sixty-nine per cent, and the easiest sixty-nine per cent, because subscribing
+        /// is the part that registers a handler and outlives the call.
+        /// </para>
+        /// </remarks>
+        private RespDatabaseContext PubSubContext
+            => _pubSubContext ??= multiplexer.Connections.GetDatabase(
+                multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault());
+
+        private RespDatabaseContext? _pubSubContext;
+
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message);
-            // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
-            return ExecuteSync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
+
+            var settling = multiplexer.Connections.SubscriptionsSettling();
+            if (!settling.IsCompleted)
+            {
+                // bounded, and deliberately: this holds back a publish so a re-placed subscription can
+                // get in front of it, which is worth a wait and is not worth a hang
+                settling.Wait(multiplexer.TimeoutMilliseconds);
+            }
+
+            var context = PubSubContext;
+            return SyncWait.Wait(
+                context.PubSub.PublishAsync(channel, message, flags), multiplexer, context.Raw.Executor);
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
             ThrowIfNull(channel);
-            var msg = Message.Create(-1, flags, channel.GetPublishCommand(), channel, message);
-            // if we're actively subscribed: send via that connection (otherwise, follow normal rules)
-            return ExecuteAsync(msg, ResultProcessor.Int64, server: multiplexer.GetSubscribedServer(channel));
+
+            var settling = multiplexer.Connections.SubscriptionsSettling();
+            return settling.IsCompleted
+                ? PubSubContext.PubSub.PublishAsync(channel, message, flags).AsTask(asyncState, flags)
+                : PublishWhenSettledAsync(settling, channel, message, flags);
+        }
+
+        /// <summary>Publish once the subscriptions being re-placed are back on the wire.</summary>
+        /// <param name="settling"><see cref="RespConnectionManager.SubscriptionsSettling"/>.</param>
+        /// <param name="channel">The channel to publish to.</param>
+        /// <param name="message">The message to publish.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        private async Task<long> PublishWhenSettledAsync(
+            Task settling,
+            RedisChannel channel,
+            RedisValue message,
+            CommandFlags flags)
+        {
+            // bounded for the reason the synchronous path states; and the publish happens either way,
+            // because a publish that reaches nobody is still better than one that never happens
+            //
+            // ...and the timer is cancelled once settling wins, which is the usual outcome: left to run, every
+            // publish in a settling window kept a timer alive for the whole timeout (CA2027's pattern)
+            using (var delay = new CancellationTokenSource())
+            {
+                await Task.WhenAny(settling, Task.Delay(multiplexer.TimeoutMilliseconds, delay.Token)).ConfigureAwait(false);
+                delay.Cancel();
+            }
+            return await PubSubContext.PubSub.PublishAsync(channel, message, flags)
+                .AsTask(asyncState, flags).ConfigureAwait(false);
         }
 
         void ISubscriber.Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags)
@@ -260,12 +498,16 @@ namespace StackExchange.Redis
             {
                 if (serverEndPoint.IsSubscriberConnected)
                 {
-                    // we'll *try* for a simple resubscribe, following any -MOVED etc, but if that fails: fall back
-                    // to full reconfigure; importantly, note that we've already recorded the disconnect
-                    var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false);
-                    _ = ExecuteAsync(message, sub.Processor, serverEndPoint).ContinueWith(
-                        t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
-                        TaskContinuationOptions.OnlyOnFaulted);
+                    // Through SendAsync, which chooses the subscription socket, and that is not a
+                    // refinement - it is the difference between working and poisoning a connection. The v3
+                    // send resolved to the INTERACTIVE bridge once there was no subscription bridge, so
+                    // under RESP2 it put the connection carrying ordinary commands into subscriber mode.
+                    // Same shape as v3 otherwise: try the simple resubscribe, which follows any -MOVED, and
+                    // fall back to a full reconfigure if it faults.
+                    _ = sub.SendAsync(this, channel, SubscriptionAction.Subscribe, CommandFlags.None, serverEndPoint)
+                        .ContinueWith(
+                            t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
+                            TaskContinuationOptions.OnlyOnFaulted);
                 }
                 else
                 {

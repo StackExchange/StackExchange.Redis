@@ -129,6 +129,12 @@ public class MaintenanceRelaxationEvidenceTests(ITestOutputHelper log)
 
             log.WriteLine($"attributed to: {maintenanceType}");
             Assert.Equal(MaintenanceNotificationType.FailingOver, maintenanceType);
+
+            // and it says what moved on the connection while the command waited, which is the first thing
+            // anybody asks of a timeout: nothing arriving and plenty arriving but none of it ours are
+            // different faults. Worded as the shipped core words it, so the two read alike.
+            Assert.Contains("outbound=", failure.Message);
+            Assert.Contains("inbound=", failure.Message);
         }
     }
 }

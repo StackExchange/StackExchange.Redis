@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -11,6 +11,17 @@ namespace StackExchange.Redis;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = false)]
 internal sealed class AutoDatabaseAttribute : Attribute
 {
+    /// <summary>
+    /// Warn (SER352) on <c>Release</c> builds while any member of the decorated type is still generated
+    /// rather than implemented by the type itself.
+    /// </summary>
+    /// <remarks>
+    /// For a type that is mid-transition, where the generated members throw rather than forward. Off by
+    /// default, because the other users of this attribute generate members that genuinely work - counting
+    /// those as unimplemented would be both wrong and deafening.
+    /// </remarks>
+    public bool WarnIfIncomplete { get; set; }
+
     /// <summary>
     /// Whether the owning database can invoke a captured operation more than once, i.e. it replays.
     /// </summary>

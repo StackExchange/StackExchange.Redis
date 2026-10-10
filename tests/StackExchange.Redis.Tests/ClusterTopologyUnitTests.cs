@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
@@ -213,8 +213,17 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
         }
         Assert.Contains(idle, conn.GetEndPoints());
 
+        // known, but nothing dialled it - asked WITHOUT activating it. This used to read
+        // conn.GetServer(idle).IsConnected, but GetServer activates the server, so the assertion was a race
+        // between that activation and the next statement: one the shipped core won (creating a bridge is not
+        // connecting one) and the new core loses (its dial completes almost at once). It failed on the
+        // shipped path too, occasionally, under load. TryResolveServerEndPoint looks without touching,
+        // which is what the claim "registration did not dial it" actually needs.
+        var registered = TestMultiplexer.Unwrap(conn).TryResolveServerEndPoint(idle);
+        Assert.NotNull(registered);
+        Assert.False(registered.IsConnected);
+
         var api = conn.GetServer(idle);
-        Assert.False(api.IsConnected); // known, but no bridge was created for it
 
         // ...and using it activates it, so nothing is lost by not dialling eagerly
         await api.PingAsync();

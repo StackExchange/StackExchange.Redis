@@ -29,6 +29,11 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
         {
             db.StringSet(prefix + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
         }
+        // ...and one awaited round trip on the same database before asking the server what it holds.
+        // Fire-and-forget promises the command is SENT, not that it has happened, so a SCAN issued straight
+        // after can legitimately see fewer keys than were written. See design notes 9b-vi.
+        _ = db.KeyExists(prefix + "0");
+
         var seq = server.Keys(dbId, pageSize: 50);
         var cur = seq as IScanningCursor;
         Assert.NotNull(cur);
@@ -66,6 +71,11 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
         {
             db.StringSet(prefix + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
         }
+        // ...and one awaited round trip on the same database before asking the server what it holds.
+        // Fire-and-forget promises the command is SENT, not that it has happened, so a SCAN issued straight
+        // after can legitimately see fewer keys than were written. See design notes 9b-vi.
+        _ = db.KeyExists(prefix + "0");
+
         var seq = server.Keys(dbId, prefix + "*", pageSize: 15);
         using (var iter = seq.GetEnumerator())
         {

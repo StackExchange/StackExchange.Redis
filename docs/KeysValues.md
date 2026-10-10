@@ -16,24 +16,24 @@ When using pub/sub, we are dealing with *channels*; channels do not affect routi
 Keys
 ---
 
-StackExchange.Redis represents keys by the `RedisKey` type. The good news, though, is that this has implicit conversions to and from both `string` and `byte[]`, allowing both text and binary keys to be used without any complication. For example, the `StringIncrement` method takes a `RedisKey` as the first parameter, but *you don't need to know that*; for example:
+StackExchange.Redis represents keys by the `RedisKey` type. The good news, though, is that this has implicit conversions to and from both `string` and `byte[]`, allowing both text and binary keys to be used without any complication. For example, `db.Strings.IncrementAsync` takes a `RedisKey` as the first parameter, but *you don't need to know that*; for example:
 
 ```csharp
 string key = ...
-db.StringIncrement(key);
+await db.Strings.IncrementAsync(key);
 ```
 
 or
 
 ```csharp
 byte[] key = ...
-db.StringIncrement(key);
+await db.Strings.IncrementAsync(key);
 ```
 
 Likewise, there are operations that *return* keys as `RedisKey` - and again, it simply works:
 
 ```csharp
-string someKey = db.KeyRandom();
+string someKey = await db.Keys.RandomAsync();
 ```
 
 Values
@@ -42,15 +42,15 @@ Values
 StackExchange.Redis represents values by the `RedisValue` type. As with `RedisKey`, there are implicit conversions in place which mean that most of the time you never see this type, for example:
 
 ```csharp
-db.StringSet("mykey", "myvalue");
+await db.Strings.SetAsync("mykey", "myvalue");
 ```
 
 However, in addition to text and binary contents, values can also need to represent typed primitive data - most commonly (in .NET terms) `Int32`, `Int64`, `Double` or `Boolean`. Because of this, `RedisValue` provides a lot more conversion support than `RedisKey`:
 
 ```csharp
-db.StringSet("mykey", 123); // this is still a RedisKey and RedisValue
+await db.Strings.SetAsync("mykey", 123); // this is still a RedisKey and RedisValue
 ...
-int i = (int)db.StringGet("mykey");
+int i = (int)await db.Strings.GetAsync("mykey");
 ```
 
 Note that while the conversions from primitives to `RedisValue` are implicit, many of the conversions from `RedisValue` to primitives are explicit: this is because it is very possible that these conversions will fail if the data does not have an appropriate value.
@@ -58,23 +58,23 @@ Note that while the conversions from primitives to `RedisValue` are implicit, ma
 Note additionally that *when treated numerically*, redis treats a non-existent key as zero; for consistency with this, nil responses are treated as zero:
 
 ```csharp
-db.KeyDelete("abc");
-int i = (int)db.StringGet("abc"); // this is ZERO
+await db.Keys.DeleteAsync("abc");
+int i = (int)await db.Strings.GetAsync("abc"); // this is ZERO
 ```
 
 If you need to detect the nil condition, then you can check for that:
 
 ```csharp
-db.KeyDelete("abc");
-var value = db.StringGet("abc");
+await db.Keys.DeleteAsync("abc");
+var value = await db.Strings.GetAsync("abc");
 bool isNil = value.IsNull; // this is true
 ```
 
 or perhaps more simply, just use the provided `Nullable<T>` support:
 
 ```csharp
-db.KeyDelete("abc");
-var value = (int?)db.StringGet("abc"); // behaves as you would expect
+await db.Keys.DeleteAsync("abc");
+var value = (int?)await db.Strings.GetAsync("abc"); // behaves as you would expect
 ```
 
 Hashes
@@ -95,20 +95,30 @@ Scripting
 - the inputs must keep keys and values separate (which inside the script become `KEYS` and `ARGV`, respectively)
 - the return format is not defined in advance: it is specific to your script
 
-Because of this, the `ScriptEvaluate` method accepts two separate input arrays: one `RedisKey[]` for the keys, one `RedisValue[]` for the values (both are optional, and are assumed to be empty if omitted). This is probably one of the few times that you'll actually need to type `RedisKey` or `RedisValue` in your code, and that is just because of array variance rules:
+Because of this, `db.Scripts.EvaluateAsync` accepts two separate inputs: the keys, as a `ReadOnlySpan<RedisKey>`, and the values, as a `ReadOnlySpan<RedisValue>` (both are optional, and are assumed to be empty if omitted). A collection expression is the simplest way to supply them, and the conversions apply to each element as usual:
 
 ```csharp
-var result = db.ScriptEvaluate(TransferScript,
-    new RedisKey[] { from, to }, new RedisValue[] { quantity });
+using RespResult result = await db.Scripts.EvaluateAsync(TransferScript,
+    [from, to], [quantity]);
 ```
 
 (where `TransferScript` is some `string` containing Lua, not shown for this example)
 
-The response uses the `RedisResult` type (this is unique to scripting; usually the API tries to represent the response as directly and clearly as possible). As before, `RedisResult` offers a range of conversion operations - more, in fact than `RedisValue`, because in addition to being interpreted as text, binary, primitives and nullable-primitives, the response can *also* be interpreted as *arrays* of such, for example:
+The response is a `RespResult` (this is unique to scripting and ad-hoc commands; usually the API tries to represent the response as directly and clearly as possible): a leased view over the raw reply, which you dispose when done, and read according to what your script returns:
 
 ```csharp
-string[] items = db.ScriptEvaluate(...);
+RedisValue value = result.ReadScalar().ReadRedisValue();  // a single value
+RedisResult tree = result.Read().ReadRedisResult();       // or any shape, as a RedisResult
 ```
+
+The original `IDatabase.ScriptEvaluate` takes `RedisKey[]`/`RedisValue[]` arrays and returns a `RedisResult` directly, which offers a range of conversion operations - more, in fact than `RedisValue`, because in addition to being interpreted as text, binary, primitives and nullable-primitives, the response can *also* be interpreted as *arrays* of such, for example:
+
+```csharp
+string?[]? items = (string?[]?)db.ScriptEvaluate(TransferScript,
+    new RedisKey[] { from, to }, new RedisValue[] { quantity });
+```
+
+See [Scripting](Scripting) for reading a `RespResult` in detail.
 
 Conclusion
 ---

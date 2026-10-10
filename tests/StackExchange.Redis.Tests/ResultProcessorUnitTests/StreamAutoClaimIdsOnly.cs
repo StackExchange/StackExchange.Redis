@@ -1,9 +1,14 @@
+﻿using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // XAUTOCLAIM ... JUSTID, as the command sends it
+    private static readonly IRespHandler<StreamAutoClaimIdsOnlyResult> Handler
+        = GroupHandlers.Get<StreamAutoClaimIdsOnlyResult>(typeof(global::StackExchange.Redis.Streams), "StreamTypesHandler", "AutoClaimIdsOnly");
+
     [Fact]
     public void WithIds_ThreeElements_Success()
     {
@@ -19,7 +24,7 @@ public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnit
                    "$15\r\n1609338752496-0\r\n" +
                    "*0\r\n";  // Empty deleted IDs array
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaimIdsOnly);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Equal(2, result.ClaimedIds.Length);
@@ -38,7 +43,7 @@ public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnit
                    "$15\r\n1609338752495-0\r\n" +
                    "$15\r\n1609338752496-0\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaimIdsOnly);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Equal(2, result.ClaimedIds.Length);
@@ -54,7 +59,7 @@ public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnit
                    "*0\r\n" + // Empty claimed IDs array
                    "*0\r\n";  // Empty deleted IDs array
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaimIdsOnly);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Empty(result.ClaimedIds);
@@ -70,7 +75,7 @@ public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnit
                    "$-1\r\n" + // Null claimed IDs
                    "*0\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaimIdsOnly);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Empty(result.ClaimedIds);
@@ -89,7 +94,7 @@ public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnit
                    "$15\r\n1609338752496-0\r\n" +
                    "$15\r\n1609338752497-0\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamAutoClaimIdsOnly);
+        var result = Execute(resp, Handler);
 
         Assert.Equal("0-0", result.NextStartId.ToString());
         Assert.Single(result.ClaimedIds);
@@ -104,7 +109,7 @@ public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnit
     {
         var resp = "$5\r\nhello\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamAutoClaimIdsOnly);
+        ExecuteUnexpected(resp, Handler);
     }
 
     [Fact]
@@ -112,6 +117,6 @@ public class StreamAutoClaimIdsOnly(ITestOutputHelper log) : ResultProcessorUnit
     {
         var resp = "$-1\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamAutoClaimIdsOnly);
+        ExecuteUnexpected(resp, Handler);
     }
 }

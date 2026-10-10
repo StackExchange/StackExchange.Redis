@@ -1074,4 +1074,305 @@ public class RespReaderTests(ITestOutputHelper logger)
         public bool IsEmpty => Memory.IsEmpty;
         public int Length => Memory.Length;
     }
+
+    // ---- CopyTo(Span<char>) ------------------------------------------------------------------------
+
+    [Theory, Resp("$5\r\nhello\r\n")]
+    public void CopyToChars_Contiguous(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Span<char> target = stackalloc char[16];
+        Assert.Equal(5, reader.CopyTo(target));
+        Assert.Equal("hello", target.Slice(0, 5).ToString());
+    }
+
+    [Fact]
+    public void CopyToChars_StreamedChunksJoin()
+    {
+        var data = "$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;0\r\n"u8.ToArray();
+        var reader = new RespReader(new ReadOnlySequence<byte>(data));
+        reader.MoveNext(RespPrefix.BulkString);
+        Assert.False(reader.TryGetSpan(out _)); // the point of the test: no contiguous run to decode
+
+        Span<char> target = stackalloc char[16];
+        Assert.Equal(5, reader.CopyTo(target));
+        Assert.Equal("hello", target.Slice(0, 5).ToString());
+    }
+
+    [Fact]
+    public void CopyToChars_MultiByteSequenceSplitAcrossChunks()
+    {
+        // the whole reason a Decoder is needed: the euro sign is E2 82 AC, split 2/1 across two chunks,
+        // so neither chunk decodes to anything on its own
+        var data = "$?\r\n;3\r\na\xe2\x82\r\n;2\r\n\xacz\r\n;0\r\n";
+        var bytes = new byte[data.Length];
+        for (int i = 0; i < data.Length; i++) bytes[i] = (byte)data[i];
+
+        var reader = new RespReader(new ReadOnlySequence<byte>(bytes));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Span<char> target = stackalloc char[16];
+        var chars = reader.CopyTo(target);
+        Assert.Equal("a€z", target.Slice(0, chars).ToString());
+    }
+
+    [Fact]
+    public void CopyToChars_SurrogatePairSplitAcrossChunks()
+    {
+        // U+1F600, F0 9F 98 80, split 3/1: a decoder that flushed per chunk would emit a replacement
+        // character and then a second one, rather than one surrogate pair
+        var bytes = new byte[] { (byte)'$', (byte)'?', 13, 10, (byte)';', (byte)'3', 13, 10, 0xF0, 0x9F, 0x98, 13, 10, (byte)';', (byte)'1', 13, 10, 0x80, 13, 10, (byte)';', (byte)'0', 13, 10 };
+        var reader = new RespReader(new ReadOnlySequence<byte>(bytes));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Span<char> target = stackalloc char[8];
+        var chars = reader.CopyTo(target);
+        Assert.Equal(2, chars); // one surrogate PAIR, not two replacement characters
+        Assert.Equal("\U0001F600", target.Slice(0, chars).ToString());
+    }
+
+    [Fact]
+    public void CopyToChars_TruncatesOnAWholeCharacter()
+    {
+        // "a\u20acbcdefg" is 8 characters in 10 bytes; a 2-char target must stop after "a\u20ac" rather
+        // than writing half of a character or overrunning
+        var payload = "$10\r\na\u20acbcdefg\r\n"u8.ToArray();
+        var reader = new RespReader(new ReadOnlySequence<byte>(payload));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Span<char> target = stackalloc char[2];
+        Assert.Equal(2, reader.CopyTo(target));
+        Assert.Equal("a€", target.ToString());
+    }
+
+    [Theory, Resp("$5\r\nhello\r\n")]
+    public void CopyToChars_EmptyTargetWritesNothing(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+        Assert.Equal(0, reader.CopyTo(default(Span<char>)));
+    }
+
+    [Theory, Resp("_\r\n")]
+    public void CopyToChars_NullWritesNothing(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext();
+        Span<char> target = stackalloc char[8];
+        Assert.Equal(0, reader.CopyTo(target));
+    }
+
+    [Fact]
+    public void CopyToChars_SurrogatePairDoesNotFitInOneChar()
+    {
+        // U+1F600 needs TWO chars; with one char of room the decoder can make no progress at all, neither
+        // consuming a byte nor writing a char. The answer is "nothing fitted", and getting there must not
+        // involve asking again for something that cannot happen
+        var bytes = new byte[] { (byte)'$', (byte)'?', 13, 10, (byte)';', (byte)'4', 13, 10, 0xF0, 0x9F, 0x98, 0x80, 13, 10, (byte)';', (byte)'0', 13, 10 };
+        var reader = new RespReader(new ReadOnlySequence<byte>(bytes));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Span<char> target = stackalloc char[1];
+        Assert.Equal(0, reader.CopyTo(target));
+    }
+
+    [Theory, Resp("$5\r\nhello\r\n")]
+    public void CopyToChars_OneCharOfRoomTakesOneChar(RespPayload payload)
+    {
+        // the counterpart to the surrogate case: a single-char target is a legitimate thing to hand this,
+        // and "as much as can be copied" means one character, not none
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Span<char> target = stackalloc char[1];
+        Assert.Equal(1, reader.CopyTo(target));
+        Assert.Equal("h", target.ToString());
+    }
+
+    [Fact]
+    public void CopyToChars_StopsBeforeASurrogatePairThatDoesNotFit()
+    {
+        // "ab" then U+1F600: three characters in four chars of UTF-16, and a 3-char target holds the
+        // first two and must not write half of the third
+        var payload = "$6\r\nab\U0001F600\r\n"u8.ToArray();
+        var reader = new RespReader(new ReadOnlySequence<byte>(payload));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Span<char> target = stackalloc char[3];
+        Assert.Equal(2, reader.CopyTo(target));
+        Assert.Equal("ab", target.Slice(0, 2).ToString());
+        Assert.Equal('\0', target[2]); // untouched, not half a pair
+    }
+
+    [Fact]
+    public void CopyToChars_HonoursAnExplicitEncoding()
+    {
+        // Latin-1: the bytes are NOT UTF-8, and reading them as UTF-8 would give replacement characters -
+        // which is the case the encoding parameter exists for
+        var bytes = new byte[] { (byte)'$', (byte)'3', 13, 10, 0xE9, 0xE8, 0xFC, 13, 10 };
+        var reader = new RespReader(new ReadOnlySequence<byte>(bytes));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Span<char> target = stackalloc char[8];
+        var latin1 = Encoding.GetEncoding(28591);
+        Assert.Equal(3, reader.CopyTo(target, latin1));
+        Assert.Equal("éèü", target.Slice(0, 3).ToString());
+
+        reader = new RespReader(new ReadOnlySequence<byte>(bytes));
+        reader.MoveNext(RespPrefix.BulkString);
+        var asUtf8 = reader.CopyTo(target);
+        Assert.NotEqual("éèü", target.Slice(0, asUtf8).ToString());
+    }
+
+    [Theory, Resp("=15\r\ntxt:hello world\r\n")]
+    public void CopyToChars_KeepsTheVerbatimMarker(RespPayload payload)
+    {
+        // deliberately the same bytes as CopyTo(Span<byte>), which also keeps it; ReadString strips it,
+        // and the two CopyTo overloads agreeing matters more than either agreeing with ReadString
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.VerbatimString);
+
+        Span<char> chars = stackalloc char[32];
+        Span<byte> bytes = stackalloc byte[32];
+        var charCount = reader.CopyTo(chars);
+        var byteCount = reader.CopyTo(bytes);
+
+        Assert.Equal("txt:hello world", chars.Slice(0, charCount).ToString());
+        Assert.Equal("txt:hello world", Encoding.UTF8.GetString(bytes.Slice(0, byteCount).ToArray()));
+        Assert.Equal("hello world", reader.ReadString());
+    }
+
+    /// <summary>UTF-8 that reports how many times anybody asked it for a <see cref="Decoder"/>.</summary>
+    /// <remarks>
+    /// The no-decoder promise is about an allocation, which is not observable from the result - so it is
+    /// pinned by counting the request instead. Everything else delegates.
+    /// </remarks>
+    private sealed class CountingUtf8 : Encoding
+    {
+        public int DecodersRequested { get; private set; }
+
+        public override Decoder GetDecoder()
+        {
+            DecodersRequested++;
+            return UTF8.GetDecoder();
+        }
+
+        public override int GetByteCount(char[] chars, int index, int count) => UTF8.GetByteCount(chars, index, count);
+        public override int GetBytes(char[] chars, int charIndex, int charCount, byte[] bytes, int byteIndex) => UTF8.GetBytes(chars, charIndex, charCount, bytes, byteIndex);
+        public override int GetCharCount(byte[] bytes, int index, int count) => UTF8.GetCharCount(bytes, index, count);
+        public override int GetChars(byte[] bytes, int byteIndex, int byteCount, char[] chars, int charIndex) => UTF8.GetChars(bytes, byteIndex, byteCount, chars, charIndex);
+        public override int GetMaxByteCount(int charCount) => UTF8.GetMaxByteCount(charCount);
+        public override int GetMaxCharCount(int byteCount) => UTF8.GetMaxCharCount(byteCount);
+    }
+
+    [Theory, Resp("$5\r\nhello\r\n")]
+    public void CopyToChars_ContiguousAndRoomySkipsTheDecoder(RespPayload payload)
+    {
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+
+        var encoding = new CountingUtf8();
+        Span<char> target = stackalloc char[16];
+        Assert.Equal(5, reader.CopyTo(target, encoding));
+        Assert.Equal(0, encoding.DecodersRequested);
+    }
+
+    [Theory, Resp("$5\r\nhello\r\n")]
+    public void CopyToChars_ContiguousAndExactlySizedSkipsTheDecoder(RespPayload payload)
+    {
+        // sizing the target by the payload's BYTE length is the obvious way to size it, and is always
+        // enough for UTF-8 - but GetMaxCharCount(5) is 6, so the arithmetic check alone would push this
+        // onto the decoder path over a character that cannot exist
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+
+        var encoding = new CountingUtf8();
+        Span<char> target = stackalloc char[5];
+        Assert.Equal(5, reader.CopyTo(target, encoding));
+        Assert.Equal(0, encoding.DecodersRequested);
+    }
+
+    [Theory, Resp("$5\r\nhello\r\n")]
+    public void CopyToChars_TruncationIsWhatCostsADecoder(RespPayload payload)
+    {
+        // the control: the one case a decoder is actually needed for a contiguous value, because GetChars
+        // throws where this must truncate
+        var reader = payload.Reader();
+        reader.MoveNext(RespPrefix.BulkString);
+
+        var encoding = new CountingUtf8();
+        Span<char> target = stackalloc char[3];
+        Assert.Equal(3, reader.CopyTo(target, encoding));
+        Assert.Equal("hel", target.ToString());
+        Assert.Equal(1, encoding.DecodersRequested);
+    }
+
+    [Fact]
+    public void CopyToChars_ShortStreamedValuesSkipTheDecoderToo()
+    {
+        // chunked, so no contiguous run exists - but it is short enough to assemble on the stack, which
+        // puts it back on the contiguous path. Short is nearly every scalar a server sends.
+        var data = "$?\r\n;2\r\nhe\r\n;3\r\nllo\r\n;0\r\n"u8.ToArray();
+        var reader = new RespReader(new ReadOnlySequence<byte>(data));
+        reader.MoveNext(RespPrefix.BulkString);
+        Assert.False(reader.TryGetSpan(out _));
+
+        var encoding = new CountingUtf8();
+        Span<char> target = stackalloc char[16];
+        Assert.Equal(5, reader.CopyTo(target, encoding));
+        Assert.Equal(0, encoding.DecodersRequested);
+    }
+
+    [Fact]
+    public void CopyToChars_LongStreamedValuesNeedADecoder()
+    {
+        var (bytes, expected) = LongSplitStreamedValue();
+        var reader = new RespReader(new ReadOnlySequence<byte>(bytes));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        var encoding = new CountingUtf8();
+        Span<char> target = stackalloc char[1024];
+        var chars = reader.CopyTo(target, encoding);
+
+        Assert.Equal(expected, target.Slice(0, chars).ToString());
+        Assert.Equal(1, encoding.DecodersRequested); // too big for the stack; this is the decoder's path
+    }
+
+    [Fact]
+    public void CopyToChars_LongStreamedValueSplitsASequenceAcrossChunks()
+    {
+        // the same payload, on the path that cannot linearize: the euro sign is split 2/1 across the chunk
+        // boundary, so only decoder state carries it
+        var (bytes, expected) = LongSplitStreamedValue();
+        var reader = new RespReader(new ReadOnlySequence<byte>(bytes));
+        reader.MoveNext(RespPrefix.BulkString);
+
+        Span<char> target = stackalloc char[1024];
+        var chars = reader.CopyTo(target);
+        Assert.Equal(expected, target.Slice(0, chars).ToString());
+    }
+
+    /// <summary>A streamed value past the stack-assembly budget, with a multi-byte sequence split across its chunks.</summary>
+    private static (byte[] Bytes, string Expected) LongSplitStreamedValue()
+    {
+        const int PadLength = 400; // comfortably past MaxStackLinearizeBytes
+        var pad = new string('x', PadLength);
+
+        // chunk 1: the padding plus the first two bytes of the euro sign; chunk 2: its third byte, then "z"
+        var first = new List<byte>(Encoding.UTF8.GetBytes(pad)) { 0xE2, 0x82 };
+        var second = new List<byte> { 0xAC, (byte)'z' };
+
+        var frame = new List<byte>();
+        frame.AddRange("$?\r\n"u8.ToArray());
+        frame.AddRange(Encoding.UTF8.GetBytes($";{first.Count}\r\n"));
+        frame.AddRange(first);
+        frame.AddRange("\r\n"u8.ToArray());
+        frame.AddRange(Encoding.UTF8.GetBytes($";{second.Count}\r\n"));
+        frame.AddRange(second);
+        frame.AddRange("\r\n;0\r\n"u8.ToArray());
+
+        return (frame.ToArray(), pad + "€z");
+    }
 }

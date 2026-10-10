@@ -13,11 +13,11 @@ namespace StackExchange.Redis.Profiling
 
         public EndPoint EndPoint => Server.EndPoint;
 
-        public int Db => Message!.Db;
+        public int Db => _db;
 
-        public string Command => Message!.CommandString;
+        public string Command => _command;
 
-        public CommandFlags Flags => Message!.Flags;
+        public CommandFlags Flags => _flags;
 
         public DateTime CommandCreated { get; private set; }
 
@@ -43,7 +43,10 @@ namespace StackExchange.Redis.Profiling
 
         public ProfiledCommand? NextElement { get; set; }
 
-        private Message? Message;
+        // populated by SetOperation, from the operation's own diagnostics
+        private int _db;
+        private string _command = "";
+        private CommandFlags _flags;
         private readonly ServerEndPoint Server;
         private readonly ProfiledCommand? OriginalProfiling;
         private long MessageCreatedTimeStamp;
@@ -73,18 +76,26 @@ namespace StackExchange.Redis.Profiling
             return new ProfiledCommand(resentFor.PushToWhenFinished, server, resentFor, isMoved ? RetransmissionReasonType.Moved : RetransmissionReasonType.Ask);
         }
 
-        [MemberNotNull(nameof(Message))]
-        public void SetMessage(Message msg)
+        /// <summary>Populate from an operation on the new core, which has no <c>Message</c>.</summary>
+        /// <param name="command">The command that was sent.</param>
+        /// <param name="flags">Its flags.</param>
+        /// <param name="db">The database it ran against.</param>
+        /// <param name="created">When the operation was created.</param>
+        /// <param name="createdTimestamp">A <see cref="Stopwatch"/> stamp at creation.</param>
+        /// <remarks>
+        /// <b>A second door rather than a second type.</b> Everything a profiled command reports - which
+        /// command, which flags, which database, and the timestamps - is already carried by the new
+        /// operation's diagnostics; what it does not have is a <c>Message</c> to read them from. So the
+        /// three properties that reached through to one now fall back to fields, and the timing methods
+        /// are unchanged: they were never about <c>Message</c> in the first place.
+        /// </remarks>
+        public void SetOperation(RedisCommand command, CommandFlags flags, int db, DateTime created, long createdTimestamp)
         {
-            // This method should never be called twice
-            if (Message is not null)
-            {
-                throw new InvalidOperationException($"{nameof(SetMessage)} called more than once");
-            }
-
-            Message = msg;
-            CommandCreated = msg.CreatedDateTime;
-            MessageCreatedTimeStamp = msg.CreatedTimestamp;
+            _command = command.ToString();
+            _flags = flags;
+            _db = db;
+            CommandCreated = created;
+            MessageCreatedTimeStamp = createdTimestamp;
         }
 
         public void SetEnqueued(ConnectionType? connType)

@@ -1,14 +1,34 @@
 ﻿using System.Linq;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 /// <summary>
-/// Tests for ScriptLoadProcessor.
+/// Tests for SCRIPT LOAD's reply.
 /// SCRIPT LOAD returns a bulk string containing the SHA1 hash (40 hex characters).
 /// </summary>
+/// <remarks>
+/// The shipped <c>ScriptLoadProcessor</c> did read-and-convert in one step; the new core reads the text
+/// with <see cref="RespHandlers.String"/> (<c>Scripts.LoadHex</c>) and <c>IServer.ScriptLoad</c> converts it
+/// with <c>Scripts.Sha1Bytes</c>, refusing anything that is not a hash. <see cref="Load"/> is that pair.
+/// The other half of the shipped processor - recording the script as loaded on the server - stays in
+/// <c>RedisServer.ScriptLoadCore</c>, which needs a server.
+/// </remarks>
 public class ScriptLoad(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    private static bool TryLoad(string resp, out byte[]? hash)
+    {
+        hash = TryExecute(resp, RespHandlers.String, out var hex, out _) ? Scripts.Sha1Bytes(hex) : null;
+        return hash is not null;
+    }
+
+    private static byte[] Load(string resp)
+    {
+        Assert.True(TryLoad(resp, out var hash));
+        return hash!;
+    }
+
     [Theory]
     [InlineData("$40\r\n829c3804401b0727f70f73d4415e162400cbe57b\r\n", "829c3804401b0727f70f73d4415e162400cbe57b")]
     [InlineData("$40\r\n0000000000000000000000000000000000000000\r\n", "0000000000000000000000000000000000000000")]
@@ -16,8 +36,7 @@ public class ScriptLoad(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("$40\r\nABCDEF1234567890abcdef1234567890ABCDEF12\r\n", "ABCDEF1234567890abcdef1234567890ABCDEF12")]
     public void ScriptLoadProcessor_ValidHash(string resp, string expectedAsciiHash)
     {
-        var processor = ResultProcessor.ScriptLoad;
-        var result = Execute(resp, processor);
+        var result = Load(resp);
 
         Assert.NotNull(result);
         Assert.Equal(20, result.Length); // SHA1 is 20 bytes
@@ -36,8 +55,7 @@ public class ScriptLoad(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("*1\r\n$40\r\n829c3804401b0727f70f73d4415e162400cbe57b\r\n")] // array instead of bulk string
     public void ScriptLoadProcessor_InvalidFormat(string resp)
     {
-        var processor = ResultProcessor.ScriptLoad;
-        ExecuteUnexpected(resp, processor);
+        Assert.False(TryLoad(resp, out _));
     }
 
     [Theory]
@@ -46,7 +64,6 @@ public class ScriptLoad(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("$40\r\n829c3804401b0727f70f73d4415e162400cbe5  \r\n")] // spaces instead of hex
     public void ScriptLoadProcessor_InvalidHexCharacters(string resp)
     {
-        var processor = ResultProcessor.ScriptLoad;
-        ExecuteUnexpected(resp, processor);
+        Assert.False(TryLoad(resp, out _));
     }
 }

@@ -11,7 +11,7 @@ public class BatchTests(ITestOutputHelper output, SharedConnectionFixture fixtur
     public async Task TestBatchNotSent()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         _ = db.KeyDeleteAsync(key);
         _ = db.StringSetAsync(key, "batch-not-sent");
@@ -25,11 +25,33 @@ public class BatchTests(ITestOutputHelper output, SharedConnectionFixture fixtur
         Assert.Equal("batch-not-sent", db.StringGet(key));
     }
 
+    /// <summary>
+    /// A batch is not spent by executing it: commands queued afterwards are the next run. That was always
+    /// so - <c>Execute</c> took what was pending and started a fresh queue - and code that holds one batch
+    /// and executes it repeatedly (RESPite.Benchmark's batch mode does exactly that) must keep working.
+    /// </summary>
+    [Fact]
+    public async Task ABatchCanBeExecutedAgain()
+    {
+        await using var conn = Create();
+        var db = GetDatabase(conn);
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+
+        var batch = db.CreateBatch();
+        for (var run = 1; run <= 3; run++)
+        {
+            var incr = batch.StringIncrementAsync(key);
+            batch.Execute();
+            Assert.Equal(run, await incr);
+        }
+    }
+
     [Fact]
     public async Task TestBatchSent()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         _ = db.KeyDeleteAsync(key);
         _ = db.StringSetAsync(key, "batch-sent");

@@ -1,8 +1,8 @@
 {
-  "version": "3.4",
-  "versionHeightOffset": -1,
-  "versionHeightOffsetAppliesTo": "3.4",
-  "assemblyVersion": "3.0",
+  "version": "4.0-alpha",
+  "versionHeightOffset": -422,
+  "versionHeightOffsetAppliesTo": "4.0",
+  "assemblyVersion": "4.0",
   "publicReleaseRefSpec": [
     "^refs/heads/main$",
     "^refs/heads/v[0-9]+$",

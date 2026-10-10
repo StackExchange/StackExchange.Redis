@@ -60,6 +60,7 @@ public abstract class CircuitBreaker
         public TimeSpan MetricsWindowSize { get; set; } = DefaultMetricsWindowSize;
 
 #if NET8_0_OR_GREATER
+
         /// <summary>
         /// Time source used to drive the metrics window; when null, the system clock is used.
         /// Intended for testing, to make the time-windowed logic deterministic.

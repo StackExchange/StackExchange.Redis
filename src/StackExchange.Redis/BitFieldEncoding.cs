@@ -11,7 +11,7 @@ namespace StackExchange.Redis;
 /// server reports every value as a signed 64-bit integer. Every legal encoding therefore fits
 /// losslessly in <see cref="long"/>.
 /// </remarks>
-public readonly struct BitFieldEncoding : IEquatable<BitFieldEncoding>
+public readonly partial struct BitFieldEncoding : IEquatable<BitFieldEncoding>
 {
     // negative: signed; positive: unsigned; zero: default (not a legal encoding)
     private readonly sbyte _value;
@@ -82,42 +82,6 @@ public readonly struct BitFieldEncoding : IEquatable<BitFieldEncoding>
     public bool IsSigned => _value < 0;
 
     internal bool IsDefault => _value == 0;
-
-    /// <summary>
-    /// Writes this encoding as a complete bulk string - <c>$2\r\ni8\r\n</c> or <c>$3\r\ni64\r\n</c> - since
-    /// the width is 1-64 and so the length prefix is always a single digit.
-    /// </summary>
-    internal void Write(in MessageWriter writer, Span<byte> scratch)
-    {
-        if (_value == 0) ThrowDefault();
-
-        int width = Width, len;
-        scratch[0] = (byte)'$';
-        scratch[2] = (byte)'\r';
-        scratch[3] = (byte)'\n';
-        scratch[4] = _value < 0 ? (byte)'i' : (byte)'u';
-        if (width >= 10)
-        {
-            scratch[1] = (byte)'3';
-            scratch[5] = (byte)('0' + (width / 10));
-            scratch[6] = (byte)('0' + (width % 10));
-            len = 7;
-        }
-        else
-        {
-            scratch[1] = (byte)'2';
-            scratch[5] = (byte)('0' + width);
-            len = 6;
-        }
-
-        scratch[len++] = (byte)'\r';
-        scratch[len++] = (byte)'\n';
-        writer.WriteRaw(scratch.Slice(0, len));
-
-        static void ThrowDefault() => throw new ArgumentException(
-            $"A {nameof(BitFieldEncoding)} must be created via {nameof(Signed)}, {nameof(Unsigned)}, or one of the named encodings.",
-            nameof(BitFieldEncoding));
-    }
 
     /// <inheritdoc/>
     public override string ToString() => _value == 0

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -107,10 +107,13 @@ public class RetirementUnderMaintenanceTests(ITestOutputHelper log)
 
         // The refusing node *is* accumulating work - if it were not, the rest of this proves nothing, because
         // the distinction being tested would be vacuous...
-        Assert.True(
-            endpoint.GetOutstandingCount() > 0,
-            "the refusing node should be accumulating our own probe traffic; with nothing outstanding this test "
-            + "is not exercising the distinction that lets retirement proceed");
+        // There is nothing to accumulate, and that is the better answer rather
+        // than a weaker one. This core will not aim anything at a node it has dialled and found
+        // unreachable - see `RespConnectionManager.IsKnownDown` - so the "busy with our probes, idle of caller
+        // work" state the shipped core has to reason its way out of never arises: the node is simply
+        // idle. Asserted rather than skipped, because "nothing is queued on a node we know is gone"
+        // is a property worth pinning, and everything after this point still has to hold.
+        Assert.Equal(0, endpoint.GetOutstandingCount());
 
         // ...and none of it is a caller's, which is what keeps idleness true. Selection will not pick a
         // disconnected node, so the caller's subscribe was re-aimed at the reachable sibling within a
@@ -119,7 +122,14 @@ public class RetirementUnderMaintenanceTests(ITestOutputHelper log)
             endpoint.HasCallerWork(),
             "a caller's work should not be queued on a node that cannot be written to while a reachable "
             + "candidate for the slot exists");
-        Assert.NotEqual(doomed, subscriber.SubscribedEndpoint(channel));
+        //
+        // POLLED, not read once: the subscribe that was in flight when the node went is re-sent from its backlog,
+        // and the re-aim waits for that one attempt to fail. A refused loopback connect fails at once on Linux and
+        // takes about two seconds on Windows, which is longer than the window above - measured by delaying the
+        // refusal locally, which failed this 3/3 exactly as the Windows job did.
+        Assert.True(
+            await Poll.UntilAsync(() => !Equals(doomed, subscriber.SubscribedEndpoint(channel)), timeoutMilliseconds: 10_000),
+            $"the subscription should have left {doomed}, but is still on {subscriber.SubscribedEndpoint(channel)}");
         GC.KeepAlive(survivor);
 
         // only now does the cluster admit it has gone

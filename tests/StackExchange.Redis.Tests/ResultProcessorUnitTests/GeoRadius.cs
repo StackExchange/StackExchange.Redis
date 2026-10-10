@@ -1,15 +1,20 @@
-﻿using Xunit;
+﻿using StackExchange.Redis.Protocol;
+using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class GeoRadius(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // GEORADIUS/GEOSEARCH, as the commands send them: one cached handler per option set
+    private static IRespHandler<GeoRadiusResult[]> Handler(GeoRadiusOptions options)
+        => GroupHandlers.Get<GeoRadiusResult[]>(typeof(Geospatial), "GeoResultHandler", "Array", options);
+
     [Fact]
     public void GeoRadius_None_ReturnsJustMembers()
     {
         // Without any WITH option: just member names as scalars in array
         var resp = "*2\r\n$7\r\nPalermo\r\n$7\r\nCatania\r\n";
-        var result = Execute<GeoRadiusResult[]>(resp, ResultProcessor.GeoRadiusArray(GeoRadiusOptions.None));
+        var result = Execute<GeoRadiusResult[]>(resp, Handler(GeoRadiusOptions.None));
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
@@ -30,7 +35,7 @@ public class GeoRadius(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var resp = "*2\r\n" +
                    "*2\r\n$7\r\nPalermo\r\n$8\r\n190.4424\r\n" +
                    "*2\r\n$7\r\nCatania\r\n$7\r\n56.4413\r\n";
-        var result = Execute<GeoRadiusResult[]>(resp, ResultProcessor.GeoRadiusArray(GeoRadiusOptions.WithDistance));
+        var result = Execute<GeoRadiusResult[]>(resp, Handler(GeoRadiusOptions.WithDistance));
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
@@ -51,7 +56,7 @@ public class GeoRadius(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var resp = "*2\r\n" +
                    "*2\r\n$7\r\nPalermo\r\n*2\r\n$18\r\n13.361389338970184\r\n$16\r\n38.1155563954963\r\n" +
                    "*2\r\n$7\r\nCatania\r\n*2\r\n$18\r\n15.087267458438873\r\n$17\r\n37.50266842333162\r\n";
-        var result = Execute<GeoRadiusResult[]>(resp, ResultProcessor.GeoRadiusArray(GeoRadiusOptions.WithCoordinates));
+        var result = Execute<GeoRadiusResult[]>(resp, Handler(GeoRadiusOptions.WithCoordinates));
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
@@ -76,7 +81,7 @@ public class GeoRadius(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var resp = "*2\r\n" +
                    "*3\r\n$7\r\nPalermo\r\n$8\r\n190.4424\r\n*2\r\n$18\r\n13.361389338970184\r\n$16\r\n38.1155563954963\r\n" +
                    "*3\r\n$7\r\nCatania\r\n$7\r\n56.4413\r\n*2\r\n$18\r\n15.087267458438873\r\n$17\r\n37.50266842333162\r\n";
-        var result = Execute<GeoRadiusResult[]>(resp, ResultProcessor.GeoRadiusArray(GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithCoordinates));
+        var result = Execute<GeoRadiusResult[]>(resp, Handler(GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithCoordinates));
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
@@ -95,7 +100,7 @@ public class GeoRadius(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var resp = "*2\r\n" +
                    "*2\r\n$7\r\nPalermo\r\n:3479099956230698\r\n" +
                    "*2\r\n$7\r\nCatania\r\n:3479447370796909\r\n";
-        var result = Execute<GeoRadiusResult[]>(resp, ResultProcessor.GeoRadiusArray(GeoRadiusOptions.WithGeoHash));
+        var result = Execute<GeoRadiusResult[]>(resp, Handler(GeoRadiusOptions.WithGeoHash));
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
@@ -117,7 +122,7 @@ public class GeoRadius(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "*4\r\n$7\r\nPalermo\r\n$8\r\n190.4424\r\n:3479099956230698\r\n*2\r\n$18\r\n13.361389338970184\r\n$16\r\n38.1155563954963\r\n";
         var result = Execute<GeoRadiusResult[]>(
             resp,
-            ResultProcessor.GeoRadiusArray(GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash | GeoRadiusOptions.WithCoordinates));
+            Handler(GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash | GeoRadiusOptions.WithCoordinates));
 
         Assert.NotNull(result);
         Assert.Single(result);
@@ -133,7 +138,7 @@ public class GeoRadius(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void GeoRadius_EmptyArray_ReturnsEmptyArray()
     {
         var resp = "*0\r\n";
-        var result = Execute<GeoRadiusResult[]>(resp, ResultProcessor.GeoRadiusArray(GeoRadiusOptions.None));
+        var result = Execute<GeoRadiusResult[]>(resp, Handler(GeoRadiusOptions.None));
 
         Assert.NotNull(result);
         Assert.Empty(result);

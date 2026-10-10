@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
@@ -53,7 +53,7 @@ public sealed class MultiGroupOptions
     public CircuitBreaker CircuitBreaker { get; }
 
     /// <summary>
-    /// The retry policy used by <see cref="DatabaseExtensions.WithRetry"/> for databases
+    /// The retry policy used by <see cref="DatabaseExtensions.WithRetry(IDatabaseAsync, RetryPolicy?)"/> for databases
     /// obtained from this group.
     /// </summary>
     public RetryPolicy RetryPolicy { get; }
@@ -109,7 +109,7 @@ public sealed class MultiGroupOptions
         public CircuitBreaker CircuitBreaker { get; set; } = CircuitBreaker.Default;
 
         /// <summary>
-        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry"/> for databases
+        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry(IDatabaseAsync, RetryPolicy?)"/> for databases
         /// obtained from this group.
         /// </summary>
         public RetryPolicy RetryPolicy { get; set; } = RetryPolicy.Default;

@@ -18,14 +18,11 @@ internal static class Program
                 switch (arg)
                 {
                     case "--old":
-                        benchmarks.Add(new OldCoreBenchmark(args));
+                        benchmarks.Add(new DatabaseApiBenchmark(args));
                         break;
 #if NEWCORE
-                    case "--bridge":
-                        benchmarks.Add(new BridgeBenchmark(args));
-                        break;
                     case "--new":
-                        benchmarks.Add(new NewCoreBenchmark(args));
+                        benchmarks.Add(new ContextApiBenchmark(args));
                         break;
 #endif
                     case "--basic":
@@ -37,9 +34,9 @@ internal static class Program
             if (benchmarks.Count == 0)
             {
 #if NEWCORE
-                benchmarks.Add(new NewCoreBenchmark(args));
+                benchmarks.Add(new ContextApiBenchmark(args));
 #else
-                benchmarks.Add(new OldCoreBenchmark(args));
+                benchmarks.Add(new DatabaseApiBenchmark(args));
 #endif
             }
 

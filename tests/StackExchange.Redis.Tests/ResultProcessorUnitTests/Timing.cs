@@ -2,6 +2,10 @@
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
+/// <summary>
+/// <c>PING</c>, timed: the shipped <c>TimingProcessor</c> is now the handler behind <c>PingMeasureAsync</c>
+/// (and so <c>IDatabase.Ping</c>), which is created just before the send and reads the clock on the reply.
+/// </summary>
 public class Timing(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
     [Theory]
@@ -17,9 +21,7 @@ public class Timing(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("_\r\n")]
     public void Timing_ValidResponse_ReturnsTimeSpan(string resp)
     {
-        var processor = ResultProcessor.ResponseTimer;
-        var message = ResultProcessor.TimingProcessor.CreateMessage(-1, CommandFlags.None, RedisCommand.PING);
-        var result = Execute(resp, processor, message);
+        var result = Execute(resp, new RespSurface.PingMeasureHandler());
 
         Assert.NotEqual(System.TimeSpan.MaxValue, result);
         Assert.True(result >= System.TimeSpan.Zero);

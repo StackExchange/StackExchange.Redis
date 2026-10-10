@@ -1,4 +1,4 @@
-#nullable enable
+﻿#nullable enable
 StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Count = 3 -> StackExchange.Redis.Aggregate
 StackExchange.Redis.Aggregate.Max = 2 -> StackExchange.Redis.Aggregate

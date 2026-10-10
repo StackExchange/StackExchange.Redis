@@ -8,8 +8,6 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class CommandTrace
     {
-        internal static readonly ResultProcessor<CommandTrace[]> Processor = new CommandTraceProcessor();
-
         internal CommandTrace(long uniqueId, long time, long duration, RedisValue[] arguments)
         {
             UniqueId = uniqueId;
@@ -70,39 +68,38 @@ namespace StackExchange.Redis
             return BaseUrl + encoded0;
         }
 
-        private sealed class CommandTraceProcessor : ResultProcessor<CommandTrace[]>
+        /// <summary>Read a <c>SLOWLOG GET</c> reply; null when any element did not parse.</summary>
+        /// <param name="reader">Positioned on the reply.</param>
+        /// <remarks>
+        /// <b>Internal and static so every caller reads it the same way</b>, as the latency entries are:
+        /// it was shared by the v3 processor and the context surface's handler. Null rather than throwing
+        /// for a bad element, because that is what the v3 processor needed in order to report an
+        /// unexpected response for the whole reply rather than for one entry.
+        /// </remarks>
+        internal static CommandTrace[]? ParseArray(ref RespReader reader)
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
+            // see: SLOWLOG GET
+            if (!reader.IsAggregate) return null;
+
+            var arr = reader.ReadPastArray(ParseOne, scalar: false)!;
+            return arr.AnyNull() ? null : arr;
+
+            static CommandTrace ParseOne(ref RespReader reader)
             {
-                // see: SLOWLOG GET
+                CommandTrace result = null!;
                 if (reader.IsAggregate)
                 {
-                    var arr = reader.ReadPastArray(ParseOne, scalar: false)!;
-                    if (arr.AnyNull()) return false;
-
-                    SetResult(message, arr);
-                    return true;
-                }
-
-                return false;
-
-                static CommandTrace ParseOne(ref RespReader reader)
-                {
-                    CommandTrace result = null!;
-                    if (reader.IsAggregate)
+                    long uniqueId = 0, time = 0, duration = 0;
+                    if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out uniqueId)
+                        && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out time)
+                        && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out duration)
+                        && reader.TryMoveNext() && reader.IsAggregate)
                     {
-                        long uniqueId = 0, time = 0, duration = 0;
-                        if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out uniqueId)
-                            && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out time)
-                            && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out duration)
-                            && reader.TryMoveNext() && reader.IsAggregate)
-                        {
-                            var values = reader.ReadPastRedisValues() ?? [];
-                            result = new CommandTrace(uniqueId, time, duration, values);
-                        }
+                        var values = reader.ReadPastRedisValues() ?? [];
+                        result = new CommandTrace(uniqueId, time, duration, values);
                     }
-                    return result;
                 }
+                return result;
             }
         }
     }

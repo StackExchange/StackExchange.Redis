@@ -14,10 +14,10 @@ it is stuck.
 
 ```csharp
 // the problem
-var value = db.StringGetAsync(key).Result;
+var value = db.Strings.GetAsync(key).Result;
 
 // the fix
-var value = await db.StringGetAsync(key);
+var value = await db.Strings.GetAsync(key);
 ```
 
 There is no second option. In particular, switching to the synchronous API is **not** a fix — see below.
@@ -115,20 +115,30 @@ ConnectionMultiplexer.SetFeatureFlag("DedicatedThreads", true); // early in appl
 This makes the library read and write on threads it owns rather than borrowing the thread-pool, so redis
 traffic keeps flowing even while the pool is saturated.
 
+Every feature flag can also be set from the environment, which is often easier than a code change: flag `Foo`
+reads `SEREDIS_FOO` (`1`/`true`/`yes` to set it, `0`/`false`/`no` to clear it), so this one is
+`SEREDIS_DEDICATEDTHREADS=1`. The environment is read once, when the library starts; `SetFeatureFlag` in code
+still overrides it.
+
 Be clear about what this does and does not do. It **does not fix the thread-pool** — nothing in this library
 can, because the blocked threads are in your code. What it does is stop redis from being caught in the jam,
 which usually converts "everything times out" into "the application is slow, and one part of it is obviously
 blocking". That is a much better place to debug from, and for many applications it is enough to restore
 service while the real fix is made. It is not a licence to keep the blocking calls.
 
-Two caveats worth knowing before you enable it:
+Three things worth knowing before you enable it:
 
 - it costs a reader and a writer thread **for each node you connect to** (not pub/sub connections, which stay on
   the thread-pool - unless RESP3 is sharing the interactive connection with pub/sub via `SharedSubscriptionConnection`), so think about it before enabling
   it against a very wide cluster, where that scales with the number of shards;
 - it is deliberately opt-in, and set process-wide at startup rather than per-connection.
+- its connections are opened synchronously - connect and TLS handshake - on a thread of their own. That is
+  what keeps them independent of the pool on Linux, where a socket that has done any asynchronous operation is
+  woken through the thread-pool even for a synchronous read. (Earlier builds needed
+  `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS=1` for this; it is no longer necessary.) A configured `Tunnel`
+  is the exception: its hooks may use the socket asynchronously, so a tunnelled connection connects as usual.
 
-Neither is meant to be permanent, and the first one especially. Work is in progress on dedicated readers built
+The first two are not meant to be permanent, and the first especially. Work is in progress on dedicated readers built
 over the platform's native completion machinery — `io_uring` on Linux, IOCP on Windows — which would service
 many connections from a small fixed set of threads rather than a pair per connection. That is the thing that
 would make this practical at any width. There is no date on it, and nothing here depends on it; but if you

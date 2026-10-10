@@ -1,11 +1,17 @@
 ﻿using System;
+using System.Reflection;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
-    // MultiStreamProcessor tests - XREAD command
+    // the multi-stream XREAD/XREADGROUP handler, as the command sends it
+    private static readonly IRespHandler<RedisStream[]> Handler
+        = GroupHandlers.Get<RedisStream[]>(typeof(global::StackExchange.Redis.Streams), "StreamTypesHandler", "NamedStreams");
+
+    // Multi-stream read tests - XREAD command
     // Format: array of [stream_name, array of entries]
     // Each entry is [id, array of name/value pairs]
     [Fact]
@@ -13,8 +19,7 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // Server returns nil when no data available
         var resp = "*-1\r\n";
-        var processor = ResultProcessor.MultiStream;
-        var result = Execute(resp, processor);
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -25,8 +30,7 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // Server returns empty array
         var resp = "*0\r\n";
-        var processor = ResultProcessor.MultiStream;
-        var result = Execute(resp, processor);
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -54,8 +58,7 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "$8\r\nevent-id\r\n" +
                    "$1\r\n5\r\n";
 
-        var processor = ResultProcessor.MultiStream;
-        var result = Execute(resp, processor);
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Single(result);
@@ -73,7 +76,7 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void MultiStreamProcessor_MultipleStreamsMultipleEntries()
     {
         // XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
-        // (see ResultProcessor.cs lines 2336-2358 for the redis-cli format)
+        // (see RespParsers.ParseRedisStreams for the redis-cli format)
         var resp = "*2\r\n" + // 2 streams
                    // First stream: mystream
                    "*2\r\n" +
@@ -100,8 +103,7 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "*4\r\n" +
                    "$4\r\nname\r\n$4\r\nJane\r\n$7\r\nsurname\r\n$6\r\nAusten\r\n";
 
-        var processor = ResultProcessor.MultiStream;
-        var result = Execute(resp, processor);
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
@@ -133,7 +135,7 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         Assert.Equal("Austen", (string?)result[1].Entries[1].Values[1].Value);
     }
 
-    // XREADGROUP tests - same format as XREAD (uses MultiStream processor)
+    // XREADGROUP tests - same format as XREAD (uses the same handler)
     // RESP2: Array reply with [stream_name, array of entries]
     // RESP3: Map reply with key-value pairs
     [Theory]
@@ -146,8 +148,9 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         //    2) 1) 1) "1-0"
         //          2) 1) "myfield"
         //             2) "mydata"
-        var processor = ResultProcessor.MultiStream;
-        var result = Execute(resp, processor, protocol: protocol);
+        // the protocol is no longer an input: the handler reads the shape off the reply's own prefix
+        Log($"{protocol}");
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Single(result);
@@ -169,8 +172,9 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         // 1) 1) "mystream"
         //    2) 1) 1) "1-0"
         //          2) (nil)
-        var processor = ResultProcessor.MultiStream;
-        var result = Execute(resp, processor, protocol: protocol);
+        // the protocol is no longer an input: the handler reads the shape off the reply's own prefix
+        Log($"{protocol}");
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Single(result);
@@ -186,10 +190,38 @@ public class Streams(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     public void MultiStreamProcessor_XReadGroup_Timeout(RedisProtocol protocol, string resp)
     {
         // XREADGROUP with BLOCK that times out returns nil/null
-        var processor = ResultProcessor.MultiStream;
-        var result = Execute(resp, processor, protocol: protocol);
+        // the protocol is no longer an input: the handler reads the shape off the reply's own prefix
+        Log($"{protocol}");
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Empty(result);
+    }
+}
+
+/// <summary>
+/// Reaches a command group's private handler, so the tests parse with the very instance the command sends.
+/// </summary>
+/// <remarks>
+/// The groups keep their exotic handlers as private nested classes, which <c>InternalsVisibleTo</c> does not
+/// reach; copying their one-line glue here would test the copy. Reflection fails loudly on a rename.
+/// </remarks>
+internal static class GroupHandlers
+{
+    private const BindingFlags Any = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+
+    /// <summary>Fetch a handler from a static property, field or method.</summary>
+    /// <param name="group">The group, e.g. <c>Streams</c>.</param>
+    /// <param name="nested">The nested handler class, or <see langword="null"/> for a member of the group itself.</param>
+    /// <param name="member">The static property, field or method that hands out the handler.</param>
+    /// <param name="args">Arguments, when <paramref name="member"/> is a method.</param>
+    public static IRespHandler<T> Get<T>(Type group, string? nested, string member, params object?[] args)
+    {
+        var type = nested is null ? group : group.GetNestedType(nested, Any);
+        Assert.NotNull(type);
+        var value = type.GetProperty(member, Any)?.GetValue(null)
+            ?? type.GetField(member, Any)?.GetValue(null)
+            ?? type.GetMethod(member, Any)?.Invoke(null, args);
+        return Assert.IsAssignableFrom<IRespHandler<T>>(value);
     }
 }

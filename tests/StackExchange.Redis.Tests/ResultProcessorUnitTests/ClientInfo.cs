@@ -1,9 +1,14 @@
+﻿using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class ClientInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // CLIENT LIST is read by Diagnostics.ClientListHandler, which reuses the shipped ClientInfo.TryParse
+    private static IRespHandler<StackExchange.Redis.ClientInfo[]> ClientList
+        => PrivateHandlers.Get<StackExchange.Redis.ClientInfo[]>(typeof(Diagnostics), "ClientListHandler");
+
     [Fact]
     public void SingleClient_Success()
     {
@@ -11,7 +16,7 @@ public class ClientInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var content = "id=86 addr=172.17.0.1:40750 laddr=172.17.0.2:3000 fd=22 name= age=7 idle=0 flags=N db=0 sub=0 psub=0 ssub=0 multi=-1 watch=0 qbuf=26 qbuf-free=20448 argv-mem=10 multi-mem=0 rbs=1024 rbp=0 obl=0 oll=0 omem=0 tot-mem=22810 events=r cmd=client|list user=default redir=-1 resp=2 lib-name= lib-ver= io-thread=0 tot-net-in=48 tot-net-out=36 tot-cmds=0\n";
         var resp = $"${content.Length}\r\n{content}\r\n";
 
-        var result = Execute(resp, StackExchange.Redis.ClientInfo.Processor);
+        var result = Execute(resp, ClientList);
 
         Assert.NotNull(result);
         Assert.Single(result);
@@ -30,7 +35,7 @@ public class ClientInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var content = line1 + line2;
         var resp = $"${content.Length}\r\n{content}\r\n";
 
-        var result = Execute(resp, StackExchange.Redis.ClientInfo.Processor);
+        var result = Execute(resp, ClientList);
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
@@ -46,7 +51,7 @@ public class ClientInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         // Empty bulk string
         var resp = "$0\r\n\r\n";
 
-        var result = Execute(resp, StackExchange.Redis.ClientInfo.Processor);
+        var result = Execute(resp, ClientList);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -58,7 +63,7 @@ public class ClientInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         // Null bulk string should fail
         var resp = "$-1\r\n";
 
-        ExecuteUnexpected(resp, StackExchange.Redis.ClientInfo.Processor);
+        ExecuteUnexpected(resp, ClientList);
     }
 
     [Fact]
@@ -67,7 +72,7 @@ public class ClientInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         // Simple string should fail
         var resp = "+OK\r\n";
 
-        ExecuteUnexpected(resp, StackExchange.Redis.ClientInfo.Processor);
+        ExecuteUnexpected(resp, ClientList);
     }
 
     [Fact]
@@ -79,7 +84,7 @@ public class ClientInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
         var totalLen = 4 + content.Length; // "TXT:" + content
         var resp = $"={totalLen}\r\nTXT:{content}\r\n";
 
-        var result = Execute(resp, StackExchange.Redis.ClientInfo.Processor);
+        var result = Execute(resp, ClientList);
 
         // ReadString() automatically strips the "TXT:" encoding prefix,
         // so the result should be identical to the bulk string test
