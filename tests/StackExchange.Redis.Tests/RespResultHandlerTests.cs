@@ -141,8 +141,9 @@ public class RespResultHandlerTests
         Assert.Equal(1, executor.Sends);   // the second was a cache hit
         Assert.Equal("hello", second.ReadScalar().ReadString());
 
-        // the entry and this result both hold the same buffer
-        Assert.True(second.RefCount >= 2, $"expected a shared reference, saw {second.RefCount}");
+        // the entry's own buffer, shared rather than copied: a copy would be a pooled rent of its own, and the
+        // entry's bytes are GC-owned (RespPayload.CreateOwned) - which is also why there is no count to compare
+        Assert.True(second.IsOnFixedBuffer, "expected the cache entry's buffer, shared");
     }
 
     [Fact]

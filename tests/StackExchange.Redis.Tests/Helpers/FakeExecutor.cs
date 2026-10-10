@@ -131,6 +131,28 @@ internal class FakeExecutor(params string[] replies) : RespExecutorBase
     }
 }
 
+/// <summary>A <see cref="FakeExecutor"/> that keeps every reply it hands out, so a test can check each was released.</summary>
+internal sealed class RecordingExecutor(params string[] replies) : FakeExecutor(replies)
+{
+    private readonly List<RespPayload> _replies = [];
+
+    /// <summary>Every reply sent so far.</summary>
+    public RespPayload[] Replies
+    {
+        get
+        {
+            lock (_replies) return [.. _replies];
+        }
+    }
+
+    public override RespPayload Send(in RespRequest request)
+    {
+        var reply = base.Send(in request);
+        lock (_replies) _replies.Add(reply);
+        return reply;
+    }
+}
+
 /// <summary>Reaching the concrete multiplexer through whatever the fixture handed back.</summary>
 /// <remarks>
 /// <b>Needed wherever a test wants the OLD database specifically</b> - a shim executor, or a message

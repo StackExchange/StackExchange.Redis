@@ -34,7 +34,12 @@ public sealed class RespResult : IDisposable
     internal static readonly RespResult NullReply = CreateNullSingleton(RespPrefix.Null, "_\r\n"u8);
 
     private static RespResult CreateNullSingleton(RespPrefix prefix, ReadOnlySpan<byte> raw) =>
-        new(prefix, isNull: true, RefCountedBuffer.CreateFixed(raw.ToArray()));
+        new(prefix, isNull: true, RefCountedBuffer.CreateFixed(raw.ToArray())) { _singleton = true };
+
+    // one of the shared nulls above, handed out again and again: disposing one must not detach it. Its own flag
+    // rather than "the buffer is fixed", because a reply shared from a client-side cache entry sits on a fixed
+    // buffer too (see RespPayload.CreateOwned) and is an ordinary result that disposal SHOULD detach
+    private bool _singleton;
 
     /// <summary>The shared null for a prefix; these carry their own framing and own no pooled buffer.</summary>
     private static RespResult NullFor(RespPrefix prefix) => prefix switch
@@ -190,7 +195,7 @@ public sealed class RespResult : IDisposable
     {
         // one of the shared null singletons: never counted down, and the field must stay put - these
         // instances are handed out again and again for the lifetime of the process
-        if (_buffer is { IsFixed: true }) return;
+        if (_singleton) return;
 
         // exchange-to-null makes this once-only, however many times a caller disposes us; any leases
         // still holding a reservation keep the buffer alive until they are disposed in turn
@@ -201,4 +206,7 @@ public sealed class RespResult : IDisposable
     /// The number of live references to the underlying buffer; for tests.
     /// </summary>
     internal int RefCount => _buffer?.RefCount ?? 0;
+
+    /// <summary>Whether this result sits on a fixed (GC-owned) buffer, as one shared from a cache entry does; for tests.</summary>
+    internal bool IsOnFixedBuffer => _buffer is { IsFixed: true };
 }

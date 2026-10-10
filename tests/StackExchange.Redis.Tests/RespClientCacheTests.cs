@@ -467,7 +467,7 @@ public class RespClientCacheTests
     public void SendLeavesNoReferenceBehindOnAnyPath()
     {
         using var cache = new RespClientCache();
-        var executor = new FakeExecutor("$5\r\nhello\r\n");
+        var executor = new RecordingExecutor("$5\r\nhello\r\n");
 
         var fill = Get("abc");
         Via(executor, cache).Raw.Send(ref fill, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
@@ -475,13 +475,16 @@ public class RespClientCacheTests
         var hit = Get("abc");
         Via(executor, cache).Raw.Send(ref hit, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
 
-        // exactly one reference survives - the cache entry's. If the helper leaked the caller's retain the
-        // buffer would never return to the pool; if it over-released, the entry would be reading freed bytes
+        // the reply the executor handed over went back to its pool: the cache keeps a GC-owned copy of its own
+        // (RespPayload.CreateOwned), so nothing of the executor's survives. A leaked retain would leave it at 1;
+        // an over-release would already have thrown.
+        var reply = Assert.Single(executor.Replies);
+        Assert.Equal(0, reply.RefCount);
+
         using var probe = Get("abc"); // borrow; Detach here would own a lease nothing ever released
         Assert.True(cache.TryGet(probe.AsLookupKey(), 0, out var payload));
-        Assert.Equal(2, payload.RefCount); // the entry, plus the one TryGet just handed us
+        Assert.True(payload.IsOwned);
         payload.Release();
-        Assert.Equal(1, payload.RefCount);
     }
 
     [Fact]

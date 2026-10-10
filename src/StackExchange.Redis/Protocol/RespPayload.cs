@@ -70,6 +70,33 @@ namespace StackExchange.Redis.Protocol
             return new RespPayload(RefCountedBuffer.Adopt(buffer, buffer.Length), 0, value.Length);
         }
 
+        /// <summary>
+        /// Copy a reply into an array of its own that is <b>never</b> returned to a pool, so the GC - not a count -
+        /// decides when it goes.
+        /// </summary>
+        /// <param name="value">The bytes to keep.</param>
+        /// <remarks>
+        /// <para>
+        /// For the client-side cache. A cached reply is read by every thread that hits it, and a pooled buffer
+        /// needs a reference taken and dropped around every read - an increment and a decrement on one shared
+        /// cache line, which on a hot key capped the whole cache at ~10M hits/s however many threads read it.
+        /// Here <see cref="TryRetain"/> and <see cref="Release"/> do nothing: an array the GC owns cannot be
+        /// recycled while anybody can still see it, so no reader can ever find somebody else's bytes in it.
+        /// </para>
+        /// <para>
+        /// The cost moves to the fill: one exact-size allocation and a copy, against a fill that already took a
+        /// network round trip - and the entry stops pinning a slice of a connection's inbound buffer.
+        /// </para>
+        /// </remarks>
+        internal static RespPayload CreateOwned(ReadOnlySpan<byte> value)
+        {
+            var array = value.ToArray();
+            return new RespPayload(RefCountedBuffer.CreateFixed(array), 0, array.Length);
+        }
+
+        /// <summary>Whether this payload is GC-owned (<see cref="CreateOwned"/>) rather than pooled; for tests.</summary>
+        internal bool IsOwned => _lease.IsFixed;
+
         /// <summary>The number of live references; zero once the blob is back in the pool.</summary>
         internal int RefCount => _lease.RefCount;
 
@@ -80,7 +107,8 @@ namespace StackExchange.Redis.Protocol
         /// A reply is copied into its own rent from <see cref="ArrayPool{T}"/>, and the shared pool serves
         /// from power-of-two buckets - so a 33-byte reply holds 64, and a budget counted in payload lengths
         /// would under-report by up to a factor of two. That is exactly the error that lets a quota fail to
-        /// bind under the workload that most needs it to, so the quota counts this instead.
+        /// bind under the workload that most needs it to, so the quota counts this instead. (The client-side
+        /// cache's own copies are exact-size - see <see cref="CreateOwned"/> - so for those the two agree.)
         /// </remarks>
         internal int RetainedBytes => _lease.GetSpan().Length;
 

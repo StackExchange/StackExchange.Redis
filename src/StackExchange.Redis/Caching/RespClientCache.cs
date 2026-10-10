@@ -826,12 +826,10 @@ namespace StackExchange.Redis.Caching
             // buffer with anybody. See RespRequest.CopyForCacheKey.
             var stored = fill.Key.CopyForCacheKey();
 
-            if (!response.TryRetain())
-            {
-                // the reply is already going back to the pool; nothing to cache
-                fill.Key.Dispose();
-                return false;
-            }
+            // COPIED too, into an array the GC owns rather than a pooled one: every hit would otherwise take and
+            // drop a reference on it, and on a hot key that one shared count was the ceiling for the whole cache.
+            // See RespPayload.CreateOwned. The caller still holds its reference to the reply while we copy.
+            var owned = RespPayload.CreateOwned(response.Span);
 
             var entryKey = new EntryKey(stored, fill.Database);
 
@@ -840,7 +838,7 @@ namespace StackExchange.Redis.Caching
             // stays owned by the dictionary. TryRemove hands back the value but NOT the stored key, so
             // removing would strand that key's reference - and disposing our own copy instead would release
             // the wrong one.
-            var entry = new Entry(response, fill.Dependencies, stored);
+            var entry = new Entry(owned, fill.Dependencies, stored);
 
             // A DEAD resident entry is replaced too, not only a refresh. Invalidation does no work beyond
             // stamping a generation, so an invalidated entry stays in the dictionary until Sweep reclaims
@@ -875,8 +873,7 @@ namespace StackExchange.Redis.Caching
 
             // somebody else filled the same request first; theirs is as good as ours
             Interlocked.Increment(ref _redundantFills);
-            response.Release();
-            fill.Key.Dispose();
+            fill.Key.Dispose(); // our copy simply goes to the GC; the reply itself was never ours to release
             return false;
         }
 

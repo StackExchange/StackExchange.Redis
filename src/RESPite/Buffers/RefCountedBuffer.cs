@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -123,6 +123,11 @@ internal sealed class RefCountedBuffer : MemoryManager<byte>, IPayloadReservatio
     /// </remarks>
     public bool TryAddRef()
     {
+        // a fixed buffer never dies (Release does not count it down), so there is nothing to count up either -
+        // and skipping the CAS is the point for a buffer read by many threads at once: the client-side cache
+        // stores replies in fixed buffers so that a hit on a hot key writes no shared cache line
+        if (_noReturn) return true;
+
         int count;
         do
         {

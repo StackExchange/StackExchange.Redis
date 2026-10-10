@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -132,30 +133,28 @@ public class RespStaleWhileRevalidateTests
     [Fact]
     public async Task ReplacingAnEntryReleasesTheSupersededReply()
     {
-        // the refresh swaps the value in place, and the reply it displaced holds a pooled buffer. Leaking
-        // that reference would be invisible - the cache keeps working, it just never gives the buffer back.
+        // the refresh swaps the value in place. The cache keeps GC-owned copies (RespPayload.CreateOwned), so
+        // what must not leak is the executor's own replies - the first fill's and the refresh's - each of which
+        // holds a pooled buffer. Leaking one would be invisible: the cache keeps working, the pool just shrinks.
         using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMilliseconds(50),
             TimeToLive = TimeSpan.FromMinutes(5),
         } });
-        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
+        var executor = new RecordingExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
         Assert.Equal("a", await Get(context));
-
-        // hold our own reference to the first reply so we can watch what the cache does with its one
-        Assert.True(cache.TryGet(RenderKey(context.Raw), 0, long.MaxValue, out var firstReply));
-        Assert.Equal(2, firstReply!.RefCount);   // the cache holds one, TryGet retained another for us
 
         await Task.Delay(120);
         Assert.Equal("a", await Get(context));                       // stale serve, refresh started
         Assert.True(await WaitFor(() => cache.Stored == 2), "the refresh never landed");
 
-        // the cache has let go of the old reply; only our own reference keeps it alive
-        Assert.True(await WaitFor(() => firstReply.RefCount == 1), $"superseded reply still at {firstReply.RefCount}");
+        // both replies went back to the pool, the refresh's included
+        Assert.True(
+            await WaitFor(() => executor.Replies.Length == 2 && executor.Replies.All(r => r.RefCount == 0)),
+            $"replies still held: {string.Join(", ", executor.Replies.Select(r => r.RefCount))}");
 
-        firstReply.Release();
         Assert.Equal("b", await Get(context));
         Assert.Equal(1, cache.Count);            // replaced, not duplicated
     }
