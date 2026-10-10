@@ -51,7 +51,7 @@ internal static class CacheHitScaling
     /// <param name="args"><c>cache-scaling [seconds] [host:port]</c>; with an endpoint, the real-multiplexer rows run too.</param>
     public static void Run(string[] args)
     {
-        if (args.Length > 1 && args[1] == "miss")
+        if (args.Length > 1 && args[1] is "miss" or "zipf")
         {
             RunMisses(args);
             return;
@@ -127,7 +127,7 @@ internal static class CacheHitScaling
     /// every read misses, fills and evicts. Reports throughput with the GC's view of it - collections per generation
     /// and bytes allocated per op - because what a fill keeps, and for how long, is the question.
     /// </summary>
-    /// <remarks><c>cache-scaling miss [seconds] [host:port] [nocache|admit]</c>.</remarks>
+    /// <remarks><c>cache-scaling miss|zipf [seconds] [host:port] [nocache|admit]</c>.</remarks>
     private static void RunMisses(string[] args)
     {
         var seconds = args.Length > 2 && int.TryParse(args[2], out var s) ? s : 5;
@@ -135,6 +135,12 @@ internal static class CacheHitScaling
         var noCache = args.Length > 4 && args[4] == "nocache"; // the baseline: what a miss costs with nothing to fill
         var admitOnRepeat = args.Length > 4 && args[4] == "admit"; // CacheAdmission.OnRepeatedMiss
         const int KeyCount = 200_000;
+
+        // zipf: the same keys and cache, but each read picks a key by popularity - a few hot keys and a long tail of
+        // one-offs - which is where admission's two effects meet: a hot key costs one extra miss before it is cached,
+        // and the tail stops evicting it. A table of draws, so drawing costs nothing in the measured loop.
+        var zipf = args[1] == "zipf";
+        var draws = zipf ? ZipfDraws(KeyCount, exponent: 0.99, count: 1 << 22) : [];
 
         var config = ConfigurationOptions.Parse(server);
         config.Protocol = RedisProtocol.Resp3;
@@ -153,8 +159,8 @@ internal static class CacheHitScaling
         var value = (RedisValue)new byte[1024];
         foreach (var key in keys) Wait(context.Strings.SetAsync(key, value));
 
-        Console.WriteLine($"cache-miss: GET 1 KiB, {KeyCount:N0} keys, 32 MiB cache; async callers, {seconds}s per row after 2s warm-up");
-        Console.WriteLine($"{"callers",8} {"total k/s",10} {"cpu us/op",10} {"gen0",6} {"gen1",6} {"gen2",6} {"alloc B/op",11} {"pause %",8}");
+        Console.WriteLine($"cache-{args[1]}: GET 1 KiB, {KeyCount:N0} keys, 32 MiB cache; async callers, {seconds}s per row after 2s warm-up");
+        Console.WriteLine($"{"callers",8} {"total k/s",10} {"cpu us/op",10} {"gen0",6} {"gen1",6} {"gen2",6} {"alloc B/op",11} {"pause %",8} {"hit %",6}");
         foreach (var callers in new[] { 1, 64 })
         {
             // RespFest's shape: N async callers, each awaiting its own GET in a loop; every op counted, not batches
@@ -169,10 +175,22 @@ internal static class CacheHitScaling
             {
                 var first = caller * share;
                 var step = 0;
+                var draw = caller * (draws.Length / Math.Max(1, callers)); // each caller its own stretch of the draws
                 while (Volatile.Read(ref stop) == 0)
                 {
-                    _ = await context.Strings.GetAsync(keys[first + step]).ConfigureAwait(false);
-                    if (++step == share) step = 0;
+                    RedisKey key;
+                    if (zipf)
+                    {
+                        key = keys[draws[draw]];
+                        if (++draw == draws.Length) draw = 0;
+                    }
+                    else
+                    {
+                        key = keys[first + step];
+                        if (++step == share) step = 0;
+                    }
+
+                    _ = await context.Strings.GetAsync(key).ConfigureAwait(false);
                     if (Volatile.Read(ref measuring) == 1) Interlocked.Increment(ref ops);
                 }
             }
@@ -186,6 +204,7 @@ internal static class CacheHitScaling
             var allocated = AllocatedBytes();
             var cpu = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime;
             var paused = PauseTime();
+            var missesBefore = Misses(muxer);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             Volatile.Write(ref measuring, 1);
             Thread.Sleep(seconds * 1000);
@@ -194,15 +213,42 @@ internal static class CacheHitScaling
             var cpuUsed = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime - cpu;
             var allocatedNow = AllocatedBytes();
             var pausedNow = PauseTime();
+            var missed = Misses(muxer) - missesBefore;
             var (d0, d1, d2) = (GC.CollectionCount(0) - g0, GC.CollectionCount(1) - g1, GC.CollectionCount(2) - g2);
             Volatile.Write(ref stop, 1);
             Task.WaitAll(running);
 
             var done = (double)Math.Max(1, Volatile.Read(ref ops));
-            Console.WriteLine($"{callers,8} {done / elapsed.TotalSeconds / 1e3,10:N1} {cpuUsed.TotalMilliseconds * 1000 / done,10:N2} {d0,6} {d1,6} {d2,6} {(allocatedNow - allocated) / done,11:N0} {(pausedNow - paused).TotalMilliseconds * 100 / elapsed.TotalMilliseconds,8:N1}");
+            Console.WriteLine($"{callers,8} {done / elapsed.TotalSeconds / 1e3,10:N1} {cpuUsed.TotalMilliseconds * 1000 / done,10:N2} {d0,6} {d1,6} {d2,6} {(allocatedNow - allocated) / done,11:N0} {(pausedNow - paused).TotalMilliseconds * 100 / elapsed.TotalMilliseconds,8:N1} {(noCache ? "-" : $"{100 * (1 - (missed / done)):N1}"),6}");
         }
 
         Console.WriteLine($"cache: {muxer.ClientCache?.Count:N0} entries, {muxer.ClientCache?.Bytes:N0} bytes, {muxer.ClientCache?.Stored:N0} stored, {muxer.ClientCache?.RedundantFills:N0} redundant, {muxer.ClientCache?.RefusedNotAdmitted:N0} not admitted");
+    }
+
+    /// <summary>Reads the cache had to send so far: stored, plus those not stored (not admitted, or a duplicate fill).</summary>
+    private static long Misses(ConnectionMultiplexer muxer)
+        => muxer.ClientCache is { } cache ? cache.Stored + cache.RefusedNotAdmitted + cache.RedundantFills : 0;
+
+    /// <summary>
+    /// <paramref name="count"/> key indexes drawn from a Zipf distribution over <paramref name="keys"/>: rank r is drawn
+    /// in proportion to 1 / r^<paramref name="exponent"/>. Seeded, so every run - and every arm of an A/B - sees the
+    /// same sequence.
+    /// </summary>
+    private static int[] ZipfDraws(int keys, double exponent, int count)
+    {
+        var cumulative = new double[keys];
+        double total = 0;
+        for (var rank = 0; rank < keys; rank++) cumulative[rank] = total += 1 / Math.Pow(rank + 1, exponent);
+
+        var random = new Random(42);
+        var draws = new int[count];
+        for (var i = 0; i < count; i++)
+        {
+            var index = Array.BinarySearch(cumulative, random.NextDouble() * total);
+            draws[i] = index < 0 ? Math.Min(~index, keys - 1) : index;
+        }
+
+        return draws;
     }
 
     /// <summary>Time the GC has paused the process so far; zero on .NET Framework, which cannot say.</summary>
