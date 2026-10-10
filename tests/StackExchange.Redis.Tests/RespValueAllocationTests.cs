@@ -112,7 +112,7 @@ public class RespValueAllocationTests(ITestOutputHelper log)
         // into it costs nothing. The pipeline releases its own reference in a finally as soon as parsing
         // returns, so the values are only readable afterwards because the lease took one of its own.
         var executor = new OneReply(Reply());
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 
         RedisKey[] keys = ["k1", "k2"];

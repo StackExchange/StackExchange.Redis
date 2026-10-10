@@ -75,7 +75,7 @@ public class RespSurfaceTests
     [Fact]
     public void ServicesComposeRatherThanReplaceEachOther()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var ctx = new RespContext()
             .WithCache(cache)
             .AppendChannelPrefix(RedisChannel.Literal("app:"));
@@ -119,7 +119,7 @@ public class RespSurfaceTests
     [Fact]
     public void WithServicesAddsRatherThanReplaces()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var probe = new Marker();
 
         // a context is built up in stages by callers who do not know each other - the multiplexer attaches
@@ -138,7 +138,7 @@ public class RespSurfaceTests
     [Fact]
     public void ACacheCanBeTurnedOffWithoutLosingTheRestOfTheChain()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var scripts = new RespScriptCache();
         var probe = new Marker();
 
@@ -300,7 +300,7 @@ public class RespSurfaceTests
     [Fact]
     public async Task TheCacheServesASecondReadWithoutSending()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var target = Target(executor, cache);
 
@@ -316,7 +316,7 @@ public class RespSurfaceTests
     [Fact]
     public async Task WritesAreNotCached()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("+OK\r\n");
         var target = Target(executor, cache);
 
@@ -332,7 +332,7 @@ public class RespSurfaceTests
     [Fact]
     public async Task NoClientCacheOptsASingleCallOut()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var target = Target(executor, cache);
 

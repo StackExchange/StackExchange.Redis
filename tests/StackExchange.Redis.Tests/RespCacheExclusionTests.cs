@@ -47,7 +47,7 @@ public class RespCacheExclusionTests
         string reply,
         Func<RespDatabaseContext, ValueTask> command)
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor(reply);
         var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
 

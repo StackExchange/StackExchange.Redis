@@ -17,15 +17,29 @@ public class CacheAdmissionTests
         => Via(executor, cache).Raw.Send<RedisValue>($"{RedisCommand.GET}{(RedisKey)key}", CommandFlags.CommandRetryReadOnly);
 
     [Fact]
-    public void TheDefaultStoresOnTheFirstMiss()
+    public void TheDefaultIsRepeatedMiss()
     {
+        // "no opinion", resolving to OnRepeatedMiss today: a first miss is not stored
         using var cache = new RespClientCache();
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+
+        Read(executor, cache, "k");
+
+        Assert.Equal(CacheAdmission.Default, cache.Options.Admission);
+        Assert.Equal(CacheAdmission.OnRepeatedMiss, cache.Options.ResolvedAdmission);
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(1, cache.RefusedNotAdmitted);
+    }
+
+    [Fact]
+    public void OnFirstMissStoresOnTheFirstMiss()
+    {
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         Read(executor, cache, "k");
         Read(executor, cache, "k");
 
-        Assert.Equal(CacheAdmission.OnFirstMiss, cache.Options.Admission);
         Assert.Equal(1, executor.Sends); // the second read was a hit
         Assert.Equal(0, cache.RefusedNotAdmitted);
     }

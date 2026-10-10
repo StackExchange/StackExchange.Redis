@@ -64,7 +64,7 @@ public class RespResultHandlerTests
     public async Task ARespResultServedFromCacheIsIndistinguishable()
     {
         // whether the bytes came from the wire or the cache must not be observable except in timing
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var context = Context(executor, cache);
 
@@ -125,7 +125,7 @@ public class RespResultHandlerTests
     {
         // the case the whole exercise is about: a cached reply costs a reference, not a memcpy - and
         // sharing a cache entry pins nothing extra, because the entry holds that buffer anyway
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var context = Context(executor, cache);
 

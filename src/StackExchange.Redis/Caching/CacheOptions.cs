@@ -63,13 +63,17 @@ namespace StackExchange.Redis.Caching
         /// <summary>How entries behave, unless a caller says otherwise.</summary>
         public CachePolicy DefaultPolicy { get; init; } = CachePolicy.Default;
 
-        /// <summary>When a reply that missed is stored: on its first miss (the default), or only on a repeated one.</summary>
+        /// <summary>When a reply that missed is stored: only on a repeated miss (the default), or on the first.</summary>
         /// <remarks>
         /// <see cref="CacheAdmission.OnRepeatedMiss"/> keeps requests that are read only once out of the cache entirely,
-        /// which on a workload that rarely repeats itself saves the cost of storing them and protects the entries that
-        /// are re-read from being evicted by ones that never will be. See <see cref="CacheAdmission"/>.
+        /// which saves the cost of storing them and protects the entries that are re-read from being evicted by ones that
+        /// never will be. Read <see cref="ResolvedAdmission"/> for the rule that applies. See <see cref="CacheAdmission"/>.
         /// </remarks>
         public CacheAdmission Admission { get; init; }
+
+        /// <summary><see cref="Admission"/> with <see cref="CacheAdmission.Default"/> resolved to the rule it means.</summary>
+        internal CacheAdmission ResolvedAdmission =>
+            Admission == CacheAdmission.Default ? CacheAdmission.OnRepeatedMiss : Admission;
 
         /// <summary>
         /// The largest reply that may be cached; <see langword="null"/> for no limit.

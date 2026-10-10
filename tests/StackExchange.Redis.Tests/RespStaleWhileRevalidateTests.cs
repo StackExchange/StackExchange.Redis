@@ -43,7 +43,7 @@ public class RespStaleWhileRevalidateTests
     [Fact]
     public async Task AnAgeingEntryIsServedAndRefreshed()
     {
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMilliseconds(60),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -74,7 +74,7 @@ public class RespStaleWhileRevalidateTests
     {
         // without the claim, every reader past the threshold starts a refresh - the background work would
         // be the stampede it exists to prevent
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMilliseconds(50),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -95,7 +95,7 @@ public class RespStaleWhileRevalidateTests
     [Fact]
     public async Task AFreshEntryIsNotRefreshed()
     {
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMinutes(1),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -117,7 +117,7 @@ public class RespStaleWhileRevalidateTests
         // serving a value already known to be old is a decision, not an inherited default
         Assert.Equal(TimeSpan.Zero, CachePolicy.Default.RefreshAfter);
 
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$1\r\na\r\n");
         var context = Context(executor, cache);
 
@@ -136,7 +136,7 @@ public class RespStaleWhileRevalidateTests
         // the refresh swaps the value in place. The cache keeps GC-owned copies (RespPayload.CreateOwned), so
         // what must not leak is the executor's own replies - the first fill's and the refresh's - each of which
         // holds a pooled buffer. Leaking one would be invisible: the cache keeps working, the pool just shrinks.
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMilliseconds(50),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -166,7 +166,7 @@ public class RespStaleWhileRevalidateTests
     {
         // the stampede that matters most: an invalidation lands for EVERY reader of a hot key at the same
         // instant, so time-based smoothing cannot help - the trigger was not time
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -194,7 +194,7 @@ public class RespStaleWhileRevalidateTests
         // read-your-own-writes. "No observer can prove the order" excuses serving through somebody else's
         // write; it says nothing about ours, and returning the value the caller just replaced is reported
         // as corruption rather than as staleness.
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -216,7 +216,7 @@ public class RespStaleWhileRevalidateTests
     {
         // the two can arrive in either order - our own write echoes back from the server as well - and the
         // fact that WE wrote it must survive that
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -238,7 +238,7 @@ public class RespStaleWhileRevalidateTests
     {
         // TimeToLive is documented as the longest an entry is EVER served - the backstop against missed
         // invalidations - and an invalidation is not a reason to serve something older than that
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMilliseconds(100),
@@ -260,7 +260,7 @@ public class RespStaleWhileRevalidateTests
     {
         // WithMaxCacheAge is the caller's own freshness requirement; the grace period is the POLICY's
         // willingness to serve stale, and cannot overrule a caller who asked for fresher
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -283,7 +283,7 @@ public class RespStaleWhileRevalidateTests
     {
         Assert.Equal(TimeSpan.Zero, CachePolicy.Default.InvalidationGracePeriod);
 
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
@@ -299,7 +299,7 @@ public class RespStaleWhileRevalidateTests
     {
         // on a hot-written key every refresh is invalidated before it can be stored, so without an absolute
         // bound this would serve stale for ever. Measured from FIRST NOTICE, so it cannot.
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromMilliseconds(80),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -335,7 +335,7 @@ public class RespStaleWhileRevalidateTests
         // invalidated. A key nobody is reading should simply expire - starting the clock at first notice
         // would instead resurrect it for whoever wandered past an hour later, which is the opposite of the
         // intent.
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromMilliseconds(80),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -359,7 +359,7 @@ public class RespStaleWhileRevalidateTests
     {
         // it is a grace period, not a sliding window: constant access bridges the burst, it does not keep
         // the old value alive indefinitely
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromMilliseconds(120),
             TimeToLive = TimeSpan.FromMinutes(5),
@@ -397,7 +397,7 @@ public class RespStaleWhileRevalidateTests
     public async Task AThresholdBeyondTheLifetimeNeverFires()
     {
         // it could never be crossed: the entry expires first. Treated as "off" rather than as a puzzle.
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
         {
             RefreshAfter = TimeSpan.FromMinutes(10),
             TimeToLive = TimeSpan.FromMilliseconds(80),

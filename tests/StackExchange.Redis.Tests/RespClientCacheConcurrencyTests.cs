@@ -69,7 +69,7 @@ public class RespClientCacheConcurrencyTests
         // A tiny budget over a tiny keyspace, so the SAME key is evicted and re-stored constantly:
         // that is what the race needs. A stale sampled key only reaches the byte comparison when its
         // hash and length already match a stored one, which in practice means a fresh copy of itself.
-        using var cache = new RespClientCache(new CacheOptions { MaxEntries = 4, EvictionSampleSize = 4 });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxEntries = 4, EvictionSampleSize = 4 });
 
         var faults = new ConcurrentQueue<Exception>();
         Parallel.For(0, 32, worker =>
@@ -100,7 +100,7 @@ public class RespClientCacheConcurrencyTests
     [Fact]
     public void ConcurrentReadsDoNotTouchAReleasedKey()
     {
-        using var cache = new RespClientCache(new CacheOptions { MaxEntries = 16, EvictionSampleSize = 8 });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxEntries = 16, EvictionSampleSize = 8 });
 
         var faults = new ConcurrentQueue<Exception>();
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -144,7 +144,7 @@ public class RespClientCacheConcurrencyTests
     [InlineData(20000)]
     public void EvictionWorkDoesNotScaleWithCacheSize(int resident)
     {
-        using var cache = new RespClientCache(new CacheOptions { MaxEntries = resident, EvictionSampleSize = 8 });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxEntries = resident, EvictionSampleSize = 8 });
 
         for (var i = 0; i < resident; i++) Fill(cache, $"seed{i}");
 

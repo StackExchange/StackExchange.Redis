@@ -87,7 +87,7 @@ public class RespTrackingTests(ITestOutputHelper output, SharedConnectionFixture
     /// </remarks>
     private async Task<(TrackingExecutor Executor, RespClientCache Cache, RespDatabaseContext Context)> Tracked(string prefix)
     {
-        var cache = new RespClientCache();
+        var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         TrackingExecutor executor;
         try
         {

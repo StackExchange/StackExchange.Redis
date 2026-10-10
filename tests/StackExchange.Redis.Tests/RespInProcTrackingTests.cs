@@ -61,7 +61,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
         var server = new InProcessTestServer(log);
         var config = server.GetClientConfig();
         config.Protocol = RedisProtocol.Resp3;
-        config.ClientCache = options ?? new CacheOptions();
+        config.ClientCache = options ?? new CacheOptions { Admission = CacheAdmission.OnFirstMiss };
 
         var muxer = await ConnectionMultiplexer.ConnectAsync(config, new TextWriterOutputHelper(log));
         var cache = muxer.ClientCache;
@@ -105,7 +105,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
     [Fact]
     public async Task PrefixesAreSentAndHonoured()
     {
-        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { Prefixes = ["app:"] });
+        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:"] });
         using var _ = server;
         await using var __ = muxer;
 
@@ -147,7 +147,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
     public async Task PerKeyTrackingAsksForNoBroadcastAndStillInvalidates()
     {
         var (server, muxer, cache) = await ConnectAsync(
-            new CacheOptions { TrackingMode = CacheTrackingMode.PerKey });
+            new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.PerKey });
         using var _ = server;
         await using var __ = muxer;
 
@@ -175,7 +175,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
     [Fact]
     public async Task AFlushEmptiesEverything()
     {
-        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { Prefixes = ["app:"] });
+        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:"] });
         using var _ = server;
         await using var __ = muxer;
 
@@ -203,7 +203,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
         using var server = new InProcessTestServer(log);
         var config = server.GetClientConfig();
         config.Protocol = RedisProtocol.Resp2;
-        config.ClientCache = new CacheOptions();
+        config.ClientCache = new CacheOptions { Admission = CacheAdmission.OnFirstMiss };
         config.AbortOnConnectFail = true;
 
         var connectLog = new StringWriter();

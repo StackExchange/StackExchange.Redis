@@ -89,7 +89,7 @@ public class RespCacheInvalidationTests(ITestOutputHelper output) : TestBase(out
         {
             EndPoints = { { TestConfig.Current.PrimaryServer, TestConfig.Current.PrimaryPort } },
             Protocol = RedisProtocol.Resp3,
-            ClientCache = cacheOptions ?? new CacheOptions { Prefixes = [prefix] },
+            ClientCache = cacheOptions ?? new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = [prefix] },
             DefaultDatabase = database,
             AllowAdmin = true,
         };

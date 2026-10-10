@@ -52,7 +52,7 @@ public class RespCoalescingTests
     [Fact]
     public async Task ConcurrentMissesShareOneRoundTrip()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var gated = new GatedExecutor("$5\r\nhello\r\n");
         var context = new RespDatabaseContext(new RespContext().WithExecutor(gated.Interface).WithCache(cache));
 
@@ -81,7 +81,7 @@ public class RespCoalescingTests
     {
         // a fill that throws must still release its registration, or everyone attached to it waits on a
         // reply that is never coming - and the registration would linger, catching later callers too
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var gated = new GatedExecutor("$5\r\nhello\r\n");
         var context = new RespDatabaseContext(new RespContext().WithExecutor(gated.Interface).WithCache(cache));
 
@@ -103,7 +103,7 @@ public class RespCoalescingTests
     {
         // read-your-own-writes. The leader's reply predates the write, so a caller arriving after the write
         // must NOT be given it - it fetches for itself instead. Same invariant that guards the store.
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var gated = new GatedExecutor("$5\r\nhello\r\n");
         var context = new RespDatabaseContext(new RespContext().WithExecutor(gated.Interface).WithCache(cache));
 

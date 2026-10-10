@@ -102,10 +102,12 @@ namespace StackExchange.Redis.Caching
             Options.Validate(); // settings that constrain one another; see CacheOptions.Validate
             _keys = new RespKeyTable(keyCapacity);
             _slabSize = ChooseSlabSize(Options.MaxBytes);
-            if (Options.Admission == CacheAdmission.OnRepeatedMiss)
+            if (Options.ResolvedAdmission == CacheAdmission.OnRepeatedMiss)
             {
-                // sized to the cache: MaxEntries if given, else ~1 KiB per entry of MaxBytes, else a modest default
-                _doorkeeper = new CacheDoorkeeper(Options.MaxEntries ?? (Options.MaxBytes is long bytes ? bytes / 1024 : 65_536));
+                // sized to the most entries the cache could hold: MaxEntries if given, else MaxBytes over the least an
+                // entry is charged (its bookkeeping, EntryOverheadBytes) - so small replies do not get a window a few
+                // times too short - else a modest default for an unbounded cache
+                _doorkeeper = new CacheDoorkeeper(Options.MaxEntries ?? (Options.MaxBytes is long bytes ? bytes / EntryOverheadBytes : 65_536));
             }
         }
 

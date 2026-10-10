@@ -23,9 +23,12 @@ options.ClientCache = new CacheOptions
 using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 var db = conn.GetDatabase();
 
-await db.Strings.GetAsync("app:user:42");   // a round trip; the reply is cached
+await db.Strings.GetAsync("app:user:42");   // a round trip; remembered, not yet cached
+await db.Strings.GetAsync("app:user:42");   // a round trip; read again, so now the reply is cached
 await db.Strings.GetAsync("app:user:42");   // answered from memory
 ```
+
+A reply is cached the second time it is read, not the first: a request read only once never costs the cache anything. That is the default admission rule, and it can be changed - see [Admission](#admission-caching-what-is-read-again).
 
 Requirements:
 
@@ -70,7 +73,7 @@ A multi-key read such as `MGET a b c` is one entry; a change to any of its keys 
 - **keys outside `Prefixes`**, when prefixes are configured - the server would never announce their changes;
 - anything sent with `CommandFlags.NoClientCache`, or through a context made with `WithoutCache()`.
 
-Commands the client does not know - a module's, say - are not cached unless you declare them read-only with `flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly)` (see [Extending the client](Extending)). Only do that if the server announces changes to the keys the command reads. For module commands it usually does: Redis signals a key as modified - which is what drives invalidation - automatically when a module closes a key it opened for writing, unless the module has opted out (`REDISMODULE_OPTION_NO_IMPLICIT_SIGNAL_MODIFIED`) and signals by hand. To confirm for a particular module, cache a read, change the key with the module's own write command from a second connection, and check that the next read sees the change.
+Commands the client does not know - a module's, say - are not cached unless you declare them read-only with `flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly)` (see [Extending the client](Extending)). Only do that if the server announces changes to the keys the command reads. For module commands it usually does: Redis signals a key as modified - which is what drives invalidation - automatically when a module closes a key it opened for writing, unless the module has opted out (`REDISMODULE_OPTION_NO_IMPLICIT_SIGNAL_MODIFIED`) and signals by hand. To confirm for a particular module, cache a read (by default, read it twice), change the key with the module's own write command from a second connection, and check that the next read sees the change.
 
 Consistency
 ---
@@ -109,7 +112,7 @@ Controlling it
 | `EvictionSampleSize` | 8 | How many entries eviction considers per choice; larger is closer to true LRU, and costs more per eviction. |
 | `SweepInterval` | 10 seconds | How often memory held by invalidated or expired entries is reclaimed. Correctness does not depend on it. |
 | `DefaultPolicy` | `CachePolicy.Default` | How entries behave as they age - see below. |
-| `Admission` | `OnFirstMiss` | When a reply that missed is stored. `OnRepeatedMiss` stores it only if the same request missed recently before, so requests read once never enter the cache - see below. |
+| `Admission` | `Default` (= `OnRepeatedMiss` today) | When a reply that missed is stored: only once the same request has missed recently before, or (`OnFirstMiss`) every time. See below. |
 
 ### `CachePolicy` - how entries age
 
@@ -158,13 +161,25 @@ options.ClientCache = new CacheOptions
 };
 ```
 
-### Admission: storing only what is read again
+### Admission: caching what is read again
 
-By default every cacheable reply is stored the first time it misses. That is right when most reads repeat, but storing has a cost - the reply is copied and an entry kept until it is evicted - and on a workload that rarely reads the same thing twice the cache spends that cost on entries nobody reads again, pushing out the ones that are.
+A reply that misses is not stored straight away. The first miss for a request is **remembered** - in a small, fixed-size filter - and only a request that misses again soon afterwards is cached. So a request read once never touches the cache, and a request read often is cached after its second read rather than its first. This is TinyLFU's "doorkeeper", a well-established technique.
 
-`Admission = CacheAdmission.OnRepeatedMiss` changes the rule: the first miss for a request is remembered (in a small fixed-size filter) rather than stored, and only a request that misses again soon afterwards is cached. A request read once never touches the cache; a request read often is cached after its second miss instead of its first.
+Why it is the default: storing a reply costs something - it is copied, and an entry is kept until it is evicted - and one-off reads that are stored push out the entries that are read again. Measured on a skewed workload (a few hot keys and a long tail, Zipf s = 0.99), caching on the second miss held a **higher** hit rate than caching on the first (76.6% against 72.4%) at about 50% more throughput; on a workload that never repeats, it removed the cache's overhead entirely.
 
-Use it when a large share of reads are one-offs - a big keyspace with a small hot set, scans or batch jobs reading through data, or a cache much smaller than the data it fronts. On an all-miss workload it removes the cache's overhead entirely; on a workload that always repeats, it costs one extra round trip per key each time the key re-enters the cache.
+What it costs: one extra round trip for each key before it is cached - and again whenever it re-enters the cache after being evicted or invalidated. That only loses on a workload where every request is read exactly twice and never again.
+
+To store every reply on its first miss instead - for example, a small set of keys you know will be read repeatedly, where you want the very first repeat served from memory:
+
+```csharp
+options.ClientCache = new CacheOptions
+{
+    Admission = CacheAdmission.OnFirstMiss,
+    // ...
+};
+```
+
+`CacheAdmission.Default` (the value you get by not setting it) means "the library's choice", which is `OnRepeatedMiss` today; name a rule explicitly if you depend on it.
 
 ### Tracking modes and prefixes
 
@@ -214,6 +229,8 @@ There are no public counters for the cache in this version. The reliable check i
 - `CLIENT TRACKINGINFO` on the connection, or `CLIENT LIST` (look for `flags=t` on the interactive connections), confirms tracking is on;
 - comparing `total_commands_processed` from `INFO stats` before and after a read-heavy workload shows how many reads reached the server - an operation answered from the cache is one the server never sees. This is how this library's own tests measure hit rate;
 - `INFO commandstats` breaks the same count down per command (`cmdstat_get:calls=...`), which isolates the read under test from handshake, setup and other traffic - the better measure for a test of one command.
+
+When checking by hand, remember that a reply is cached on its **second** read by default (see [Admission](#admission-caching-what-is-read-again)): read a key three times, and expect two of them to reach the server. A test that reads twice and expects one round trip is testing `OnFirstMiss`, and should set it.
 
 See also
 ---

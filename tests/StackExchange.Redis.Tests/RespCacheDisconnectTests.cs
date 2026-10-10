@@ -35,7 +35,7 @@ public class RespCacheDisconnectTests
     public async Task ADisconnectEmptiesTheCache()
     {
         var multiplexer = Substitute.For<IConnectionMultiplexer>();
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         using var _ = cache.FlushOnDisconnect(multiplexer);
 
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
@@ -58,7 +58,7 @@ public class RespCacheDisconnectTests
         // the failure this guards against, made explicit: the entry lives on, and no invalidation is ever
         // coming for it, because the server forgot us
         var multiplexer = Substitute.For<IConnectionMultiplexer>();
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
 
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
@@ -74,7 +74,7 @@ public class RespCacheDisconnectTests
     public async Task DisposingTheSubscriptionStopsTheFlushing()
     {
         var multiplexer = Substitute.For<IConnectionMultiplexer>();
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var subscription = cache.FlushOnDisconnect(multiplexer);
 
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
@@ -97,7 +97,7 @@ public class RespCacheDisconnectTests
         // deliberately not trying to decide whether THAT connection was carrying invalidations: getting
         // that judgement wrong is silent, and over-flushing only costs a round trip per key
         var multiplexer = Substitute.For<IConnectionMultiplexer>();
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         using var _ = cache.FlushOnDisconnect(multiplexer);
 
         foreach (var type in new[] { ConnectionType.Interactive, ConnectionType.Subscription })

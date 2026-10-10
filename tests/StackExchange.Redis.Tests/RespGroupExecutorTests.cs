@@ -263,8 +263,8 @@ public class RespGroupExecutorTests
         // its CLIENT TRACKING registration is live. A shared group cache would serve member A's value
         // while B is active - wrong, and silently. So the cache is resolved per command, like everything
         // else about a group.
-        using var cacheA = new RespClientCache();
-        using var cacheB = new RespClientCache();
+        using var cacheA = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
+        using var cacheB = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         RespClientCache? active = cacheA;
 
         var memberA = new Member("a", "$1\r\nA\r\n");

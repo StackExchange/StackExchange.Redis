@@ -75,7 +75,7 @@ public class RespClientCacheTests
     [Fact]
     public void FillThenHit()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Fill(cache, "abc", "$5\r\nhello\r\n");
 
         Assert.True(TryRead(cache, "abc", out var text));
@@ -86,7 +86,7 @@ public class RespClientCacheTests
     [Fact]
     public void InvalidateEvictsLogically()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Fill(cache, "abc", "$5\r\nhello\r\n");
         Assert.True(TryRead(cache, "abc", out _));
 
@@ -102,7 +102,7 @@ public class RespClientCacheTests
     [Fact]
     public void InvalidatingAnUncachedKeyIsCheapAndReportsFalse()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Fill(cache, "abc", "$5\r\nhello\r\n");
 
         Assert.False(cache.OnInvalidate(Utf8("not-cached")));
@@ -112,7 +112,7 @@ public class RespClientCacheTests
     [Fact]
     public void InvalidationIsAllocationFree()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Fill(cache, "abc", "$5\r\nhello\r\n");
 
         var hit = Utf8("abc");
@@ -126,7 +126,7 @@ public class RespClientCacheTests
     [Fact]
     public void ReviveAfterInvalidationDoesNotResurrectTheOldEntry()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Fill(cache, "abc", "$3\r\nold\r\n");
         cache.OnInvalidate(Utf8("abc"));
         cache.Sweep();
@@ -142,7 +142,7 @@ public class RespClientCacheTests
     [Fact]
     public void InvalidationCrossesDatabases()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Fill(cache, "abc", "$2\r\nd0\r\n", database: 0);
         Fill(cache, "abc", "$2\r\nd7\r\n", database: 7);
 
@@ -159,7 +159,7 @@ public class RespClientCacheTests
     [Fact]
     public void DifferentDatabasesAreSeparateEntries()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Fill(cache, "abc", "$2\r\nd0\r\n", database: 0);
 
         Assert.True(TryRead(cache, "abc", out var zero, database: 0));
@@ -170,7 +170,7 @@ public class RespClientCacheTests
     [Fact]
     public void FlushDropsEverything()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Fill(cache, "a", "$1\r\na\r\n");
         Fill(cache, "b", "$1\r\nb\r\n");
 
@@ -189,7 +189,7 @@ public class RespClientCacheTests
     [Fact]
     public void InvalidationDuringFlightRefusesTheFill()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
 
         var frame = Get("abc");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill)); // generations captured at SEND time
@@ -204,7 +204,7 @@ public class RespClientCacheTests
     [Fact]
     public void InvalidationBeforeTheFillStartsDoesNotBlockIt()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Fill(cache, "abc", "$3\r\nold\r\n");
         cache.OnInvalidate(Utf8("abc"));
         cache.Sweep();
@@ -223,7 +223,7 @@ public class RespClientCacheTests
     [InlineData(2)]
     public void ThreeKeyCommandsCacheAndInvalidateOnAnyKey(int which)
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
 
         var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
         Assert.True(frame.KeysNeedScan);  // beyond the two inline offsets: resolved from the bitmap
@@ -281,7 +281,7 @@ public class RespClientCacheTests
         Span<KeyRange> ranges = stackalloc KeyRange[70];
         Assert.Equal(-1, frame.TryGetKeys(ranges));
 
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         Assert.False(cache.TryBeginFill(ref frame, 0, out _));
         frame.Dispose();
         Assert.Equal(0, cache.Count);
@@ -347,7 +347,7 @@ public class RespClientCacheTests
     [Fact]
     public void SendRunsOnceThenServesFromCache()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         for (var i = 0; i < 3; i++)
@@ -363,7 +363,7 @@ public class RespClientCacheTests
     [Fact]
     public async Task SendAsyncMatchesSyncAndHitsCompleteSynchronously()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var miss = Get("abc");
@@ -381,7 +381,7 @@ public class RespClientCacheTests
     [Fact]
     public void ExecutorCanRetainTheRequestForAResend()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
 
         var frame = Get("abc");
@@ -397,7 +397,7 @@ public class RespClientCacheTests
     [Fact]
     public void CachedReplyIsSharedWithTheCallerNotCopied()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var frame = Get("abc");
@@ -435,7 +435,7 @@ public class RespClientCacheTests
     [Fact]
     public void SendStillAnswersWhenInvalidatedInFlight()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
 
         // the write lands while our command is in flight - the shape that a hand-written
         // "miss, send, then add" cannot detect, because by the add there is nothing left to compare
@@ -449,7 +449,7 @@ public class RespClientCacheTests
     [Fact]
     public void SendAnswersEvenWhenTheFrameCannotBeCached()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var writer = new RespRequestBuilder(0, 70, Ctx, "MGET");
         for (var i = 0; i < 70; i++) writer.AppendFormatted((RedisKey)("k" + i));
         var frame = writer.Complete();
@@ -466,7 +466,7 @@ public class RespClientCacheTests
     [Fact]
     public void SendLeavesNoReferenceBehindOnAnyPath()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new RecordingExecutor("$5\r\nhello\r\n");
 
         var fill = Get("abc");
@@ -490,7 +490,7 @@ public class RespClientCacheTests
     [Fact]
     public void SendConsumesTheFrameOnEveryPath()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var miss = Get("abc");
@@ -509,7 +509,7 @@ public class RespClientCacheTests
     [Fact]
     public void KeylessCommandsAreNeverCached()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
 
         // a keyless command can NEVER be invalidated: server-assisted invalidation only ever reports keys,
         // so an entry with no dependencies is vacuously valid forever. Not even a FLUSHALL clears it,
@@ -539,7 +539,7 @@ public class RespClientCacheTests
     [InlineData(CommandFlags.None, false)]
     public void CachingDemandsADeclaredReadOnlyCategory(CommandFlags flags, bool cacheable)
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var frame = Get("abc");
         Assert.Equal(cacheable, cache.TryBeginFill(ref frame, 0, flags, out var fill));
 
@@ -568,7 +568,7 @@ public class RespClientCacheTests
     [Fact]
     public void NoClientCacheSuppressesStoring()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var frame = Get("abc");
 
         Assert.False(cache.TryBeginFill(
@@ -582,7 +582,7 @@ public class RespClientCacheTests
     [Fact]
     public void NoClientCacheAlsoSuppressesServingFromCache()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
 
         var fill = Get("abc");
@@ -604,7 +604,7 @@ public class RespClientCacheTests
     [Fact]
     public void RefusalCountersSayWhyNothingWasCached()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
 
         var undeclared = Get("abc");
         cache.TryBeginFill(ref undeclared, 0, CommandFlags.None, out _);
@@ -644,7 +644,7 @@ public class RespClientCacheTests
     [Fact]
     public void RedundantFillsCountConcurrentMissesOnTheSameRequest()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
 
         // two callers miss on the same request and both go to the server - exactly what request
         // combining would have collapsed into one round trip
@@ -667,7 +667,7 @@ public class RespClientCacheTests
     [InlineData("_\r\n")]     // RESP3 null
     public void NullRepliesAreCached(string reply)
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var frame = Get("missing");
         Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
 
@@ -691,7 +691,7 @@ public class RespClientCacheTests
     [InlineData("!21\r\nSYNTAX invalid syntax\r\n")]
     public void ErrorRepliesAreNotCached(string reply)
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var frame = Get("abc");
         Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
 
@@ -711,7 +711,7 @@ public class RespClientCacheTests
     [InlineData(Attribute + "!21\r\nSYNTAX invalid syntax\r\n")]
     public void ErrorsBehindLeadingAttributesAreStillRefused(string reply)
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var frame = Get("abc");
         Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
 
@@ -725,7 +725,7 @@ public class RespClientCacheTests
     [Fact]
     public void ValuesBehindLeadingAttributesAreStillCached()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var frame = Get("abc");
         Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
 
@@ -737,7 +737,7 @@ public class RespClientCacheTests
     [Fact]
     public void RepliesWithNoContentElementAreRefused()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var frame = Get("abc");
         Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly, out var fill));
 
@@ -802,7 +802,7 @@ public class RespClientCacheTests
     [Fact]
     public void MultiKeyEntryIsInvalidatedByAnyOfItsKeys()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
 
         var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
@@ -825,7 +825,7 @@ public class RespClientCacheTests
     [Fact]
     public void KeyTableGrowsWithoutLosingTrackedKeys()
     {
-        using var cache = new RespClientCache(keyCapacity: 4);
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss }, keyCapacity: 4);
         for (var i = 0; i < 400; i++) Fill(cache, "key:" + i, "$1\r\nx\r\n");
 
         Assert.Equal(400, cache.Count);
@@ -842,7 +842,7 @@ public class RespClientCacheTests
     {
         for (var round = 0; round < 100; round++)
         {
-            using var cache = new RespClientCache();
+            using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
             Fill(cache, "abc", "$5\r\nhello\r\n");
 
             var start = new ManualResetEventSlim(false);
@@ -882,7 +882,7 @@ public class RespClientCacheTests
     [InlineData("", false)]
     public void UntrackedKeysAreNotCached(string key, bool cacheable)
     {
-        using var cache = new RespClientCache(new CacheOptions { Prefixes = ["app:", "session:"] });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:", "session:"] });
 
         var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)key}");
         var admitted = cache.TryBeginFill(ref frame, 0, out var fill);
@@ -911,7 +911,7 @@ public class RespClientCacheTests
     [Fact]
     public void OneUntrackedKeySpoilsAMultiKeyCommand()
     {
-        using var cache = new RespClientCache(new CacheOptions { Prefixes = ["app:"] });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:"] });
 
         var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"app:a"}{(RedisKey)"app:b"}{(RedisKey)"other"}");
         Assert.False(cache.TryBeginFill(ref frame, 0, out _));
@@ -928,7 +928,7 @@ public class RespClientCacheTests
     [Fact]
     public void NoPrefixesMeansEverythingIsCacheable()
     {
-        using var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy() }); // the default: BCAST with no prefix
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy() }); // the default: BCAST with no prefix
 
         var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"anything at all"}");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
@@ -950,10 +950,10 @@ public class RespClientCacheTests
         // ALONE, and checked by message. Paired with a real prefix it is caught by the overlap rule
         // instead - every string starts with "" - so that spelling passes even with this rule deleted,
         // which is exactly what it did until a mutant walked through it.
-        var ex = Assert.Throws<ArgumentException>(() => new CacheOptions { Prefixes = [""] });
+        var ex = Assert.Throws<ArgumentException>(() => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = [""] });
         Assert.Contains("matches every key", ex.Message);
 
-        Assert.Throws<ArgumentException>(() => new CacheOptions { Prefixes = ["app:", ""] });
+        Assert.Throws<ArgumentException>(() => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:", ""] });
     }
 
     /// <summary>
@@ -966,18 +966,18 @@ public class RespClientCacheTests
     [Fact]
     public void OverlappingPrefixesAreRejected()
     {
-        var ex = Assert.Throws<ArgumentException>(() => new CacheOptions { Prefixes = ["app:", "app:user:"] });
+        var ex = Assert.Throws<ArgumentException>(() => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:", "app:user:"] });
         Assert.Contains("must not overlap", ex.Message);
 
         // ...including a prefix repeated, which overlaps itself in the most literal way available
-        Assert.Throws<ArgumentException>(() => new CacheOptions { Prefixes = ["app:", "app:"] });
+        Assert.Throws<ArgumentException>(() => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:", "app:"] });
     }
 
     /// <summary>Prefix matching is on the bytes, so a multi-byte prefix is not matched by accident.</summary>
     [Fact]
     public void PrefixesMatchWholeBytesNotCharacters()
     {
-        using var cache = new RespClientCache(new CacheOptions { Prefixes = ["é:"] }); // 0xC3 0xA9
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["é:"] }); // 0xC3 0xA9
 
         // a key starting with the first byte of the prefix but not the second must not match
         var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"è:x"}"); // 0xC3 0xA8
@@ -1007,7 +1007,7 @@ public class RespClientCacheTests
     [Fact]
     public void FireAndForgetIsNeitherCachedNorServed()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         const CommandFlags FireAndForget = CommandFlags.CommandRetryReadOnly | CommandFlags.FireAndForget;
 
@@ -1033,7 +1033,7 @@ public class RespClientCacheTests
     [Fact]
     public async Task FireAndForgetIsNotServedAsynchronouslyEither()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         const CommandFlags FireAndForget = CommandFlags.CommandRetryReadOnly | CommandFlags.FireAndForget;
 
@@ -1059,7 +1059,7 @@ public class RespClientCacheTests
     [InlineData(8, true)]
     public void RepliesOverTheSizeLimitAreRefused(int limit, bool cacheable)
     {
-        using var cache = new RespClientCache(new CacheOptions { MaxPayloadBytes = limit });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxPayloadBytes = limit });
 
         var frame = Get("abc");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
@@ -1072,7 +1072,7 @@ public class RespClientCacheTests
     [Fact]
     public void NoSizeLimitMeansNoSizeRefusals()
     {
-        using var cache = new RespClientCache(new CacheOptions { MaxPayloadBytes = null });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxPayloadBytes = null });
 
         var frame = Get("abc");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
@@ -1084,8 +1084,8 @@ public class RespClientCacheTests
     [Fact]
     public void ANonPositiveSizeLimitIsRejected()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { MaxPayloadBytes = 0 });
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { MaxPayloadBytes = -1 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxPayloadBytes = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxPayloadBytes = -1 });
     }
 
     /// <summary>
@@ -1101,6 +1101,7 @@ public class RespClientCacheTests
     {
         using var cache = new RespClientCache(new CacheOptions
         {
+            Admission = CacheAdmission.OnFirstMiss,
             DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(30) },
         });
 
@@ -1126,6 +1127,7 @@ public class RespClientCacheTests
         var sinceCreated = Stopwatch.StartNew();
         using var cache = new RespClientCache(new CacheOptions
         {
+            Admission = CacheAdmission.OnFirstMiss,
             SweepInterval = interval,
             DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(10) },
         });
@@ -1155,6 +1157,7 @@ public class RespClientCacheTests
     {
         using var cache = new RespClientCache(new CacheOptions
         {
+            Admission = CacheAdmission.OnFirstMiss,
             SweepInterval = TimeSpan.Zero,
             DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(10) },
         });
@@ -1188,6 +1191,7 @@ public class RespClientCacheTests
     {
         using var cache = new RespClientCache(new CacheOptions
         {
+            Admission = CacheAdmission.OnFirstMiss,
             SweepInterval = TimeSpan.FromMilliseconds(10),
             DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(5) },
         });
@@ -1222,6 +1226,7 @@ public class RespClientCacheTests
     {
         var options = new CacheOptions
         {
+            Admission = CacheAdmission.OnFirstMiss,
             TrackingMode = CacheTrackingMode.PerKey,
             Prefixes = ["app:"],
         };
@@ -1230,8 +1235,8 @@ public class RespClientCacheTests
         Assert.Contains("Broadcast", ex.Message);
 
         // ...and the same list is fine the other way round, whichever order it was written in
-        using var ok = new RespClientCache(new CacheOptions { Prefixes = ["app:"], TrackingMode = CacheTrackingMode.Broadcast });
-        using var alsoOk = new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.Broadcast, Prefixes = ["app:"] });
+        using var ok = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:"], TrackingMode = CacheTrackingMode.Broadcast });
+        using var alsoOk = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.Broadcast, Prefixes = ["app:"] });
     }
 
     /// <summary>
@@ -1241,7 +1246,7 @@ public class RespClientCacheTests
     [Fact]
     public void PerKeyTrackingCachesAnyKey()
     {
-        using var cache = new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.PerKey });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.PerKey });
 
         var frame = Get("anything at all");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
@@ -1275,7 +1280,7 @@ public class RespClientCacheTests
     [Fact]
     public void AnEntryLimitEvictsDownToSize()
     {
-        using var cache = new RespClientCache(new CacheOptions { MaxEntries = 10 });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxEntries = 10 });
 
         Fill(cache, 50);
 
@@ -1291,7 +1296,7 @@ public class RespClientCacheTests
         // a count is five bytes; what caching it costs is its bookkeeping. Charged only for reply bytes, a byte budget
         // never bound a workload of small replies: 10,000 of these reported ~50KB while holding megabytes of entries
         const long budget = 64 * 1024;
-        using var cache = new RespClientCache(new CacheOptions { MaxBytes = budget });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxBytes = budget });
         for (var i = 0; i < 10_000; i++) Fill(cache, "count" + i, ":42\r\n");
 
         Assert.True(cache.Bytes <= budget, $"over budget: {cache.Bytes}");
@@ -1304,7 +1309,7 @@ public class RespClientCacheTests
     {
         // sizing matters here: each entry is charged its bookkeeping (RespClientCache.EntryOverheadBytes) as well as
         // its reply, so 200 of them are ~55KB. A budget above that would be tested by a cache that never reached it.
-        using var cache = new RespClientCache(new CacheOptions { MaxBytes = 512 });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxBytes = 512 });
 
         Fill(cache, 200);
 
@@ -1321,7 +1326,7 @@ public class RespClientCacheTests
     [Fact]
     public void TheByteCountReturnsToZeroWhenEverythingGoes()
     {
-        var cache = new RespClientCache();
+        var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         try
         {
             Assert.Equal(0, cache.Bytes);
@@ -1354,6 +1359,7 @@ public class RespClientCacheTests
     {
         using var cache = new RespClientCache(new CacheOptions
         {
+            Admission = CacheAdmission.OnFirstMiss,
             DefaultPolicy = new CachePolicy
             {
                 RefreshAfter = TimeSpan.FromMilliseconds(40),
@@ -1403,7 +1409,7 @@ public class RespClientCacheTests
     {
         // a sample at least as large as the table means the whole table is examined, so this asserts the
         // preference rather than the luck of which window was sampled
-        using var cache = new RespClientCache(new CacheOptions { MaxEntries = 10, EvictionSampleSize = 64 });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxEntries = 10, EvictionSampleSize = 64 });
 
         Fill(cache, 10);
         Assert.Equal(10, cache.Count);
@@ -1431,9 +1437,9 @@ public class RespClientCacheTests
     [Fact]
     public void NonPositiveBudgetsAreRejected()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { MaxBytes = 0 });
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { MaxEntries = 0 });
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { EvictionSampleSize = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxBytes = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxEntries = 0 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, EvictionSampleSize = 0 });
 
         // and unbounded is the default, because that is what a cache without a budget actually is
         Assert.Null(CacheOptions.Default.MaxBytes);
@@ -1452,7 +1458,7 @@ public class RespClientCacheTests
     [Fact]
     public async Task OurOwnWriteEvictsWhatWeCached()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$2\r\nv1\r\n");
         var context = Via(executor, cache);
 
@@ -1486,7 +1492,7 @@ public class RespClientCacheTests
     [InlineData(CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache)]
     public async Task ReadsDoNotInvalidate(CommandFlags readFlags)
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$2\r\nv1\r\n");
         var context = Via(executor, cache);
 
@@ -1514,7 +1520,7 @@ public class RespClientCacheTests
     [Fact]
     public async Task AnUndeclaredCategoryIsAssumedToWrite()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$2\r\nv1\r\n");
         var context = Via(executor, cache);
 
@@ -1546,7 +1552,7 @@ public class RespClientCacheTests
     [Fact]
     public async Task AWriteWithUnknowableKeysInvalidatesOnlyItsOwn()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$2\r\nv1\r\n");
         var context = Via(executor, cache);
 
@@ -1585,7 +1591,7 @@ public class RespClientCacheTests
     [Fact]
     public async Task AWriteWithUnknowableKeysStillInvalidatesTheKeysItNamed()
     {
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$2\r\nv1\r\n");
         var context = Via(executor, cache);
 

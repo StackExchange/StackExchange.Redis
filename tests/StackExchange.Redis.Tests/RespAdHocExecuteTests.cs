@@ -127,7 +127,7 @@ public class RespAdHocExecuteTests
     public async Task AnAdHocReadCanBeCachedAndInvalidated()
     {
         // the payoff of keeping key-ness: an unmodelled command participates in the cache like any other
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$3\r\nabc\r\n", "$3\r\nxyz\r\n") { CaptureKeys = true };
         var context = Context(executor, cache);
         RedisKeyOrValue[] args = [RedisKeyOrValue.FromKey("k")];

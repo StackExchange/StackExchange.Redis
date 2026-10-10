@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -74,15 +74,16 @@ public class RespCacheChurnTests(ITestOutputHelper output) : TestBase(output)
         var me = Me() + shape + Guid.NewGuid().ToString("N");
         var (muxer, cache) = await TrackedAsync(shape switch
         {
-            "scoped" => new CacheOptions { Prefixes = [me] },
+            "scoped" => new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = [me] },
             // exactly what the RespFest entry configures, so a difference here is the difference
             "benchmark" => new CacheOptions
             {
+                Admission = CacheAdmission.OnFirstMiss,
                 Enabled = true,
                 MaxBytes = 32L * 1024 * 1024,
                 DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) },
             },
-            _ => new CacheOptions(),
+            _ => new CacheOptions { Admission = CacheAdmission.OnFirstMiss },
         });
         using var _ = muxer;
 

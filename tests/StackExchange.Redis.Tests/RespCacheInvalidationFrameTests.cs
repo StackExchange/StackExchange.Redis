@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 using System.Threading.Tasks;
 using RESPite.Messages;
@@ -36,7 +36,7 @@ public class RespCacheInvalidationFrameTests
 
     private static (RespClientCache Cache, RespDatabaseContext Context, FakeExecutor Executor) Cached()
     {
-        var cache = new RespClientCache(new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
+        var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         return (cache, new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache)), executor);
     }

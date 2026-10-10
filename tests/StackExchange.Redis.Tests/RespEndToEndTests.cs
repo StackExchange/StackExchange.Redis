@@ -181,7 +181,7 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         var legacy = conn.GetDatabase();
         await legacy.StringSetAsync(key, "first");
 
-        using var cache = new RespClientCache();
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var surface = NewSurface(conn, legacy.Database, cache);
 
         Assert.Equal("first", await surface.Strings.GetAsync(key));

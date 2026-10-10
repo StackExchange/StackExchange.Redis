@@ -225,7 +225,7 @@ public class RespSurfaceKeysTests
     {
         static async Task<(bool Cached, long Refused)> Run(string reply, Func<RespDatabaseContext, ValueTask> go)
         {
-            using var cache = new RespClientCache();
+            using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
             var executor = new FakeExecutor(reply);
             var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
             await go(ctx);

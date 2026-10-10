@@ -39,10 +39,10 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   - [x] Fold the single-dependency case into `Entry`: one dependent load fewer per hit (+3-5% at 100k keys / 24
     threads), and the fill's array now dies young (all-miss GC pause ~25% -> ~19%).
   - [x] A skewed (Zipf) workload in the harness (cc95aeef): `OnRepeatedMiss` wins outright - hit rate 72.4% ->
-    76.6%, 1.06M -> 1.6M ops/s, CPU/op 9.8 -> 7.1us. **Decision for Marc:** make it the default?
+    76.6%, 1.06M -> 1.6M ops/s, CPU/op 9.8 -> 7.1us. **Decided (Marc, 2026-10-10): the default**, as
+    `CacheAdmission.Default` resolving to it, documented.
   - [ ] Propose a skewed mixed scenario for RespFest (its cache league has all-hit, all-miss and churn only).
-  - [ ] Doorkeeper sizing: it assumes ~1 KiB per entry (`MaxBytes / 1024`); with the bookkeeping charge an entry is
-    at least ~256 bytes, so small values get a window ~4x too short. Size from `MaxBytes / EntryOverheadBytes`.
+  - [x] Doorkeeper sizing: from `MaxBytes / EntryOverheadBytes` rather than assuming ~1 KiB per entry.
   - [ ] Second chance at slab eviction: a write-once "touched" flag per entry; touched entries copied forward rather
     than evicted with their slab. Only if the Zipf workload shows hot keys churning out.
   - [ ] The cached miss sends untyped and parses afterwards, where an uncached send parses typed on the reader.
