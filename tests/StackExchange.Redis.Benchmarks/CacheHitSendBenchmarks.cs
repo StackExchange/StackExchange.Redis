@@ -74,6 +74,7 @@ public class CacheHitSendBenchmarks
         // prime it, so every measured call is a hit
         _ = _context.Strings.GetAsync(_key, Readable).GetAwaiter().GetResult();
 
+        _strings = _context.Strings;
         _frame = _context.Raw.Render($"{RedisCommand.GET}{_key}");
         _lookup = _frame.AsLookupKey(Readable);
         _otherCopy = _lookup.CopyForCacheKey();
@@ -234,6 +235,18 @@ public class CacheHitSendBenchmarks
         return true;
     }
     // (a build-up decomposition here measured hashing 20 bytes as free and reading one field as 7.5ns)
+
+    // ---- the group layer (4 minus 5), split: the accessor, versus the extra GetAsync frame ----
+
+    private RespStrings _strings;
+
+    /// <summary>GetAsync on a group built once in setup: no accessor, but the GetAsync frame is still there.</summary>
+    [Benchmark(Description = "4a. group prebuilt (strings.GetAsync)")]
+    public RedisValue PrebuiltGroup() => _strings.GetAsync(_key, Readable).GetAwaiter().GetResult();
+
+    /// <summary>The group constructed directly rather than through the generic <c>Strings</c> accessor.</summary>
+    [Benchmark(Description = "4b. group by ctor (new RespStrings(raw))")]
+    public RedisValue GroupByConstructor() => new RespStrings(_context.Raw).GetAsync(_key, Readable).GetAwaiter().GetResult();
 
     /// <summary>Straight to the context, skipping the group accessor and its forwarding.</summary>
     [Benchmark(Description = "5. - group layer (context.SendAsync)")]
