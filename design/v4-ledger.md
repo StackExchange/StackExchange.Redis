@@ -41,8 +41,17 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   - [x] A skewed (Zipf) workload in the harness (cc95aeef): `OnRepeatedMiss` wins outright - hit rate 72.4% ->
     76.6%, 1.06M -> 1.6M ops/s, CPU/op 9.8 -> 7.1us. **Decided (Marc, 2026-10-10): the default**, as
     `CacheAdmission.Default` resolving to it, documented.
-  - [ ] Propose a skewed mixed scenario for RespFest (its cache league has all-hit, all-miss and churn only).
+  - [x] Propose a skewed mixed scenario for RespFest: done on their side (`cache-zipf-seq`/`-conc64`, efc2419).
   - [x] Doorkeeper sizing: from `MaxBytes / EntryOverheadBytes` rather than assuming ~1 KiB per entry.
+  - [x] **The default behaved as `OnFirstMiss` in RespFest** (Zipf 72.1% vs 72.5%; all-miss identical). Not
+    sizing: the byte hash (`RedisValue.GetHashCode(span)`, behind `RespRequest`, `RedisKey`, `RedisChannel`,
+    `RespKeyTable`) gave 200,000 framed `GET rf:cbig:{i}` requests ~42,000 hashes, and the doorkeeper took its probe
+    from the low bits of a bare multiply, landing them on ~4,500 bits: every first miss read as a repeat. The
+    harness used zero-padded keys, which hashed fine - the lesson is to bench on more than one key shape. Fixed:
+    a word-at-a-time multiply + MurmurHash3 finalizer (ideal distribution over 12 key shapes, same cost on a short
+    request), and the doorkeeper mixes before probing. On RespFest's keys: Zipf 72.4% -> 75.1%, all-miss 324k ->
+    610k ops/s. Hit path: the stub 1-key loop moves 72 -> 70-97ns between builds of ANY change to that function
+    (a variant returning the old value measured the same), so code layout, not the hash; 100k keys +4-7ns.
   - [ ] Second chance at slab eviction: a write-once "touched" flag per entry; touched entries copied forward rather
     than evicted with their slab. Only if the Zipf workload shows hot keys churning out.
   - [ ] The cached miss sends untyped and parses afterwards, where an uncached send parses typed on the reader.

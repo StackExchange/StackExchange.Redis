@@ -51,8 +51,15 @@ namespace StackExchange.Redis.Caching
         /// <param name="hash">The request's hash.</param>
         internal bool SeenBefore(int hash)
         {
-            // two probes from one 32-bit hash: a multiplicative mix for the first, its rotation for the second
-            var mixed = unchecked((uint)hash * 0x9E3779B1u);
+            // two probes from one 32-bit hash: the low bits of a full avalanche (MurmurHash3's finalizer) for the first,
+            // its rotation for the second. Not a bare multiply: its low bits depend only on the hash's low bits, and a
+            // hash weak there put 200,000 requests on ~4,500 bits, so the filter saturated and saw every miss as a repeat
+            var mixed = unchecked((uint)hash);
+            mixed ^= mixed >> 16;
+            mixed = unchecked(mixed * 0x85EBCA6Bu);
+            mixed ^= mixed >> 13;
+            mixed = unchecked(mixed * 0xC2B2AE35u);
+            mixed ^= mixed >> 16;
             var first = (int)(mixed & (uint)_mask);
             var second = (int)(((mixed >> 16) | (mixed << 16)) & (uint)_mask);
 

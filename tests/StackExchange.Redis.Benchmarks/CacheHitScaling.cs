@@ -106,9 +106,10 @@ internal static class CacheHitScaling
     /// <summary>The whole group-method hit, each thread walking the key set from its own offset.</summary>
     private static Func<int, Action<long>> FullPath(int keyCount)
     {
-        var cache = new RespClientCache();
+        // hits are the subject, not admission: stored on the first miss, so priming is one pass at any key count
+        var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var context = new RespDatabaseContext(new RespContext().WithExecutor(new OneReplyExecutor()).WithCache(cache));
-        var keys = Enumerable.Range(0, keyCount).Select(i => (RedisKey)$"key:{i:D8}").ToArray();
+        var keys = Enumerable.Range(0, keyCount).Select(i => (RedisKey)$"rf:c1k:{i}").ToArray();
         foreach (var key in keys) _ = context.Strings.GetAsync(key, Readable).GetAwaiter().GetResult(); // prime: every op a hit
 
         return thread => iterations =>
@@ -155,7 +156,7 @@ internal static class CacheHitScaling
         }
         using var muxer = ConnectionMultiplexer.Connect(config);
         var context = muxer.GetDatabaseContext();
-        var keys = Enumerable.Range(0, KeyCount).Select(i => (RedisKey)$"cache-scaling-miss:{i:D8}").ToArray();
+        var keys = Enumerable.Range(0, KeyCount).Select(i => (RedisKey)$"rf:cbig:{i}").ToArray();
         var value = (RedisValue)new byte[1024];
         foreach (var key in keys) Wait(context.Strings.SetAsync(key, value));
 
@@ -269,7 +270,11 @@ internal static class CacheHitScaling
     {
         var config = ConfigurationOptions.Parse(server);
         config.Protocol = RedisProtocol.Resp3; // invalidations are pushes; the cache refuses RESP2
-        config.ClientCache = new CacheOptions { DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } };
+        config.ClientCache = new CacheOptions
+        {
+            DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) },
+            Admission = CacheAdmission.OnFirstMiss, // hits are the subject: one priming pass at any key count
+        };
         return ConnectionMultiplexer.Connect(config);
     }
 
@@ -277,7 +282,7 @@ internal static class CacheHitScaling
     private static Func<int, Action<long>> MultiplexerPath(ConnectionMultiplexer muxer, int keyCount)
     {
         var context = muxer.GetDatabaseContext();
-        var keys = Enumerable.Range(0, keyCount).Select(i => (RedisKey)$"cache-scaling:{i:D8}").ToArray();
+        var keys = Enumerable.Range(0, keyCount).Select(i => (RedisKey)$"rf:c1k:{i}").ToArray();
         foreach (var key in keys) Wait(context.Strings.SetAsync(key, "hello"));
         foreach (var key in keys) Wait(context.Strings.GetAsync(key)); // prime: every op a hit
 
