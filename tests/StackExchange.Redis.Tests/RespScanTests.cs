@@ -167,6 +167,54 @@ public class RespScanTests
         });
     }
 
+    /// <summary>An executor that can cancel, and never replies: a page sent to it is in flight until cancelled.</summary>
+    private sealed class SilentExecutor : RespExecutorBase
+    {
+        private int _sends;
+
+        public int Sends => Volatile.Read(ref _sends);
+
+        public override int Database => 0;
+
+        public override bool CanCancel => true;
+
+        public override RespPayload Send(in RespRequest request) => throw new NotSupportedException("async only");
+
+        public override async ValueTask<RespPayload> SendAsync(RespRequest request, CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _sends);
+            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("unreachable: the delay only ends by cancellation");
+        }
+    }
+
+    /// <summary>Cancelling an enumeration abandons the page in flight, rather than waiting for it.</summary>
+    /// <remarks>
+    /// Pages used to be sent with no token at all, so cancellation took effect only between pages: a page in flight
+    /// ran to completion after the caller had given up on it, and against a server that never answered, the
+    /// enumeration never ended. Where the executor can cancel, the token now goes with the page (RespScan.ForSend).
+    /// </remarks>
+    [Fact]
+    public async Task CancellingMidPageAbandonsThePageInFlight()
+    {
+        var executor = new SilentExecutor();
+        var ctx = new RespDatabaseContext(new RespContext().WithExecutor(executor));
+        using var cts = new CancellationTokenSource();
+
+        var scanning = Task.Run(async () =>
+        {
+            await foreach (var _ in ctx.Sets.ScanAsync("s").WithCancellation(cts.Token)) { }
+        });
+
+        for (var waited = 0; executor.Sends == 0 && waited < 5000; waited += 10) await Task.Delay(10);
+        Assert.Equal(1, executor.Sends); // the first page is in flight
+        cts.Cancel();
+
+        var finished = await Task.WhenAny(scanning, Task.Delay(5000));
+        Assert.Same(scanning, finished); // without the token, the page - and the enumeration - would wait for ever
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => scanning);
+    }
+
     /// <summary>An already-cancelled token stops the scan before it sends anything.</summary>
     [Fact]
     public async Task ACancelledTokenSendsNothing()

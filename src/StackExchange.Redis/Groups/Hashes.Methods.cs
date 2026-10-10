@@ -967,7 +967,7 @@ public static partial class Hashes
             (position, token) =>
             {
                 token.ThrowIfCancellationRequested();
-                return new RespHashes(context).ScanPageAsync(key, position, pattern, pageSize, flags);
+                return new RespHashes(context).ScanPageAsync(key, position, pattern, pageSize, flags, RespScan.ForSend(context, token));
             },
             position =>
             {

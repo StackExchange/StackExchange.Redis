@@ -189,11 +189,13 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Forwarded from wherever a command would actually go, because that is what decides it. Asking
-        /// with no key is the honest approximation: a deployment whose endpoints disagreed about this
-        /// would be one running two different cores at once.
+        /// <b>Always true here, and answered without routing</b>, for the reason <see cref="Accumulates"/> gives: this
+        /// executor's routes reach endpoint executors and database views over them, which can all cancel. It used to be
+        /// answered by resolving a route - server selection, and the endpoint's lock - on every call made with a
+        /// cancellable token; and with no endpoint reachable it answered "no", so such a call was refused as
+        /// unsupported rather than failing for the reason it actually would.
         /// </remarks>
-        public override bool CanCancel => ResolveFor(default, RedisCommand.NONE, CommandFlags.None) is { CanCancel: true };
+        public override bool CanCancel => true;
 
         /// <inheritdoc/>
         /// <remarks>

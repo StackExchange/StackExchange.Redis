@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -148,8 +148,8 @@ internal sealed class RespKeysetEnumerable<T> : IAsyncEnumerable<T>, IEnumerable
 
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // the token is checked here and NOT handed to the send, as the scans do: the executor
-                // refuses a live token outright, and a single page is bounded work
+                // checked here as well as by the fetch, which hands it to the send where the executor can act
+                // on it (see RespScan.ForSend) - so an executor that cannot still stops between pages
                 Reset(await parent._fetch(_from, _excludeStart, cancellationToken).ForAwait());
             }
         }

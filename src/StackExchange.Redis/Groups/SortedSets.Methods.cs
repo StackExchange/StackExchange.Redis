@@ -1164,7 +1164,7 @@ public static partial class SortedSets
             (position, token) =>
             {
                 token.ThrowIfCancellationRequested();
-                return new RespSortedSets(context).ScanPageAsync(key, position, pattern, pageSize, flags);
+                return new RespSortedSets(context).ScanPageAsync(key, position, pattern, pageSize, flags, RespScan.ForSend(context, token));
             },
             position =>
             {

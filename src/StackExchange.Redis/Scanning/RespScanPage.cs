@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using RESPite;
 using RESPite.Buffers;
 using RESPite.Messages;
@@ -121,6 +122,21 @@ internal sealed class RespScanPagePairHandler<T>(RespParsers.PairParser<T> shape
 /// </remarks>
 internal static class RespScan
 {
+    /// <summary>
+    /// The token a page fetch hands to its send: the caller's own when the context's executor can act on one, so that
+    /// a page in flight is abandoned when the enumeration is cancelled; otherwise <see langword="default"/>, and the
+    /// enumerator's check between pages is what honours it.
+    /// </summary>
+    /// <param name="context">The context the page is sent through.</param>
+    /// <param name="token">The enumeration's token, as <c>WithCancellation</c> supplied it.</param>
+    /// <remarks>
+    /// Pages used to be sent with <see langword="default"/> unconditionally, from when every executor refused a
+    /// cancellable token: cancelling an enumeration then took effect only between pages, so a slow page - a large
+    /// <c>COUNT</c>, or a server under load - ran to completion after the caller had given up on it.
+    /// </remarks>
+    internal static CancellationToken ForSend(RespContext context, CancellationToken token)
+        => token.CanBeCanceled && context.Executor is { CanCancel: true } ? token : default;
+
     internal static RespRequestFrame Command(
         RespContext context,
         RedisCommand command,

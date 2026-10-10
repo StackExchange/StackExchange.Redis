@@ -412,10 +412,9 @@ public static partial class Sets
         return new RespScanEnumerable<RedisValue>(
             (position, token) =>
             {
-                // checked here, and NOT handed to the send: RespExecutor refuses a cancellable token
-                // outright today. The enumerator checks it too, before it ever asks for a page.
+                // checked here, and handed to the send where the executor can act on it - see RespScan.ForSend
                 token.ThrowIfCancellationRequested();
-                return new RespSets(context).ScanPageAsync(key, position, pattern, pageSize, flags);
+                return new RespSets(context).ScanPageAsync(key, position, pattern, pageSize, flags, RespScan.ForSend(context, token));
             },
             position =>
             {

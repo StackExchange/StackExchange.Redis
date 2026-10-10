@@ -298,11 +298,10 @@ public static partial class VectorSets
         return new RespKeysetEnumerable<RedisValue>(
             (from, excludeStart, token) =>
             {
-                // checked here and NOT handed to the send, as the scans do: RespExecutor refuses a
-                // cancellable token outright, and one page is bounded work
+                // checked here, and handed to the send where the executor can act on it, as the scans do
                 token.ThrowIfCancellationRequested();
                 var cmd = RangePageCommand(context, key, from, end, pageSize, excludeStart, endExcluded);
-                return context.SendAsync(ref cmd, flags, RespHandlers.ValueLease, default);
+                return context.SendAsync(ref cmd, flags, RespHandlers.ValueLease, RespScan.ForSend(context, token));
             },
             (from, excludeStart) =>
             {

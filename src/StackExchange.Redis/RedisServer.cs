@@ -421,7 +421,7 @@ namespace StackExchange.Redis
                     {
                         token.ThrowIfCancellationRequested();
                         var frame = KeysScanFrame(context, position, pattern, count);
-                        return context.SendAsync(ref frame, flags.WithScanCursorCategory(position), KeyScanHandler, default);
+                        return context.SendAsync(ref frame, flags.WithScanCursorCategory(position), KeyScanHandler, RespScan.ForSend(context, token));
                     },
                     position =>
                     {
