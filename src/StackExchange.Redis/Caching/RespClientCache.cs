@@ -53,6 +53,15 @@ namespace StackExchange.Redis.Caching
         private long _refusedByFlags;
         private long _refusedNoKeys;
         private long _refusedNotTracked;
+
+        /// <summary>
+        /// What an entry costs beyond its reply, as an estimate: the entry itself, the payload wrapper, the dependency
+        /// array, the dictionary node and the copy of the request's header. Charged to the budget with the request's
+        /// own length, because for a small reply - a count, a flag - this is most of the memory, and a byte budget
+        /// blind to it does not bind at all. A slab's bytes are charged separately, as a whole.
+        /// </summary>
+        internal const int EntryOverheadBytes = 256;
+
         private long _refusedNotAdmitted;
 
         /// <summary>The record of first misses, when <see cref="CacheOptions.Admission"/> asks for one.</summary>
@@ -217,7 +226,8 @@ namespace StackExchange.Redis.Caching
         /// </summary>
         /// <remarks>
         /// What the entries actually hold, not what they carry: whole slabs, however few of their replies are still
-        /// live, plus any reply too large for a slab. See <see cref="CacheOptions.MaxBytes"/>.
+        /// live, plus any reply too large for a slab, plus an estimate of each entry's own bookkeeping. See
+        /// <see cref="CacheOptions.MaxBytes"/>.
         /// </remarks>
         public long Bytes => Volatile.Read(ref _bytes) + Volatile.Read(ref _slabBytes);
 
@@ -1027,10 +1037,13 @@ namespace StackExchange.Redis.Caching
 
             var evicted = 0;
 
-            // bytes first, and by slab: evicting single entries frees no memory until their whole slab is empty
-            if (Options.MaxBytes is long maxBytes && Bytes > maxBytes) EvictSlabsToBudget(maxBytes, ref evicted);
+            // bytes first, and by slab: evicting single entries frees no memory until their whole slab is empty. If
+            // another thread is already evicting slabs, the bytes are its job - evicting entries one by one here as
+            // well would race it down far below the budget - and only an entry limit is left to this one
+            var bytesInHand = true;
+            if (Options.MaxBytes is long maxBytes && Bytes > maxBytes) bytesInHand = EvictSlabsToBudget(maxBytes, ref evicted);
 
-            for (var attempts = Count; attempts > 0 && IsOverBudget(); attempts--)
+            for (var attempts = Count; attempts > 0 && IsOverBudget(bytesInHand); attempts--)
             {
                 if (!TryEvictOne()) break;
                 evicted++;
@@ -1042,12 +1055,13 @@ namespace StackExchange.Redis.Caching
 
         /// <summary>Over budget in a way that evicting single entries can fix.</summary>
         /// <remarks>
-        /// For bytes, only while replies too large for a slab are part of the excess: slab bytes come back a whole
-        /// slab at a time (see <see cref="TryEvictOldestSlab"/>), so evicting entries one by one for them would empty
-        /// the cache without freeing anything until a slab happened to clear.
+        /// Every entry frees its own bookkeeping (and any reply too large for a slab) when it goes, so entry-at-a-time
+        /// eviction always makes progress on bytes; slab bytes come back a whole slab at a time, which
+        /// <see cref="EvictSlabsToBudget"/> does first.
         /// </remarks>
-        private bool IsOverBudget()
-            => (Options.MaxBytes is long maxBytes && Bytes > maxBytes && Volatile.Read(ref _bytes) > 0)
+        /// <param name="includeBytes">Whether the byte budget is this caller's to enforce; see <see cref="EvictToBudget"/>.</param>
+        private bool IsOverBudget(bool includeBytes = true)
+            => (includeBytes && Options.MaxBytes is long maxBytes && Bytes > maxBytes)
                || (Options.MaxEntries is int maxEntries && Count > maxEntries);
 
         /// <summary>Evict one entry, preferring a dead one and otherwise the longest-resident.</summary>
@@ -1396,7 +1410,7 @@ namespace StackExchange.Redis.Caching
             /// entry goes, and the budget has to be credited by exactly what it was debited, whichever side
             /// of that release the accounting happens on.
             /// </remarks>
-            internal int Bytes { get; } = slab is null ? payload.RetainedBytes : 0; // a slab is charged as a whole
+            internal int Bytes { get; } = (slab is null ? payload.RetainedBytes : 0) + EntryOverheadBytes + key.Span.Length;
 
             /// <summary>When this entry was filled, for expiry. See <see cref="CachePolicy.TimeToLive"/>.</summary>
             internal long FilledAt { get; } = CacheClock.Now;

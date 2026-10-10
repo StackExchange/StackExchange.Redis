@@ -32,8 +32,8 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   134 -> 114ns. Tools: `CacheHitSendBenchmarks` (`--inProcess`: the `.claude/worktrees` copies break BDN's
   out-of-process build), `cache-scaling [s] host:port` (hits), `cache-scaling miss 8 host:port [nocache|admit]`,
   `dotnet-trace` + the alloc-by-type summariser recipe in memory. **To explore, roughly in order:**
-  - [ ] Charge a per-entry overhead to `MaxBytes`: since slabs only reply bytes count, so a million tiny replies
-    (counts) report ~5 MB while holding ~350 MB of entry objects. A correctness fix more than a tuning. *(in progress)*
+  - [x] Charge a per-entry overhead to `MaxBytes` (256 bytes + the request's length): before, a million tiny
+    replies (counts) reported ~5 MB while holding ~350 MB of entry objects.
   - [ ] Cache key bytes into the slab beside the reply (drops the key-copy object; tiny replies end up inline with
     their key).
   - [ ] Fold the single-dependency case into `Entry` (drops `Dependency[]` for most entries).
@@ -46,7 +46,7 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
     keyspace, not the cache).
   - [ ] Slab recycling via per-thread reader counters - only if large-object churn (gen2) shows up as a cost.
   - [ ] The interpolated builder: ~26ns over a 4ns floor, plus 10-15ns on every group method from inline-budget
-    exhaustion (6548bffe). Draft parked in the session scratchpad as `builder-inlining.patch` (forced inlining of
+    exhaustion (6548bffe). Draft parked as `design/parked/builder-inlining.patch` (`git apply` it) (forced inlining of
     `CommitBulk`/`CountArguments`, hot/cold `FoldSlot`); unmeasured.
   Rejected, with reasons in the commits: per-entry striped refcounts (~150 MB of padded counters), pinned-object heap
   for entries (no better), finalizer-driven slab recycling (interior pointers outlive the wrapper; finalizable

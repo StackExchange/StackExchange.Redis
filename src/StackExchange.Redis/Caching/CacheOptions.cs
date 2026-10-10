@@ -81,10 +81,9 @@ namespace StackExchange.Redis.Caching
         /// that consume a memory budget fastest and, typically, the ones least likely to be read again.
         /// </para>
         /// <para>
-        /// Measured against the reply as the server sent it. What an entry actually <i>costs</i> is a little
-        /// more, because each reply is copied into its own array from <see cref="System.Buffers.ArrayPool{T}"/>
-        /// and the shared pool rounds up to power-of-two buckets - a 33-byte reply pins 64. That rounding is
-        /// the quota's business; this is a limit a human sets, so it reads in the units a human has.
+        /// Measured against the reply as the server sent it. What an entry actually <i>costs</i> is more - its share
+        /// of a slab, and its bookkeeping (see <see cref="MaxBytes"/>) - but that is the quota's business; this is a
+        /// limit a human sets, so it reads in the units a human has.
         /// </para>
         /// <para>
         /// Refusals are counted as <see cref="RespClientCache.RefusedTooLarge"/>, because a reply silently
@@ -106,11 +105,13 @@ namespace StackExchange.Redis.Caching
         /// </summary>
         /// <remarks>
         /// <para>
-        /// <b>Counted as memory held, not bytes carried.</b> Each reply is copied into its own rent from
-        /// <see cref="System.Buffers.ArrayPool{T}"/>, and the shared pool serves from power-of-two buckets,
-        /// so a 33-byte reply holds 64. Budgeting on payload lengths would under-report by up to a factor
-        /// of two - which is the error that lets a quota fail to bind under exactly the workload that
-        /// needed it to.
+        /// <b>Counted as memory held, not bytes carried.</b> Replies are stored in slabs (large arrays filled in
+        /// order and freed whole), so the budget is charged for whole slabs, however few of their replies are still
+        /// live. And every entry is charged a fixed estimate of its own bookkeeping - the entry, its copy of the
+        /// request, its dependencies, its slot in the table - plus the request's length: for small replies that is
+        /// most of what an entry costs, and without it a million cached counts would report a few megabytes while
+        /// holding hundreds. A budget that fails to bind under exactly the workload that needed it is the error
+        /// this avoids.
         /// </para>
         /// <para>
         /// Enforced after a store rather than before: whether an entry fits is not knowable until the reply
@@ -120,9 +121,7 @@ namespace StackExchange.Redis.Caching
         /// </para>
         /// <para>
         /// <see langword="null"/> is the default and means unbounded, which is the honest description of
-        /// what a client-side cache is without one. Pair it with <see cref="MaxEntries"/>: bytes do not
-        /// bound the tracked-key table, which grows with the number of distinct requests rather than their
-        /// size.
+        /// what a client-side cache is without one.
         /// </para>
         /// </remarks>
         public long? MaxBytes
@@ -139,9 +138,9 @@ namespace StackExchange.Redis.Caching
         /// The most entries that may be cached; <see langword="null"/> for no limit.
         /// </summary>
         /// <remarks>
-        /// The companion to <see cref="MaxBytes"/>, and not redundant with it: a workload of many tiny
-        /// replies spends almost no memory on payloads while still growing the entry table and the
-        /// tracked-key table, whose costs a byte budget cannot see.
+        /// The companion to <see cref="MaxBytes"/>. A byte budget does count each entry's bookkeeping, as an estimate,
+        /// so it bounds many tiny replies too; this is for when the number of entries is itself what you want to
+        /// limit.
         /// </remarks>
         public int? MaxEntries
         {

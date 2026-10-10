@@ -1286,10 +1286,24 @@ public class RespClientCacheTests
 
     /// <summary>A byte budget is honoured, and counts what entries hold rather than what they carry.</summary>
     [Fact]
+    public void AByteBudgetBoundsTinyReplies()
+    {
+        // a count is five bytes; what caching it costs is its bookkeeping. Charged only for reply bytes, a byte budget
+        // never bound a workload of small replies: 10,000 of these reported ~50KB while holding megabytes of entries
+        const long budget = 64 * 1024;
+        using var cache = new RespClientCache(new CacheOptions { MaxBytes = budget });
+        for (var i = 0; i < 10_000; i++) Fill(cache, "count" + i, ":42\r\n");
+
+        Assert.True(cache.Bytes <= budget, $"over budget: {cache.Bytes}");
+        Assert.True(cache.Count <= budget / RespClientCache.EntryOverheadBytes, $"{cache.Count} entries held in {budget} bytes");
+        Assert.True(cache.Count > 0, "evicted everything");
+    }
+
+    [Fact]
     public void AByteBudgetEvictsDownToSize()
     {
-        // sizing matters here: a 7-byte reply is rented from the pool's 16-byte bucket, so 200 of them
-        // hold ~3.2KB. A budget above that would be tested by a cache that never reached it.
+        // sizing matters here: each entry is charged its bookkeeping (RespClientCache.EntryOverheadBytes) as well as
+        // its reply, so 200 of them are ~55KB. A budget above that would be tested by a cache that never reached it.
         using var cache = new RespClientCache(new CacheOptions { MaxBytes = 512 });
 
         Fill(cache, 200);

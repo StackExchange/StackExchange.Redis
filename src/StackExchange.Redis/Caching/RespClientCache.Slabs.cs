@@ -171,14 +171,17 @@ namespace StackExchange.Redis.Caching
         /// due, and a 32 MiB cache held ~11k 1 KiB entries instead of ~31k. A store that finds eviction already
         /// underway leaves it to the evictor - briefly over budget, as the remarks on <see cref="EvictToBudget"/> allow.
         /// </remarks>
-        private void EvictSlabsToBudget(long maxBytes, ref int evicted)
+        /// <returns>Whether this caller did the evicting; <see langword="false"/> if another thread already was.</returns>
+        private bool EvictSlabsToBudget(long maxBytes, ref int evicted)
         {
-            if (Interlocked.CompareExchange(ref _evictingSlabs, 1, 0) != 0) return;
+            if (Interlocked.CompareExchange(ref _evictingSlabs, 1, 0) != 0) return false;
             try
             {
                 while (Bytes > maxBytes && TryEvictOldestSlab(ref evicted))
                 {
                 }
+
+                return true;
             }
             finally
             {
