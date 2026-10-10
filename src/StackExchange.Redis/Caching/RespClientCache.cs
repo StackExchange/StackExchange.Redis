@@ -53,7 +53,10 @@ namespace StackExchange.Redis.Caching
         private long _refusedByFlags;
         private long _refusedNoKeys;
         private long _refusedNotTracked;
+        private long _refusedNotAdmitted;
 
+        /// <summary>The record of first misses, when <see cref="CacheOptions.Admission"/> asks for one.</summary>
+        private readonly CacheDoorkeeper? _doorkeeper;
         private long _refusedTooLarge;
         private long _evicted;
         private long _evictionCandidates;
@@ -90,6 +93,11 @@ namespace StackExchange.Redis.Caching
             Options.Validate(); // settings that constrain one another; see CacheOptions.Validate
             _keys = new RespKeyTable(keyCapacity);
             _slabSize = ChooseSlabSize(Options.MaxBytes);
+            if (Options.Admission == CacheAdmission.OnRepeatedMiss)
+            {
+                // sized to the cache: MaxEntries if given, else ~1 KiB per entry of MaxBytes, else a modest default
+                _doorkeeper = new CacheDoorkeeper(Options.MaxEntries ?? (Options.MaxBytes is long bytes ? bytes / 1024 : 65_536));
+            }
         }
 
         /// <summary>How this cache is built: the settled-once decisions.</summary>
@@ -173,6 +181,12 @@ namespace StackExchange.Redis.Caching
         /// </para>
         /// </remarks>
         public long RefusedNotTracked => Volatile.Read(ref _refusedNotTracked);
+
+        /// <summary>
+        /// Fills declined because the request had not missed recently before; see <see cref="CacheAdmission.OnRepeatedMiss"/>.
+        /// </summary>
+        /// <remarks>Each of these was served without touching the cache - no copy, no entry, nothing to evict.</remarks>
+        public long RefusedNotAdmitted => Volatile.Read(ref _refusedNotAdmitted);
 
         /// <summary>Fills refused because an invalidation landed while the command was in flight.</summary>
         public long RefusedRaced => Volatile.Read(ref _refusedRaced);
@@ -669,6 +683,15 @@ namespace StackExchange.Redis.Caching
                         return false;
                     }
                 }
+            }
+
+            // last of the refusals and before anything is allocated: a request seen for the first time is remembered,
+            // not stored - see CacheAdmission.OnRepeatedMiss. The database is folded in, as it is in EntryKey.
+            if (_doorkeeper is not null && !_doorkeeper.SeenBefore((frame.AsLookupKey().GetHashCode() * 397) ^ database))
+            {
+                Interlocked.Increment(ref _refusedNotAdmitted);
+                fill = default;
+                return false;
             }
 
             var deps = count == 0 ? [] : new Dependency[count];

@@ -109,6 +109,7 @@ Controlling it
 | `EvictionSampleSize` | 8 | How many entries eviction considers per choice; larger is closer to true LRU, and costs more per eviction. |
 | `SweepInterval` | 10 seconds | How often memory held by invalidated or expired entries is reclaimed. Correctness does not depend on it. |
 | `DefaultPolicy` | `CachePolicy.Default` | How entries behave as they age - see below. |
+| `Admission` | `OnFirstMiss` | When a reply that missed is stored. `OnRepeatedMiss` stores it only if the same request missed recently before, so requests read once never enter the cache - see below. |
 
 ### `CachePolicy` - how entries age
 
@@ -156,6 +157,14 @@ options.ClientCache = new CacheOptions
     },
 };
 ```
+
+### Admission: storing only what is read again
+
+By default every cacheable reply is stored the first time it misses. That is right when most reads repeat, but storing has a cost - the reply is copied and an entry kept until it is evicted - and on a workload that rarely reads the same thing twice the cache spends that cost on entries nobody reads again, pushing out the ones that are.
+
+`Admission = CacheAdmission.OnRepeatedMiss` changes the rule: the first miss for a request is remembered (in a small fixed-size filter) rather than stored, and only a request that misses again soon afterwards is cached. A request read once never touches the cache; a request read often is cached after its second miss instead of its first.
+
+Use it when a large share of reads are one-offs - a big keyspace with a small hot set, scans or batch jobs reading through data, or a cache much smaller than the data it fronts. On an all-miss workload it removes the cache's overhead entirely; on a workload that always repeats, it costs one extra round trip per key each time the key re-enters the cache.
 
 ### Tracking modes and prefixes
 

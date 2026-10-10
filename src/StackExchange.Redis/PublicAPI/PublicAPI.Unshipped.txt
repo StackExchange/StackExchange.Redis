@@ -33,6 +33,11 @@ static StackExchange.Redis.Bitmaps.GetAsync(this StackExchange.Redis.RespBitmaps
 static StackExchange.Redis.Bitmaps.OperationAsync(this StackExchange.Redis.RespBitmaps bitmaps, StackExchange.Redis.Bitwise operation, StackExchange.Redis.RedisKey destination, System.ReadOnlySpan<StackExchange.Redis.RedisKey> keys, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Bitmaps.PositionAsync(this StackExchange.Redis.RespBitmaps bitmaps, StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.StringIndexType indexType = StackExchange.Redis.StringIndexType.Byte, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<long>
 static StackExchange.Redis.Bitmaps.SetAsync(this StackExchange.Redis.RespBitmaps bitmaps, StackExchange.Redis.RedisKey key, long offset, bool bit, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<bool>
+StackExchange.Redis.Caching.CacheAdmission
+StackExchange.Redis.Caching.CacheAdmission.OnFirstMiss = 0 -> StackExchange.Redis.Caching.CacheAdmission
+StackExchange.Redis.Caching.CacheAdmission.OnRepeatedMiss = 1 -> StackExchange.Redis.Caching.CacheAdmission
+StackExchange.Redis.Caching.CacheOptions.Admission.get -> StackExchange.Redis.Caching.CacheAdmission
+StackExchange.Redis.Caching.CacheOptions.Admission.init -> void
 StackExchange.Redis.Caching.CacheOptions
 StackExchange.Redis.Caching.CacheOptions.CacheOptions() -> void
 static StackExchange.Redis.Caching.CacheOptions.Default.get -> StackExchange.Redis.Caching.CacheOptions!

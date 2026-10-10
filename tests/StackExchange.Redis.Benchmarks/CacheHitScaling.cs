@@ -127,12 +127,13 @@ internal static class CacheHitScaling
     /// every read misses, fills and evicts. Reports throughput with the GC's view of it - collections per generation
     /// and bytes allocated per op - because what a fill keeps, and for how long, is the question.
     /// </summary>
-    /// <remarks><c>cache-scaling miss [seconds] [host:port] [nocache]</c>.</remarks>
+    /// <remarks><c>cache-scaling miss [seconds] [host:port] [nocache|admit]</c>.</remarks>
     private static void RunMisses(string[] args)
     {
         var seconds = args.Length > 2 && int.TryParse(args[2], out var s) ? s : 5;
         var server = args.Length > 3 ? args[3] : "127.0.0.1:6379";
         var noCache = args.Length > 4 && args[4] == "nocache"; // the baseline: what a miss costs with nothing to fill
+        var admitOnRepeat = args.Length > 4 && args[4] == "admit"; // CacheAdmission.OnRepeatedMiss
         const int KeyCount = 200_000;
 
         var config = ConfigurationOptions.Parse(server);
@@ -143,6 +144,7 @@ internal static class CacheHitScaling
             {
                 MaxBytes = 32L * 1024 * 1024,
                 DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) },
+                Admission = admitOnRepeat ? CacheAdmission.OnRepeatedMiss : CacheAdmission.OnFirstMiss,
             };
         }
         using var muxer = ConnectionMultiplexer.Connect(config);
@@ -200,7 +202,7 @@ internal static class CacheHitScaling
             Console.WriteLine($"{callers,8} {done / elapsed.TotalSeconds / 1e3,10:N1} {cpuUsed.TotalMilliseconds * 1000 / done,10:N2} {d0,6} {d1,6} {d2,6} {(allocatedNow - allocated) / done,11:N0} {(pausedNow - paused).TotalMilliseconds * 100 / elapsed.TotalMilliseconds,8:N1}");
         }
 
-        Console.WriteLine($"cache: {muxer.ClientCache?.Count:N0} entries, {muxer.ClientCache?.Bytes:N0} bytes, {muxer.ClientCache?.Stored:N0} stored, {muxer.ClientCache?.RedundantFills:N0} redundant");
+        Console.WriteLine($"cache: {muxer.ClientCache?.Count:N0} entries, {muxer.ClientCache?.Bytes:N0} bytes, {muxer.ClientCache?.Stored:N0} stored, {muxer.ClientCache?.RedundantFills:N0} redundant, {muxer.ClientCache?.RefusedNotAdmitted:N0} not admitted");
     }
 
     /// <summary>Time the GC has paused the process so far; zero on .NET Framework, which cannot say.</summary>
