@@ -38,8 +38,11 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
     key a lookup finds sits beside its reply); misses neutral - one object fewer is lost in the remaining GC cost.
   - [x] Fold the single-dependency case into `Entry`: one dependent load fewer per hit (+3-5% at 100k keys / 24
     threads), and the fill's array now dies young (all-miss GC pause ~25% -> ~19%).
-  - [ ] A skewed mixed (Zipf) workload, in the harness and proposed for RespFest, to decide whether
-    `OnRepeatedMiss` becomes the default: one extra miss per hot key vs one-off reads no longer evicting it.
+  - [x] A skewed (Zipf) workload in the harness (cc95aeef): `OnRepeatedMiss` wins outright - hit rate 72.4% ->
+    76.6%, 1.06M -> 1.6M ops/s, CPU/op 9.8 -> 7.1us. **Decision for Marc:** make it the default?
+  - [ ] Propose a skewed mixed scenario for RespFest (its cache league has all-hit, all-miss and churn only).
+  - [ ] Doorkeeper sizing: it assumes ~1 KiB per entry (`MaxBytes / 1024`); with the bookkeeping charge an entry is
+    at least ~256 bytes, so small values get a window ~4x too short. Size from `MaxBytes / EntryOverheadBytes`.
   - [ ] Second chance at slab eviction: a write-once "touched" flag per entry; touched entries copied forward rather
     than evicted with their slab. Only if the Zipf workload shows hot keys churning out.
   - [ ] The cached miss sends untyped and parses afterwards, where an uncached send parses typed on the reader.
