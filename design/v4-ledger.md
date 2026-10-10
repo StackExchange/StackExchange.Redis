@@ -24,6 +24,19 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
 
 ## Pending work (no decision needed)
 
+- **PAUSED 2026-10-10: cache hit-path performance - waiting on Marc's RespFest re-run against 4.0.104.** Shipped
+  today: c5370268 (the multiplexer executor answered `Transactional`/`Accumulates` by routing - server selection
+  plus the endpoint lock - on every cached read and blocking send; the ~30% RespFest regression, and the lock made
+  throughput FALL past 6 threads), 04ef29d9 (cache entries own GC arrays: no refcount CAS per hit; 1 hot key at
+  24 threads 11.5 -> 140 M/s), 0023c9e6 (`CacheClock`: `TickCount64` for entry ages, `Stopwatch` kept for the
+  grace window). Single-thread hit 134 -> 114ns. **Next, once the league confirms:** the interpolated builder -
+  ~26ns over a 4ns hand-written floor, plus 10-15ns on every group method because one level deeper the JIT's
+  inline budget runs out and `RespRequestBuilder`'s key path (`CommitBulk`, `CountArguments`, `FoldSlot`) stays
+  as calls (6548bffe). Ideas: a small always-inlined fast path for command + one key; hot/cold split of the key
+  append. Tools: `CacheHitSendBenchmarks` (run with `--inProcess` - the `.claude/worktrees` copies break BDN's
+  out-of-process build), `-- cache-scaling 3 127.0.0.1:6379` (real multiplexer rows), `DOTNET_JitDisasm`.
+  Fallback if fill-time copies hurt the churn league: global striped-epoch reclamation instead of GC arrays.
+
 - **CI: `GetServerTestsCluster.GetServerByKeyMemoization` (RESP3) fails on Windows net481** - 2 of the first 3
   `v4` runs, each after a cluster connect that waited the full 20s at the very start of the net481 run (three
   cluster connects stalled together). Suspected lost wake-up, fixed speculatively in d45eadf7 (announce
