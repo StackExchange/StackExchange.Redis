@@ -101,15 +101,25 @@ namespace StackExchange.Redis.Caching
             internal bool IsDead => Volatile.Read(ref _holds) == 0;
         }
 
-        /// <summary>Copy a reply into the current slab, or an array of its own if it is large.</summary>
+        /// <summary>Copy a request and its reply into the current slab, side by side - or arrays of their own if large.</summary>
+        /// <param name="request">The request, which becomes the cache key.</param>
+        /// <param name="database">The database it ran against.</param>
         /// <param name="reply">The reply to keep; the caller holds it for the duration.</param>
-        /// <param name="key">The key it will be stored under, so that evicting the slab can find it again.</param>
-        /// <param name="slab">The slab it went into, or <see langword="null"/> for an array of its own.</param>
-        private RespPayload StoreReply(ReadOnlySpan<byte> reply, in EntryKey key, out Slab? slab)
+        /// <param name="key">The key to store the entry under, over the copied request.</param>
+        /// <param name="slab">The slab they went into, or <see langword="null"/> for arrays of their own.</param>
+        /// <remarks>
+        /// The key goes in the slab too, and not only to save an object: for a small reply - a count, a flag - the key is
+        /// the bigger of the two, and this puts them in one place, where a lookup that finds the key is already beside
+        /// the reply it wants.
+        /// </remarks>
+        private RespPayload StoreReply(in RespRequest request, int database, ReadOnlySpan<byte> reply, out EntryKey key, out Slab? slab)
         {
-            if (_slabSize == 0 || reply.Length > MaxSlabbedReply)
+            var keyLength = request.Span.Length;
+            var total = keyLength + reply.Length;
+            if (_slabSize == 0 || total > MaxSlabbedReply)
             {
                 slab = null;
+                key = new EntryKey(request.CopyForCacheKey(), database);
                 return RespPayload.CreateOwned(reply);
             }
 
@@ -117,7 +127,7 @@ namespace StackExchange.Redis.Caching
             int offset;
             lock (_slabSync)
             {
-                if (_currentSlab is null || _slabSize - _slabOffset < reply.Length)
+                if (_currentSlab is null || _slabSize - _slabOffset < total)
                 {
                     if (_currentSlab is { } full)
                     {
@@ -132,15 +142,19 @@ namespace StackExchange.Redis.Caching
 
                 slab = _currentSlab;
                 offset = _slabOffset;
-                _slabOffset += reply.Length;
+                _slabOffset += total;
                 slab.Hold();
+
+                // the key is copied under the lock - a few dozen bytes - because the slab's list of keys, which
+                // evicting it walks, is appended to here and needs the finished key
+                key = new EntryKey(request.CopyForCacheKey(slab.Buffer, offset), database);
                 slab.Keys.Add(key);
             }
 
             // outside the lock: the range is ours alone, and nobody can see it until the entry is published
-            reply.CopyTo(slab.Buffer.AsSpan(offset));
+            reply.CopyTo(slab.Buffer.AsSpan(offset + keyLength));
             if (sealedNow is not null) ReleaseSlab(sealedNow); // the allocator's hold on the slab it just sealed
-            return new RespPayload(slab.Lease, offset, reply.Length);
+            return new RespPayload(slab.Lease, offset + keyLength, reply.Length);
         }
 
         /// <summary>Drop one hold on a slab, crediting the budget when it was the last.</summary>

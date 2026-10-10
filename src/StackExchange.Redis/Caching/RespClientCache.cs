@@ -856,18 +856,14 @@ namespace StackExchange.Redis.Caching
                 return false;
             }
 
-            // COPIED rather than retained: a stored key is compared by whichever thread happens to be
-            // looking something up, long after this one has moved on, so it must not share a pooled
-            // buffer with anybody. See RespRequest.CopyForCacheKey.
-            var stored = fill.Key.CopyForCacheKey();
-
-            var entryKey = new EntryKey(stored, fill.Database);
-
-            // COPIED too, into memory the GC owns rather than a pool: every hit would otherwise take and drop a
-            // reference on it, and on a hot key that one shared count was the ceiling for the whole cache. Into a
-            // slab, so that the copies are not each a mid-life object - see RespClientCache.Slabs. The caller still
-            // holds its reference to the reply while we copy.
-            var owned = StoreReply(response.Span, in entryKey, out var slab);
+            // Both the request (the cache key) and the reply are COPIED, into memory the GC owns and nobody reuses:
+            // the key is compared by whichever thread happens to be looking something up, long after this one has
+            // moved on, and the reply is read by every hit - a pooled buffer would need a reference taken and dropped
+            // around each, and on a hot key that one shared count was the ceiling for the whole cache. Into a slab,
+            // side by side, so that neither is a mid-life object of its own - see RespClientCache.Slabs. The caller
+            // still holds its reference to the reply while we copy.
+            var owned = StoreReply(fill.Key, fill.Database, response.Span, out var entryKey, out var slab);
+            var stored = entryKey.Frame;
 
             // A refresh REPLACES the entry it was started for. Swap the value in place rather than
             // remove-then-add: the dictionary keeps the key object it already has, so its retained request
@@ -1144,7 +1140,7 @@ namespace StackExchange.Redis.Caching
         /// <returns>Whether this call was the one that removed it.</returns>
         /// <remarks>
         /// Safe to probe with despite being a copy taken from a moving enumeration, because a cache key
-        /// owns its bytes outright - see <see cref="RespRequest.CopyForCacheKey"/>. While keys shared the
+        /// owns its bytes outright - see <see cref="RespRequest.CopyForCacheKey()"/>. While keys shared the
         /// rendered frame's pooled buffer this was a use-after-free: a benchmark's sad path found it as an
         /// ObjectDisposedException from the evictor, and the same race on the read path resolved as a
         /// lookup comparing against bytes that were back in the pool.
@@ -1410,7 +1406,8 @@ namespace StackExchange.Redis.Caching
             /// entry goes, and the budget has to be credited by exactly what it was debited, whichever side
             /// of that release the accounting happens on.
             /// </remarks>
-            internal int Bytes { get; } = (slab is null ? payload.RetainedBytes : 0) + EntryOverheadBytes + key.Span.Length;
+            // a slabbed entry's key and reply are both in the slab, which is charged as a whole
+            internal int Bytes { get; } = slab is null ? payload.RetainedBytes + EntryOverheadBytes + key.Span.Length : EntryOverheadBytes;
 
             /// <summary>When this entry was filled, for expiry. See <see cref="CachePolicy.TimeToLive"/>.</summary>
             internal long FilledAt { get; } = CacheClock.Now;

@@ -203,6 +203,19 @@ namespace StackExchange.Redis.Protocol
         }
 
         /// <summary>
+        /// As <see cref="CopyForCacheKey()"/>, but into storage the caller provides - a client-side cache slab, which
+        /// is GC-owned and never reused, so the same reasoning holds - rather than an array of its own.
+        /// </summary>
+        /// <param name="into">The array to copy into.</param>
+        /// <param name="offset">Where in it; there must be room for the whole request.</param>
+        internal RespRequest CopyForCacheKey(byte[] into, int offset)
+        {
+            var span = Span;
+            span.CopyTo(into.AsSpan(offset));
+            return new RespRequest(into, lease: null, offset, span.Length, _keyMarks, Slot, ArgCount, Flags, Command, Database);
+        }
+
+        /// <summary>
         /// Take another reference and return a key that owns it, for handing to a cache that will outlive
         /// the caller's own <c>using</c>.
         /// </summary>

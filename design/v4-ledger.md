@@ -34,8 +34,8 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   `dotnet-trace` + the alloc-by-type summariser recipe in memory. **To explore, roughly in order:**
   - [x] Charge a per-entry overhead to `MaxBytes` (256 bytes + the request's length): before, a million tiny
     replies (counts) reported ~5 MB while holding ~350 MB of entry objects.
-  - [ ] Cache key bytes into the slab beside the reply (drops the key-copy object; tiny replies end up inline with
-    their key).
+  - [x] Cache key bytes into the slab beside the reply: hits ~+10% at 100k keys / 24 threads (locality: the
+    key a lookup finds sits beside its reply); misses neutral - one object fewer is lost in the remaining GC cost.
   - [ ] Fold the single-dependency case into `Entry` (drops `Dependency[]` for most entries).
   - [ ] A skewed mixed (Zipf) workload, in the harness and proposed for RespFest, to decide whether
     `OnRepeatedMiss` becomes the default: one extra miss per hot key vs one-off reads no longer evicting it.
