@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Caching
     /// they are ever dropped from table 2.
     /// </para>
     /// </remarks>
-    internal sealed class RespClientCache : IDisposable
+    internal sealed partial class RespClientCache : IDisposable
     {
         private readonly ConcurrentDictionary<EntryKey, Entry> _entries = new();
 
@@ -88,6 +88,7 @@ namespace StackExchange.Redis.Caching
             Options = options ?? CacheOptions.Default;
             Options.Validate(); // settings that constrain one another; see CacheOptions.Validate
             _keys = new RespKeyTable(keyCapacity);
+            _slabSize = ChooseSlabSize(Options.MaxBytes);
         }
 
         /// <summary>How this cache is built: the settled-once decisions.</summary>
@@ -200,10 +201,10 @@ namespace StackExchange.Redis.Caching
         /// The memory currently held by cached replies.
         /// </summary>
         /// <remarks>
-        /// What the entries actually hold, not what they carry: replies live in pooled arrays that round up
-        /// to the pool's bucket sizes. See <see cref="CacheOptions.MaxBytes"/>.
+        /// What the entries actually hold, not what they carry: whole slabs, however few of their replies are still
+        /// live, plus any reply too large for a slab. See <see cref="CacheOptions.MaxBytes"/>.
         /// </remarks>
-        public long Bytes => Volatile.Read(ref _bytes);
+        public long Bytes => Volatile.Read(ref _bytes) + Volatile.Read(ref _slabBytes);
 
         /// <summary>Fills refused because the reply was larger than <see cref="CacheOptions.MaxPayloadBytes"/>.</summary>
         /// <remarks>
@@ -826,19 +827,20 @@ namespace StackExchange.Redis.Caching
             // buffer with anybody. See RespRequest.CopyForCacheKey.
             var stored = fill.Key.CopyForCacheKey();
 
-            // COPIED too, into an array the GC owns rather than a pooled one: every hit would otherwise take and
-            // drop a reference on it, and on a hot key that one shared count was the ceiling for the whole cache.
-            // See RespPayload.CreateOwned. The caller still holds its reference to the reply while we copy.
-            var owned = RespPayload.CreateOwned(response.Span);
-
             var entryKey = new EntryKey(stored, fill.Database);
+
+            // COPIED too, into memory the GC owns rather than a pool: every hit would otherwise take and drop a
+            // reference on it, and on a hot key that one shared count was the ceiling for the whole cache. Into a
+            // slab, so that the copies are not each a mid-life object - see RespClientCache.Slabs. The caller still
+            // holds its reference to the reply while we copy.
+            var owned = StoreReply(response.Span, in entryKey, out var slab);
 
             // A refresh REPLACES the entry it was started for. Swap the value in place rather than
             // remove-then-add: the dictionary keeps the key object it already has, so its retained request
             // stays owned by the dictionary. TryRemove hands back the value but NOT the stored key, so
             // removing would strand that key's reference - and disposing our own copy instead would release
             // the wrong one.
-            var entry = new Entry(owned, fill.Dependencies, stored);
+            var entry = new Entry(owned, fill.Dependencies, stored, slab);
 
             // A DEAD resident entry is replaced too, not only a refresh. Invalidation does no work beyond
             // stamping a generation, so an invalidated entry stays in the dictionary until Sweep reclaims
@@ -854,6 +856,7 @@ namespace StackExchange.Redis.Caching
             {
                 Interlocked.Add(ref _bytes, entry.Bytes - previous.Bytes);
                 previous.Payload.Dispose(); // the superseded reply
+                if (previous.Slab is { } superseded) ReleaseSlab(superseded);
                 fill.Key.Dispose();
                 Interlocked.Increment(ref _stored);
                 EvictToBudget();
@@ -874,6 +877,7 @@ namespace StackExchange.Redis.Caching
             // somebody else filled the same request first; theirs is as good as ours
             Interlocked.Increment(ref _redundantFills);
             fill.Key.Dispose(); // our copy simply goes to the GC; the reply itself was never ours to release
+            if (slab is not null) ReleaseSlab(slab); // the space stays used until the slab goes; it is not reused
             return false;
         }
 
@@ -959,6 +963,7 @@ namespace StackExchange.Redis.Caching
             Interlocked.Decrement(ref _count);
             Interlocked.Add(ref _bytes, -entry.Bytes);
             entry.Payload.Dispose();
+            if (entry.Slab is { } slab) ReleaseSlab(slab);
             entry.Key.Dispose(); // the reference the dictionary held, not whichever copy found it
         }
 
@@ -995,6 +1000,10 @@ namespace StackExchange.Redis.Caching
             if (!Options.HasBudget) return 0;
 
             var evicted = 0;
+
+            // bytes first, and by slab: evicting single entries frees no memory until their whole slab is empty
+            if (Options.MaxBytes is long maxBytes && Bytes > maxBytes) EvictSlabsToBudget(maxBytes, ref evicted);
+
             for (var attempts = Count; attempts > 0 && IsOverBudget(); attempts--)
             {
                 if (!TryEvictOne()) break;
@@ -1005,8 +1014,14 @@ namespace StackExchange.Redis.Caching
             return evicted;
         }
 
+        /// <summary>Over budget in a way that evicting single entries can fix.</summary>
+        /// <remarks>
+        /// For bytes, only while replies too large for a slab are part of the excess: slab bytes come back a whole
+        /// slab at a time (see <see cref="TryEvictOldestSlab"/>), so evicting entries one by one for them would empty
+        /// the cache without freeing anything until a slab happened to clear.
+        /// </remarks>
         private bool IsOverBudget()
-            => (Options.MaxBytes is long maxBytes && Volatile.Read(ref _bytes) > maxBytes)
+            => (Options.MaxBytes is long maxBytes && Bytes > maxBytes && Volatile.Read(ref _bytes) > 0)
                || (Options.MaxEntries is int maxEntries && Count > maxEntries);
 
         /// <summary>Evict one entry, preferring a dead one and otherwise the longest-resident.</summary>
@@ -1111,6 +1126,7 @@ namespace StackExchange.Redis.Caching
                 Release(entry);
             }
 
+            ReleaseCurrentSlab();
             _keys.InvalidateAll();
         }
 
@@ -1296,8 +1312,11 @@ namespace StackExchange.Redis.Caching
             internal void Publish() => _completion.TrySetResult(true);
         }
 
-        private sealed class Entry(RespPayload payload, Dependency[] dependencies, RespRequest key)
+        private sealed class Entry(RespPayload payload, Dependency[] dependencies, RespRequest key, Slab? slab = null)
         {
+            /// <summary>The slab the reply lives in, or <see langword="null"/> when it has an array of its own.</summary>
+            internal Slab? Slab { get; } = slab;
+
             private int _refreshing;
 
             internal RespPayload Payload { get; } = payload;
@@ -1322,7 +1341,7 @@ namespace StackExchange.Redis.Caching
             /// entry goes, and the budget has to be credited by exactly what it was debited, whichever side
             /// of that release the accounting happens on.
             /// </remarks>
-            internal int Bytes { get; } = payload.RetainedBytes;
+            internal int Bytes { get; } = slab is null ? payload.RetainedBytes : 0; // a slab is charged as a whole
 
             /// <summary>When this entry was filled, for expiry. See <see cref="CachePolicy.TimeToLive"/>.</summary>
             internal long FilledAt { get; } = CacheClock.Now;
