@@ -51,6 +51,12 @@ internal static class CacheHitScaling
     /// <param name="args"><c>cache-scaling [seconds] [host:port]</c>; with an endpoint, the real-multiplexer rows run too.</param>
     public static void Run(string[] args)
     {
+        if (args.Length > 1 && args[1] == "miss")
+        {
+            RunMisses(args);
+            return;
+        }
+
         var seconds = args.Length > 1 && int.TryParse(args[1], out var s) ? s : 3;
         var server = args.Length > 2 ? args[2] : null;
         Console.WriteLine($"cache-hit scaling; {Environment.ProcessorCount} logical processors, {seconds}s per row after 1s warm-up");
@@ -114,6 +120,76 @@ internal static class CacheHitScaling
                 if (++index == keys.Length) index = 0;
             }
         };
+    }
+
+    /// <summary>
+    /// RespFest's <c>cache-miss-conc64</c>, as near as a loop gets: GET 1 KiB over a keyspace 20x a 32 MiB cache, so
+    /// every read misses, fills and evicts. Reports throughput with the GC's view of it - collections per generation
+    /// and bytes allocated per op - because what a fill keeps, and for how long, is the question.
+    /// </summary>
+    /// <remarks><c>cache-scaling miss [seconds] [host:port]</c>.</remarks>
+    private static void RunMisses(string[] args)
+    {
+        var seconds = args.Length > 2 && int.TryParse(args[2], out var s) ? s : 5;
+        var server = args.Length > 3 ? args[3] : "127.0.0.1:6379";
+        const int KeyCount = 200_000;
+
+        var config = ConfigurationOptions.Parse(server);
+        config.Protocol = RedisProtocol.Resp3;
+        config.ClientCache = new CacheOptions
+        {
+            MaxBytes = 32L * 1024 * 1024,
+            DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) },
+        };
+        using var muxer = ConnectionMultiplexer.Connect(config);
+        var context = muxer.GetDatabaseContext();
+        var keys = Enumerable.Range(0, KeyCount).Select(i => (RedisKey)$"cache-scaling-miss:{i:D8}").ToArray();
+        var value = (RedisValue)new byte[1024];
+        foreach (var key in keys) Wait(context.Strings.SetAsync(key, value));
+
+        Console.WriteLine($"cache-miss: GET 1 KiB, {KeyCount:N0} keys, 32 MiB cache; async callers, {seconds}s per row after 2s warm-up");
+        Console.WriteLine($"{"callers",8} {"total k/s",10} {"cpu us/op",10} {"gen0",6} {"gen1",6} {"gen2",6} {"alloc B/op",11}");
+        foreach (var callers in new[] { 1, 64 })
+        {
+            // RespFest's shape: N async callers, each awaiting its own GET in a loop; every op counted, not batches
+            long ops = 0;
+            var measuring = 0;
+            var stop = 0;
+            async Task Caller(int caller)
+            {
+                var index = (caller * 7919) % KeyCount;
+                while (Volatile.Read(ref stop) == 0)
+                {
+                    _ = await context.Strings.GetAsync(keys[index]).ConfigureAwait(false);
+                    index = (index + 7919) % KeyCount;
+                    if (Volatile.Read(ref measuring) == 1) Interlocked.Increment(ref ops);
+                }
+            }
+
+            var running = Enumerable.Range(0, callers).Select(c => Task.Run(() => Caller(c))).ToArray();
+            Thread.Sleep(2000);
+
+            var g0 = GC.CollectionCount(0);
+            var g1 = GC.CollectionCount(1);
+            var g2 = GC.CollectionCount(2);
+            var allocated = GC.GetTotalAllocatedBytes(precise: false);
+            var cpu = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            Volatile.Write(ref measuring, 1);
+            Thread.Sleep(seconds * 1000);
+            Volatile.Write(ref measuring, 0);
+            var elapsed = watch.Elapsed;
+            var cpuUsed = System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime - cpu;
+            var allocatedNow = GC.GetTotalAllocatedBytes(precise: false);
+            var (d0, d1, d2) = (GC.CollectionCount(0) - g0, GC.CollectionCount(1) - g1, GC.CollectionCount(2) - g2);
+            Volatile.Write(ref stop, 1);
+            Task.WaitAll(running);
+
+            var done = (double)Math.Max(1, Volatile.Read(ref ops));
+            Console.WriteLine($"{callers,8} {done / elapsed.TotalSeconds / 1e3,10:N1} {cpuUsed.TotalMilliseconds * 1000 / done,10:N2} {d0,6} {d1,6} {d2,6} {(allocatedNow - allocated) / done,11:N0}");
+        }
+
+        Console.WriteLine($"cache: {muxer.ClientCache?.Count:N0} entries, {muxer.ClientCache?.Bytes:N0} bytes, {muxer.ClientCache?.Stored:N0} stored");
     }
 
     private static ConnectionMultiplexer Multiplexer(string server)
