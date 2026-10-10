@@ -53,6 +53,7 @@ namespace StackExchange.Redis.Caching
         private long _refusedByFlags;
         private long _refusedNoKeys;
         private long _refusedNotTracked;
+
         private long _refusedTooLarge;
         private long _evicted;
         private long _evictionCandidates;
@@ -865,7 +866,9 @@ namespace StackExchange.Redis.Caching
 
             if (_entries.TryAdd(entryKey, entry))
             {
-                _evictionOrder.Enqueue(entryKey);
+                // only when entry-at-a-time eviction will read it: a slab is evicted whole, and the queue is otherwise
+                // drained only for MaxEntries - so enqueueing every slabbed entry grew it without bound
+                if (slab is null || Options.MaxEntries is not null) _evictionOrder.Enqueue(entryKey);
                 Interlocked.Increment(ref _count);
                 Interlocked.Add(ref _bytes, entry.Bytes);
                 fill.Key.Dispose(); // the dictionary holds its own references now
@@ -1302,14 +1305,43 @@ namespace StackExchange.Redis.Caching
         /// </remarks>
         private sealed class InFlight(Dependency[] dependencies)
         {
-            private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            // Created only when somebody actually waits. Every miss registers one of these so that a second caller
+            // can share the first one's round trip, but on a miss-heavy workload a second caller almost never comes:
+            // allocated eagerly, the completion source and its task were a large share of what a miss allocated.
+            private TaskCompletionSource<bool>? _completion;
+            private int _published;
 
             internal Dependency[] Dependencies { get; } = dependencies;
 
-            internal Task Completion => _completion.Task;
+            /// <summary>What a second caller waits on; completed already if the fill has been published.</summary>
+            /// <remarks>
+            /// Dekker-shaped, with full fences on both sides: the publisher sets <c>_published</c> and THEN looks for a
+            /// completion source; a waiter installs one and THEN looks at <c>_published</c>. Whichever goes second sees
+            /// the other's write, so a waiter arriving as the fill lands is completed by one side or the other - never
+            /// by neither.
+            /// </remarks>
+            internal Task Completion
+            {
+                get
+                {
+                    if (Volatile.Read(ref _published) != 0) return Task.CompletedTask;
+                    var completion = Volatile.Read(ref _completion);
+                    if (completion is null)
+                    {
+                        var created = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                        completion = Interlocked.CompareExchange(ref _completion, created, null) ?? created;
+                    }
 
-            /// <summary>Release the waiters; they re-probe the cache for themselves.</summary>
-            internal void Publish() => _completion.TrySetResult(true);
+                    if (Volatile.Read(ref _published) != 0) completion.TrySetResult(true);
+                    return completion.Task;
+                }
+            }
+
+            internal void Publish()
+            {
+                Interlocked.Exchange(ref _published, 1);
+                Volatile.Read(ref _completion)?.TrySetResult(true);
+            }
         }
 
         private sealed class Entry(RespPayload payload, Dependency[] dependencies, RespRequest key, Slab? slab = null)

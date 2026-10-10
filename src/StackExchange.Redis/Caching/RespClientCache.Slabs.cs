@@ -72,6 +72,9 @@ namespace StackExchange.Redis.Caching
         {
             internal Slab(int size)
             {
+                // sized for ~1 KiB replies, so the list is not regrown and recopied ~10 times per slab; smaller replies
+                // still grow it, but from a sensible start
+                Keys = new List<EntryKey>(Math.Max(16, size / 1024));
 #if NET
                 Buffer = GC.AllocateUninitializedArray<byte>(size);
 #else
@@ -85,7 +88,7 @@ namespace StackExchange.Redis.Caching
             internal RefCountedBuffer Lease { get; }
 
             /// <summary>Every key stored here, in order; appended under the allocation lock, read once sealed.</summary>
-            internal List<EntryKey> Keys { get; } = [];
+            internal List<EntryKey> Keys { get; }
 
             // one per entry stored here, plus one for the allocator while this is the current slab
             private int _holds = 1;
