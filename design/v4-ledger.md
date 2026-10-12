@@ -24,7 +24,7 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
 
 ## Pending work (no decision needed)
 
-- **Cache performance (2026-10-10) - shipped, and the list of ideas still to explore.** Shipped: c5370268
+- **Cache performance (2026-10-10) - shipped, and the list of ideas still to explore.** The design as built, with its reasons and rejections: `design/client-side-cache.md`. Shipped: c5370268
   (routing to answer a constant on every cached read: the ~30% RespFest regression), 04ef29d9 + 1bd841e6 (replies
   in GC-owned slabs: no refcount CAS per hit, no mid-life reply arrays; 1 hot key at 24 threads 11.5 -> 149 M/s),
   0023c9e6 (`CacheClock`), a5af2dec (eviction-queue leak; lazy in-flight completion), a7325526

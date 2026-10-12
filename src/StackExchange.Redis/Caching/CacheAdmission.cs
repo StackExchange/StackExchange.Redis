@@ -46,7 +46,8 @@
         /// </summary>
         /// <remarks>
         /// "Recently" is a window of misses, not of time: the record of first misses is a small fixed-size filter,
-        /// cleared once it has seen a few times as many requests as the cache can hold. It can be wrong in one
+        /// cleared once it has been asked about roughly as many misses as the cache can hold entries (one to two
+        /// times, as estimated from its budget). It can be wrong in one
         /// direction only - occasionally admitting a request on its first miss - which costs no more than
         /// <see cref="OnFirstMiss"/> would have.
         /// </remarks>

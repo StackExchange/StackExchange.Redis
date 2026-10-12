@@ -1012,6 +1012,9 @@ match a value. Safe, but it degrades the cache in a way that is hard to observe.
 
 ## 6. The frame as cache key
 
+> **The cache as built is described in [`client-side-cache.md`](client-side-cache.md)**, which supersedes this
+> chapter where they disagree. This chapter remains the detailed record of the original decisions.
+
 Because the rendered bytes are the client-side cache key, **canonicality is a correctness property**,
 not tidiness: two logically identical commands must render byte-identical or you get duplicate entries
 and phantom misses. `CommandMap` already uppercases command names (`AsciiHash.ToUpper`,
@@ -2253,7 +2256,7 @@ Two things still to settle:
 
   **Proposed default: 60 seconds**, and it is a safety bound rather than a tuning knob. What it protects
   against is a missed invalidation - a connection blip we did not notice, or a bug. Flushing on disconnect
-  (still unwired) plus keepalive detects a real disconnect within seconds to tens of seconds, so a minute
+  (since wired) plus keepalive detects a real disconnect within seconds to tens of seconds, so a minute
   is comfortably longer than detection while still bounding the damage when detection itself fails.
 
   **A second tier is worth considering**: the right default depends on whether invalidation is actually
@@ -2262,8 +2265,8 @@ Two things still to settle:
   bound or refusing to cache at all. Either way the client should be loud about which regime it is in,
   rather than the difference being invisible.
 
-**Still unwired, and both come straight from the same documentation:** losing the connection must flush the
-cache (`OnFlush()` exists; nothing calls it on disconnect), and there is no TTL of any kind today.
+**Both since wired** (they come straight from the same documentation): losing the connection flushes the cache
+(`ConnectionMultiplexer.OnConnectionFailed`), and `CachePolicy.TimeToLive` is a one-minute default.
 
 
 ### 6.15 Stampedes: single-flight, and stale-while-revalidate

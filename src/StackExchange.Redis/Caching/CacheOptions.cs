@@ -166,14 +166,19 @@ namespace StackExchange.Redis.Caching
         /// <para>
         /// <b>Sampled, not exact, and deliberately so.</b> True LRU needs the moment of last use, which
         /// means a write on every <i>read</i> - and a read is the one path in this cache that is currently
-        /// free: a dictionary lookup and a reference-count bump, nothing else. Paying for eviction on every
+        /// free: a dictionary lookup and a generation compare, writing nothing shared. Paying for eviction on every
         /// hit to make eviction slightly better is the wrong trade, and Redis reached the same conclusion
         /// about its own keyspace, approximating LRU by sampling rather than maintaining it.
         /// </para>
         /// <para>
-        /// So eviction samples this many entries and takes the oldest of them, by fill time. A larger
-        /// sample is a closer approximation at proportionally more work, and the work happens on eviction -
-        /// which is already the expensive path - rather than on every hit.
+        /// So eviction walks a queue of keys in the order they were stored, taking a dead entry on sight and
+        /// otherwise the first live one within a window of this many; the live ones it examined and spared go to
+        /// the back (second chance). A larger window spares more at proportionally more work, and the work happens
+        /// on eviction - which is already the expensive path - rather than on every hit.
+        /// </para>
+        /// <para>
+        /// This governs evicting one entry at a time: replies too large for a slab, and <see cref="MaxEntries"/>.
+        /// The byte budget is met by evicting whole slabs, oldest first, which needs no sample.
         /// </para>
         /// </remarks>
         public int EvictionSampleSize
