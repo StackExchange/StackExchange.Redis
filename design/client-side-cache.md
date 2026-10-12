@@ -280,6 +280,9 @@ the precise clock: it can be tens of milliseconds, and is read only for an inval
   sending at the same moment - except for read-your-own-writes, so attaching is refused if any dependency moved since
   the leader sent. Remove-before-publish ordering, so a woken waiter cannot re-attach to a finished registration. The
   completion source is created only when someone actually waits (it was a large share of a miss's allocation).
+  **Asynchronous callers only:** a synchronous send does not wait on another caller's in flight - that would be
+  sync-over-async - so it sends its own copy, as before single-flight. A deliberate gap, closed if the executor
+  gains a synchronous wait.
 - **One refresh per entry:** the claim is a flag on the shared entry, taken atomically with the lookup, released on
   every outcome (a failed refresh that kept it would pin the entry stale until hard expiry, silently). A refresh is
   not registered in flight: a concurrent miss has nothing yet, and should fetch rather than queue behind a nicety.
