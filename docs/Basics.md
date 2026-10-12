@@ -150,6 +150,14 @@ RedisValue value = await db.Strings.GetAsync("mykey");
 Console.WriteLine(value); // writes: "abcdefg"
 ```
 
+Every command on the groups also takes an optional `CancellationToken` as its last parameter - the request's own token in a web app, say, or a `CancellationTokenSource` with a delay for a per-call timeout:
+
+```csharp
+RedisValue value = await db.Strings.GetAsync("mykey", cancellationToken: HttpContext.RequestAborted);
+```
+
+Cancelling stops the *wait*: a command not yet written is never sent, but one already written still runs on the server, and its reply is discarded - so treat a cancelled write as you would a timeout, with its outcome unknown. See [Async timeouts and cancellation](AsyncTimeouts) for the details and the common patterns.
+
 The fire-and-forget usage is accessed by the optional `CommandFlags flags` parameter on all methods (defaults to none). In this usage, the method returns the default value immediately (so a method that normally returns a `String` will always return `null`, and a method that normally returns an `Int64` will always return `0`). The operation will continue in the background. A typical use-case of this might be to increment page-view counts:
 
 ```csharp
