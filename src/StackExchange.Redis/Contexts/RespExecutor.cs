@@ -1069,7 +1069,7 @@ namespace StackExchange.Redis
         /// <see cref="CommandFlags.CommandRetryReadOnly"/>; see
         /// <see cref="RespClientCache.TryBeginFill(ref RespRequestFrame, int, CommandFlags, out RespClientCache.RespFill)"/>.
         /// </param>
-        /// <param name="handler">Turns the reply into a result.</param>
+        /// <param name="handler">Turns the reply into a result; omit it to use the built-in handler for <typeparamref name="TResult"/>.</param>
         /// <remarks>
         /// <para>
         /// <paramref name="flags"/> is deliberately <b>not</b> optional. Every <c>IDatabase</c> method in
@@ -1087,10 +1087,12 @@ namespace StackExchange.Redis
             this RespContext context,
             ref RespRequestFrame request,
             CommandFlags flags,
-            IRespHandler<TResult> handler,
-            CancellationToken cancellationToken)
+            IRespHandler<TResult>? handler = null,
+            CancellationToken cancellationToken = default)
         {
-            if (handler is null) throw new ArgumentNullException(nameof(handler));
+            // defaults as the asynchronous twin and the interpolated overload do: omitted, it is the inbuilt
+            // handler for TResult
+            handler ??= RespHandlers.Inbuilt<TResult>.Require();
             DemandCancellable(context, cancellationToken);
 
             // THE one place a command's retry category is applied. The frame already carries the
@@ -1423,7 +1425,7 @@ namespace StackExchange.Redis
         {
             DemandCancellable(context, ref request, cancellationToken);
             var frame = request.Complete();
-            return Send(context, ref frame, flags, handler ?? RespHandlers.Inbuilt<TResult>.Require(), cancellationToken);
+            return Send(context, ref frame, flags, handler, cancellationToken);
         }
 
         /// <summary>A send through a blocking context: complete before returning; see <see cref="RespContext.Blocking"/>.</summary>

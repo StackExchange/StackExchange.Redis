@@ -76,6 +76,23 @@ public class RespAdHocExecuteTests
         Assert.Equal("*4|$3|DEL|$1|a|$1|b|$1|c|", Assert.Single(executor.Sent)); // *N back-filled
     }
 
+    /// <summary>
+    /// A pre-built frame sent synchronously with no handler gets the inbuilt one for its result type, as its
+    /// asynchronous twin does - found porting NRedisStack, whose command factories hand back frames.
+    /// </summary>
+    [Fact]
+    public async Task APrebuiltFrameDefaultsItsHandlerSyncAndAsync()
+    {
+        var executor = new FakeExecutor(":3\r\n");
+        var ctx = (RespContext)Context(executor);
+
+        var frame = ctx.Compose($"{Del} {(RedisKey)"a"}").Complete();
+        Assert.Equal(3, ctx.Send<long>(ref frame, CommandFlags.None));
+
+        frame = ctx.Compose($"{Del} {(RedisKey)"a"}").Complete();
+        Assert.Equal(3, await ctx.SendAsync<long>(ref frame, CommandFlags.None));
+    }
+
     [Fact]
     public async Task AnUnmodelledCommandRoundTrips()
     {
