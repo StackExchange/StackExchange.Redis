@@ -1,6 +1,6 @@
 ﻿# Where a command goes
 
-**Status: describes what is built, as of 2026-10-07.** Unlike `message-core-replacement.md`, which is a
+**Status: describes what is built, as of 2026-10-12.** Unlike `message-core-replacement.md`, which is a
 plan, this is a map of the code as it stands - so where the two disagree, this one is the one that is
 wrong, and should be fixed.
 
@@ -41,7 +41,7 @@ RespExecutorBase               a COMPOSITION, not a fixed chain:
   RespMultiplexerExecutor        routes - slot, role, selectability
   RespDatabaseExecutor           names a database over a shared connection
   RespEndpointExecutor           owns one endpoint's connection: backlog, write slot, reconnect
-  (RespTransactionExecutor, RespOperationBatchExecutor, RespGroupExecutor, RespBatchExecutor,
+  (RespTransactionExecutor, RespOperationBatchExecutor, RespGroupExecutor, RespRetryExecutor,
    RespConnectionExecutor wrap or replace parts of this)
         |
         v
@@ -77,9 +77,14 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
    invalidation as they go. `Complete()` yields a `RespRequestFrame` - the bytes, plus the slot and the
    command.
 
-3. **Cache.** `RespExecutor.SendAsync` probes the context's `RespClientCache` if there is one: a hit
-   returns without sending; an in-flight identical request is awaited rather than duplicated; otherwise
-   a fill is opened so the reply populates the cache on the way back.
+3. **Category, then cache.** `RespExecutor.SendAsync` first applies the command's retry category from the
+   frame (`WithDefaultCategory`) - the one place it happens, and before the cache reads the flags. A write
+   then stamps its keys in the cache *before* it is sent (read-your-own-writes). A read probes the
+   context's `RespClientCache` if there is one, unless the executor is transactional or the flags forbid
+   it (`NoClientCache` suppresses the probe as well as the store). A hit returns without routing or
+   sending; an identical request already in flight is awaited rather than duplicated (asynchronous callers
+   only); otherwise a fill is opened - if admission lets it (by default only on a repeated miss) - so the
+   reply populates the cache on the way back. See `client-side-cache.md`.
 
 4. **Borrow or detach.** An executor that copies the bytes during the call (`CopiesRequestOnSend` - the
    endpoint executor, and the database view over it) is handed a *borrowed* view of the frame
@@ -161,14 +166,21 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
   order; the map is updated for `MOVED` and not for `ASK`.
 - **Backlog.** Commands wait here when there is no connection. They survive a failed connect (subject to
   `BacklogPolicy`), are swept against their timeout, and drain in arrival order.
-- **Pub/sub.** A subscription connection is a second `RespEndpointExecutor` per endpoint, needed because
-  RESP2 delivers messages as ordinary arrays.
+- **Pub/sub.** A subscription connection is a second `RespEndpointExecutor` per endpoint. Under RESP2 it
+  has to be, because messages arrive as ordinary arrays; under RESP3 it is by default too (#3264), because
+  the server applies its pub/sub output-buffer limit to any connection with a live subscription, and an
+  ordinary large reply could get a shared connection closed. `SharedSubscriptionConnection` opts back into
+  sharing under RESP3.
 - **A connection the server closes.** The transport's end-of-stream closes the `RespConnection`, which
   faults what it had pending (`RedisConnectionException`, `SocketClosed`) and raises `Closed`. The
   endpoint executor subscribes before publishing the connection - holding itself weakly, so the delegate
   never keeps a multiplexer alive - and its `OnConnectionClosed` drops the connection and starts the
   reconnect, raising `ConnectionFailed` and then `ConnectionRestored` as v3 did; Active-Active failover
-  listens to exactly those. The heartbeat also notices a closed connection that is still published, as a
+  listens to exactly those. Every physical connect, first or re-, also reports its outcome through
+  `ConfigurationOptions.ConnectionAttemptCompleted` (#3257) when somebody is listening - from
+  `RespConnectionManager`, which dials each endpoint's interactive and subscription connections
+  concurrently (which is why the sequence number and timestamp are taken together, #3270). A lost
+  connection also flushes the client-side cache, synchronously. The heartbeat also notices a closed connection that is still published, as a
   net under the notice.
 - **Timeouts.** Nothing arrives to tell you a reply is late, so this is the one thing that happens on a
   clock rather than in response to something. The multiplexer heartbeat calls
