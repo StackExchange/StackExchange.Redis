@@ -4,7 +4,7 @@ The current list of what is pending on `v4` and what is waiting on a decision. *
 item closes, delete it here and let the commit message hold the story. History and reasoning live in
 `v4-alpha-plan.md` (how the old core was retired) and `message-core-replacement.md` (why).
 
-Last updated: 2026-10-09.
+Last updated: 2026-10-12.
 
 ## Decisions waiting on Marc
 
@@ -12,11 +12,13 @@ Each has a default the work proceeds on until answered.
 
 | # | question | default meanwhile |
 |---|---|---|
-| D1 | **#3251's intent (split socket fill from parsing) on v4?** v4 still parses inline on the read loop, async and sync. The throwaway port (`marc/v4-filler-experiment`) measured +39% `get-1k-conc64`, and with a 200-spin park + 64 KiB buffers led every concurrent scenario; cost ~5% on `incr-conc64` and 3-5% sequential. Options: port before the alpha / port as opt-in / after the alpha. | not ported |
-| D2 | **Linux: the `DOTNET_SYSTEM_NET_SOCKETS_INLINE_COMPLETIONS` question.** Once a socket has done any async op (connect, TLS), the runtime routes readiness through the thread pool - even for a DedicatedThreads reader. The env var removes it (measured: 500 sync calls, 0 pool items), but it is process-wide and read at runtime start, so the library cannot set it for the caller. Options: (a) document only; (b) connect + TLS synchronously for dedicated connections, so the socket never goes async; (c) both. v3 behaved the same. | **(b), 2026-10-09, approved and pushed (dbb38f88)**: dedicated connections connect and run TLS synchronously (`RespTransportFactory.RunBlocking`), so the socket never registers; the env var is no longer needed. Docs updated. |
 | D3 | **Alpha cadence.** 4.0.69-alpha was cut 2026-10-08 (GitHub Release on `v4` runs `release.yml`). Next candidate is the NRedisStack-port build: `Blocking()`, single group accessors, IDatabase sync on Blocking, DedicatedThreads sync connect. | cut when Marc says; CI green first |
 | D4 | **Post the v4-port findings to PR #3251?** Drafted (spin-before-park +2.6% on `incr-conc64` in #3251's own reader; read-size hint is a hypothesis; drain-per-wake does not pay). Outward-facing. | not posted |
 | D5 | **SER014 batch/transaction, unsettled parts:** conditions borrow the shipped `Condition` type (new spelling later?); whether `RespBatch`/`RespTransaction` stay structs. | as shipped in 2ca83a9d |
+
+Closed on `v4` itself: **D1** - #3251's intent is ported and the default async reader (3cc99f62, then 41afb04b
+and ff5df601), with `SingleReadLoop` / `SEREDIS_SINGLEREADLOOP` as the opt-out; **D2** - option (b), dedicated
+connections connect and run TLS synchronously (dbb38f88).
 
 Closed by the 3.4.0 merge (2026-10-09), because `main` decided them: **D6** - duplicate event ids renumbered on `main`
 (#3266; 124-127 are now main's shipped ids, and v4's colliding v4-only events moved to 128-131); **D7** - RESP3
@@ -161,12 +163,12 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
     assert no stale read.
 
 - **Alternative client-side-cache invalidation sources, and opt-in/out.** Today invalidation comes only from
-  `CLIENT TRACKING` (`CacheTrackingMode`: Default -> BCAST, or per-key tracking) and the cache is on by default
-  (`CacheOptions.Enabled = true`). Add policies for deployments where tracking is unavailable or unwanted
+  `CLIENT TRACKING` (`CacheTrackingMode`: Default -> BCAST, or per-key tracking) and the cache is opt-in per multiplexer
+  (`ConfigurationOptions.ClientCache` is null by default; `CacheOptions.Enabled = true` applies once one is given). Add policies for deployments where tracking is unavailable or unwanted
   (proxies, older servers, some managed offerings): **keyspace notifications** (`__keyspace@<db>__:*`, which
   needs `notify-keyspace-events` configured server-side and carries no RESP3 requirement) and **explicit
-  pub/sub** (an application-defined invalidation channel the writer publishes to). Settle the opt-in/out story
-  at the same time: whether on-by-default is right for 4.0, how a caller opts out per multiplexer and per
+  pub/sub** (an application-defined invalidation channel the writer publishes to). Settle the rest of the opt-in/out
+  story at the same time: how a caller opts out per multiplexer and per
   command, and what the cache does when the chosen source is not available (refuse loudly, as RESP2 + cache
   does today, versus degrade to no caching).
 
