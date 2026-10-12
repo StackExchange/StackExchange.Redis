@@ -134,6 +134,17 @@ namespace StackExchange.Redis
             /// </summary>
             public bool IsUnhealthy => GetFlag(MemberFlags.Unhealthy);
 
+            /// <summary>
+            /// Whether the sender of an event originated from this member: either this member itself, or the connection it currently
+            /// holds. Events that a group forwards from its members (for example <see cref="IConnectionMultiplexer.ServerMaintenanceEvent"/>
+            /// or <see cref="IConnectionMultiplexer.ConnectionFailed"/>) are raised with the member's own connection as the sender, so this
+            /// identifies which member an event came from; see also <see cref="ConnectionGroupExtensions.FindMember"/>.
+            /// </summary>
+            /// <param name="sender">The <c>sender</c> passed to an event handler.</param>
+            /// <remarks>This is <c>false</c> for the group itself, and for a member that has been removed from its group.</remarks>
+            public bool IsSenderOf(object? sender)
+                => sender is not null && (ReferenceEquals(sender, this) || ReferenceEquals(sender, Volatile.Read(ref _muxer)));
+
             [DoesNotReturn]
             private static ConnectionMultiplexer ThrowNoMuxer() =>
                 throw new InvalidOperationException("Member is not connected.");
@@ -424,7 +435,7 @@ namespace StackExchange.Redis
                 {
                     foreach (var member in _members)
                     {
-                        if (ReferenceEquals(muxer, member.Multiplexer))
+                        if (member.IsSenderOf(muxer))
                         {
                             return member;
                         }

@@ -281,6 +281,27 @@ foreach (var member in conn.GetMembers())
 
 These are the same instances that were passed into `ConnectGroupAsync`.
 
+## Which member raised an event
+
+Events the group forwards from its members (`ConnectionFailed`, `ConnectionRestored`, `ErrorMessage`, `ServerMaintenanceEvent`,
+`HashSlotMoved`, and so on) arrive with the member's own connection as `sender`, not the group. To say which member an event
+came from, use `FindMember`, or ask a specific member with `IsSenderOf`:
+
+```csharp
+conn.ConnectionFailed += (sender, args) =>
+{
+    var member = conn.FindMember(sender); // null if the sender is not (or is no longer) a member
+    Console.WriteLine($"{member?.Name ?? "(unknown)"}: {args.FailureType}");
+
+    if (conn.ActiveMember?.IsSenderOf(sender) == true)
+    {
+        Console.WriteLine("...and that is the member currently in use");
+    }
+};
+```
+
+Bear in mind that the active member can change at any time, including just after this check.
+
 ## Health Checks
 
 Configurable health checking monitors the health of all endpoints and automatically routes traffic away from unhealthy instances.
