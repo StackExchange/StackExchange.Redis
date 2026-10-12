@@ -150,11 +150,19 @@ RedisValue value = await db.Strings.GetAsync("mykey");
 Console.WriteLine(value); // writes: "abcdefg"
 ```
 
-Every command on the groups also takes an optional `CancellationToken` as its last parameter, so whatever already decides that the caller has stopped caring - a web request that was aborted, a service shutting down, a user pressing cancel, a sibling operation that failed first, a time budget - flows straight through to the call:
+Every command on the groups also takes an optional `CancellationToken` as its last parameter, so whatever already decides that the caller has stopped caring flows straight through to the call. Most often that is the framework you are hosted in: ASP.NET Core cancels a request's token when the client disconnects, and gRPC cancels a call's token when the client cancels or its deadline passes:
 
 ```csharp
-RedisValue value = await db.Strings.GetAsync("mykey", cancellationToken: HttpContext.RequestAborted);
+// ASP.NET Core: a CancellationToken parameter on an action (or minimal API handler) is bound to HttpContext.RequestAborted
+public async Task<string?> Get(string id, CancellationToken cancellationToken)
+    => await db.Strings.GetAsync(id, cancellationToken: cancellationToken);
+
+// gRPC
+public override async Task<Reply> Lookup(Request request, ServerCallContext context)
+    => new() { Value = await db.Strings.GetAsync(request.Key, cancellationToken: context.CancellationToken) };
 ```
+
+Your own code can do the same - a service shutting down, a user pressing cancel, a sibling operation that failed first, or a time budget.
 
 Cancelling stops the *wait*: a command not yet written is never sent, but one already written still runs on the server, and its reply is discarded - so the outcome of a cancelled write is unknown. See [Async timeouts and cancellation](AsyncTimeouts) for the details and the common patterns.
 

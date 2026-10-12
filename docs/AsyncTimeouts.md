@@ -1,4 +1,4 @@
-# Async timeouts and cancellation
+﻿# Async timeouts and cancellation
 
 StackExchange.Redis directly supports timeout of *synchronous* operations (see [Timeouts](Timeouts)). For *asynchronous*
 operations, every method on the grouped API (`db.Strings`, `db.Hashes`, etc; see [The original `IDatabase` API](LegacyApi))
@@ -43,10 +43,13 @@ source per operation.
 
 ### Cancellation
 
-You can also use an existing `CancellationToken` to drive cancellation, identically:
+You can also use an existing `CancellationToken` to drive cancellation, identically. Hosting frameworks hand you one:
+ASP.NET Core's `HttpContext.RequestAborted` (also bound to any `CancellationToken` parameter of an action or minimal
+API handler) is cancelled when the client disconnects, and gRPC's `ServerCallContext.CancellationToken` when the client
+cancels or the call's deadline passes - so work for a caller who has gone stops being waited on.
 
 ```csharp
-CancellationToken token = ...; // for example, from HttpContext.RequestAborted
+CancellationToken token = ...; // for example, HttpContext.RequestAborted or ServerCallContext.CancellationToken
 await db.Strings.SetAsync("key", "value", cancellationToken: token);
 var value = await db.Strings.GetAsync("key", cancellationToken: token);
 ```
