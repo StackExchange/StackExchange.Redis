@@ -52,6 +52,25 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
     request), and the doorkeeper mixes before probing. On RespFest's keys: Zipf 72.4% -> 75.1%, all-miss 324k ->
     610k ops/s. Hit path: the stub 1-key loop moves 72 -> 70-97ns between builds of ANY change to that function
     (a variant returning the old value measured the same), so code layout, not the hash; 100k keys +4-7ns.
+  - [x] **After that fix, the default still matched `OnFirstMiss` at 64 callers** (72.0-72.7% vs 75.8% at 1 caller).
+    RespFest's runners replay one 1M-draw key table, 3-30x over a cell; with a 16M table the gain returned, so they
+    called it their fault (2026-10-11). It was half ours: the replay exposed a doorkeeper defect. It aged only by
+    *first sightings*, and the table holds ~120,000 distinct keys against a 131,072 window - once each had missed
+    once nothing new arrived, the filter never cleared, and every miss read as a repeat (modelled: 0 refusals). Any
+    keyspace smaller than the window does the same. Fixed: every miss ages it, as TinyLFU ages by samples.
+    `design/admitsim.py` (a model of doorkeeper + slabs + budget; imports RespFest's `harness.keyseq`): 1M table at
+    64 callers 72.5% -> 76.1%; independent draws 75.3% -> 76.1% (a 64k window gives 76.7%, not taken: tuning).
+    Measured, harness now drawing as it goes (it had replayed a 4M table): default 76.4%/76.0% at 1/64 callers vs
+    72.4%/72.5% `OnFirstMiss`, 1.45M vs 1.07M ops/s at 64; all-miss 596k ops/s (was 593k). Dropped: coalescing
+    refused misses, the reproduction-with-counters run, the slowed-64 and 8-caller cells.
+  - [ ] Ask RespFest for a `--patch` run of the Zipf cells on this, on BOTH tables: the 1M table should now match the
+    16M. Their 64-caller sad-path 4-5% hits are expected to stay: a cyclic walk is a bounded keyspace, and the
+    doorkeeper's lower churn lets a few entries live until their key returns (the harness's own all-miss cell, a
+    cycle of 3,125 keys per caller: 12.5% at 64 callers, 0.0% at 1).
+  - [ ] The gap to Lettuce's 79% (check which cache its runner uses; Caffeine's W-TinyLFU compares the candidate's
+    frequency with the victim's). Model before code: second-chance eviction (below) and frequency-vs-victim
+    admission (a sketch: a write per hit, against a hit path that writes nothing) in `admitsim.py`, on standard
+    traces (ARC/LIRS, Caffeine's simulator) as well as Zipf - not fitted to one benchmark. Under ~1 point: close.
   - [ ] Second chance at slab eviction: a write-once "touched" flag per entry; touched entries copied forward rather
     than evicted with their slab. Only if the Zipf workload shows hot keys churning out.
   - [ ] The cached miss sends untyped and parses afterwards, where an uncached send parses typed on the reader.

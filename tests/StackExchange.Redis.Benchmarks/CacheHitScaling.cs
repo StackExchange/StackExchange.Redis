@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -139,9 +140,11 @@ internal static class CacheHitScaling
 
         // zipf: the same keys and cache, but each read picks a key by popularity - a few hot keys and a long tail of
         // one-offs - which is where admission's two effects meet: a hot key costs one extra miss before it is cached,
-        // and the tail stops evicting it. A table of draws, so drawing costs nothing in the measured loop.
+        // and the tail stops evicting it. Drawn as the callers go, never from a table: a table replayed is a different
+        // workload - every one-off comes back, which is all a doorkeeper asks - and RespFest's 1M-draw table, replayed
+        // 3-30x, hid OnRepeatedMiss's gain entirely (72% either way; with 16M draws the gain returned)
         var zipf = args[1] == "zipf";
-        var draws = zipf ? ZipfDraws(KeyCount, exponent: 0.99, count: 1 << 22) : [];
+        var popularity = zipf ? new ZipfSampler(KeyCount, exponent: 0.99) : null;
 
         var config = ConfigurationOptions.Parse(server);
         config.Protocol = RedisProtocol.Resp3;
@@ -176,14 +179,13 @@ internal static class CacheHitScaling
             {
                 var first = caller * share;
                 var step = 0;
-                var draw = caller * (draws.Length / Math.Max(1, callers)); // each caller its own stretch of the draws
+                var random = (ulong)(caller + 1) * 0x9E3779B97F4A7C15; // seeded: every run - and arm of an A/B - draws alike
                 while (Volatile.Read(ref stop) == 0)
                 {
                     RedisKey key;
                     if (zipf)
                     {
-                        key = keys[draws[draw]];
-                        if (++draw == draws.Length) draw = 0;
+                        key = keys[popularity!.Next(ref random)];
                     }
                     else
                     {
@@ -231,25 +233,53 @@ internal static class CacheHitScaling
         => muxer.ClientCache is { } cache ? cache.Stored + cache.RefusedNotAdmitted + cache.RedundantFills : 0;
 
     /// <summary>
-    /// <paramref name="count"/> key indexes drawn from a Zipf distribution over <paramref name="keys"/>: rank r is drawn
-    /// in proportion to 1 / r^<paramref name="exponent"/>. Seeded, so every run - and every arm of an A/B - sees the
-    /// same sequence.
+    /// Key indexes drawn from a Zipf distribution: rank r in proportion to 1 / r^exponent. Walker's alias method, so a
+    /// draw is two table reads whatever the keyspace - cheap enough to make in the measured loop.
     /// </summary>
-    private static int[] ZipfDraws(int keys, double exponent, int count)
+    private sealed class ZipfSampler
     {
-        var cumulative = new double[keys];
-        double total = 0;
-        for (var rank = 0; rank < keys; rank++) cumulative[rank] = total += 1 / Math.Pow(rank + 1, exponent);
+        private readonly double[] _keep; // the chance a slot keeps its own index...
+        private readonly int[] _alias;   // ...rather than this one
 
-        var random = new Random(42);
-        var draws = new int[count];
-        for (var i = 0; i < count; i++)
+        public ZipfSampler(int keys, double exponent)
         {
-            var index = Array.BinarySearch(cumulative, random.NextDouble() * total);
-            draws[i] = index < 0 ? Math.Min(~index, keys - 1) : index;
+            var weight = new double[keys];
+            double total = 0;
+            for (var rank = 0; rank < keys; rank++) total += weight[rank] = 1 / Math.Pow(rank + 1, exponent);
+
+            // scale so the mean slot holds 1, then pair each under-full slot with an over-full one that tops it up
+            _keep = new double[keys];
+            _alias = new int[keys];
+            var small = new Stack<int>();
+            var large = new Stack<int>();
+            for (var i = 0; i < keys; i++)
+            {
+                _keep[i] = weight[i] * keys / total;
+                (_keep[i] < 1 ? small : large).Push(i);
+            }
+
+            while (small.Count > 0 && large.Count > 0)
+            {
+                int under = small.Pop(), over = large.Pop();
+                _alias[under] = over;
+                _keep[over] -= 1 - _keep[under];
+                (_keep[over] < 1 ? small : large).Push(over);
+            }
+
+            foreach (var i in small) _keep[i] = 1; // rounding leftovers: full slots
+            foreach (var i in large) _keep[i] = 1;
         }
 
-        return draws;
+        /// <summary>The next draw, from a caller's own xorshift64* state.</summary>
+        public int Next(ref ulong state)
+        {
+            state ^= state >> 12;
+            state ^= state << 25;
+            state ^= state >> 27;
+            var bits = state * 0x2545F4914F6CDD1DUL;
+            var slot = (int)((bits >> 32) * (ulong)_keep.Length >> 32);
+            return (bits & 0xFFFFFFFF) * (1.0 / 4294967296.0) < _keep[slot] ? slot : _alias[slot];
+        }
     }
 
     /// <summary>Time the GC has paused the process so far; zero on .NET Framework, which cannot say.</summary>

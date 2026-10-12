@@ -14,10 +14,18 @@ namespace StackExchange.Redis.Caching
     /// positives only - an occasional first miss admitted - never false negatives, so a hot request is never kept out.
     /// </para>
     /// <para>
-    /// <b>Cleared, not decayed</b>, once it has recorded an eighth as many requests as it has bits - where two probes
-    /// leave the false-positive rate near 5%. That makes "recently" a window of misses, and keeps the cost of
-    /// remembering bounded however large the keyspace is. A request recorded just before a clear needs one more miss;
-    /// that is the whole price.
+    /// <b>Cleared, not decayed</b>, once it has been asked about an eighth as many misses as it has bits - so at most
+    /// that many requests are recorded, where two probes leave the false-positive rate near 5%. That makes "recently"
+    /// a window of misses, and keeps the cost of remembering bounded however large the keyspace is. A request recorded
+    /// just before a clear needs one more miss; that is the whole price.
+    /// </para>
+    /// <para>
+    /// <b>Every miss ages it, not only first sightings</b> - as TinyLFU ages by samples. Counting only what it
+    /// recorded, a keyspace smaller than the window was never forgotten: once each key had missed once, nothing new
+    /// arrived to trigger a clear, every later miss read as a repeat, and admission became
+    /// <see cref="CacheAdmission.OnFirstMiss"/> for good (RespFest's Zipf cells, replaying ~120,000 distinct keys
+    /// against a 131,072 window: 72.5% hits either way; modelled, aging by misses gives 76.1% there and on independent
+    /// draws, where first-sighting aging gave 75.3%).
     /// </para>
     /// <para>
     /// <b>Racy on purpose.</b> Two threads recording at once may both see "new", or a clear may land between one's
@@ -44,7 +52,7 @@ namespace StackExchange.Redis.Caching
             _clearAfter = bits / 8;
         }
 
-        /// <summary>First sightings recorded since the last clear; for tests.</summary>
+        /// <summary>Misses asked about since the last clear; for tests.</summary>
         internal int Recorded => Volatile.Read(ref _recorded);
 
         /// <summary>Whether this request has missed recently; if not, remember that it has now.</summary>
@@ -63,12 +71,15 @@ namespace StackExchange.Redis.Caching
             var first = (int)(mixed & (uint)_mask);
             var second = (int)(((mixed >> 16) | (mixed << 16)) & (uint)_mask);
 
-            if (IsSet(first) && IsSet(second)) return true;
+            var seen = IsSet(first) && IsSet(second);
+            if (!seen)
+            {
+                Set(first);
+                Set(second);
+            }
 
-            Set(first);
-            Set(second);
             if (Interlocked.Increment(ref _recorded) >= _clearAfter) Clear();
-            return false;
+            return seen;
         }
 
         private bool IsSet(int bit) => (Volatile.Read(ref _words[bit >> 6]) & (1L << (bit & 63))) != 0;

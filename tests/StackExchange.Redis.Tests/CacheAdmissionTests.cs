@@ -142,8 +142,7 @@ public class CacheAdmissionTests
     [Fact]
     public void TheDoorkeeperForgetsOnceFull()
     {
-        // the smallest filter is 4 Ki bits and clears after an eighth of that: 512 first sightings. Counted rather
-        // than assumed, because a false positive is not recorded - so stop at the clear itself
+        // the smallest filter is 4 Ki bits and clears after an eighth of that: 512 misses asked about
         var doorkeeper = new CacheDoorkeeper(expectedEntries: 1);
         Assert.False(doorkeeper.SeenBefore(42));
         for (var i = 1; i < 10_000; i++)
@@ -154,5 +153,26 @@ public class CacheAdmissionTests
 
         Assert.Equal(0, doorkeeper.Recorded);
         Assert.False(doorkeeper.SeenBefore(42)); // forgotten: a first sighting again
+    }
+
+    [Fact]
+    public void ASmallKeyspaceIsStillForgotten()
+    {
+        // repeats age the filter too: counting only first sightings, a keyspace smaller than the window filled it
+        // once and was then remembered forever - every later miss a "repeat", admission OnFirstMiss for good
+        var doorkeeper = new CacheDoorkeeper(expectedEntries: 1); // clears after 512 misses
+        for (var i = 0; i < 100; i++) doorkeeper.SeenBefore(unchecked(i * 104_729)); // 100 keys, each seen once
+        Assert.True(doorkeeper.SeenBefore(0));
+
+        var forgotten = false;
+        for (var pass = 0; pass < 10 && !forgotten; pass++)
+        {
+            for (var i = 0; i < 100; i++)
+            {
+                if (!doorkeeper.SeenBefore(unchecked(i * 104_729))) forgotten = true;
+            }
+        }
+
+        Assert.True(forgotten, "the same 100 keys, missing over and over, were never forgotten");
     }
 }
