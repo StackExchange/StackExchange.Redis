@@ -124,7 +124,8 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   `PendingUnsentItems == 0`. Looked like a regression (2 of 3 alone at the head), but a bisect plus re-runs put the
   morning's 286170a8 at 1 of 8 as well, the same rate as the head - so pre-existing and environment-sensitive.
   Not investigated further; first suspect is the pings completing (or faulting) before the counters are read.
-- **Known flakes** (beyond the stall above): `TouchIdleTime` (6381), `RespAggregateTiming`, `RespAggregateProtoTests.ADeferredWalkNeedsNoStorageAtAll` (net8, full suite only; per-thread allocation measure); `ClusterTopologyUnitTests.SlotLessNodesAreKnownButNotConnected` (net8 full suite once, 2026-10-09; 3/3 alone);
+  Again on 5d4a4981 (2026-10-12, Ubuntu, same message).
+- **Known flakes** (beyond the stall above): `SentinelTests.AbortOnConnectFailFalseRecoversOnceSentinelsAppear` (RESP2, Ubuntu: "did not recover once the sentinel became reachable", a5af2dec 2026-10-10 and ea92c293 2026-10-12; unrelated changes both times); `TouchIdleTime` (6381), `RespAggregateTiming`, `RespAggregateProtoTests.ADeferredWalkNeedsNoStorageAtAll` (net8, full suite only; per-thread allocation measure); `ClusterTopologyUnitTests.SlotLessNodesAreKnownButNotConnected` (net8 full suite once, 2026-10-09; 3/3 alone);
   `RedisBatchTests.AWatchConflictIsDistinctFromAFailedCondition` timed out once (fake transport) on a
   heavily loaded machine, 20/20 since.
   Pub/sub under full-suite load, each once and each clean in isolation: `MultiGroupTests...PubSubOrderedRouted`
