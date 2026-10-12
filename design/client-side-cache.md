@@ -135,6 +135,19 @@ invalidation, validating against a key that changed); the cross-index.
   while B is active; flushing on every switch throws away a warm cache on a healthy switch. The deeper rule (§7k):
   *a cache entry carries an implicit subscription, and subscriptions do not transfer* - even between byte-identical
   replicas.
+- **Our own writes do transfer: every member's cache is stamped** (`RespClientCache.SetPeers`, linked by the group
+  on every membership change). A write made while B is active reaches A's server only by replication, so on
+  failback A's cache could hand back the value the caller replaced - invariant 4, broken by a switch. Stamped, A
+  misses and asks its server, which may still be behind; that is replication, and an uncached read sees the same.
+  The rule is that the cache is never staler than the member it answers for. Server invalidations and flushes stay
+  per member. Rejected: flushing on every switch - with equal weights a group picks by latency, so the active
+  member can change on any health pass, and a flush would throw away a healthy member's cache each time.
+- **An inactive member is kept honest exactly as an active one is.** Group members always run
+  `HeartbeatConsistencyChecks`, so each endpoint is pinged every heartbeat whether or not it is active; a half-open
+  tracking connection trips the dead-socket rule (commands timing out, nothing received for 4x the timeout), and
+  the failure flushes that member's cache. The exposure - hits served while a half-open connection drops
+  invalidations, until it is detected - is the same as a lone multiplexer's (see the second tier of trust, §14). Tests: `GroupCacheTests` (in-process, servers that never
+  replicate) and `ActiveActiveCacheScenarioTests` (the fault-injector tier, real replication).
 
 ## 7. What may be cached
 

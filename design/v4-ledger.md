@@ -145,22 +145,15 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
 
 ## Backlog (after the alpha)
 
-- **Client-side cache across a geo/active-active failover.** Today there is **no flush on switch, by design**
-  (`MultiGroupDatabase` remarks): each member multiplexer has its own cache, resolved per command
-  (`WithCacheResolver(() => TryGetActive()?.ClientCache)`), so a switch serves from the new member's cache and
-  leaves the old one warm for switching back; and any member whose connection fails flushes its own cache
-  (`ConnectionMultiplexer.OnConnectionFailed` -> `ClientCache.OnFlush`), which covers the usual failover cause.
-  Covered only by a unit test (`RespGroupExecutorTests.TheCacheFollowsTheActiveMemberRatherThanBeingShared`);
-  the fault-injector tier has no cache scenario. Gaps to settle:
-  - **Read-your-writes across a failback.** While B is active, writes land on B; A's cached entries are only
-    invalidated once replication carries those writes to A and A's server pushes the invalidation to A's
-    tracking connection - so on switching back, A can serve pre-switch values for up to the replication lag.
-    Options: flush the returning member's cache on a switch (the "nuke"), keep it warm under a max-age bound,
-    or make it a policy (keep-warm vs flush-on-switch).
-  - **A silent inactive member.** An inactive member's tracking connection that goes half-open never raises a
-    failure, so nothing flushes; check the heartbeat covers inactive members, or flush on becoming active.
-  - **A real test:** a fault-injector scenario with the cache on - write via B during failover, fail back,
-    assert no stale read.
+- **Client-side cache across a geo/active-active failover** - closed 2026-10-12, except one run. Read-your-writes
+  on failback: every member's cache is now stamped by our own writes (`RespClientCache.SetPeers`); flushing on
+  each switch was rejected, since equal-weight groups switch on latency. A silent inactive member: already
+  covered - group members force `HeartbeatConsistencyChecks`, so each endpoint is pinged every heartbeat and a
+  half-open connection trips the dead-socket rule, flushing that member's cache. Design in
+  `client-side-cache.md` §6. Tests: `GroupCacheTests` (in-process; fail without the fix).
+  - [ ] **Run `ActiveActiveCacheScenarioTests`** against the Active-Active environment: written and compiled,
+    never executed (no fault-injector environment here). It also asserts what the in-process servers cannot - that
+    an inactive member's cache hears a write replicated from elsewhere.
 
 - **Alternative client-side-cache invalidation sources, and opt-in/out.** Today invalidation comes only from
   `CLIENT TRACKING` (`CacheTrackingMode`: Default -> BCAST, or per-key tracking) and the cache is opt-in per multiplexer

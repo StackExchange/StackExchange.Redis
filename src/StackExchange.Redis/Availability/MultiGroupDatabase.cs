@@ -57,6 +57,14 @@ internal sealed partial class MultiGroupDatabase(MultiGroupMultiplexer parent, i
     /// a round trip), which bounds a safe maximum age - not what happens on a switch.
     /// </para>
     /// <para>
+    /// <b>Our own writes are the exception, and travel to every member's cache</b>
+    /// (<see cref="Caching.RespClientCache.SetPeers"/>): a write made while B is active reaches A's server only by
+    /// replication, so without that, failing back could hand a caller the value they replaced. An inactive
+    /// member's tracking connection is kept honest the same way an active one is: group members always run
+    /// heartbeat consistency checks, so every endpoint is pinged each heartbeat, a half-open connection trips
+    /// the dead-socket rule, and the failure flushes that member's cache.
+    /// </para>
+    /// <para>
     /// <b>Where the 628 generated forwarding members eventually go.</b> Every one of them exists to
     /// capture a command's arguments, resolve the active member, and replay the call against it - because
     /// the decoration happens above the command surface. Once the decoration is an executor below it,

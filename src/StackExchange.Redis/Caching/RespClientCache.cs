@@ -307,7 +307,45 @@ namespace StackExchange.Redis.Caching
         /// errs in.
         /// </para>
         /// </remarks>
-        public bool OnLocalWrite(ReadOnlySpan<byte> key) => _keys.Invalidate(key, local: true, Policy.ServesStale);
+        public bool OnLocalWrite(ReadOnlySpan<byte> key)
+        {
+            var tracked = _keys.Invalidate(key, local: true, Policy.ServesStale);
+            foreach (var peer in Volatile.Read(ref _peers))
+            {
+                peer._keys.Invalidate(key, local: true, peer.Policy.ServesStale);
+            }
+
+            return tracked;
+        }
+
+        private RespClientCache[] _peers = [];
+
+        /// <summary>
+        /// The caches of the other members of a connection group, which every local write here also stamps.
+        /// </summary>
+        /// <param name="peers">The other members' caches; empty outside a group.</param>
+        /// <remarks>
+        /// <para>
+        /// <b>Read-your-own-writes across a failback.</b> A group resolves the active member's cache per command,
+        /// so while B is active our writes go to B and stamp only B's cache. A's server hears of them only once
+        /// replication carries them there, and pushes the invalidation to A's tracking connection then - so on
+        /// switching back, A's cache could hand a caller the value they replaced, for up to the replication lag.
+        /// Stamping every member closes that: a key this process wrote misses on every member.
+        /// </para>
+        /// <para>
+        /// The read that misses then goes to A's server, which may itself be behind; what it returns is what an
+        /// uncached read would have returned, and the invalidation that replication eventually sends corrects
+        /// the entry as it would any other. The cache is never staler than the member it answers for.
+        /// </para>
+        /// <para>
+        /// Only local writes travel. A server's invalidations describe that server's data and stay with its
+        /// member; a lost connection flushes only that member's cache.
+        /// </para>
+        /// </remarks>
+        internal void SetPeers(RespClientCache[] peers) => Volatile.Write(ref _peers, peers);
+
+        /// <summary>The caches a local write here also stamps; for tests.</summary>
+        internal RespClientCache[] Peers => Volatile.Read(ref _peers);
 
         /// <summary>
         /// Note that this process is <b>about to send</b> a command that changes keys, and invalidate every
@@ -351,8 +389,10 @@ namespace StackExchange.Redis.Caching
             var count = keyCount < 0 ? frame.TryGetAllArguments(ranges) : frame.TryGetKeys(ranges);
             if (count < 0)
             {
-                // unreadable rather than merely unmarked; nothing left but the blunt instrument
+                // unreadable rather than merely unmarked; nothing left but the blunt instrument - here and on
+                // every peer, since the write lands on whichever member is active
                 OnFlush();
+                foreach (var peer in Volatile.Read(ref _peers)) peer.OnFlush();
                 return -1;
             }
 

@@ -144,6 +144,9 @@ namespace StackExchange.Redis
 
             internal ConnectionMultiplexer? ClearMultiplexer() => Interlocked.Exchange(ref _muxer, null);
 
+            // non-throwing twin of Multiplexer, for walks over members that may be mid-removal
+            internal ConnectionMultiplexer? MultiplexerOrNull => Volatile.Read(ref _muxer);
+
             internal void Init(int index)
             {
                 // add a name if not provided
@@ -617,6 +620,35 @@ namespace StackExchange.Redis
                 foreach (var member in members)
                 {
                     member.Multiplexer?.ConnectionFailed += _connectionFailedWithCircuitBreaker;
+                }
+
+                LinkCaches();
+            }
+
+            /// <summary>Tell each member's cache about the others, so a local write stamps them all.</summary>
+            /// <remarks>
+            /// See <see cref="Caching.RespClientCache.SetPeers"/> for why. Rebuilt whenever membership changes; a
+            /// write racing a change may stamp the old set, which misses a member only in the instant it joins -
+            /// with a cold cache, so there is nothing in it to be stale.
+            /// </remarks>
+            private void LinkCaches()
+            {
+                var caches = new List<Caching.RespClientCache>();
+                foreach (var member in _members)
+                {
+                    if (member.MultiplexerOrNull?.ClientCache is { } cache) caches.Add(cache);
+                }
+
+                foreach (var cache in caches)
+                {
+                    var peers = new Caching.RespClientCache[caches.Count - 1];
+                    var index = 0;
+                    foreach (var other in caches)
+                    {
+                        if (!ReferenceEquals(other, cache)) peers[index++] = other;
+                    }
+
+                    cache.SetPeers(peers);
                 }
             }
 
@@ -1427,6 +1459,7 @@ namespace StackExchange.Redis
                     if (Interlocked.CompareExchange(ref _members, newArr, arr) == arr) break;
                 }
 
+                LinkCaches();
                 OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Added, member);
                 SelectPreferredGroup();
 
@@ -1506,6 +1539,8 @@ namespace StackExchange.Redis
                 }
 
                 var muxer = member.ClearMultiplexer();
+                muxer?.ClientCache?.SetPeers([]);
+                LinkCaches();
                 RemoveEventHandlers(muxer); // includes circuit-breaker
                 OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Removed, member);
                 SelectPreferredGroup();
