@@ -25,9 +25,9 @@ public partial class ConnectionMultiplexer
         var handler = RawConfig.ConnectionAttemptCompletedHandler;
         if (handler != null)
         {
-            // the sequence and the timestamp are taken together, so that they agree on the order: taken apart,
-            // two attempts completing at once (the interactive and subscription legs fail together) could each
-            // take one first and the other second, and a later sequence would carry an earlier time
+            // the sequence and the timestamp are taken together, so that they agree on the order: taken apart, two
+            // attempts completing at once (the interactive and subscription connections failing together) could each
+            // take one first and the other second, and a later sequence number would carry an earlier time
             long sequenceNumber;
             DateTime completedTimeUtc;
             lock (_connectionAttemptSequenceLock)
