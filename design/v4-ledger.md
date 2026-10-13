@@ -4,7 +4,7 @@ The current list of what is pending on `v4` and what is waiting on a decision. *
 item closes, delete it here and let the commit message hold the story. History and reasoning live in
 `v4-alpha-plan.md` (how the old core was retired) and `message-core-replacement.md` (why).
 
-Last updated: 2026-10-12.
+Last updated: 2026-10-13.
 
 ## Decisions waiting on Marc
 
@@ -12,7 +12,7 @@ Each has a default the work proceeds on until answered.
 
 | # | question | default meanwhile |
 |---|---|---|
-| D3 | **Alpha cadence.** 4.0.69-alpha was cut 2026-10-08 (GitHub Release on `v4` runs `release.yml`). Next candidate is the NRedisStack-port build: `Blocking()`, single group accessors, IDatabase sync on Blocking, DedicatedThreads sync connect. | cut when Marc says; CI green first |
+| D3 | **Alpha cadence.** Latest is 4.0.127-alpha, cut 2026-10-12 (GitHub Release on `v4` runs `release.yml`). | cut when Marc says; CI green first |
 | D4 | **Post the v4-port findings to PR #3251?** Drafted (spin-before-park +2.6% on `incr-conc64` in #3251's own reader; read-size hint is a hypothesis; drain-per-wake does not pay). Outward-facing. | not posted |
 | D5 | **SER014 batch/transaction, unsettled parts:** conditions borrow the shipped `Condition` type (new spelling later?); whether `RespBatch`/`RespTransaction` stay structs. | as shipped in 2ca83a9d |
 
@@ -91,8 +91,8 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   Rejected, with reasons in the commits: per-entry striped refcounts (~150 MB of padded counters), pinned-object heap
   for entries (no better), finalizer-driven slab recycling (interior pointers outlive the wrapper; finalizable
   objects are mid-life by construction).
-- **CI: `GetServerTestsCluster.GetServerByKeyMemoization` (RESP3) fails on Windows net481** - 2 of the first 3
-  `v4` runs, each after a cluster connect that waited the full 20s at the very start of the net481 run (three
+- **Watch: `GetServerTestsCluster.GetServerByKeyMemoization` (RESP3) on Windows net481** - not seen in the 60 CI
+  runs since 2026-10-09; drop it if that holds. Originally 2 of the first 3 `v4` runs, each after a cluster connect that waited the full 20s at the very start of the net481 run (three
   cluster connects stalled together). Suspected lost wake-up, fixed speculatively in d45eadf7 (announce
   "connected" only after the connection is published); not reproduced locally. Tests now print the connection
   log, with thread-pool stats, for any connect that uses half its timeout - read it if it recurs.
@@ -106,7 +106,8 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   - Topology flows both ways between `RespTopology` and `ServerSelectionStrategy` ("phase D").
 - **Subscription re-aim waits for its in-flight send to fail** (instant on Linux, ~2s on Windows, a connect
   timeout for a dropped SYN). Fixing it means de-duplicating a subscription that lands on two nodes. Not urgent.
-- **The "~5s with nothing inbound" stall: root cause found and fixed** (the commit after 7aa7f818); CI to confirm.
+- **The "~5s with nothing inbound" stall: root cause found and fixed** (the commit after 7aa7f818); CI since shows
+  only the `RespCacheChurnTests` shape below.
   A full dump of a stuck run showed the connection's read loop mid-execution on a thread running TEST code: the
   reader completed an operation INLINE, the continuation ran up into a test's `await`, and the test then made a
   synchronous call whose reply only that reader could deliver. Inline completion leaked from the two deliberate
@@ -120,7 +121,8 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   push run of the same commit passed): `RespCacheChurnTests.ChurnDoesNotDisableTheCache("scoped", 16 callers)`,
   `Timeout awaiting response (outbound=12KiB, inbound=0KiB, 5915ms)`, 16 SETs in flight. Purely async test, so not
   the old sync-on-reader shape. Locally: 25 runs of the class and 5 net10 full suites, all clean, no timeouts. If it
-  recurs, take a dump mid-stall (the old fix was found that way) rather than retrying.
+  recurs, take a dump mid-stall (the old fix was found that way) rather than retrying. **Recurred:** 2026-10-10
+  (6ab36833, Ubuntu, `"benchmark"` via context, 12s) and 2026-10-12 (4c206f39, Windows net10.0, `"scoped"`, 6s).
 - **Watch: `BacklogTests.TotalOutstandingIncludesBacklogQueue` is intermittent, and was before today** (2026-10-09):
   three pings queued after `SimulateConnectionFailure` with `AllowConnect = false` sometimes show
   `PendingUnsentItems == 0`. Looked like a regression (2 of 3 alone at the head), but a bisect plus re-runs put the
@@ -130,6 +132,15 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
 - **Known flakes** (beyond the stall above): `SentinelTests.AbortOnConnectFailFalseRecoversOnceSentinelsAppear` (RESP2, Ubuntu: "did not recover once the sentinel became reachable", a5af2dec 2026-10-10 and ea92c293 2026-10-12; unrelated changes both times); `TouchIdleTime` (6381), `RespAggregateTiming`, `RespAggregateProtoTests.ADeferredWalkNeedsNoStorageAtAll` (net8, full suite only; per-thread allocation measure); `ClusterTopologyUnitTests.SlotLessNodesAreKnownButNotConnected` (net8 full suite once, 2026-10-09; 3/3 alone);
   `RedisBatchTests.AWatchConflictIsDistinctFromAFailedCondition` timed out once (fake transport) on a
   heavily loaded machine, 20/20 since.
+  CI once each, not investigated (2026-10-10 to 10-12): `ConnectCustomConfigTests.HeartbeatConsistencyCheckPingsAsync`
+  (net481), `RespSurfaceTests.EachPingMeasureGetsItsOwnClock` (net481),
+  `DedicatedThreadsTests.WithTheFlag_PubSubStaysOnTheThreadPool(shared: true)` (net481),
+  `RespTrackingTests.AThirdPartyWriteInvalidatesWhatWeCached` + `...TheKeyBytesTheServerSendsAreTheOnesWeRecorded`
+  (net481, same run), `Resp3DowngradeTests.SubscribeQueuedBeforeDowngradeDoesNotPoisonInteractive` (net10.0, 11s),
+  `ClusterShardedTests.SubscribeToWrongServerAsync` (Ubuntu). And one with a known cause, in the TEST:
+  `CancellationTests.WithCancellation_CancelledToken_ThrowsOperationCanceledException` ("no exception thrown",
+  Ubuntu, cc327de8) - `Task.WaitAsync(token)` returns an already-completed task as-is, and with inline sends a
+  loopback SET can complete before `WaitAsync` looks; it should cancel through the API's own token instead.
   Pub/sub under full-suite load, each once and each clean in isolation: `MultiGroupTests...PubSubOrderedRouted`
   and `...PubSubRouted` (RESP3), `PubSubKeyNotificationTestsCluster.KeyNotification_CanObserveSimple_ViaQueue`.
   `PubSubRouted` and `KeyNotification_CanObserveSimple_ViaQueue` have each now failed in two full runs (RESP2
@@ -164,6 +175,17 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   story at the same time: how a caller opts out per multiplexer and per
   command, and what the cache does when the chosen source is not available (refuse loudly, as RESP2 + cache
   does today, versus degrade to no caching).
+
+- **Client-side cache: public counters / metrics** - hits, misses, stored, refused (admission), invalidations,
+  stale-served. They exist internally (`RespClientCache.Stored`, `Count`, ...; tests read them) but nothing public:
+  pick a shape (`System.Diagnostics.Metrics` instruments, a snapshot struct, or both).
+
+- **Non-nullable `AppendFormatted(long)` / `(double)` overloads** on `RespRequestBuilder`, beside today's
+  `long?`/`double?` (asked for by the NRedisStack port). Needs an overload-resolution sweep across the interpolated
+  call sites before adding.
+
+- **.NET 11 TFM:** try runtime async; prototype caller-driven TLS (`TlsBufferSession`); run the suite and RespFest on
+  11 early.
 
 - **Unobserved faults on the new surface** (the transitional `Task` surface was fixed in the commit that removed
   this item's first half: it now bridges through its own task and marks a fault observed). A `ValueTask` over the
