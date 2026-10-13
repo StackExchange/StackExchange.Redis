@@ -2162,8 +2162,33 @@ namespace StackExchange.Redis
                 var nodesTask = ExecuteAsyncImpl(
                     RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
 
-                var slots = await slotsTask.ForAwait();
-                var clusterConfig = await nodesTask.ForAwait();
+                ClusterSlotsResult? slots;
+                try
+                {
+                    slots = await slotsTask.ForAwait();
+                }
+                catch (RedisServerException ex)
+                {
+                    // the server *refused* the command - a posture, not a fault: proxied deployments
+                    // commonly answer NODES while blocking SLOTS (Redis Enterprise exposes SLOTS only
+                    // under the OSS cluster API, for example; see #3274). Fall back to the NODES-only
+                    // path, exactly as for a pre-4.0 server that has no SLOTS view to give
+                    log?.LogInformationClusterSlotsRefused(new(server), ex.Message);
+                    slots = null;
+                }
+
+                ClusterConfiguration? clusterConfig;
+                try
+                {
+                    clusterConfig = await nodesTask.ForAwait();
+                }
+                catch (RedisServerException ex)
+                {
+                    // likewise; a server refusing NODES as well exposes no topology at all, however it
+                    // announced itself (a proxy's HELLO can say "cluster" while CLUSTER stays blocked)
+                    log?.LogInformationClusterNodesRefused(new(server), ex.Message);
+                    return null;
+                }
                 if (clusterConfig is null)
                 {
                     return null;
