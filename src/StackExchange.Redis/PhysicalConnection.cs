@@ -568,7 +568,7 @@ namespace StackExchange.Redis
             var bridge = BridgeCouldBeNull;
             Message? nextMessage;
 
-            if (_ioStream is not null || isInitialConnect) // if *we* didn't burn the pipe: flag it
+            if (_ioStream is not null || _transportAdopted || isInitialConnect) // if *we* didn't burn the pipe: flag it
             {
                 if (failureType == ConnectionFailureType.InternalFailure && innerException is not null)
                 {

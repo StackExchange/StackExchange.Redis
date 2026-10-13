@@ -20,10 +20,15 @@ namespace StackExchange.Redis
         // surface at all on this side.
         private DuplexTransport? _transport;
 
+        // Set when a transport is adopted and never cleared: the transport-mode counterpart of _ioStream, which
+        // RecordConnectionFailed checks before it reports a failure and fails what is awaiting a response.
+        private bool _transportAdopted;
+
         internal bool HasTransport => _transport is not null;
 
         private void InitTransportOutput(DuplexTransport transport)
         {
+            _transportAdopted = true;
             _output = new TransportWriter(transport, OutputCancel);
 
             // Same reasoning as InitOutput: nothing awaits WriteComplete in production; observe it so
