@@ -842,7 +842,7 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Warning,
-        EventId = 128,
+        EventId = 130,
         Message = "Lag-aware health check could not ask {RestEndpoint}: {Reason}")]
     internal static partial void LogWarningLagAwareInconclusive(this ILogger logger, string restEndpoint, string reason);
 }
