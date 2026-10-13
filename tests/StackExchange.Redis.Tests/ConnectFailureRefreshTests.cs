@@ -145,34 +145,4 @@ public class ConnectFailureRefreshTests(ITestOutputHelper log)
             Assert.True(refreshes <= permitted, $"expected at most {permitted} rate-limited reads, but saw {refreshes}");
         }
     }
-
-    private sealed class CapturingLogger : ILoggerFactory, ILogger
-    {
-        private readonly List<string> _messages = [];
-
-        public ILogger CreateLogger(string categoryName) => this;
-
-        public void AddProvider(ILoggerProvider provider) { }
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-        {
-            lock (_messages) _messages.Add(formatter(state, exception));
-        }
-
-        public List<string> Matching(string fragment)
-        {
-            lock (_messages) return _messages.FindAll(x => x.Contains(fragment, StringComparison.Ordinal));
-        }
-
-        public string All
-        {
-            get { lock (_messages) return string.Join("\n", _messages); }
-        }
-
-        public void Dispose() { }
-    }
 }

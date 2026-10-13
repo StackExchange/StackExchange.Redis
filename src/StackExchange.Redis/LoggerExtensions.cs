@@ -330,6 +330,18 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        EventId = 128,
+        Message = "{Server}: CLUSTER SLOTS was refused ({ErrorMessage}); continuing with CLUSTER NODES alone")]
+    internal static partial void LogInformationClusterSlotsRefused(this ILogger logger, ServerEndPointLogValue server, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 129,
+        Message = "{Server}: CLUSTER NODES was refused ({ErrorMessage}); no cluster topology is available")]
+    internal static partial void LogInformationClusterNodesRefused(this ILogger logger, ServerEndPointLogValue server, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         EventId = 111,
         Message = "Registering {EndPoint} without connecting: serves no slots")]
     internal static partial void LogInformationRegisteringInertNode(this ILogger logger, EndPointLogValue endPoint);
