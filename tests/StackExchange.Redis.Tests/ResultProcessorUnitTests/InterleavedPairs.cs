@@ -1,26 +1,34 @@
-using System.Linq;
+﻿using System.Linq;
+using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 /// <summary>
-/// Tests for ValuePairInterleavedProcessorBase and its derived processors.
-/// These processors handle both interleaved (RESP2) and jagged (RESP3) formats.
+/// Tests for the pair readers (<c>RespParsers.PairParser</c>) behind the hash, sorted-set, stream-field and
+/// string-pair handlers. These handle both interleaved (RESP2) and jagged (RESP3) formats.
 /// </summary>
+/// <remarks>
+/// The hash, sorted-set and string-pair handlers no longer consult the connection's protocol: they always
+/// permit jagged pairs and detect the shape from the content, so the <c>protocol</c> column is kept only as
+/// documentation of where each shape is seen. Stream fields still take the protocol as their jagged policy.
+/// </remarks>
 public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
     // HashEntryArrayProcessor tests
+    // a nil aggregate now reads as empty rather than null: every caller of an array reply wants to iterate it
     [Theory]
     // RESP2 interleaved format: [key, value, key, value, ...]
     [InlineData("*4\r\n$3\r\nkey\r\n$5\r\nvalue\r\n$4\r\nkey2\r\n$6\r\nvalue2\r\n", "key=value,key2=value2")]
     [InlineData("*2\r\n$1\r\na\r\n$1\r\nb\r\n", "a=b")]
     [InlineData("*0\r\n", "")]
-    [InlineData("*-1\r\n", null)]
+    [InlineData("*-1\r\n", "")]
     // RESP3 map format (alternative aggregate type, still linear): %{key: value, key2: value2}
     [InlineData("%2\r\n$3\r\nkey\r\n$5\r\nvalue\r\n$4\r\nkey2\r\n$6\r\nvalue2\r\n", "key=value,key2=value2", RedisProtocol.Resp3)]
     [InlineData("%1\r\n$1\r\na\r\n$1\r\nb\r\n", "a=b", RedisProtocol.Resp3)]
     [InlineData("%0\r\n", "", RedisProtocol.Resp3)]
-    [InlineData("_\r\n", null, RedisProtocol.Resp3)]
+    [InlineData("_\r\n", "", RedisProtocol.Resp3)]
     // Jagged format (RESP3): [[key, value], [key, value], ...] - array of 2-element arrays
     [InlineData("*2\r\n*2\r\n$3\r\nkey\r\n$5\r\nvalue\r\n*2\r\n$4\r\nkey2\r\n$6\r\nvalue2\r\n", "key=value,key2=value2", RedisProtocol.Resp3)]
     [InlineData("*1\r\n*2\r\n$1\r\na\r\n$1\r\nb\r\n", "a=b", RedisProtocol.Resp3)]
@@ -29,7 +37,8 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     [InlineData(ATTRIB_FOO_BAR + "*4\r\n$3\r\nkey\r\n$5\r\nvalue\r\n$4\r\nkey2\r\n$6\r\nvalue2\r\n", "key=value,key2=value2")]
     public void HashEntryArray(string resp, string? expected, RedisProtocol protocol = RedisProtocol.Resp2)
     {
-        var result = Execute(resp, ResultProcessor.HashEntryArray, protocol: protocol);
+        _ = protocol; // shape is detected from the content; see the class remarks
+        var result = Execute(resp, RespHandlers.Inbuilt<HashEntry[]>.Require());
         if (expected == null)
         {
             Assert.Null(result);
@@ -43,17 +52,18 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     }
 
     // SortedSetEntryArrayProcessor tests
+    // a nil aggregate now reads as empty rather than null: every caller of an array reply wants to iterate it
     [Theory]
     // RESP2 interleaved format: [element, score, element, score, ...]
     [InlineData("*4\r\n$3\r\nfoo\r\n,1.5\r\n$3\r\nbar\r\n,2.5\r\n", "foo:1.5,bar:2.5")]
     [InlineData("*2\r\n$1\r\na\r\n,1.0\r\n", "a:1")]
     [InlineData("*0\r\n", "")]
-    [InlineData("*-1\r\n", null)]
+    [InlineData("*-1\r\n", "")]
     // RESP3 map format (alternative aggregate type, still linear): %{element: score, element2: score2}
     [InlineData("%2\r\n$3\r\nfoo\r\n,1.5\r\n$3\r\nbar\r\n,2.5\r\n", "foo:1.5,bar:2.5", RedisProtocol.Resp3)]
     [InlineData("%1\r\n$1\r\na\r\n,1.0\r\n", "a:1", RedisProtocol.Resp3)]
     [InlineData("%0\r\n", "", RedisProtocol.Resp3)]
-    [InlineData("_\r\n", null, RedisProtocol.Resp3)]
+    [InlineData("_\r\n", "", RedisProtocol.Resp3)]
     // Jagged format (RESP3): [[element, score], [element, score], ...] - array of 2-element arrays
     [InlineData("*2\r\n*2\r\n$3\r\nfoo\r\n,1.5\r\n*2\r\n$3\r\nbar\r\n,2.5\r\n", "foo:1.5,bar:2.5", RedisProtocol.Resp3)]
     [InlineData("*1\r\n*2\r\n$1\r\na\r\n,1.0\r\n", "a:1", RedisProtocol.Resp3)]
@@ -62,7 +72,8 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     [InlineData(ATTRIB_FOO_BAR + "*4\r\n$3\r\nfoo\r\n,1.5\r\n$3\r\nbar\r\n,2.5\r\n", "foo:1.5,bar:2.5")]
     public void SortedSetEntryArray(string resp, string? expected, RedisProtocol protocol = RedisProtocol.Resp2)
     {
-        var result = Execute(resp, ResultProcessor.SortedSetWithScores, protocol: protocol);
+        _ = protocol; // shape is detected from the content; see the class remarks
+        var result = Execute(resp, RespHandlers.Inbuilt<SortedSetEntry[]>.Require());
         if (expected == null)
         {
             Assert.Null(result);
@@ -76,17 +87,18 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     }
 
     // StreamNameValueEntryProcessor tests
+    // a nil aggregate now reads as empty rather than null: every caller of an array reply wants to iterate it
     [Theory]
     // RESP2 interleaved format: [name, value, name, value, ...]
     [InlineData("*4\r\n$4\r\nname\r\n$5\r\nvalue\r\n$5\r\nname2\r\n$6\r\nvalue2\r\n", "name=value,name2=value2")]
     [InlineData("*2\r\n$1\r\na\r\n$1\r\nb\r\n", "a=b")]
     [InlineData("*0\r\n", "")]
-    [InlineData("*-1\r\n", null)]
+    [InlineData("*-1\r\n", "")]
     // RESP3 map format (alternative aggregate type, still linear): %{name: value, name2: value2}
     [InlineData("%2\r\n$4\r\nname\r\n$5\r\nvalue\r\n$5\r\nname2\r\n$6\r\nvalue2\r\n", "name=value,name2=value2", RedisProtocol.Resp3)]
     [InlineData("%1\r\n$1\r\na\r\n$1\r\nb\r\n", "a=b", RedisProtocol.Resp3)]
     [InlineData("%0\r\n", "", RedisProtocol.Resp3)]
-    [InlineData("_\r\n", null, RedisProtocol.Resp3)]
+    [InlineData("_\r\n", "", RedisProtocol.Resp3)]
     // Jagged format (RESP3): [[name, value], [name, value], ...] - array of 2-element arrays
     [InlineData("*2\r\n*2\r\n$4\r\nname\r\n$5\r\nvalue\r\n*2\r\n$5\r\nname2\r\n$6\r\nvalue2\r\n", "name=value,name2=value2", RedisProtocol.Resp3)]
     [InlineData("*1\r\n*2\r\n$1\r\na\r\n$1\r\nb\r\n", "a=b", RedisProtocol.Resp3)]
@@ -95,7 +107,7 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     [InlineData(ATTRIB_FOO_BAR + "*4\r\n$4\r\nname\r\n$5\r\nvalue\r\n$5\r\nname2\r\n$6\r\nvalue2\r\n", "name=value,name2=value2")]
     public void StreamNameValueEntry(string resp, string? expected, RedisProtocol protocol = RedisProtocol.Resp2)
     {
-        var result = Execute(resp, ResultProcessor.StreamNameValueEntryProcessor.Instance, protocol: protocol);
+        var result = Execute(resp, new StreamFieldsHandler(protocol));
         if (expected == null)
         {
             Assert.Null(result);
@@ -109,17 +121,18 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     }
 
     // StringPairInterleavedProcessor tests
+    // a nil aggregate now reads as empty rather than null: every caller of an array reply wants to iterate it
     [Theory]
     // RESP2 interleaved format: [key, value, key, value, ...]
     [InlineData("*4\r\n$3\r\nkey\r\n$5\r\nvalue\r\n$4\r\nkey2\r\n$6\r\nvalue2\r\n", "key=value,key2=value2")]
     [InlineData("*2\r\n$1\r\na\r\n$1\r\nb\r\n", "a=b")]
     [InlineData("*0\r\n", "")]
-    [InlineData("*-1\r\n", null)]
+    [InlineData("*-1\r\n", "")]
     // RESP3 map format (alternative aggregate type, still linear): %{key: value, key2: value2}
     [InlineData("%2\r\n$3\r\nkey\r\n$5\r\nvalue\r\n$4\r\nkey2\r\n$6\r\nvalue2\r\n", "key=value,key2=value2", RedisProtocol.Resp3)]
     [InlineData("%1\r\n$1\r\na\r\n$1\r\nb\r\n", "a=b", RedisProtocol.Resp3)]
     [InlineData("%0\r\n", "", RedisProtocol.Resp3)]
-    [InlineData("_\r\n", null, RedisProtocol.Resp3)]
+    [InlineData("_\r\n", "", RedisProtocol.Resp3)]
     // Jagged format (RESP3): [[key, value], [key, value], ...] - array of 2-element arrays
     [InlineData("*2\r\n*2\r\n$3\r\nkey\r\n$5\r\nvalue\r\n*2\r\n$4\r\nkey2\r\n$6\r\nvalue2\r\n", "key=value,key2=value2", RedisProtocol.Resp3)]
     [InlineData("*1\r\n*2\r\n$1\r\na\r\n$1\r\nb\r\n", "a=b", RedisProtocol.Resp3)]
@@ -128,7 +141,8 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     [InlineData(ATTRIB_FOO_BAR + "*4\r\n$3\r\nkey\r\n$5\r\nvalue\r\n$4\r\nkey2\r\n$6\r\nvalue2\r\n", "key=value,key2=value2")]
     public void StringPairInterleaved(string resp, string? expected, RedisProtocol protocol = RedisProtocol.Resp2)
     {
-        var result = Execute(resp, ResultProcessor.StringPairInterleaved, protocol: protocol);
+        _ = protocol; // shape is detected from the content; see the class remarks
+        var result = Execute(resp, SentinelCommands.PairsHandler.Instance);
         if (expected == null)
         {
             Assert.Null(result);
@@ -146,13 +160,13 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     [InlineData(":42\r\n")]
     [InlineData("$3\r\nfoo\r\n")]
     [InlineData("+OK\r\n")]
-    public void FailingHashEntryArray(string resp) => ExecuteUnexpected(resp, ResultProcessor.HashEntryArray);
+    public void FailingHashEntryArray(string resp) => ExecuteUnexpected(resp, RespHandlers.Inbuilt<HashEntry[]>.Require());
 
     [Theory]
     [InlineData(":42\r\n")]
     [InlineData("$3\r\nfoo\r\n")]
     [InlineData("+OK\r\n")]
-    public void FailingSortedSetEntryArray(string resp) => ExecuteUnexpected(resp, ResultProcessor.SortedSetWithScores);
+    public void FailingSortedSetEntryArray(string resp) => ExecuteUnexpected(resp, RespHandlers.Inbuilt<SortedSetEntry[]>.Require());
 
     // Malformed jagged arrays (inner arrays not exactly length 2)
     // Uniform odd counts: IsAllJaggedPairsReader returns false, falls back to interleaved, processes even pairs (discards odd element)
@@ -164,7 +178,8 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     [InlineData("*1\r\n*3\r\n$1\r\na\r\n$1\r\nb\r\n$1\r\nc\r\n", RedisProtocol.Resp3)] // Inner array has 3 elements - uniform, processes 1 pair (3 >> 1 = 1), discards 'c'
     public void HashEntryArrayMalformedJaggedSucceeds(string resp, RedisProtocol protocol)
     {
-        var result = Execute(resp, ResultProcessor.HashEntryArray, protocol: protocol);
+        _ = protocol; // shape is detected from the content; see the class remarks
+        var result = Execute(resp, RespHandlers.Inbuilt<HashEntry[]>.Require());
         Log($"Malformed jagged (uniform) result: {(result == null ? "null" : string.Join(",", result.Select(static e => $"{e.Name}={e.Value}")))}");
     }
 
@@ -174,7 +189,8 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     [InlineData("*2\r\n*2\r\n$1\r\na\r\n$1\r\nb\r\n*3\r\n$1\r\nc\r\n$1\r\nd\r\n$1\r\ne\r\n", RedisProtocol.Resp3)] // Mixed: first has 2, second has 3
     public void HashEntryArrayMalformedJaggedThrows(string resp, RedisProtocol protocol)
     {
-        var ex = Assert.Throws<System.InvalidOperationException>(() => Execute(resp, ResultProcessor.HashEntryArray, protocol: protocol));
+        _ = protocol; // shape is detected from the content; see the class remarks
+        var ex = Assert.IsType<System.InvalidOperationException>(ExecuteUnexpected(resp, RespHandlers.Inbuilt<HashEntry[]>.Require()));
         Log($"Malformed jagged threw: {ex.GetType().Name}: {ex.Message}");
     }
 
@@ -184,7 +200,8 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     [InlineData("*1\r\n*3\r\n$1\r\na\r\n,1.0\r\n$1\r\nb\r\n", RedisProtocol.Resp3)] // Inner array has 3 elements - uniform, processes 1 pair (3 >> 1 = 1), discards 'b'
     public void SortedSetEntryArrayMalformedJaggedSucceeds(string resp, RedisProtocol protocol)
     {
-        var result = Execute(resp, ResultProcessor.SortedSetWithScores, protocol: protocol);
+        _ = protocol; // shape is detected from the content; see the class remarks
+        var result = Execute(resp, RespHandlers.Inbuilt<SortedSetEntry[]>.Require());
         Log($"Malformed jagged (uniform) result: {(result == null ? "null" : string.Join(",", result.Select(static e => $"{e.Element}:{e.Score}")))}");
     }
 
@@ -194,7 +211,14 @@ public class InterleavedPairs(ITestOutputHelper log) : ResultProcessorUnitTest(l
     [InlineData("*2\r\n*2\r\n$1\r\na\r\n,1.0\r\n*3\r\n$1\r\nb\r\n,2.0\r\n$1\r\nc\r\n", RedisProtocol.Resp3)] // Mixed: first has 2, second has 3
     public void SortedSetEntryArrayMalformedJaggedThrows(string resp, RedisProtocol protocol)
     {
-        var ex = Assert.Throws<System.InvalidOperationException>(() => Execute(resp, ResultProcessor.SortedSetWithScores, protocol: protocol));
+        _ = protocol; // shape is detected from the content; see the class remarks
+        var ex = Assert.IsType<System.InvalidOperationException>(ExecuteUnexpected(resp, RespHandlers.Inbuilt<SortedSetEntry[]>.Require()));
         Log($"Malformed jagged threw: {ex.GetType().Name}: {ex.Message}");
+    }
+
+    /// <summary>A stream entry's name/value fields, read as <c>RespParsers.ParseStreamEntryValues</c> does for a connection on <paramref name="protocol"/>.</summary>
+    private sealed class StreamFieldsHandler(RedisProtocol protocol) : IRespHandler<NameValueEntry[]>
+    {
+        public NameValueEntry[] Parse(ref RespReader reader) => RespParsers.ParseStreamEntryValues(ref reader, protocol);
     }
 }

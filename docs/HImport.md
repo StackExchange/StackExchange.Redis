@@ -14,7 +14,7 @@ when that connection is reset or closed.
 StackExchange.Redis is a multiplexer: it owns the connection lifetime on your behalf, and you do not control *which*
 physical connection a given command travels on<sup>&dagger;</sup>. Rather than hide this behind an all-in-one bulk call, the library
 exposes something close to the raw shape — a reusable [`HashImport`](xref:StackExchange.Redis.HashImport) field-set plus
-a per-row `IDatabase.HashImport` — and takes care of the one hard part for you: the `HIMPORT PREPARE` is **injected
+a per-row `db.Hashes.ImportAsync` — and takes care of the one hard part for you: the `HIMPORT PREPARE` is **injected
 automatically** on whichever connection a given import actually writes to (exactly the way a `SELECT` is injected for
 database selection). A transparent reconnect, or a fan-out to another cluster node, simply re-prepares on demand. You
 never manage `PREPARE`/`SET`/`DISCARD` ordering or connection pinning yourself.
@@ -36,9 +36,9 @@ IDatabase db = muxer.GetDatabase();
 await using var fields = HashImport.Create("name", "email", "age");
 
 // import as many hashes as you like - streamed, not materialized up front, so the total is unbounded
-await db.HashImportAsync("user:1", fields, new RedisValue[] { "alice", "a@example.com", 30 });
-await db.HashImportAsync("user:2", fields, new RedisValue[] { "bob",   "b@example.com", 25 });
-await db.HashImportAsync("user:3", fields, new RedisValue[] { "carol", "c@example.com", 42 });
+await db.Hashes.ImportAsync("user:1", fields, new RedisValue[] { "alice", "a@example.com", 30 });
+await db.Hashes.ImportAsync("user:2", fields, new RedisValue[] { "bob",   "b@example.com", 25 });
+await db.Hashes.ImportAsync("user:3", fields, new RedisValue[] { "carol", "c@example.com", 42 });
 ```
 
 After these complete, `user:1`, `user:2` and `user:3` each exist as a hash with the `name`, `email` and `age` fields set
@@ -49,29 +49,43 @@ connections.
 ### Reusing a values buffer
 
 To avoid allocating a fresh array per row, you may reuse a single `RedisValue[]` (or a slice of a larger pooled buffer),
-refilling it for each hash. If you do, you **must await each import before refilling the buffer for the next
-row**<sup>&Dagger;</sup> — the library reads the values when the command is actually written to the socket, which (on the
-async path) can be *after* `HashImportAsync` returns, so awaiting the returned task is what guarantees the library has
-finished with your data and the buffer is safe to overwrite:
+refilling it for each hash. `db.Hashes.ImportAsync` takes the values as a `ReadOnlySpan<RedisValue>` and copies them
+into the outgoing request before it returns, so the buffer is free to refill as soon as the call returns - you do not
+need to await one import before preparing the next row:
 
 ``` c#
 await using var fields = HashImport.Create("name", "email", "age");
 var row = new RedisValue[3]; // reused for every hash
+var pending = new List<ValueTask>();
 
 foreach (var record in records)
 {
     row[0] = record.Name;
     row[1] = record.Email;
     row[2] = record.Age;
-    await db.HashImportAsync(record.Key, fields, row); // MUST await before the next refill
+    pending.Add(db.Hashes.ImportAsync(record.Key, fields, row)); // row can be refilled immediately
+}
+foreach (var task in pending) await task;
+```
+
+The original `IDatabase.HashImportAsync` (and `HashImport`) differs here: it takes `ReadOnlyMemory<RedisValue>` and
+reads the values when the command is actually written to the socket, which can be *after* the call returns. With that
+API you **must await each import before refilling the buffer for the next row**<sup>&Dagger;</sup>, and must not fire off
+many calls sharing one buffer without awaiting between them (nor pass the buffer fire-and-forget) — overwriting it while
+a prior write is still pending corrupts the data on the wire:
+
+``` c#
+foreach (var record in records)
+{
+    row[0] = record.Name;
+    row[1] = record.Email;
+    row[2] = record.Age;
+    await db.HashImportAsync(record.Key, fields, row); // IDatabase: MUST await before the next refill
 }
 ```
 
-Do **not** fire off many `HashImportAsync` calls sharing one buffer without awaiting between them (nor pass the buffer
-fire-and-forget) — overwriting it while a prior write is still pending corrupts the data on the wire.
-
-<sup>&Dagger;</sup>: we hope to lift this restriction in a future release, so that a shared buffer can be refilled without
-waiting for each round-trip.
+<sup>&Dagger;</sup>: we hope to lift this restriction for the `IDatabase` API in a future release; `db.Hashes.ImportAsync`
+does not have it.
 
 Notes
 ---
@@ -83,8 +97,8 @@ Notes
 - Field names are validated at `Create`: **duplicate** names are rejected (the server rejects them too, but only via the
   injected — fire-and-forget — `PREPARE`, so we fail fast instead), and **null** names are rejected. An **empty** field
   name is allowed (a hash may legitimately have an empty-string field).
-- `ReadOnlyMemory<RedisValue>` is used for the values (rather than an array) so you can pass slices of a larger, pooled
-  or reused buffer without copying — useful when importing in chunks.
+- `ReadOnlySpan<RedisValue>` is used for the values (`ReadOnlyMemory<RedisValue>` on `IDatabase`), rather than an
+  array, so you can pass slices of a larger, pooled or reused buffer — useful when importing in chunks.
 - Each call must supply exactly as many values as the field-set has fields; a mismatch throws (`ArgumentException`)
   before anything is sent.
 - Each import **replaces** any existing hash at its key (it does not merge into it) — this is import, not `HSET`.

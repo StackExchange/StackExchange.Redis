@@ -105,11 +105,11 @@ public class InertClusterNodeUnitTests(ITestOutputHelper log)
 
         Assert.Contains($"Registering {idle} without connecting", connectLog);
 
-        // asserted as "no bridge was ever created", not "not connected yet": the latter is also true of a
+        // asserted as "no connection was ever opened", not "not connected yet": the latter is also true of a
         // node that is being dialled right now, so it would not notice the regression it exists to catch
         var mux = (ConnectionMultiplexer)conn;
-        var idleServer = mux.GetServerEndPoint(idle, ServerProvenance.ClusterTopology, activate: false);
-        Assert.Null(idleServer.GetBridge(ConnectionType.Interactive, create: false));
+        _ = mux.GetServerEndPoint(idle, ServerProvenance.ClusterTopology, activate: false);
+        Assert.Equal(0, mux.ConnectionsIfCreated?.ConnectionCount(idle) ?? 0);
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class InertClusterNodeUnitTests(ITestOutputHelper log)
 
         var mux = (ConnectionMultiplexer)conn;
         var inert = mux.GetServerEndPoint(idle, ServerProvenance.ClusterTopology, activate: false);
-        Assert.Null(inert.GetBridge(ConnectionType.Interactive, create: false));
+        Assert.Equal(0, mux.ConnectionsIfCreated?.ConnectionCount(idle) ?? 0);
 
         var connected = inert.OnConnectedAsync();
         Assert.NotSame(connected, await Task.WhenAny(connected, Task.Delay(250)));
@@ -139,7 +139,7 @@ public class InertClusterNodeUnitTests(ITestOutputHelper log)
         ConnectionMultiplexer.ActivateServer(inert, null);
 
         var settled = await Task.WhenAny(connected, Task.Delay(TimeSpan.FromSeconds(10)));
-        log.WriteLine($"IsConnected={inert.IsConnected}, state={inert.GetBridge(ConnectionType.Interactive, create: false)?.ConnectionState}");
+        log.WriteLine($"IsConnected={inert.IsConnected}, state={inert.InteractiveConnectionState}");
         Assert.Same(connected, settled);
         log.WriteLine($"completed: {await connected}");
     }

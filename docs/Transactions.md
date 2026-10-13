@@ -70,7 +70,7 @@ mixed together with other callers. So our example becomes:
 var newId = CreateNewId();
 var tran = db.CreateTransaction();
 tran.AddCondition(Condition.HashNotExists(custKey, "UniqueID"));
-tran.HashSetAsync(custKey, "UniqueID", newId);
+_ = tran.Hashes.SetAsync(custKey, "UniqueID", newId);
 bool committed = tran.Execute();
 // ^^^ if true: it was applied; if false: it was rolled back
 ```
@@ -78,6 +78,8 @@ bool committed = tran.Execute();
 Note that the object returned from `CreateTransaction` only has access to the *async* methods - because the result of
 each operation will not be known until after `Execute` (or `ExecuteAsync`) has completed. If the operations are not applied, all the `Task`s
 will be marked as cancelled - otherwise, *after* the command has executed you can fetch the results of each as normal.
+
+The transaction carries the same command groups as the database (`tran.Strings`, `tran.Hashes`, ...), so commands are queued with the same spelling you would use outside it. There is also an experimental `db.BeginTransaction()` / `db.BeginBatch()` pair, where execution is explicit and leaving a `using` scope discards rather than sends; it is gated behind [SER014](exp/SER014) while its shape settles, so `CreateTransaction()` remains the one to reach for.
 
 The set of available *conditions* is not extensive, but covers the most common scenarios; please contact me (or better: submit a pull-request) if
 there are additional conditions that you would like to see.
@@ -90,7 +92,7 @@ atomic commands exist. These are accessed via the `When` parameter - so our prev
 
 ```csharp
 var newId = CreateNewId();
-bool wasSet = db.HashSet(custKey, "UniqueID", newId, When.NotExists);
+bool wasSet = await db.Hashes.SetAsync(custKey, "UniqueID", newId, When.NotExists);
 ```
 
 (here, the `When.NotExists` causes the `HSETNX` command to be used, rather than `HSET`)
@@ -111,11 +113,12 @@ EVAL "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset
 This can be used in StackExchange.Redis via:
 
 ```csharp
-var wasSet = (bool) db.ScriptEvaluate(@"if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-        new RedisKey[] { custKey }, new RedisValue[] { newId });
+using RespResult result = await db.Scripts.EvaluateAsync(@"if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
+        [custKey], [newId]);
+bool wasSet = (bool)result.ReadScalar().ReadRedisValue();
 ```
 
-(note that the response from `ScriptEvaluate` and `ScriptEvaluateAsync` is variable depending on your exact script; the response can be interpreted by casting - in this case as a `bool`)
+(note that the response is variable depending on your exact script, so `EvaluateAsync` hands back a `RespResult` for you to read - here as a single value, converted to `bool`. The original `IDatabase.ScriptEvaluate`/`ScriptEvaluateAsync` return a `RedisResult` instead, interpreted by casting: `(bool)db.ScriptEvaluate(...)`. See [Scripting](Scripting).)
 
 Don't await inside the transaction
 ---
@@ -128,7 +131,7 @@ after that call. Awaiting it there waits for something that can only happen furt
 
 ```csharp
 var tran = db.CreateTransaction();
-var value = await tran.StringGetAsync(key);   // never completes - nothing has been sent yet
+var value = await tran.Strings.GetAsync(key);   // never completes - nothing has been sent yet
 await tran.ExecuteAsync();                    // never reached
 ```
 
@@ -137,8 +140,8 @@ this reads as perfectly ordinary code. Instead, capture the tasks and await them
 
 ```csharp
 var tran = db.CreateTransaction();
-var pending = tran.StringGetAsync(key);
-_ = tran.StringSetAsync(other, "value");      // discard the ones you do not need
+var pending = tran.Strings.GetAsync(key);
+_ = tran.Strings.SetAsync(other, "value");      // discard the ones you do not need
 if (await tran.ExecuteAsync())
 {
     var value = await pending;
@@ -161,11 +164,11 @@ aborting under contention and needing a retry loop.
 // a transaction to set a key only if it is absent...
 var tran = db.CreateTransaction();
 tran.AddCondition(Condition.KeyNotExists(key));
-_ = tran.StringSetAsync(key, value);
+_ = tran.Strings.SetAsync(key, value);
 if (await tran.ExecuteAsync()) { /* ... */ }
 
 // ...is just this
-if (await db.StringSetAsync(key, value, when: When.NotExists)) { /* ... */ }
+if (await db.Strings.SetAsync(key, value, when: When.NotExists)) { /* ... */ }
 ```
 
 Since 3.1 the package ships a Roslyn analyzer that points these out in your own build, as warnings. It covers conditions that duplicate a `when:` argument,

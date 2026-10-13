@@ -1,9 +1,14 @@
+﻿using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class StreamPendingMessages(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // XPENDING (extended form), as the command sends it
+    private static readonly IRespHandler<StreamPendingMessageInfo[]> Handler
+        = GroupHandlers.Get<StreamPendingMessageInfo[]>(typeof(global::StackExchange.Redis.Streams), "StreamTypesHandler", "PendingMessages");
+
     [Fact]
     public void SingleMessage_Success()
     {
@@ -19,7 +24,7 @@ public class StreamPendingMessages(ITestOutputHelper log) : ResultProcessorUnitT
                    ":196415\r\n" + // Idle time in ms
                    ":1\r\n"; // Delivery count
 
-        var result = Execute(resp, ResultProcessor.StreamPendingMessages);
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Single(result);
@@ -53,7 +58,7 @@ public class StreamPendingMessages(ITestOutputHelper log) : ResultProcessorUnitT
                    ":5000\r\n" +
                    ":3\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamPendingMessages);
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Equal(2, result.Length);
@@ -75,7 +80,7 @@ public class StreamPendingMessages(ITestOutputHelper log) : ResultProcessorUnitT
         // No pending messages
         var resp = "*0\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamPendingMessages);
+        var result = Execute(resp, Handler);
 
         Assert.NotNull(result);
         Assert.Empty(result);
@@ -86,7 +91,7 @@ public class StreamPendingMessages(ITestOutputHelper log) : ResultProcessorUnitT
     {
         var resp = "$5\r\nhello\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamPendingMessages);
+        ExecuteUnexpected(resp, Handler);
     }
 
     [Fact]
@@ -94,6 +99,6 @@ public class StreamPendingMessages(ITestOutputHelper log) : ResultProcessorUnitT
     {
         var resp = "$-1\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamPendingMessages);
+        ExecuteUnexpected(resp, Handler);
     }
 }

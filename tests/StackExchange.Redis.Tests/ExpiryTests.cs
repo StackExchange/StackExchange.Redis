@@ -16,7 +16,7 @@ public class ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(disabledCommands: GetMap(disablePTimes));
 
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
@@ -52,7 +52,7 @@ public class ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key);
         db.StringSet(key, "value");
 
@@ -83,7 +83,7 @@ public class ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(disabledCommands: GetMap(disablePTimes));
 
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         var now = utc ? DateTime.UtcNow : DateTime.Now;
@@ -136,7 +136,7 @@ public class ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         var expireTime = DateTime.UtcNow.AddHours(1);
@@ -167,7 +167,7 @@ public class ExpiryTests(ITestOutputHelper output, SharedConnectionFixture fixtu
         await using var conn = Create(disabledCommands: GetMap(disablePTimes), require: RedisFeatures.v7_0_0_rc1);
 
         var key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
         var expireTime = DateTime.UtcNow.AddHours(1);

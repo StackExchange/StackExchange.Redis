@@ -1,5 +1,6 @@
-using System.Text;
+﻿using System.Text;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
@@ -16,8 +17,7 @@ public class RespResultProcessor(ITestOutputHelper log) : ResultProcessorUnitTes
     [InlineData(":42\r\n", RespPrefix.Integer, "42")]
     public void ScalarReply_CapturesRawFrameAndDecodes(string resp, RespPrefix expectedPrefix, string expectedText)
     {
-        var processor = ResultProcessor.RespResult;
-        using var result = Execute(resp, processor);
+        using var result = ParseResult(resp);
 
         Assert.NotNull(result);
         Assert.Equal(expectedPrefix, result.Prefix);
@@ -43,9 +43,8 @@ public class RespResultProcessor(ITestOutputHelper log) : ResultProcessorUnitTes
     [InlineData("_\r\n", RespPrefix.Null)] // RESP3 unified null
     public void NullReply_UsesSharedSingleton(string resp, RespPrefix expectedPrefix)
     {
-        var processor = ResultProcessor.RespResult;
-        var first = Execute(resp, processor);
-        var second = Execute(resp, processor);
+        var first = ParseResult(resp);
+        var second = ParseResult(resp);
 
         Assert.NotNull(first);
         Assert.True(first!.IsNull);
@@ -64,8 +63,7 @@ public class RespResultProcessor(ITestOutputHelper log) : ResultProcessorUnitTes
     [Fact]
     public void AggregateReply_SupportsTreeAccessButRejectsScalarAccessors()
     {
-        var processor = ResultProcessor.RespResult;
-        using var result = Execute("*4\r\n:1\r\n:2\r\n$5\r\nthree\r\n*2\r\n:4\r\n:5\r\n", processor);
+        using var result = ParseResult("*4\r\n:1\r\n:2\r\n$5\r\nthree\r\n*2\r\n:4\r\n:5\r\n");
 
         Assert.NotNull(result);
         Assert.Equal(RespPrefix.Array, result.Prefix);
@@ -82,8 +80,7 @@ public class RespResultProcessor(ITestOutputHelper log) : ResultProcessorUnitTes
     [Fact]
     public void AggregateReply_ReadRedisResultMaterializesFullTree()
     {
-        var processor = ResultProcessor.RespResult;
-        using var result = Execute("*3\r\n:1\r\n:2\r\n$5\r\nthree\r\n", processor);
+        using var result = ParseResult("*3\r\n:1\r\n:2\r\n$5\r\nthree\r\n");
 
         Assert.NotNull(result);
         var reader = result.Read();
@@ -100,8 +97,7 @@ public class RespResultProcessor(ITestOutputHelper log) : ResultProcessorUnitTes
     [Fact]
     public void AggregateReply_AggregateChildren_WalksEachElement()
     {
-        var processor = ResultProcessor.RespResult;
-        using var result = Execute("*3\r\n:1\r\n:2\r\n$5\r\nthree\r\n", processor);
+        using var result = ParseResult("*3\r\n:1\r\n:2\r\n$5\r\nthree\r\n");
 
         var children = result!.Read().AggregateChildren();
         Assert.True(children.MoveNext());
@@ -116,8 +112,7 @@ public class RespResultProcessor(ITestOutputHelper log) : ResultProcessorUnitTes
     [Fact]
     public void AggregateReply_AggregateChildren_DescendsIntoNestedSubArray()
     {
-        var processor = ResultProcessor.RespResult;
-        using var result = Execute("*4\r\n:1\r\n:2\r\n$5\r\nthree\r\n*2\r\n:4\r\n:5\r\n", processor);
+        using var result = ParseResult("*4\r\n:1\r\n:2\r\n$5\r\nthree\r\n*2\r\n:4\r\n:5\r\n");
 
         var children = result!.Read().AggregateChildren();
         Assert.True(children.MoveNext());
@@ -142,8 +137,7 @@ public class RespResultProcessor(ITestOutputHelper log) : ResultProcessorUnitTes
     [Fact]
     public void AggregateReply_ReadPastArray_ProjectsTypedArray()
     {
-        var processor = ResultProcessor.RespResult;
-        using var result = Execute("*3\r\n:1\r\n:2\r\n$5\r\nthree\r\n", processor);
+        using var result = ParseResult("*3\r\n:1\r\n:2\r\n$5\r\nthree\r\n");
 
         var reader = result!.Read();
         RedisValue[]? values = reader.ReadPastArray(static (ref r) => r.ReadRedisValue(), scalar: true);
@@ -158,8 +152,7 @@ public class RespResultProcessor(ITestOutputHelper log) : ResultProcessorUnitTes
     [Fact]
     public void NullArrayReply_ReadPastArray_ReturnsNull()
     {
-        var processor = ResultProcessor.RespResult;
-        using var result = Execute("*-1\r\n", processor);
+        using var result = ParseResult("*-1\r\n");
 
         var reader = result!.Read();
         RedisValue[]? values = reader.ReadPastArray(static (ref r) => r.ReadRedisValue(), scalar: true);
@@ -167,16 +160,17 @@ public class RespResultProcessor(ITestOutputHelper log) : ResultProcessorUnitTes
         Assert.Null(values);
     }
 
-    [Fact]
-    public void ErrorReply_PropagatesAsRedisServerException()
+    // ErrorReply_PropagatesAsRedisServerException is gone: an error reply never reaches this handler. The new
+    // core converts it to RedisServerException when the frame arrives (RespPayloadOperation.ParseFrame),
+    // before any handler is chosen, so there is no handler-level behaviour left to pin here.
+
+    /// <summary>
+    /// Parse exactly as the core does for this handler: it retains the frame, so it is parsed from the
+    /// payload rather than from a positioned reader (which it refuses).
+    /// </summary>
+    private static RespResult ParseResult(string resp)
     {
-        var resp = "-ERR something bad happened\r\n";
-        var processor = ResultProcessor.RespResult;
-
-        var success = TryExecute(resp, processor, out _, out var exception);
-
-        Assert.False(success);
-        Assert.NotNull(exception);
-        Assert.IsType<RedisServerException>(exception);
+        using var payload = RespPayload.Create(Encoding.UTF8.GetBytes(resp));
+        return ((IRespPayloadHandler<RespResult>)RespHandlers.Result).Parse(payload);
     }
 }

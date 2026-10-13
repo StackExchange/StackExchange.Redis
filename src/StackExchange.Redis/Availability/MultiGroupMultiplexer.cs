@@ -144,6 +144,9 @@ namespace StackExchange.Redis
 
             internal ConnectionMultiplexer? ClearMultiplexer() => Interlocked.Exchange(ref _muxer, null);
 
+            // non-throwing twin of Multiplexer, for walks over members that may be mid-removal
+            internal ConnectionMultiplexer? MultiplexerOrNull => Volatile.Read(ref _muxer);
+
             internal void Init(int index)
             {
                 // add a name if not provided
@@ -504,6 +507,8 @@ namespace StackExchange.Redis
                     members[i].Init(i);
                 }
 
+                ValidateConsistentConfiguration(members);
+
                 var pending = new Task<ConnectionMultiplexer>[members.Length];
                 for (int i = 0; i < members.Length; i++)
                 {
@@ -529,9 +534,80 @@ namespace StackExchange.Redis
                 return result;
             }
 
+            /// <summary>
+            /// Refuse a group whose members disagree about things the group treats as one value.
+            /// </summary>
+            /// <param name="members">The configured members.</param>
+            /// <remarks>
+            /// <para>
+            /// <b>The default database is the one that bites silently.</b> <c>GetDatabase()</c> with no
+            /// index resolves through whichever member is active, each applying its own
+            /// <see cref="ConfigurationOptions.DefaultDatabase"/> - so a failover between members
+            /// configured differently moves the caller to a different database, with no error and no
+            /// observable event. That is data going somewhere it was not meant to, which is worth
+            /// refusing at construction rather than discovering during an outage.
+            /// </para>
+            /// <para>
+            /// The command map is milder - a mismatch shows up as "this operation has been disabled",
+            /// which is at least loud - but the context surface now reads the group's map once, from the
+            /// configuration, so a group that disagreed would have one member's map applied to all of
+            /// them. Same fix, same place.
+            /// </para>
+            /// <para>
+            /// <b>Compared structurally, not by identity.</b> Configuration is usually reached by parsing
+            /// a string, so two members saying exactly the same thing hold different instances; reference
+            /// equality would reject every correctly-configured group.
+            /// </para>
+            /// </remarks>
+            private static void ValidateConsistentConfiguration(ConnectionGroupMember[] members)
+            {
+                if (members.Length < 2) return;
+
+                var first = members[0].Configuration;
+                for (var i = 1; i < members.Length; i++)
+                {
+                    var other = members[i].Configuration;
+
+                    if (first.DefaultDatabase != other.DefaultDatabase)
+                    {
+                        throw new ArgumentException(
+                            "All members of a connection group must specify the same DefaultDatabase; "
+                            + $"member 0 says {Describe(first.DefaultDatabase)} and member {i} says "
+                            + $"{Describe(other.DefaultDatabase)}. Otherwise a failover silently moves "
+                            + "callers of GetDatabase() to a different database.",
+                            nameof(members));
+                    }
+
+                    if (!first.CommandMap.StructurallyEquals(other.CommandMap))
+                    {
+                        throw new ArgumentException(
+                            $"All members of a connection group must specify the same CommandMap; member {i} differs from member 0.",
+                            nameof(members));
+                    }
+                }
+
+                static string Describe(int? database) => database is { } value ? value.ToString() : "unset";
+            }
+
             private readonly MultiGroupOptions _options;
 
             public MultiGroupOptions Options => _options;
+
+            /// <summary>The command map the group's members are configured with.</summary>
+            /// <remarks>
+            /// <b>Configuration, not connection state</b> - so this answers even when every member is
+            /// down, which is what lets the context surface be built and memoised without waiting for
+            /// anybody to connect. Taken from the first configured member: a group whose members disagreed
+            /// about the command map would be a misconfiguration, not a case to model.
+            /// </remarks>
+            internal CommandMap CommandMap
+            {
+                get
+                {
+                    var members = _members;
+                    return members.Length == 0 ? CommandMap.Default : members[0].Configuration.CommandMap;
+                }
+            }
 
             private MultiGroupMultiplexer(ConnectionGroupMember[] members, MultiGroupOptions options)
             {
@@ -544,6 +620,35 @@ namespace StackExchange.Redis
                 foreach (var member in members)
                 {
                     member.Multiplexer?.ConnectionFailed += _connectionFailedWithCircuitBreaker;
+                }
+
+                LinkCaches();
+            }
+
+            /// <summary>Tell each member's cache about the others, so a local write stamps them all.</summary>
+            /// <remarks>
+            /// See <see cref="Caching.RespClientCache.SetPeers"/> for why. Rebuilt whenever membership changes; a
+            /// write racing a change may stamp the old set, which misses a member only in the instant it joins -
+            /// with a cold cache, so there is nothing in it to be stale.
+            /// </remarks>
+            private void LinkCaches()
+            {
+                var caches = new List<Caching.RespClientCache>();
+                foreach (var member in _members)
+                {
+                    if (member.MultiplexerOrNull?.ClientCache is { } cache) caches.Add(cache);
+                }
+
+                foreach (var cache in caches)
+                {
+                    var peers = new Caching.RespClientCache[caches.Count - 1];
+                    var index = 0;
+                    foreach (var other in caches)
+                    {
+                        if (!ReferenceEquals(other, cache)) peers[index++] = other;
+                    }
+
+                    cache.SetPeers(peers);
                 }
             }
 
@@ -1354,6 +1459,7 @@ namespace StackExchange.Redis
                     if (Interlocked.CompareExchange(ref _members, newArr, arr) == arr) break;
                 }
 
+                LinkCaches();
                 OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Added, member);
                 SelectPreferredGroup();
 
@@ -1433,6 +1539,8 @@ namespace StackExchange.Redis
                 }
 
                 var muxer = member.ClearMultiplexer();
+                muxer?.ClientCache?.SetPeers([]);
+                LinkCaches();
                 RemoveEventHandlers(muxer); // includes circuit-breaker
                 OnConnectionChanged(GroupConnectionChangedEventArgs.ChangeType.Removed, member);
                 SelectPreferredGroup();

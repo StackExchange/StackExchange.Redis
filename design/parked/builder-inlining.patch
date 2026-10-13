@@ -1,0 +1,82 @@
+diff --git a/src/StackExchange.Redis/Contexts/RespContext.cs b/src/StackExchange.Redis/Contexts/RespContext.cs
+index 635c5d17..185fa5fd 100644
+--- a/src/StackExchange.Redis/Contexts/RespContext.cs
++++ b/src/StackExchange.Redis/Contexts/RespContext.cs
+@@ -428,7 +428,10 @@ internal bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags
+         /// slot it can be routed by. See <see cref="RespTopology"/>.
+         /// </remarks>
+         internal bool NeedsSlots
+-            => Topology is { } topology ? topology.NeedsSlots : _serverType == StackExchange.Redis.ServerType.Cluster;
++        {
++            [MethodImpl(MethodImplOptions.AggressiveInlining)] // asked on every key append; see RespRequestBuilder.CommitBulk
++            get => Topology is { } topology ? topology.NeedsSlots : _serverType == StackExchange.Redis.ServerType.Cluster;
++        }
+ 
+         /// <summary>Carry this context's topology cell onto a derived copy.</summary>
+         /// <param name="source">The context being derived from.</param>
+diff --git a/src/StackExchange.Redis/Contexts/RespTopology.cs b/src/StackExchange.Redis/Contexts/RespTopology.cs
+index 55314988..e58f86c4 100644
+--- a/src/StackExchange.Redis/Contexts/RespTopology.cs
++++ b/src/StackExchange.Redis/Contexts/RespTopology.cs
+@@ -158,7 +158,11 @@ internal void OnServerType(ServerType serverType)
+         /// then needed cannot be recovered, because by then the request is rendered and the key bytes have
+         /// been handed on.
+         /// </remarks>
+-        internal bool NeedsSlots => (RespClusterState)Volatile.Read(ref _state) != RespClusterState.No;
++        internal bool NeedsSlots
++        {
++            [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
++            get => (RespClusterState)Volatile.Read(ref _state) != RespClusterState.No;
++        }
+ 
+         /// <summary>Whether the slot decides which endpoint serves the command.</summary>
+         /// <remarks>False while unknown: routing on a guess is wrong, not merely wasteful.</remarks>
+diff --git a/src/StackExchange.Redis/Protocol/RespRequestBuilder.cs b/src/StackExchange.Redis/Protocol/RespRequestBuilder.cs
+index c483ec35..e71f5692 100644
+--- a/src/StackExchange.Redis/Protocol/RespRequestBuilder.cs
++++ b/src/StackExchange.Redis/Protocol/RespRequestBuilder.cs
+@@ -978,6 +978,13 @@ private Span<byte> WriteBulk(int payloadLength, out int payloadOffset)
+         }
+ 
+         /// <summary>Terminate the fragment begun by <see cref="WriteBulk"/> and advance the cursor.</summary>
++        /// <remarks>
++        /// Forced inline, like the other per-argument helpers (<see cref="FoldSlot"/>, <see cref="CountArguments"/>):
++        /// each is a few instructions, but a group method puts the whole builder one level deeper, the JIT's inline
++        /// budget runs out first, and they were left as calls on every key - measured as 10-15ns of a ~115ns cache
++        /// hit, the gap between <c>db.Strings.GetAsync</c> and the same request through <c>context.SendAsync</c>.
++        /// </remarks>
++        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+         private void CommitBulk(int payloadOffset, int payloadLength)
+         {
+             RespWire.WriteCrlf(_buffer.AsSpan(_offset), payloadOffset + payloadLength);
+@@ -989,12 +996,20 @@ private void CommitBulk(int payloadOffset, int payloadLength)
+         /// than re-materialising the key, which is what <see cref="ServerSelectionStrategy.GetHashSlot"/> has
+         /// to do.
+         /// </summary>
++        /// <remarks>
++        /// Split hot and cold: only the question inlines into every key append, and the hashing - which only a
++        /// cluster (or a topology not yet known) ever needs - stays out of line. See <see cref="CommitBulk"/>.
++        /// </remarks>
++        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+         private void FoldSlot(scoped ReadOnlySpan<byte> payload)
+         {
+-            if (!_context.NeedsSlots) return; // late-bound, and speculative while unknown: see RespTopology
+-            _slot = ServerSelectionStrategy.CombineSlot(_slot, ServerSelectionStrategy.GetClusterSlot(payload));
++            if (_context.NeedsSlots) FoldSlotCore(payload); // late-bound, and speculative while unknown: see RespTopology
+         }
+ 
++        [MethodImpl(MethodImplOptions.NoInlining)]
++        private void FoldSlotCore(scoped ReadOnlySpan<byte> payload)
++            => _slot = ServerSelectionStrategy.CombineSlot(_slot, ServerSelectionStrategy.GetClusterSlot(payload));
++
+         /// <summary>
+         /// Record that arguments have been written, and refuse to go past the protocol's limit.
+         /// </summary>
+@@ -1017,6 +1032,7 @@ private void FoldSlot(scoped ReadOnlySpan<byte> payload)
+         /// without it, so the frame becomes illegal one past the limit rather than at it.
+         /// </para>
+         /// </remarks>
++        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+         private void CountArguments(int count = 1)
+         {
+             _args += count;

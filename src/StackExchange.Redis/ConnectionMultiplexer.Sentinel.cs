@@ -426,8 +426,12 @@ public partial class ConnectionMultiplexer
         }
         catch (Exception)
         {
-            // Log, but don't throw in an event handler
-            // TODO: Log via new event handler? a la ConnectionFailed?
+            // The switch can fail for a reason that will pass: the connection that just came back may be the
+            // seed itself - a sentinel address standing in for a primary nobody has resolved yet - restored
+            // before this sentinel connection has re-learned which of its servers are sentinels. The timer
+            // was stopped above, so swallowing this would leave nothing to try again and the managed
+            // connection parked on the sentinel for good; re-arm it instead, exactly as a failure does.
+            ScheduleSentinelPrimaryReconnect(connection, e.EndPoint);
         }
     }
 

@@ -3,7 +3,7 @@
 /// <summary>
 /// The result of a GeoRadius command.
 /// </summary>
-public readonly struct GeoRadiusResult
+public readonly partial struct GeoRadiusResult
 {
     /// <summary>
     /// Indicate the member being represented.

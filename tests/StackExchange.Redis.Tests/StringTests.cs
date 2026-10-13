@@ -18,7 +18,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var server = GetServer(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -52,7 +52,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -71,7 +71,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -89,7 +89,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -103,7 +103,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -122,7 +122,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -146,7 +146,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -163,7 +163,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -180,7 +180,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -202,7 +202,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         db.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
         db.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
@@ -224,7 +224,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         db.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
         db.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
@@ -246,7 +246,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         db.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
         db.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
@@ -282,7 +282,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v6_0_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         db.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
         db.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
@@ -320,7 +320,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v6_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         db.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
         db.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
@@ -384,11 +384,64 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     }
 
     [Fact]
+    public async Task GetSet()
+    {
+        await using var conn = Create();
+
+        var db = GetDatabase(conn);
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        // GETSET is deprecated in favour of SET ... GET, and the transitional surface sends the modern
+        // spelling - so this is here to pin that the OLD method's semantics survive the substitution.
+        // Without it the only coverage is the KeyPrefixed suites, which assert forwarding, never a server.
+        Assert.True(db.StringGetSet(key, "one").IsNull); // absent: null back, and the value is stored
+        Assert.Equal("one", db.StringGetSet(key, "two"));
+        Assert.Equal("two", await db.StringGetSetAsync(key, "three"));
+        Assert.Equal("three", await db.StringGetAsync(key));
+    }
+
+    [Fact]
+    public async Task GetSetRejectsANullValue()
+    {
+        await using var conn = Create();
+
+        var db = GetDatabase(conn);
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "one", flags: CommandFlags.FireAndForget);
+
+        // StringSet and StringSetAndGet read a null value as a delete; StringGetSet has always thrown
+        // instead, and quietly adopting the other rule while respelling the command would turn this into
+        // a KeyDelete. The key is still here afterwards.
+        Assert.Throws<ArgumentException>(() => db.StringGetSet(key, RedisValue.Null));
+        Assert.Equal("one", await db.StringGetAsync(key));
+    }
+
+    [Fact]
+    public async Task GetSetClearsAnyExistingExpiry()
+    {
+        await using var conn = Create();
+
+        var db = GetDatabase(conn);
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        db.StringSet(key, "one", TimeSpan.FromMinutes(10), flags: CommandFlags.FireAndForget);
+
+        Assert.NotNull(await db.KeyTimeToLiveAsync(key));
+
+        // the half of GETSET that a naive rewrite gets wrong: it is a plain SET underneath, so the TTL
+        // goes. The modern spelling only matches while it does NOT also say KEEPTTL.
+        Assert.Equal("one", db.StringGetSet(key, "two"));
+        Assert.Null(await db.KeyTimeToLiveAsync(key));
+    }
+
+    [Fact]
     public async Task SetNotExistsAndGet()
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         db.KeyDelete(prefix + "1", CommandFlags.FireAndForget);
         db.KeyDelete(prefix + "2", CommandFlags.FireAndForget);
@@ -418,7 +471,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v2_1_8);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -437,7 +490,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -464,7 +517,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v2_6_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -492,7 +545,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -509,7 +562,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v2_6_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, flags: CommandFlags.FireAndForget);
         db.StringSet(key, "foobar", flags: CommandFlags.FireAndForget);
@@ -537,7 +590,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, flags: CommandFlags.FireAndForget);
         db.StringSet(key, "foobar", flags: CommandFlags.FireAndForget);
@@ -561,7 +614,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v2_6_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         var key1 = prefix + "1";
         var key2 = prefix + "2";
@@ -595,7 +648,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task BitOpExtended()
     {
         await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         var keyX = prefix + "X";
         var keyY1 = prefix + "Y1";
@@ -664,7 +717,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task BitOpTwoOperands()
     {
         await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         var key1 = prefix + "1";
         var key2 = prefix + "2";
@@ -699,7 +752,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task BitOpDiff()
     {
         await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         var keyX = prefix + "X";
         var keyY1 = prefix + "Y1";
@@ -727,7 +780,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task BitOpDiff1()
     {
         await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         var keyX = prefix + "X";
         var keyY1 = prefix + "Y1";
@@ -755,7 +808,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task BitOpAndOr()
     {
         await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         var keyX = prefix + "X";
         var keyY1 = prefix + "Y1";
@@ -783,7 +836,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task BitOpOne()
     {
         await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         var key1 = prefix + "1";
         var key2 = prefix + "2";
@@ -811,7 +864,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task BitOpDiffAsync()
     {
         await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         var keyX = prefix + "X";
         var keyY1 = prefix + "Y1";
@@ -837,7 +890,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     public async Task BitOpEdgeCases()
     {
         await using var conn = Create(require: RedisFeatures.v8_2_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var prefix = Me();
         var keyEmpty = prefix + "empty";
         var keyNonEmpty = prefix + "nonempty";
@@ -869,7 +922,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v2_6_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, flags: CommandFlags.FireAndForget);
         db.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
@@ -897,7 +950,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.KeyDelete(key, flags: CommandFlags.FireAndForget);
         db.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
@@ -914,7 +967,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         db.StringSet(key, "hello world", flags: CommandFlags.FireAndForget);
         var result = db.StringGetRangeAsync(key, 2, 6);
@@ -926,7 +979,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v3_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string value = "hello world";
         db.HashSet(key, "field", value);
@@ -941,7 +994,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v3_2_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         const string value = "hello world";
         db.HashSet(key, "field", value);
@@ -954,7 +1007,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me() + "1";
         var key2 = Me() + "2";
         db.KeyDelete(key1);
@@ -994,7 +1047,7 @@ public class StringTests(ITestOutputHelper output, SharedConnectionFixture fixtu
     {
         await using var conn = Create(require: RedisFeatures.v7_0_0_rc1);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key1 = Me() + "1";
         var key2 = Me() + "2";
         db.KeyDelete(key1);

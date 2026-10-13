@@ -105,6 +105,11 @@ namespace StackExchange.Redis
         public bool GetDelete => Version.IsAtLeast(v6_2_0);
 
         /// <summary>
+        /// Is <see href="https://redis.io/commands/geosearch/">GEOSEARCH</see> available?
+        /// </summary>
+        public bool GeoSearch => Version.IsAtLeast(v6_2_0);
+
+        /// <summary>
         /// Is <see href="https://redis.io/commands/hstrlen/">HSTRLEN</see> available?
         /// </summary>
         public bool HashStringLength => Version.IsAtLeast(v3_2_0);
@@ -128,6 +133,11 @@ namespace StackExchange.Redis
         /// Is <see href="https://redis.io/commands/linsert/">LINSERT</see> available?
         /// </summary>
         public bool ListInsert => Version.IsAtLeast(v2_1_1);
+
+        /// <summary>
+        /// Is <see href="https://redis.io/commands/lmove/">LMOVE</see> available?
+        /// </summary>
+        public bool ListMove => Version.IsAtLeast(v6_2_0);
 
         /// <summary>
         /// Is <see href="https://redis.io/commands/memory/">MEMORY</see> available?

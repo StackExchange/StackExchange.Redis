@@ -1,0 +1,898 @@
+﻿using System;
+using System.Buffers;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks.Sources;
+using RESPite.Buffers;
+using RESPite.Messages;
+
+namespace RESPite.Operations;
+
+/// <summary>
+/// One object that is the request, the completion, and the awaitable.
+/// </summary>
+/// <typeparam name="TResponse">What the reply parses into.</typeparam>
+/// <remarks>
+/// <para>
+/// This replaces <c>Message</c> <b>and</b> <c>IResultBox</c>. Today an awaited command allocates a
+/// message, a result box, and a <c>Task</c>; here it allocates one instance which is an
+/// <see cref="IValueTaskSource{TResult}"/> in its own right, so the caller's <c>ValueTask&lt;T&gt;</c>
+/// wraps it directly. The synchronous path uses the same core rather than a second mechanism, which is
+/// what retires <c>SimpleResultBox</c> and its <c>Monitor.PulseAll</c> box.
+/// </para>
+/// <para>
+/// <b>Version and flags share one word, and that is load-bearing.</b> Claiming the outcome has to check
+/// "nobody else has completed this" and "the caller is not holding a handle to a previous life" as a
+/// single atomic step. Two fields cannot do that: a stale completer can read a matching version, be
+/// pre-empted while the instance completes and is recycled, and then win the flag on somebody else's
+/// command. Packing the version into the same <see cref="int"/> makes the compare-and-swap cover both.
+/// </para>
+/// <para>
+/// <b>Recycling is not the same as completing.</b> A definite outcome - a reply parsed, a server error,
+/// a cancellation observed - proves the pipeline is finished with the instance. A timeout or a
+/// connection fault does not: the write may still be in flight, and handing that instance to a pool is
+/// how a reply lands on somebody else's command. Only the definite cases set <see cref="IsRecyclable"/>.
+/// </para>
+/// </remarks>
+internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSource<TResponse>
+{
+    private ManualResetValueTaskSourceCore<TResponse> _asyncCore;
+
+    /// <summary>Version in the high half, flags in the low half; see the type remarks.</summary>
+    private int _state;
+
+    /// <summary>
+    /// The parse-capability flags, which describe the <i>type</i> rather than the life.
+    /// </summary>
+    /// <remarks>
+    /// Held separately because <see cref="Reset"/> clears the flag word, and these have to survive it: a
+    /// recycled instance that forgot it had a parser would silently return <c>default</c> for every
+    /// subsequent command.
+    /// </remarks>
+    private readonly int _parseFlags;
+
+    private CancellationToken _cancellationToken;
+    private CancellationTokenRegistration _cancellationRegistration;
+
+    /// <summary>
+    /// What this operation carries for the sake of explaining itself; see §4 of the design notes.
+    /// </summary>
+    /// <remarks>
+    /// One struct rather than seven fields so that <see cref="Reset"/> clears it in a line the compiler
+    /// keeps complete. A recycled operation leaking a previous life's timestamps does not fail anything -
+    /// it produces a timeout report describing the wrong command.
+    /// </remarks>
+    private RespOperationDiagnostics _diagnostics;
+
+    private ReadOnlyMemory<byte> _request;
+    private object? _requestOwner;
+    private int _requestRefCount;
+    private int _recycleWhenReleased; // see GetResult: the instance waits for its last request reference
+
+    private const int
+        Flag_Sent = 1 << 0,             // the request has been handed to a writer
+        Flag_OutcomeKnown = 1 << 1,     // exactly one code path gets to set an outcome; this is the claim
+        Flag_Complete = 1 << 2,         // the outcome is set and any follow-up has run
+        Flag_NoPulse = 1 << 3,          // this life is in async mode (or its waiter left): Wait must not block
+        Flag_Parser = 1 << 4,           // a parser was supplied
+        Flag_MetadataParser = 1 << 5,   // the parser wants to see attributes/metadata itself
+        Flag_InlineParser = 1 << 6,     // the parser is safe to run on the IO thread
+        Flag_Indefinite = 1 << 7,       // the outcome does not prove the pipeline is done with us
+        Flag_Queued = 1 << 8,           // accepted by an owner that will send it later - a backlog
+        Flag_Awaited = 1 << 9,          // an async consumer attached a continuation; nobody is blocked on it
+        Flag_Waiting = 1 << 11,         // a synchronous caller is (or was) blocked in Wait: completing must pulse
+        Flag_InlineContinuation = 1 << 12; // the continuation only dispatches, so it runs on the completing thread
+
+    private const int FlagMask = 0xFFFF;
+
+    /// <summary>Create a message in the pending state.</summary>
+    /// <param name="options">What to do with the reply when it arrives.</param>
+    protected RespMessageBase(RespParseOptions options = RespParseOptions.Parse)
+    {
+        _parseFlags = ToFlags(options);
+        _state = Pack(_asyncCore.Version, _parseFlags);
+
+        // Continuations are QUEUED, not run inline, and this is a correctness decision rather than a
+        // tuning one. The thread that publishes an outcome is the connection's read loop; running a
+        // caller's continuation on it means arbitrary user code - a database call, a lock, a Thread.Sleep -
+        // sits in front of every other reply on that connection. That is head-of-line blocking for
+        // everyone sharing the socket, which is the whole point of multiplexing.
+        //
+        // It is also what the existing core already does: every ResultBox completes with
+        // RunContinuationsAsynchronously. This is not a new position, just the same one restated - see
+        // docs/ThreadTheft.md, where the symptom is named (rs: CompletePendingMessage in a timeout).
+        //
+        // TWO CAVEATS, because this flag is not the whole answer:
+        //
+        //  * It does not save you from a SynchronizationContext whose Post runs the callback
+        //    synchronously - LegacyAspNetSynchronizationContext being the one that matters. The
+        //    continuation is dispatched rather than invoked, and then the dispatch runs it inline anyway.
+        //    The existing core's answer is the "preventthreadtheft" feature flag, which queues to the
+        //    thread pool pre-emptively; the new core will need the same escape hatch, and RespOperation's
+        //    OnCompleted passing UseSchedulingContext by default is where it would go.
+        //  * Marc's anecdote, worth recording because it is not discoverable: on early .NET Framework
+        //    (net45-era) the TaskCreationOptions equivalent was not reliably honoured. The library still
+        //    targets net461/net472, and downlevel this type comes from System.Threading.Tasks.Extensions
+        //    rather than the framework - so the behaviour is the package's, which is a different risk
+        //    surface from the one that bit before, but not obviously a smaller one. Worth a downlevel
+        //    test before this is load-bearing.
+        _asyncCore.RunContinuationsAsynchronously = true;
+    }
+
+    private static int ToFlags(RespParseOptions options)
+    {
+        var flags = 0;
+        if ((options & RespParseOptions.Parse) != 0) flags |= Flag_Parser;
+        if ((options & RespParseOptions.Metadata) == RespParseOptions.Metadata) flags |= Flag_MetadataParser;
+        if ((options & RespParseOptions.Inline) == RespParseOptions.Inline) flags |= Flag_InlineParser;
+        return flags;
+    }
+
+    /// <summary>The current version; a handle taken now is valid until this instance is reset.</summary>
+    public short Token => _asyncCore.Version;
+
+    /// <inheritdoc/>
+    public bool AllowInlineParsing => HasFlag(Flag_InlineParser);
+
+    /// <summary>What this operation carries for diagnostics; see design notes section 4.</summary>
+    public ref RespOperationDiagnostics Diagnostics => ref _diagnostics;
+
+    /// <summary>Whether the outcome proved the pipeline is finished with this instance.</summary>
+    /// <remarks>
+    /// The owner consults this before returning the instance to a pool. It is <see langword="false"/>
+    /// until an outcome is set, and stays <see langword="false"/> for timeouts and connection faults.
+    /// </remarks>
+    public bool IsRecyclable => (Volatile.Read(ref _state) & (Flag_Complete | Flag_Indefinite)) == Flag_Complete;
+
+    /// <summary>Turn a reply into the response value.</summary>
+    /// <param name="reader">Positioned at the reply, or before it when the parser handles metadata.</param>
+    /// <remarks>
+    /// Override <b>this</b> for the ordinary case - a value read out of the reply. Override
+    /// <see cref="ParseFrame(ReadOnlySpan{byte})"/> instead when the response IS the frame: a payload to
+    /// be handed on, retained, or cached, where turning the bytes into a value and back would be the
+    /// copy this design exists to avoid. Exactly one of the two.
+    /// </remarks>
+    protected virtual TResponse Parse(ref RespReader reader)
+        => throw new NotSupportedException($"{GetType().Name} must override {nameof(Parse)} or {nameof(ParseFrame)}.");
+
+    /// <summary>Turn a complete reply frame into the response value.</summary>
+    /// <param name="frame">The whole frame, including its prefix.</param>
+    /// <remarks>
+    /// The default positions a reader and defers to <see cref="Parse(ref RespReader)"/>, which is what
+    /// almost everything wants. See that method for when to override this one instead.
+    /// </remarks>
+    /// <param name="source">
+    /// Who owns <paramref name="frame"/>, when it can be retained instead of copied; null when the bytes
+    /// are valid only for this call. Most parsers read a value out and do not care.
+    /// </param>
+    protected virtual TResponse ParseFrame(scoped ReadOnlySpan<byte> frame, IPayloadReservationProvider? source)
+    {
+        var reader = new RespReader(frame);
+        if ((Volatile.Read(ref _state) & Flag_MetadataParser) == 0) reader.MoveNext();
+        return Parse(ref reader);
+    }
+
+    /// <summary>Turn a complete reply frame, spanning several segments, into the response value.</summary>
+    /// <param name="frame">The whole frame, including its prefix.</param>
+    /// <remarks>See <see cref="ParseFrame(ReadOnlySpan{byte})"/>; this is the multi-segment twin.</remarks>
+    protected virtual TResponse ParseFrame(in ReadOnlySequence<byte> frame)
+    {
+        var reader = new RespReader(frame);
+        if ((Volatile.Read(ref _state) & Flag_MetadataParser) == 0) reader.MoveNext();
+        return Parse(ref reader);
+    }
+
+    /// <summary>Called when the instance is reset, so derived state can be cleared too.</summary>
+    /// <remarks>
+    /// Exhaustive clearing matters more than it looks: a recycled instance that leaks a previous life's
+    /// timestamps produces a timeout report describing the wrong command. See design notes section 4.
+    /// </remarks>
+    protected virtual void OnReset()
+    {
+    }
+
+    /// <summary>Called after a definite outcome has been consumed, for pools to reclaim the instance.</summary>
+    protected virtual void OnRecyclable()
+    {
+    }
+
+    /// <summary>Called when a writer takes the request bytes; the operation is now on its way.</summary>
+    /// <remarks>
+    /// <b>Beside the status stamp, because it is the same event.</b> This fires exactly where
+    /// <c>Diagnostics.Status</c> becomes <c>Sent</c> - RESPite already records that moment for its own
+    /// reasons, so a host observing it costs one call next to a line that was already there. Doing it
+    /// from outside would mean re-deriving "when was it sent" at three or four call sites, which is both
+    /// less accurate and easy to miss when a fifth appears.
+    /// </remarks>
+    protected virtual void OnSent()
+    {
+    }
+
+    /// <summary>Called as this life ends, <b>before</b> the outcome is published.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The one that cannot be done from outside.</b> It has to fire for every ending - a reply, a
+    /// server error, a cancellation, a timeout, a connection fault - and for fire-and-forget commands
+    /// that nobody ever consumes. There is no single point above this that sees all of those;
+    /// <see cref="OnReset"/> comes close but fires on <i>consumption</i>, which the unconsumed ones never
+    /// reach.
+    /// </para>
+    /// <para>
+    /// <b>Before, for the same reason <see cref="Mark"/> is, and it was afterwards.</b> Publishing runs an
+    /// awaiting continuation - inline, on this thread, when one is already registered - so a caller can be
+    /// back from its await and looking at whatever this was supposed to record before this has run at all.
+    /// The symptom was a profiling session losing a handful of commands out of a thousand: not dropped,
+    /// merely pushed after the caller had finished waiting and asked for the results. The shipped core
+    /// orders it the same way, recording the command before it activates continuations.
+    /// </para>
+    /// </remarks>
+    /// <param name="fault">How it ended, or null if it succeeded.</param>
+    protected virtual void OnFinished(Exception? fault)
+    {
+    }
+
+    /// <summary>Whether an async consumer attached a continuation, rather than blocking on the result.</summary>
+    /// <remarks>
+    /// <b>One-way and only ever a positive claim.</b> A continuation is attached exactly once, by the
+    /// machinery behind <c>await</c>, and only when the result was not already available - so "true" is
+    /// certain. "False" means only that nobody has attached one yet, which covers a synchronous waiter, a
+    /// fire-and-forget, and an <c>await</c> that has not reached the operation. Callers use it to describe a
+    /// fault, never to decide one.
+    /// </remarks>
+    protected bool IsAwaited => HasFlag(Flag_Awaited);
+
+    // ---- state helpers ------------------------------------------------------------------------------
+    private static int Pack(short version, int flags) => (version << 16) | (flags & FlagMask);
+
+    private static short VersionOf(int state) => unchecked((short)(state >> 16));
+
+    private bool HasFlag(int flag) => (Volatile.Read(ref _state) & flag) != 0;
+
+    /// <summary>Set flags, preserving the version. Returns whether this call was the one that set them.</summary>
+    private bool SetFlag(int flag)
+    {
+        Debug.Assert(flag != 0 && (flag & FlagMask) == flag, "flags live in the low half");
+        while (true)
+        {
+            var state = Volatile.Read(ref _state);
+            if ((state & flag) == flag) return false;
+            if (Interlocked.CompareExchange(ref _state, state | flag, state) == state)
+            {
+                return true;
+            }
+        }
+    }
+
+    /// <summary>Set flags on the life <paramref name="token"/> names, and on no other.</summary>
+    /// <remarks>
+    /// <see cref="SetFlag"/> preserves whatever version is current, which is right for the code that owns the
+    /// current life; a caller acting on behalf of a token it was handed must not, because by the time it acts the
+    /// operation may have been recycled under it.
+    /// </remarks>
+    private void SetFlagFor(short token, int flag)
+    {
+        while (true)
+        {
+            var state = Volatile.Read(ref _state);
+            if (VersionOf(state) != token || (state & flag) == flag) return;
+            if (Interlocked.CompareExchange(ref _state, state | flag, state) == state) return;
+        }
+    }
+
+    /// <summary>
+    /// Claim the right to set the outcome, for the holder of <paramref name="token"/>.
+    /// </summary>
+    /// <remarks>
+    /// The whole point of packing: version and claim move together, so a stale holder cannot win the
+    /// claim on a later life no matter how it is scheduled.
+    /// </remarks>
+    private bool TryClaimOutcome(short token)
+    {
+        while (true)
+        {
+            var state = Volatile.Read(ref _state);
+            if (VersionOf(state) != token) return false;        // stale handle, or already recycled
+            if ((state & Flag_OutcomeKnown) != 0) return false;  // somebody else got there first
+            if (Interlocked.CompareExchange(ref _state, state | Flag_OutcomeKnown, state) == state)
+            {
+                UnregisterCancellation();
+                return true;
+            }
+        }
+    }
+
+    // ---- initialisation -----------------------------------------------------------------------------
+    /// <summary>Attach the rendered request and arm cancellation.</summary>
+    /// <param name="request">The rendered request bytes.</param>
+    /// <param name="owner">An <see cref="ArrayPool{T}"/> or <see cref="IDisposable"/> that owns them, if any.</param>
+    /// <param name="cancellationToken">Cancellation for this operation.</param>
+    protected void SetRequest(ReadOnlyMemory<byte> request, object? owner, CancellationToken cancellationToken)
+    {
+        Debug.Assert(_requestRefCount == 0, "the request is being set more than once - or a writer still holds the last life's");
+        _diagnostics.OnCreated(); // per LIFE, not per instance: a recycled operation is a new command
+
+        // Every life starts asynchronous, whatever the last one left behind. The two inline paths (a claimed sink,
+        // TrySetCanceledInline) flip this and restore it in a finally - but the continuation they run inline can
+        // consume, recycle and hand this instance to a NEW life before that finally runs, and that life then
+        // completes inline from the read loop: the reader runs a caller's continuation, which (caught in a dump)
+        // went on to block synchronously on a reply only that reader could deliver. The connection wedged until
+        // timeouts cleared it - the "~5s with nothing inbound" stall.
+        _asyncCore.RunContinuationsAsynchronously = true;
+        _request = request;
+        _requestOwner = owner;
+        _requestRefCount = 1;
+        _cancellationToken = cancellationToken;
+        if (cancellationToken.CanBeCanceled)
+        {
+            _cancellationRegistration = cancellationToken.Register(CancellationCallback, this);
+        }
+        else
+        {
+            // Nothing else will ever end this operation if the connection loses it, so arm the backstop.
+            // Only when the caller supplied nothing: a caller with a token has said how long they are
+            // willing to wait, and second-guessing that is not this layer's business.
+            var backstop = OperationBackstop.Token;
+            if (backstop.CanBeCanceled)
+            {
+                _cancellationRegistration = backstop.Register(BackstopCallback, this);
+            }
+        }
+    }
+
+    private static readonly Action<object?> CancellationCallback =
+        static state => ((IRespMessage)state!).TrySetCanceled();
+
+    private static readonly Action<object?> BackstopCallback =
+        static state => ((IRespMessage)state!).TrySetTimedOut();
+
+    private void UnregisterCancellation()
+    {
+        _cancellationRegistration.Dispose();
+        _cancellationRegistration = default;
+        _cancellationToken = default;
+    }
+
+    // ---- the request payload ------------------------------------------------------------------------
+    /// <summary>The request as rendered, for diagnostics; empty once it has been released.</summary>
+    /// <remarks>
+    /// <b>Read WITHOUT reserving, and only for describing this operation</b> - naming the command and key
+    /// in an error, say. A reservation means "I am about to write these bytes"; this is a reader that must
+    /// not pretend to. It is therefore only safe from the caller's own unwind, where the operation is not
+    /// going to be sent and its buffer cannot be recycled underneath: see the callers.
+    /// </remarks>
+    protected ReadOnlyMemory<byte> RequestForDiagnostics
+        => Volatile.Read(ref _requestRefCount) == 0 ? default : _request;
+
+    /// <inheritdoc/>
+    public bool TryReserveRequest(short token, out ReadOnlyMemory<byte> payload, bool recordSent = true)
+    {
+        while (true)
+        {
+            var count = Volatile.Read(ref _requestRefCount);
+            if (count == 0 || Token != token)
+            {
+                payload = default;
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _requestRefCount, checked(count + 1), count) == count)
+            {
+                if (recordSent)
+                {
+                    SetFlag(Flag_Sent);
+                    _diagnostics.Status = RespCommandStatus.Sent;
+                    OnSent();
+                }
+
+                payload = _request;
+                return true;
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    public void OnEnqueued(object connection, long bytesSent, long bytesReceived)
+        => _diagnostics.OnEnqueued(connection, bytesSent, bytesReceived);
+
+    /// <inheritdoc/>
+    public void ReleaseRequest()
+    {
+        if (!TryReleaseRequest()) Throw();
+
+        static void Throw() => throw new InvalidOperationException("The request payload has already been released.");
+    }
+
+    /// <returns>Whether there was a reference to release; <b>not</b> whether it reached zero.</returns>
+    private bool TryReleaseRequest()
+    {
+        while (true)
+        {
+            var count = Volatile.Read(ref _requestRefCount);
+            if (count == 0) return false;
+            if (Interlocked.CompareExchange(ref _requestRefCount, count - 1, count) == count)
+            {
+                if (count == 1)
+                {
+                    ReturnRequestBuffer();
+
+                    // the last reference of a life that has already been consumed: a writer that was still holding
+                    // its reservation when the result was taken, so the recycle waited for it (see GetResult)
+                    if (Interlocked.Exchange(ref _recycleWhenReleased, 0) != 0) OnRecyclable();
+                }
+
+                return true;
+            }
+        }
+    }
+
+    private void ReturnRequestBuffer()
+    {
+        switch (_requestOwner)
+        {
+            case ArrayPool<byte> pool when MemoryMarshal.TryGetArray(_request, out var segment) && segment.Array is not null:
+                pool.Return(segment.Array);
+                break;
+            case IDisposable owner:
+                owner.Dispose();
+                break;
+        }
+
+        _request = default;
+        _requestOwner = null;
+    }
+
+    // ---- outcomes -----------------------------------------------------------------------------------
+    /// <inheritdoc/>
+    public bool TrySetResult(short token, scoped ReadOnlySpan<byte> response, IPayloadReservationProvider? source = null)
+    {
+        if (!TryClaimOutcome(token)) return false;
+        if ((Volatile.Read(ref _state) & Flag_Parser) == 0) return Complete(default!, definite: true);
+
+        try
+        {
+            return Complete(ParseFrame(response, source), definite: true);
+        }
+        catch (Exception ex)
+        {
+            return Fail(ex, definite: true); // the server answered; parsing it is our problem, not the queue's
+        }
+    }
+
+    /// <inheritdoc/>
+    public bool TrySetResult(short token, in ReadOnlySequence<byte> response)
+    {
+        if (!TryClaimOutcome(token)) return false;
+        if ((Volatile.Read(ref _state) & Flag_Parser) == 0) return Complete(default!, definite: true);
+
+        try
+        {
+            return Complete(ParseFrame(in response), definite: true);
+        }
+        catch (Exception ex)
+        {
+            return Fail(ex, definite: true);
+        }
+    }
+
+    /// <inheritdoc/>
+    public bool TrySetException(short token, Exception exception, bool definite = false)
+        => TryClaimOutcome(token) && Fail(exception, definite);
+
+    /// <inheritdoc/>
+    public bool TrySetCanceled(short token, CancellationToken cancellationToken = default)
+    {
+        var named = cancellationToken.IsCancellationRequested ? cancellationToken : _cancellationToken;
+        return TryClaimOutcome(token) && Fail(new OperationCanceledException(named), definite: true);
+    }
+
+    /// <summary>
+    /// Cancel this operation, running the waiter's continuation <b>inline</b> on the calling thread.
+    /// </summary>
+    /// <param name="token">The operation's token.</param>
+    /// <param name="cancellationToken">The token to report as the cause.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>The default is asynchronous continuations, and this is the narrow exception.</b> The reason for
+    /// the default is above: the thread that publishes an outcome is normally the connection's read loop,
+    /// and running arbitrary user code there head-of-line blocks every other reply on that socket. That
+    /// reasoning does not apply to an operation being cancelled by a caller that <i>never sent it</i> -
+    /// there is no read loop involved, and the calling thread is the one that decided to cancel.
+    /// </para>
+    /// <para>
+    /// <b>Only use this where the operation provably cannot be completed from the IO loop</b>, which in
+    /// practice means one that was never written. A conditional transaction whose condition did not hold
+    /// is exactly that case: its queued commands never reached a socket, and the shipped surface
+    /// guarantees they have already transitioned to <c>Canceled</c> by the time <c>ExecuteAsync</c>'s own
+    /// task completes. Callers read <c>.Status</c> immediately rather than awaiting, so "cancelled, and
+    /// the continuation will run shortly" is not good enough - it has to be done.
+    /// </para>
+    /// <para>
+    /// The flag is restored before returning. <c>ManualResetValueTaskSourceCore.Reset</c> does <b>not</b>
+    /// clear it, so leaving it false would quietly make the next life of a pooled operation complete
+    /// inline - from the read loop, which is the thing this is not allowed to do.
+    /// </para>
+    /// </remarks>
+    public bool TrySetCanceledInline(short token, CancellationToken cancellationToken = default)
+    {
+        // CLAIM FIRST, then go inline. Flipping before the claim let a reply racing this cancellation win the claim
+        // and complete with the flag still false - inline, from the read loop.
+        var named = cancellationToken.IsCancellationRequested ? cancellationToken : _cancellationToken;
+        if (!TryClaimOutcome(token)) return false;
+
+        // inline is passed as a DECISION rather than left as state: Fail sets the flag, completes, and restores it
+        return Fail(new OperationCanceledException(named), definite: true, inline: true);
+    }
+
+    /// <inheritdoc/>
+    void IRespMessage.TrySetTimedOut() => TrySetTimeout(Token); // the backstop's registration ends with its life, in Reset
+
+    /// <inheritdoc/>
+    bool IRespMessage.IsFinished => HasFlag(Flag_OutcomeKnown);
+
+    /// <inheritdoc/>
+    bool IRespMessage.TryTimeoutIfOlderThan(short token, TimeSpan age)
+        => VersionOf(Volatile.Read(ref _state)) == token && _diagnostics.Age >= age && TrySetTimeout(token);
+
+    /// <inheritdoc/>
+    void IRespMessage.TrySetCanceled()
+    {
+        // the cancellation callback races everything else; the claim decides, and losing is normal
+        var named = _cancellationToken;
+        if (TryClaimOutcome(Token)) Fail(new OperationCanceledException(named), definite: true);
+    }
+
+    /// <summary>Fail with a timeout, which is never a definite outcome.</summary>
+    /// <remarks>
+    /// Marc's rule, and the reason it is worth a named method: <i>"timeouts are undefined chaos"</i>. The
+    /// pipeline has not told us anything; it may still write the request and complete us later.
+    /// </remarks>
+    private bool TrySetTimeout(short token)
+        => TryClaimOutcome(token) && Fail(CreateTimeoutException(), definite: false);
+
+    /// <summary>The exception a timeout produces.</summary>
+    /// <remarks>
+    /// <b>Virtual because the host has a vocabulary and this layer does not.</b> A bare
+    /// <see cref="TimeoutException"/> is correct and useless: callers catch the library's own timeout
+    /// type, and have for years. RESPite has no business knowing what that type is, so it asks.
+    /// </remarks>
+    protected virtual Exception CreateTimeoutException() => new TimeoutException();
+
+    private bool Complete(TResponse response, bool definite)
+    {
+        Mark(definite);
+        OnFinished(null);
+        if (HasFlag(Flag_InlineContinuation))
+        {
+            // a dispatch-only continuation (see OnCompletedInline): run it here rather than paying a pool hop
+            _asyncCore.RunContinuationsAsynchronously = false;
+            try
+            {
+                _asyncCore.SetResult(response);
+            }
+            finally
+            {
+                _asyncCore.RunContinuationsAsynchronously = true;
+            }
+        }
+        else
+        {
+            // the ordinary path is ALWAYS asynchronous: this is usually the read loop, and false here can only be
+            // left over from another life's inline completion (see SetRequest), never a decision for this one
+            _asyncCore.RunContinuationsAsynchronously = true;
+            _asyncCore.SetResult(response);
+        }
+
+        Pulse();
+        return true;
+    }
+
+    private bool Fail(Exception exception, bool definite, bool inline = false)
+    {
+        Mark(definite);
+        OnFinished(exception);
+        if (inline || HasFlag(Flag_InlineContinuation))
+        {
+            _asyncCore.RunContinuationsAsynchronously = false;
+            var wasInline = t_completingInline;
+            t_completingInline = inline;
+            try
+            {
+                _asyncCore.SetException(exception);
+            }
+            finally
+            {
+                t_completingInline = wasInline;
+                _asyncCore.RunContinuationsAsynchronously = true;
+            }
+        }
+        else
+        {
+            _asyncCore.RunContinuationsAsynchronously = true; // see Complete
+            _asyncCore.SetException(exception);
+        }
+
+        Pulse();
+        return true;
+    }
+
+    /// <summary>
+    /// Record how this life ended, <b>before</b> the outcome is published.
+    /// </summary>
+    /// <returns>Whether a synchronous waiter still needs waking.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>The ordering here is the whole of it, and getting it wrong is silent.</b> Publishing the
+    /// outcome can run an awaiting continuation <i>inline</i> - that is what
+    /// <c>ManualResetValueTaskSourceCore.SetResult</c> does when a continuation is already registered -
+    /// and that continuation calls <see cref="GetResult"/>, which reads <see cref="IsRecyclable"/> and
+    /// then <see cref="Reset"/>s. So anything recorded after publishing is recorded too late to be read,
+    /// and worse, lands on the instance's <i>next</i> life.
+    /// </para>
+    /// <para>
+    /// The first version marked afterwards. Nothing failed: every test passed, the results were correct,
+    /// and the only symptom was that pooling never engaged - <c>IsRecyclable</c> was false at every
+    /// single <c>GetResult</c>, so an executor's pool took 0 hits out of 56,642 sends. It was found by
+    /// benchmarking allocations, not by testing behaviour.
+    /// </para>
+    /// </remarks>
+    private void Mark(bool definite)
+        => SetFlag(definite ? Flag_Complete : (Flag_Complete | Flag_Indefinite));
+
+    /// <summary>Wake a synchronous waiter, if there is one.</summary>
+    /// <remarks>
+    /// <para>
+    /// Strictly after the outcome is published, which is the opposite constraint from
+    /// <see cref="OnFinished"/>: a waiter woken before the result exists would read one that is not there.
+    /// </para>
+    /// <para>
+    /// <b>Only when a waiter has said so</b> (<see cref="Flag_Waiting"/>). This used to pulse unless an async consumer
+    /// had attached - which meant every operation awaited <i>late</i>, after its reply (a batch's results, read once
+    /// it has executed), took the monitor on the reader thread, and that cost a quarter of context-batch throughput.
+    /// The two sides are a Dekker pair: the waiter sets the flag then reads the status, under the lock; this
+    /// publishes the status then reads the flag. With a full fence on each side at least one sees the other, and a
+    /// waiter that saw "pending" holds the lock until it is in <c>Monitor.Wait</c>, so the pulse cannot slip past it.
+    /// The flag read may land on the NEXT life if this one has already been consumed - a spurious pulse, which
+    /// <see cref="Wait"/> tolerates by re-checking the status.
+    /// </para>
+    /// </remarks>
+    private void Pulse()
+    {
+        Interlocked.MemoryBarrier(); // publish-then-read; see remarks
+        if (!HasFlag(Flag_Waiting)) return;
+        lock (this)
+        {
+            Monitor.PulseAll(this);
+        }
+    }
+
+    // ---- consumption --------------------------------------------------------------------------------
+    /// <summary>Read the outcome, resetting the instance.</summary>
+    /// <param name="token">The version this caller holds.</param>
+    /// <remarks>
+    /// <b>The version moves immediately, not when the instance is next used.</b> Deferring it would let
+    /// a second <c>GetResult</c> appear to work for a while - fine under a local build, a cross-wired
+    /// reply under load. Moving it here turns that into an exception at the first offence.
+    /// </remarks>
+    public TResponse GetResult(short token)
+    {
+        // a stale or premature call fails WITHOUT touching this life: the reset below would otherwise destroy
+        // whichever life is current - release its request, drop its continuation, pool it a second time
+        if (token != _asyncCore.Version || _asyncCore.GetStatus(token) == ValueTaskSourceStatus.Pending)
+        {
+            return _asyncCore.GetResult(token); // throws: wrong version, or not yet complete
+        }
+
+        var recyclable = IsRecyclable;
+        try
+        {
+            return _asyncCore.GetResult(token);
+        }
+        finally
+        {
+            Reset();
+            if (recyclable) Recycle();
+        }
+    }
+
+    /// <summary>Hand the instance back to its pool - once nothing of this life still references it.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Not while a writer holds a reservation.</b> A writer stages the bytes and then releases its reservation,
+    /// and between the two the reply can land and the result be taken - a preempted writer is all it needs. Pooled
+    /// at once, the instance could be rented for a new life whose <c>SetRequest</c> reset the count to one; the
+    /// writer's late release then took the NEW life's count to zero, nulled its request (returning a rented
+    /// buffer still in use), and a batch writing it skipped it as "already completed": an await that never
+    /// finished, once in ~40 batch benchmark runs. So whoever drops the last reference recycles: this, if the
+    /// writer is done; otherwise the writer, from its release.
+    /// </para>
+    /// <para>
+    /// After <see cref="Reset"/> completes, never during it, so a recycled instance is never one that is still
+    /// being cleared. The two sides are a fenced pair - this sets the flag then reads the count, the releaser
+    /// drops the count then exchanges the flag - so exactly one of them takes it.
+    /// </para>
+    /// </remarks>
+    private void Recycle()
+    {
+        // the common case: no writer left, and none can start - the version has moved, so a reservation fails
+        if (Volatile.Read(ref _requestRefCount) == 0)
+        {
+            OnRecyclable();
+            return;
+        }
+
+        Interlocked.Exchange(ref _recycleWhenReleased, 1);
+        if (Volatile.Read(ref _requestRefCount) == 0 && Interlocked.Exchange(ref _recycleWhenReleased, 0) != 0)
+        {
+            OnRecyclable();
+        }
+    }
+
+    /// <summary>Clear every trace of this life and move the version on.</summary>
+    /// <remarks>
+    /// This drops <i>our</i> reference on the request and no more. Clearing the buffer fields outright
+    /// would strand a writer that still holds a reservation: its <see cref="ReleaseRequest"/> reads
+    /// those fields to find the array to return, so nulling them here leaks the buffer instead of
+    /// pooling it. The last releaser clears them, whoever that turns out to be.
+    /// </remarks>
+    private void Reset()
+    {
+        UnregisterCancellation();
+        TryReleaseRequest();
+        _diagnostics = default; // the whole point of keeping it in one struct
+        OnReset();
+
+        _asyncCore.Reset();
+
+        // the version and the cleared flags land together, so nothing can observe a fresh version with
+        // a previous life's claim still set; the parse capability is of the type, not the life, so it
+        // is re-applied rather than cleared
+        Volatile.Write(ref _state, Pack(_asyncCore.Version, _parseFlags));
+    }
+
+    /// <inheritdoc/>
+    public TResponse Wait(short token, TimeSpan timeout)
+    {
+        // the CORE's status, not Flag_Complete: the flag is now set before the outcome is published, so
+        // a waiter that trusted it could call GetResult on a core that has nothing in it yet
+        if (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending) return GetResult(token);
+        if (!HasFlag(Flag_Sent | Flag_Queued)) ThrowNotSent();
+
+        CheckToken(token);
+        var timedOut = false;
+        lock (this)
+        {
+            SetFlag(Flag_Waiting); // BEFORE reading the status: the completer's half of the pair is in Pulse
+            var started = timeout == TimeSpan.Zero ? 0 : Stopwatch.GetTimestamp();
+
+            // a loop, because a pulse is a hint: a late one from a previous life can arrive (see Pulse)
+            while (_asyncCore.GetStatus(token) == ValueTaskSourceStatus.Pending)
+            {
+                if (HasFlag(Flag_NoPulse)) ThrowWillNotPulse();
+                if (started == 0)
+                {
+                    Monitor.Wait(this);
+                    continue;
+                }
+
+                var remaining = timeout - TimeSpan.FromTicks((long)((Stopwatch.GetTimestamp() - started) * (TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency)));
+                if (remaining <= TimeSpan.Zero || !Monitor.Wait(this, remaining))
+                {
+                    if (_asyncCore.GetStatus(token) != ValueTaskSourceStatus.Pending) break; // won at the wire
+                    timedOut = true;
+                    SetFlag(Flag_NoPulse); // we are leaving; nobody need wake us
+                    break;
+                }
+            }
+        }
+
+        if (timedOut) TrySetTimeout(token);
+        return GetResult(token);
+
+        static void ThrowWillNotPulse() => throw new InvalidOperationException(
+            "This operation cannot be waited on because it entered async mode - most likely by calling AsTask().");
+    }
+
+    private void CheckToken(short token)
+    {
+        if (token != _asyncCore.Version) _ = _asyncCore.GetStatus(token); // for the consistent message
+    }
+
+    /// <summary>
+    /// Record that an owner has accepted this operation and will send it - a backlog, typically.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Distinct from sent, and the distinction is what <c>Wait</c> needs.</b> The guard on the
+    /// blocking and status paths exists to catch a real mistake - awaiting a command that belongs to a
+    /// batch or transaction that has not been executed, which would hang forever because nothing is ever
+    /// going to send it. A backlogged command is the opposite case: nobody has written it yet, but
+    /// somebody has promised to, so waiting is exactly right.
+    /// </para>
+    /// <para>
+    /// Without this, a <b>synchronous</b> command that arrives while the connection is still coming up -
+    /// or while a conditional transaction holds the write slot - throws "this command has not been sent"
+    /// instead of waiting for it. That surfaced as intermittent scan failures, because a cursor loop is
+    /// a long run of synchronous sends and only needs to be unlucky once.
+    /// </para>
+    /// </remarks>
+    public void MarkQueued()
+    {
+        SetFlag(Flag_Queued);
+        _diagnostics.Status = RespCommandStatus.WaitingInBacklog;
+    }
+
+    private static void ThrowNotSent() => throw new InvalidOperationException(
+        "This command has not been sent, so it cannot be awaited. If it belongs to a batch or transaction, execute that first.");
+
+    /// <summary>The status, with a guard that catches awaiting an unsent command.</summary>
+    /// <param name="token">The version this caller holds.</param>
+    /// <remarks>
+    /// Only the direct handle checks this. The <see cref="IValueTaskSource"/> implementations below do
+    /// not, because a <c>ValueTask</c> pre-checks status on paths where throwing would be wrong.
+    /// </remarks>
+    public ValueTaskSourceStatus GetStatus(short token)
+    {
+        var status = _asyncCore.GetStatus(token);
+        if (!HasFlag(Flag_Sent | Flag_Queued)) ThrowNotSent();
+        return status;
+    }
+
+    /// <inheritdoc/>
+    public void OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+    {
+        // BEFORE registering, and only on this life. Set afterwards - as it was - the flags could land on the NEXT
+        // life: if the operation is already complete, the continuation registered below can run on the pool,
+        // consume the result and recycle the operation, and a synchronous Send can rent it again, all before this
+        // thread reaches the next line. The stale NoPulse then told that Send's Wait the operation had "entered
+        // async mode", and it threw (SetTests.SScan, net481 CI). A stale token sets nothing, and the core rejects it.
+        SetFlagFor(token, Flag_NoPulse | Flag_Awaited); // an async consumer will never be blocked in Wait
+
+        _asyncCore.OnCompleted(continuation, state, token, flags);
+    }
+
+    /// <summary>
+    /// Register a continuation that does nothing but dispatch - so it may run on the completing thread, where an
+    /// ordinary continuation is always handed to the thread pool first.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>For a consumer that does its own dispatch</b>, as the <c>IDatabase</c> task bridge does: its continuation
+    /// queues the operation itself as a thread-pool work item. Through the ordinary path, the core queued the
+    /// continuation instead, and a delegate-plus-state continuation is wrapped in an allocated work item on every
+    /// completion (only an async method's own box is queued as-is). Inline, the only thing the completing thread -
+    /// usually the reader - runs is that queueing call.
+    /// </para>
+    /// <para>
+    /// <b>The continuation must never run caller code</b>: it runs on the reader, and anything that blocks or sends
+    /// there stalls every reply behind it.
+    /// </para>
+    /// </remarks>
+    /// <summary>
+    /// Whether this thread is completing an operation inline <b>on purpose</b> - <c>TrySetCanceledInline</c>, a
+    /// cancelled transaction's queued commands - rather than merely running a dispatch-only continuation inline.
+    /// </summary>
+    /// <remarks>
+    /// A dispatch-only continuation (see <see cref="OnCompletedInline"/>) should then finish its work right here
+    /// rather than queue it: the caller completing inline is relying on the outcome being visible when it returns -
+    /// a failed transaction's commands are already <c>Canceled</c> when <c>Execute</c> returns, and callers read that.
+    /// </remarks>
+    protected static bool IsCompletingInline => t_completingInline;
+
+    [ThreadStatic]
+    private static bool t_completingInline;
+
+    protected void OnCompletedInline(Action<object?> continuation, object? state, short token)
+    {
+        SetFlagFor(token, Flag_NoPulse | Flag_Awaited | Flag_InlineContinuation);
+        _asyncCore.OnCompleted(continuation, state, token, ValueTaskSourceOnCompletedFlags.None);
+    }
+
+    ValueTaskSourceStatus IValueTaskSource.GetStatus(short token) => _asyncCore.GetStatus(token);
+
+    ValueTaskSourceStatus IValueTaskSource<TResponse>.GetStatus(short token) => _asyncCore.GetStatus(token);
+
+    void IValueTaskSource.GetResult(short token) => _ = GetResult(token);
+
+    void IRespMessage.Wait(short token, TimeSpan timeout) => _ = Wait(token, timeout);
+}

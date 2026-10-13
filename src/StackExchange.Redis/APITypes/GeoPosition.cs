@@ -5,7 +5,7 @@ namespace StackExchange.Redis;
 /// <summary>
 /// Describes the longitude and latitude of a GeoEntry.
 /// </summary>
-public readonly struct GeoPosition : IEquatable<GeoPosition>
+public readonly partial struct GeoPosition : IEquatable<GeoPosition>
 {
     internal static RedisValue GetRedisUnit(GeoUnit unit) => unit switch
     {

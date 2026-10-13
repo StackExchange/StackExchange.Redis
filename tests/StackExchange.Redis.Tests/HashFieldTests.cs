@@ -23,7 +23,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldExpire()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
@@ -37,7 +37,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldExpireNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc2));
         var hashKey = Me();
 
         var fieldsResult = db.HashFieldExpire(hashKey, fields, oneYearInMs);
@@ -50,7 +50,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task HashFieldExpireAsync()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
@@ -64,7 +64,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public async Task HashFieldExpireAsyncNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc2));
         var hashKey = Me();
 
         var fieldsResult = await db.HashFieldExpireAsync(hashKey, fields, oneYearInMs);
@@ -77,7 +77,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetExpireDateTimeIsDue()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
@@ -88,7 +88,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldExpireNoField()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
@@ -99,7 +99,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldExpireConditionsSatisfied()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.KeyDelete(hashKey);
         db.HashSet(hashKey, entries);
@@ -123,7 +123,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldExpireConditionsNotSatisfied()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.KeyDelete(hashKey);
         db.HashSet(hashKey, entries);
@@ -147,7 +147,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetExpireDateTime()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
         db.HashFieldExpire(hashKey, fields, nextCentury);
@@ -163,7 +163,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldExpireFieldNoExpireTime()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
@@ -177,7 +177,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetExpireDateTimeNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc2));
         var hashKey = Me();
 
         var fieldsResult = db.HashFieldGetExpireDateTime(hashKey, fields);
@@ -187,7 +187,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetExpireDateTimeNoField()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
         db.HashFieldExpire(hashKey, fields, oneYearInMs);
@@ -199,7 +199,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetTimeToLive()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
         db.HashFieldExpire(hashKey, fields, oneYearInMs);
@@ -219,7 +219,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetTimeToLiveNoExpireTime()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
@@ -230,7 +230,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetTimeToLiveNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc2));
         var hashKey = Me();
 
         var fieldsResult = db.HashFieldGetTimeToLive(hashKey, fields);
@@ -240,7 +240,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldGetTimeToLiveNoField()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
         db.HashFieldExpire(hashKey, fields, oneYearInMs);
@@ -252,7 +252,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldPersist()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
         db.HashFieldExpire(hashKey, fields, oneYearInMs);
@@ -270,7 +270,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldPersistNoExpireTime()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
 
@@ -281,7 +281,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldPersistNoKey()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc2).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc2));
         var hashKey = Me();
 
         var fieldsResult = db.HashFieldPersist(hashKey, fields);
@@ -291,7 +291,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     [Fact]
     public void HashFieldPersistNoField()
     {
-        var db = Create(require: RedisFeatures.v7_4_0_rc1).GetDatabase();
+        var db = GetDatabase(Create(require: RedisFeatures.v7_4_0_rc1));
         var hashKey = Me();
         db.HashSet(hashKey, entries);
         db.HashFieldExpire(hashKey, fields, oneYearInMs);
@@ -304,7 +304,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     public void HashFieldGetAndSetExpiry()
     {
         using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var hashKey = Me();
 
         // testing with timespan
@@ -354,7 +354,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     public async Task HashFieldGetAndSetExpiryAsync()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var hashKey = Me();
 
         // testing with timespan
@@ -404,7 +404,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     public void HashFieldSetAndSetExpiry()
     {
         using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var hashKey = Me();
 
         // testing with timespan
@@ -468,7 +468,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     public async Task HashFieldSetAndSetExpiryAsync()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var hashKey = Me();
 
         // testing with timespan
@@ -531,7 +531,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     public void HashFieldGetAndDelete()
     {
         using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var hashKey = Me();
 
         // single field
@@ -552,7 +552,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
     public async Task HashFieldGetAndDeleteAsync()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var hashKey = Me();
 
         // single field

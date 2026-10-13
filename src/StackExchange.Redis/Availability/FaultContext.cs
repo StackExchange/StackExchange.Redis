@@ -68,8 +68,8 @@ public readonly struct FaultContext
             }
         }
 
-        flags &= Message.UserSelectableFlags;
-        if ((flags & Message.MaskRetryCategory) is 0)
+        flags &= CommandFlagsInternal.UserSelectableFlags;
+        if ((flags & CommandFlagsInternal.MaskRetryCategory) is 0)
         {
             // if no retry category found: assume the worst
             flags |= CommandFlags.CommandRetryNever;

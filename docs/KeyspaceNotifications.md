@@ -278,7 +278,7 @@ byte[] keyPrefix = Encoding.UTF8.GetBytes("client1234:");
 var db = conn.GetDatabase().WithKeyPrefix(keyPrefix);
 
 // we will later commit order data for example:
-await db.StringSetAsync("order/123", "ISBN 9789123684434");
+await db.Strings.SetAsync("order/123", "ISBN 9789123684434");
 ```
 
 To observe this, we could use:

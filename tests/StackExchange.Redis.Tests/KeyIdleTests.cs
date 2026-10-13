@@ -26,7 +26,7 @@ public class KeyIdleTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var conn = Create();
 
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
         var timer = Stopwatch.StartNew();
@@ -50,7 +50,7 @@ public class KeyIdleTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var conn = Create(require: RedisFeatures.v3_2_1);
 
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
         var timer = Stopwatch.StartNew();

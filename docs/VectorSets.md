@@ -17,18 +17,18 @@ efficient than creating arrays - or even working with raw memory for example mem
 
 ### Adding Vectors
 
-Add vectors to a vector set using `VectorSetAddAsync`:
+Add vectors to a vector set using `db.VectorSets.AddAsync`:
 
 ```csharp
-var db = conn.GetDatabase();
-var key = "product-embeddings";
+IDatabase db = conn.GetDatabase();
+RedisKey key = "product-embeddings";
 
 // Create a vector (e.g., from an ML model)
 var vector = new[] { 0.1f, 0.2f, 0.3f, 0.4f };
 
 // Add a member with its vector
 var request = VectorSetAddRequest.Member("product-123", vector.AsMemory());
-bool added = await db.VectorSetAddAsync(key, request);
+bool added = await db.VectorSets.AddAsync(key, request);
 ```
 
 ### Adding Vectors with Attributes
@@ -42,12 +42,12 @@ var request = VectorSetAddRequest.Member(
     vector.AsMemory(),
     attributesJson: """{"category":"electronics","price":299.99}"""
 );
-await db.VectorSetAddAsync(key, request);
+await db.VectorSets.AddAsync(key, request);
 ```
 
 ### Similarity Search
 
-Find similar vectors using `VectorSetSimilaritySearchAsync`:
+Find similar vectors using `db.VectorSets.SimilaritySearchAsync`:
 
 ```csharp
 // Search by an existing member
@@ -55,10 +55,10 @@ var query = VectorSetSimilaritySearchRequest.ByMember("product-123");
 query.Count = 10;
 query.WithScores = true;
 
-using var results = await db.VectorSetSimilaritySearchAsync(key, query);
+using var results = await db.VectorSets.SimilaritySearchAsync(key, query);
 if (results is not null)
 {
-    foreach (var result in results.Value.Results)
+    foreach (var result in results.Span)
     {
         Console.WriteLine($"Member: {result.Member}, Score: {result.Score}");
     }
@@ -73,7 +73,7 @@ var query = VectorSetSimilaritySearchRequest.ByVector(queryVector.AsMemory());
 query.Count = 10;
 query.WithScores = true;
 
-using var results = await db.VectorSetSimilaritySearchAsync(key, query);
+using var results = await db.VectorSets.SimilaritySearchAsync(key, query);
 ```
 
 ### Filtered Search
@@ -86,7 +86,7 @@ query.Count = 10;
 query.FilterExpression = "$.category == 'electronics' && $.price < 500";
 query.WithAttributes = true; // Include attributes in results
 
-using var results = await db.VectorSetSimilaritySearchAsync(key, query);
+using var results = await db.VectorSets.SimilaritySearchAsync(key, query);
 ```
 
 See [Redis filtered search documentation](https://redis.io/docs/latest/develop/data-types/vector-sets/filtered-search/) for filter syntax.
@@ -96,7 +96,7 @@ See [Redis filtered search documentation](https://redis.io/docs/latest/develop/d
 ### Getting Vector Set Information
 
 ```csharp
-var info = await db.VectorSetInfoAsync(key);
+var info = await db.VectorSets.InfoAsync(key);
 if (info is not null)
 {
     Console.WriteLine($"Dimension: {info.Value.Dimension}");
@@ -108,23 +108,23 @@ if (info is not null)
 ### Checking Membership
 
 ```csharp
-bool exists = await db.VectorSetContainsAsync(key, "product-123");
+bool exists = await db.VectorSets.ContainsAsync(key, "product-123");
 ```
 
 ### Removing Members
 
 ```csharp
-bool removed = await db.VectorSetRemoveAsync(key, "product-123");
+bool removed = await db.VectorSets.RemoveAsync(key, "product-123");
 ```
 
 ### Getting Random Members
 
 ```csharp
 // Get a single random member
-var member = await db.VectorSetRandomMemberAsync(key);
+var member = await db.VectorSets.RandomMemberAsync(key);
 
 // Get multiple random members
-var members = await db.VectorSetRandomMembersAsync(key, count: 5);
+using var members = await db.VectorSets.RandomMembersAsync(key, count: 5);
 ```
 
 ## Range Queries
@@ -135,11 +135,11 @@ Retrieve members in lexicographical order:
 
 ```csharp
 // Get all members
-using var allMembers = await db.VectorSetRangeAsync(key);
+using var allMembers = await db.VectorSets.RangeAsync(key);
 // ... access allMembers.Span, etc
 
 // Get members in a specific range
-using var rangeMembers = await db.VectorSetRangeAsync(
+using var rangeMembers = await db.VectorSets.RangeAsync(
     key,
     start: "product-100",
     end: "product-200",
@@ -148,7 +148,7 @@ using var rangeMembers = await db.VectorSetRangeAsync(
 // ... access rangeMembers.Span, etc
 
 // Exclude boundaries
-using var members = await db.VectorSetRangeAsync(
+using var members = await db.VectorSets.RangeAsync(
     key,
     start: "product-100",
     end: "product-200",
@@ -159,10 +159,10 @@ using var members = await db.VectorSetRangeAsync(
 
 ### Enumerating Large Result Sets
 
-For large vector sets, use enumeration to process results in batches:
+For large vector sets, use enumeration to process results in batches; `pageSize` is how many members are fetched per round trip:
 
 ```csharp
-await foreach (var member in db.VectorSetRangeEnumerateAsync(key, count: 100))
+await foreach (var member in db.VectorSets.RangeEnumerateAsync(key, pageSize: 100))
 {
     Console.WriteLine($"Processing: {member}");
 }
@@ -174,7 +174,7 @@ if you exit the loop early, the client and server will stop processing and sendi
 ```csharp
 using var cts = new CancellationTokenSource(); // cancellation not shown
 
-await foreach (var member in db.VectorSetRangeEnumerateAsync(key, count: 100)
+await foreach (var member in db.VectorSets.RangeEnumerateAsync(key, pageSize: 100)
     .WithCancellation(cts.Token))
 {
     // ...
@@ -192,7 +192,7 @@ var request = VectorSetAddRequest.Member("product-123", vector.AsMemory());
 request.Quantization = VectorSetQuantization.Int8;  // Default
 // or VectorSetQuantization.None
 // or VectorSetQuantization.Binary
-await db.VectorSetAddAsync(key, request);
+await db.VectorSets.AddAsync(key, request);
 ```
 
 ### Dimension Reduction
@@ -202,7 +202,7 @@ Use projection to reduce vector dimensions:
 ```csharp
 var request = VectorSetAddRequest.Member("product-123", vector.AsMemory());
 request.ReducedDimensions = 128; // Reduce from original dimension
-await db.VectorSetAddAsync(key, request);
+await db.VectorSets.AddAsync(key, request);
 ```
 
 ### HNSW Parameters
@@ -213,7 +213,7 @@ Fine-tune the HNSW index:
 var request = VectorSetAddRequest.Member("product-123", vector.AsMemory());
 request.MaxConnections = 32;           // M parameter (default: 16)
 request.BuildExplorationFactor = 400;  // EF parameter (default: 200)
-await db.VectorSetAddAsync(key, request);
+await db.VectorSets.AddAsync(key, request);
 ```
 
 ### Search Parameters
@@ -225,7 +225,7 @@ var query = VectorSetSimilaritySearchRequest.ByVector(queryVector.AsMemory());
 query.SearchExplorationFactor = 500;  // Higher = more accurate, slower
 query.Epsilon = 0.1;                  // Only return similarity >= 0.9
 query.UseExactSearch = true;          // Use linear scan instead of HNSW
-await db.VectorSetSimilaritySearchAsync(key, query);
+using var results = await db.VectorSets.SimilaritySearchAsync(key, query);
 ```
 
 ## Working with Vector Data
@@ -235,10 +235,10 @@ await db.VectorSetSimilaritySearchAsync(key, query);
 Get the approximate vector for a member:
 
 ```csharp
-using var vectorLease = await db.VectorSetGetApproximateVectorAsync(key, "product-123");
+using var vectorLease = await db.VectorSets.GetApproximateVectorAsync(key, "product-123");
 if (vectorLease != null)
 {
-    ReadOnlySpan<float> vector = vectorLease.Value.Span;
+    ReadOnlySpan<float> vector = vectorLease.Span;
     // Use the vector data
 }
 ```
@@ -249,10 +249,10 @@ Get and set JSON attributes:
 
 ```csharp
 // Get attributes
-var json = await db.VectorSetGetAttributesJsonAsync(key, "product-123");
+var json = await db.VectorSets.GetAttributesJsonAsync(key, "product-123");
 
 // Set attributes
-await db.VectorSetSetAttributesJsonAsync(
+await db.VectorSets.SetAttributesJsonAsync(
     key,
     "product-123",
     """{"category":"electronics","updated":"2024-01-15"}"""
@@ -265,20 +265,20 @@ Inspect HNSW graph connections:
 
 ```csharp
 // Get linked members
-using var links = await db.VectorSetGetLinksAsync(key, "product-123");
+using var links = await db.VectorSets.GetLinksAsync(key, "product-123");
 if (links != null)
 {
-    foreach (var link in links.Value.Span)
+    foreach (var link in links.Span)
     {
         Console.WriteLine($"Linked to: {link}");
     }
 }
 
 // Get links with similarity scores
-using var linksWithScores = await db.VectorSetGetLinksWithScoresAsync(key, "product-123");
+using var linksWithScores = await db.VectorSets.GetLinksWithScoresAsync(key, "product-123");
 if (linksWithScores != null)
 {
-    foreach (var link in linksWithScores.Value.Span)
+    foreach (var link in linksWithScores.Span)
     {
         Console.WriteLine($"Linked to: {link.Member}, Score: {link.Score}");
     }
@@ -287,14 +287,14 @@ if (linksWithScores != null)
 
 ## Memory Management
 
-Vector operations return `Lease<T>` for efficient memory pooling. Always dispose leases:
+Vector operations return `ReadOnlyLease<T>` - a window over the pooled reply buffer - rather than a fresh array. Always dispose leases:
 
 ```csharp
 // Using statement (recommended)
-using var results = await db.VectorSetSimilaritySearchAsync(key, query);
+using var results = await db.VectorSets.SimilaritySearchAsync(key, query);
 
 // Or explicit disposal
-var results = await db.VectorSetSimilaritySearchAsync(key, query);
+var results = await db.VectorSets.SimilaritySearchAsync(key, query);
 try
 {
     // Use results
@@ -318,7 +318,7 @@ var tasks = new List<Task<bool>>();
 foreach (var (member, vector) in vectorData)
 {
     var request = VectorSetAddRequest.Member(member, vector.AsMemory());
-    tasks.Add(batch.VectorSetAddAsync(key, request));
+    tasks.Add(batch.VectorSets.AddAsync(key, request).AsTask()); // ValueTask: convert to collect them
 }
 
 batch.Execute();
@@ -338,16 +338,16 @@ Prefer enumeration for large result sets to avoid loading everything into memory
 
 ```csharp
 // Good: loads results in batches, processes items individually
-await foreach (var member in db.VectorSetRangeEnumerateAsync(key))
+await foreach (var member in db.VectorSets.RangeEnumerateAsync(key))
 {
     await ProcessMemberAsync(member);
 }
 
 // Avoid: loads all results at once
-using var allMembers1 = await db.VectorSetRangeAsync(key);
+using var allMembers1 = await db.VectorSets.RangeAsync(key);
 
 // Avoid: loads results in batches, but still loads everything into memory at once
-var allMembers2 = await db.VectorSetRangeEnumerateAsync(key).ToArrayAsync();
+var allMembers2 = await db.VectorSets.RangeEnumerateAsync(key).ToArrayAsync();
 ```
 
 ## Common Patterns
@@ -362,7 +362,7 @@ var request = VectorSetAddRequest.Member(
     embedding.AsMemory(),
     attributesJson: $$"""{"title":"{{document.Title}}","date":"{{document.Date}}"}"""
 );
-await db.VectorSetAddAsync("documents", request);
+await db.VectorSets.AddAsync("documents", request);
 
 // 2. Search for similar documents
 var queryEmbedding = await GetEmbeddingFromMLModel(searchQuery);
@@ -371,7 +371,7 @@ query.Count = 10;
 query.WithScores = true;
 query.WithAttributes = true;
 
-using var results = await db.VectorSetSimilaritySearchAsync("documents", query);
+using var results = await db.VectorSets.SimilaritySearchAsync("documents", query);
 ```
 
 ### Recommendation System
@@ -383,7 +383,7 @@ query.Count = 20;
 query.FilterExpression = "$.inStock == true && $.price < 100";
 query.WithScores = true;
 
-using var recommendations = await db.VectorSetSimilaritySearchAsync("products", query);
+using var recommendations = await db.VectorSets.SimilaritySearchAsync("products", query);
 ```
 
 ## See Also

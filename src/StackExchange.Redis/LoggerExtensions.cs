@@ -212,7 +212,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 23,
         Message = "  Server[{Index}] ({Server}) Status: {Status} (inst: {MessagesSinceLastHeartbeat}, qs: {MessagesSentAwaitingResponse}, in: {BytesAvailableOnSocket}, qu: {MessagesSinceLastHeartbeat2}, aw: {IsWriterActive}, in-pipe: {BytesInReadPipe}, out-pipe: {BytesInWritePipe}, bw: {BacklogStatus}, rs: {ReadStatus}. ws: {WriteStatus})")]
-    internal static partial void LogInformationServerStatus(this ILogger logger, int index, ServerEndPointLogValue server, TaskStatus status, long messagesSinceLastHeartbeat, long messagesSentAwaitingResponse, long bytesAvailableOnSocket, long messagesSinceLastHeartbeat2, bool isWriterActive, long bytesInReadPipe, long bytesInWritePipe, PhysicalBridge.BacklogStatus backlogStatus, PhysicalConnection.ReadStatus readStatus, PhysicalConnection.WriteStatus writeStatus);
+    internal static partial void LogInformationServerStatus(this ILogger logger, int index, ServerEndPointLogValue server, TaskStatus status, long messagesSinceLastHeartbeat, long messagesSentAwaitingResponse, long bytesAvailableOnSocket, long messagesSinceLastHeartbeat2, bool isWriterActive, long bytesInReadPipe, long bytesInWritePipe, BacklogStatus backlogStatus, ReadStatus readStatus, WriteStatus writeStatus);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -224,7 +224,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 25,
         Message = "  {EndPoint}: Endpoint is (Interactive: {InteractiveState}, Subscription: {SubscriptionState})")]
-    internal static partial void LogInformationEndpointState(this ILogger logger, EndPointLogValue endPoint, PhysicalBridge.State interactiveState, PhysicalBridge.State subscriptionState);
+    internal static partial void LogInformationEndpointState(this ILogger logger, EndPointLogValue endPoint, BridgeState interactiveState, BridgeState subscriptionState);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -471,7 +471,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 59,
         Message = "{Server}: OnConnectedAsync init (State={ConnectionState})")]
-    internal static partial void LogInformationOnConnectedAsyncInit(this ILogger logger, ServerEndPointLogValue server, PhysicalBridge.State? connectionState);
+    internal static partial void LogInformationOnConnectedAsyncInit(this ILogger logger, ServerEndPointLogValue server, BridgeState? connectionState);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -659,7 +659,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 91,
         Message = "Resurrecting {Bridge} (retry: {RetryCount})")]
-    internal static partial void LogInformationResurrecting(this ILogger logger, PhysicalBridge bridge, long retryCount);
+    internal static partial void LogInformationResurrecting(this ILogger logger, string bridge, long retryCount);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -827,4 +827,30 @@ internal static partial class LoggerExtensions
         EventId = 120,
         Message = "{Server}: Re-reading topology after {Failures} consecutive connect failures")]
     internal static partial void LogInformationRefreshingAfterConnectFailures(this ILogger logger, ServerEndPointLogValue server, int failures);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 128,
+        Message = "Refreshed the slot map from {EndPoint}: {RangeCount} range(s)")]
+    internal static partial void LogInformationSlotMapRefreshed(this ILogger logger, EndPointLogValue endPoint, int rangeCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 129,
+        Message = "{EndPoint} could not refresh the slot map: {ErrorMessage}")]
+    internal static partial void LogInformationSlotMapRefreshFailed(this ILogger logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 130,
+        Message = "{EndPoint} could not refresh its role: {ErrorMessage}")]
+    internal static partial void LogInformationRoleRefreshFailed(this ILogger logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
+
+    // Debug, not a warning: a message landing just after its unsubscribe is an ordinary race. It exists for the
+    // case that is not - a subscription the server is delivering to that the registry cannot match.
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        EventId = 131,
+        Message = "A pub/sub delivery for {Channel} (subscription {Subscription}) matched no subscription and was dropped")]
+    internal static partial void LogDebugDeliveryUnmatched(this ILogger logger, string? channel, string? subscription);
 }

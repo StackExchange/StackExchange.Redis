@@ -34,3 +34,6 @@ BenchmarkDotNet.Artifacts/
 
 # local planning/design notes (not for publication)
 planning/
+
+# agent worktrees (see .claude/); these are separate checkouts, never repo content
+.claude/worktrees/

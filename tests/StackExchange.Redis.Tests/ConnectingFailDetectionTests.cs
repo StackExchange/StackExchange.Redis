@@ -110,6 +110,15 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
         int failCount = 0, restoreCount = 0;
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
+
+        // the dedicated subscription leg is dialled just AFTER connect returns (for the configuration channel), not
+        // before it as in v3. On a slow runner it may not be up yet: a failure simulated then kills only the
+        // interactive leg (1 failure for an expected 2, seen on Windows net481), and its first connect raises a
+        // restore after the handlers below are attached. So wait for both legs before listening.
+        var connections = TestMultiplexer.Unwrap(conn).Connections;
+        await UntilConditionAsync(TimeSpan.FromSeconds(10), () => connections.IsSubscriptionConnected(server.EndPoint));
+        Assert.True(connections.IsSubscriptionConnected(server.EndPoint), "the subscription leg never connected");
 
         conn.ConnectionFailed += (s, e) =>
         {
@@ -126,13 +135,13 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
         Assert.Equal(0, Volatile.Read(ref failCount));
         Assert.Equal(0, Volatile.Read(ref restoreCount));
 
-        var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
         var protocol = server.Protocol;
         // interactive+subscriber connections, unless RESP3 is sharing one connection for both (opt-in)
         var expectedCount = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.EndPoint).SharesSubscriptionConnection() ? 1 : 2;
         Log($"Using {protocol.GetString()}; expecting {expectedCount} reconnect event(s)");
 
         Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");
+
         server.SimulateConnectionFailure(SimulatedFailureType.All);
 
         await UntilConditionAsync(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) >= expectedCount && Volatile.Read(ref restoreCount) >= expectedCount);
@@ -173,8 +182,8 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
 
         foreach (var server in conn.GetServerSnapshot())
         {
-            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.InteractiveConnectionState);
-            Assert.Equal(PhysicalBridge.State.ConnectedEstablished, server.SubscriptionConnectionState);
+            Assert.Equal(BridgeState.ConnectedEstablished, server.InteractiveConnectionState);
+            Assert.Equal(BridgeState.ConnectedEstablished, server.SubscriptionConnectionState);
         }
     }
 }

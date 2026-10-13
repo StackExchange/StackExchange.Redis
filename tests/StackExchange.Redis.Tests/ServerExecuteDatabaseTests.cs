@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests;
 
 /// <summary>
 /// <see cref="IServer.Execute(string, object[])"/> names a server but no database, and until this was fixed it
-/// refused every recognised command that <see cref="Message.RequiresDatabase"/> claims needs one — which is
+/// refused every recognised command that <see cref="CommandFlagsInternal.RequiresDatabase"/> claims needs one — which is
 /// most of them, since that returns true by default. See #3236.
 /// </summary>
 /// <remarks>

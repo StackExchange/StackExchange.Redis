@@ -54,8 +54,8 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
                 }
             }
             int db = testMode == TestMode.Twemproxy ? 0 : 2;
-            ThreadPool.QueueUserWorkItem(Inner, conn1.GetDatabase(db));
-            ThreadPool.QueueUserWorkItem(Inner, conn2.GetDatabase(db));
+            ThreadPool.QueueUserWorkItem(Inner, GetDatabase(conn1, db));
+            ThreadPool.QueueUserWorkItem(Inner, GetDatabase(conn2, db));
             evt.WaitOne(8000);
         }
         Assert.Equal(0, Volatile.Read(ref errorCount));
@@ -73,10 +73,15 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
 
     private void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
     {
+        if (!CountsMultiplexerOps)
+        {
+            Assert.Skip("This database's core is not the multiplexer's own, so its counters do not move.");
+        }
+
         const int LockDuration = 30;
         RedisKey key = Me();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         RedisValue newVal = "us:" + Guid.NewGuid().ToString();
         RedisValue expectedVal = newVal;
@@ -98,13 +103,39 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
         Assert.True(countAfter - countBefore >= expectedOps, $"({countAfter} - {countBefore}) >= {expectedOps}");
     }
 
-    private IConnectionMultiplexer Create(TestMode mode) => mode switch
+    /// <summary>Whether operations issued by this database are counted by the multiplexer.</summary>
+    /// <remarks>
+    /// <b>Not a statement about the new core, which IS counted</b> - <c>ServerEndPoint.GetCounters</c> folds
+    /// its op, socket and queue counts in alongside the bridge's, because under the engine flag those are
+    /// where the commands actually are. It is a statement about the suites that reach the new core through a
+    /// core of their OWN, built beside the multiplexer's rather than being it: nothing has told the
+    /// multiplexer that core exists, so nothing can count it. Those suites exist to exercise the surface
+    /// without the flag set, and this is the one assertion that cannot survive the arrangement.
+    /// </remarks>
+    protected virtual bool CountsMultiplexerOps => true;
+
+    /// <summary>Whether the database under test can run against a <see cref="Proxy.Twemproxy"/> connection.</summary>
+    /// <remarks>
+    /// False for the new core, which builds its own connections and has no proxy handling yet - a real
+    /// gap, and one this suite is the right place to notice, but not a defect in the locks it is testing.
+    /// </remarks>
+    protected virtual bool SupportsProxy => true;
+
+    private IConnectionMultiplexer Create(TestMode mode)
     {
-        TestMode.MultiExec => Create(),
-        TestMode.NoMultiExec => Create(disabledCommands: ["multi", "exec"]),
-        TestMode.Twemproxy => Create(proxy: Proxy.Twemproxy),
-        _ => throw new NotSupportedException(mode.ToString()),
-    };
+        if (mode == TestMode.Twemproxy && !SupportsProxy)
+        {
+            Assert.Skip("This database implementation does not support proxy connections.");
+        }
+
+        return mode switch
+        {
+            TestMode.MultiExec => Create(),
+            TestMode.NoMultiExec => Create(disabledCommands: ["multi", "exec"]),
+            TestMode.Twemproxy => Create(proxy: Proxy.Twemproxy),
+            _ => throw new NotSupportedException(mode.ToString()),
+        };
+    }
 
     [Theory, MemberData(nameof(TestModes))]
     public async Task TakeLockAndExtend(TestMode testMode)
@@ -117,7 +148,7 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
         int dbId = testMode == TestMode.Twemproxy ? 0 : 7;
         RedisKey key = Me() + testMode;
 
-        var db = conn.GetDatabase(dbId);
+        var db = GetDatabase(conn, dbId);
 
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -170,7 +201,7 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
         Task<TimeSpan?>? ttl = null;
 
         const int LOOP = 50;
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + testMode;
         for (int i = 0; i < LOOP; i++)
         {
@@ -192,7 +223,7 @@ public class LockingTests(ITestOutputHelper output) : TestBase(output)
     {
         await using var conn = Create(testMode);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + testMode;
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.StringSet(key, "old-value", TimeSpan.FromSeconds(20), flags: CommandFlags.FireAndForget);

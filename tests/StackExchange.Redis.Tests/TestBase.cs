@@ -148,6 +148,10 @@ public abstract class TestBase : IDisposable
 
     static TestBase()
     {
+        // the net under every operation's timeout - off by default for its cost, and on here for what it is
+        // for: a bug in the timeout bookkeeping should fail a test after two minutes, not hang the run
+        RESPite.Operations.OperationBackstop.Backstop = TimeSpan.FromMinutes(2);
+
         TaskScheduler.UnobservedTaskException += (sender, args) =>
         {
             Console.WriteLine("Unobserved: " + args.Exception);
@@ -271,6 +275,19 @@ public abstract class TestBase : IDisposable
         throw new InvalidOperationException("Requires a primary endpoint (found none)");
     }
 
+    /// <summary>
+    /// How a test reaches a database. Virtual so a fixture subclass can run the SAME tests against a
+    /// different <see cref="IDatabase"/> implementation - see <c>StringTests</c>, which points
+    /// it at the new RESP context surface.
+    /// </summary>
+    /// <remarks>
+    /// Worth the indirection only because the alternative is a parallel test suite restating the same
+    /// expectations: an implementation swap that the existing assertions cannot tell apart is the strongest
+    /// evidence a rewrite can produce, and it stays true as the suite grows.
+    /// </remarks>
+    protected virtual IDatabase GetDatabase(IConnectionMultiplexer conn, int db = -1, object? asyncState = null)
+        => conn.GetDatabase(db, asyncState);
+
     internal virtual bool HighIntegrity => false;
 
     internal virtual Tunnel? Tunnel => _inProcServerFixture?.Tunnel;
@@ -300,6 +317,7 @@ public abstract class TestBase : IDisposable
         Version? require = null,
         RedisProtocol? protocol = null,
         bool allowSimulateConnectionFailure = false,
+        ConnectMode? connectMode = null,
         [CallerMemberName] string caller = "")
     {
         if (Output == null)
@@ -308,6 +326,10 @@ public abstract class TestBase : IDisposable
         }
 
         if (allowSimulateConnectionFailure) shared = false;
+
+        // a connect mode is a property of the whole multiplexer, so a test that asks for one cannot be
+        // handed the shared connection - which was opened under whatever the default is
+        if (connectMode is not null) shared = false;
         // Default to protocol context if not explicitly passed in
         protocol ??= TestContext.Current.GetProtocol();
 
@@ -357,6 +379,7 @@ public abstract class TestBase : IDisposable
             highIntegrity,
             tunnel,
             allowSimulateConnectionFailure,
+            connectMode,
             caller);
 
         TestBase.ThrowIfIncorrectProtocol(conn, protocol);
@@ -422,7 +445,7 @@ public abstract class TestBase : IDisposable
         }
     }
 
-    public static ConnectionMultiplexer CreateDefault(
+    internal static ConnectionMultiplexer CreateDefault(
         TextWriter? output,
         string configuration,
         string? clientName = null,
@@ -448,6 +471,7 @@ public abstract class TestBase : IDisposable
         bool highIntegrity = false,
         Tunnel? tunnel = null,
         bool allowSimulateConnectionFailure = false,
+        ConnectMode? connectMode = null,
         [CallerMemberName] string caller = "")
     {
         StringWriter? localLog = null;
@@ -490,8 +514,15 @@ public abstract class TestBase : IDisposable
             if (defaultDatabase is not null) config.DefaultDatabase = defaultDatabase.Value;
             if (backlogPolicy is not null) config.BacklogPolicy = backlogPolicy;
             if (protocol is not null) config.Protocol = protocol;
+
+            // event 127: a pub/sub delivery that matched no subscription - see design/v4-alpha-plan.md
+            if (output is not null) config.LoggerFactory ??= new DiagnosticEventLogger(output, 127);
             if (highIntegrity) config.HighIntegrity = highIntegrity;
             if (allowSimulateConnectionFailure) config.AllowSimulateConnectionFailure = allowSimulateConnectionFailure;
+
+            // how much the new core opens at connect. Only the tests ABOUT that choice say anything here:
+            // everything else wants whatever the default has become, which is the point of measuring it
+            if (connectMode is not null) config.ConnectMode = connectMode.Value;
             if (checkConnect)
             {
                 config.AbortOnConnectFail = false;
@@ -517,6 +548,15 @@ public abstract class TestBase : IDisposable
             if (output != null)
             {
                 Log(output, "Connect took: " + watch.ElapsedMilliseconds + "ms");
+
+                // a connect that used most of its timeout was waiting on something that never answered, and the
+                // connect log is the only record of which endpoint that was - so show it, rather than only when
+                // the connect throws. A 20s cluster connect on net481 left nothing else to go on.
+                if (localLog != null && watch.ElapsedMilliseconds >= config.ConnectTimeout / 2)
+                {
+                    output.WriteLine("Slow connect; the connection log follows:");
+                    output.WriteLine(localLog.ToString());
+                }
             }
             var conn = task.Result;
             if (checkConnect)
@@ -525,14 +565,6 @@ public abstract class TestBase : IDisposable
             }
             if (output != null)
             {
-                conn.MessageFaulted += (msg, ex, origin) =>
-                {
-                    output?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
-                    if (ex != null && ex.Data.Contains("got"))
-                    {
-                        output?.WriteLine($"Got: '{ex.Data["got"]}'");
-                    }
-                };
                 conn.Connecting += (e, t) => output?.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
                 if (logTransactionData)
                 {
@@ -549,6 +581,22 @@ public abstract class TestBase : IDisposable
             if (localLog != null) output?.WriteLine(localLog.ToString());
             throw;
         }
+    }
+
+    /// <summary>Wait until a <c>CLIENT PAUSE</c> this test issued has run its course.</summary>
+    /// <param name="sincePause">Started when the pause was issued.</param>
+    /// <param name="pauseMilliseconds">The pause's duration.</param>
+    /// <remarks>
+    /// A pause is server-wide and runs its whole duration whatever the test does: <c>CLIENT PAUSE</c> returns
+    /// immediately, and <c>CLIENT UNPAUSE</c> is itself held until the pause ends (measured: 4s), so neither
+    /// awaiting the one nor sending the other ends it. A test that finished early left the rest of its pause
+    /// to whatever ran next - parallel tests stalled for seconds at once and, on a slow run, timed out
+    /// together. These tests run in the non-parallel collection, alone, so waiting here costs only time.
+    /// </remarks>
+    protected static async Task WaitOutPauseAsync(Stopwatch sincePause, int pauseMilliseconds)
+    {
+        var remaining = pauseMilliseconds + 100 - (int)sincePause.ElapsedMilliseconds;
+        if (remaining > 0) await Task.Delay(remaining).ConfigureAwait(false);
     }
 
     public virtual string Me([CallerFilePath] string? filePath = null, [CallerMemberName] string? caller = null) =>

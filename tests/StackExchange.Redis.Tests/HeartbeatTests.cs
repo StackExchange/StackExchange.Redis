@@ -4,6 +4,10 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
+// CONFIG SET timeout is SERVER-WIDE: while this runs, every other connection to that server
+// is subject to the shortened idle timeout, so an unrelated suite can be disconnected mid-test.
+// Restoring it in a finally does not help the tests running concurrently with it.
+[Collection(NonParallelCollection.Name)]
 [RunPerProtocol]
 public class HeartbeatTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {

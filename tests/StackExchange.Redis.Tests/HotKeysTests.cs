@@ -25,11 +25,7 @@ public class HotKeysClusterTests(ITestOutputHelper output, SharedConnectionFixtu
         server.HotKeysStart(slots: [(short)slot], sampleRatio: sample ? 3 : 1, duration: Duration);
 
         var db = muxer.GetDatabase();
-        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
-        for (int i = 0; i < 20; i++)
-        {
-            db.StringIncrement(key, flags: CommandFlags.FireAndForget);
-        }
+        IncrementTwenty(db, key);
 
         server.HotKeysStop();
         var result = server.HotKeysGet();
@@ -88,6 +84,48 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
 {
     protected TimeSpan Duration => TimeSpan.FromMinutes(1); // ensure we don't leave profiling running
 
+    /// <summary>The workload every assertion below is about: twenty increments of one key.</summary>
+    /// <param name="db">The database to write through.</param>
+    /// <param name="key">The key to increment.</param>
+    /// <remarks>
+    /// <b>The round trip at the end is the point, not padding.</b> Fire-and-forget says "do not wait for the
+    /// reply", so nothing about it promises the server has EXECUTED these by the time the next command is
+    /// sent - and the next command here is <c>HOTKEYS STOP</c>, which closes the window they are supposed to
+    /// be measured in. A <c>PING</c> is the cheapest thing that establishes the writes before it have been
+    /// executed, and one is enough - but it has to be a command routed BY THIS KEY, so that on a cluster it
+    /// reaches the node the increments went to rather than whichever node a keyless PING picks.
+    /// <para>
+    /// It used to be supplied by accident: awaiting each fire-and-forget command was itself a round trip,
+    /// because the new core completed such a command only when its reply arrived. Once fire-and-forget
+    /// returns without waiting - which is what it means - the whole workload and the STOP after it can reach
+    /// the server together, and <c>HOTKEYS</c> reports nothing at all.
+    /// </para>
+    /// </remarks>
+    private protected static void IncrementTwenty(IDatabase db, in RedisKey key)
+    {
+        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
+        for (int i = 0; i < 20; i++)
+        {
+            db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+        }
+
+        _ = db.KeyExists(key);
+    }
+
+    /// <inheritdoc cref="IncrementTwenty"/>
+    /// <param name="db">The database to write through.</param>
+    /// <param name="key">The key to increment.</param>
+    private protected static async Task IncrementTwentyAsync(IDatabase db, RedisKey key)
+    {
+        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
+        for (int i = 0; i < 20; i++)
+        {
+            await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
+        }
+
+        _ = await db.KeyExistsAsync(key);
+    }
+
     private protected IConnectionMultiplexer GetServer(out IServer server)
         => GetServer(RedisKey.Null, out server);
 
@@ -137,11 +175,7 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         using var muxer = GetServer(key, out var server);
         server.HotKeysStart(duration: Duration);
         var db = muxer.GetDatabase();
-        db.KeyDelete(key, flags: CommandFlags.FireAndForget);
-        for (int i = 0; i < 20; i++)
-        {
-            db.StringIncrement(key, flags: CommandFlags.FireAndForget);
-        }
+        IncrementTwenty(db, key);
 
         var result = server.HotKeysGet();
         Assert.NotNull(result);
@@ -225,11 +259,7 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var muxer = GetServer(key, out var server);
         await server.HotKeysStartAsync(duration: Duration);
         var db = muxer.GetDatabase();
-        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
-        for (int i = 0; i < 20; i++)
-        {
-            await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
-        }
+        await IncrementTwentyAsync(db, key);
 
         var result = await server.HotKeysGetAsync();
         Assert.NotNull(result);
@@ -258,11 +288,7 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var muxer = GetServer(key, out var server);
         await server.HotKeysStartAsync(duration: TimeSpan.FromSeconds(1));
         var db = muxer.GetDatabase();
-        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
-        for (int i = 0; i < 20; i++)
-        {
-            await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
-        }
+        await IncrementTwentyAsync(db, key);
         var before = await server.HotKeysGetAsync();
         await Task.Delay(TimeSpan.FromSeconds(2));
         var after = await server.HotKeysGetAsync();
@@ -290,11 +316,7 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var muxer = GetServer(key, out var server);
         await server.HotKeysStartAsync(metrics, duration: Duration);
         var db = muxer.GetDatabase();
-        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
-        for (int i = 0; i < 20; i++)
-        {
-            await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
-        }
+        await IncrementTwentyAsync(db, key);
         await server.HotKeysStopAsync(flags: CommandFlags.FireAndForget);
         var result = await server.HotKeysGetAsync();
         Assert.NotNull(result);
@@ -321,11 +343,7 @@ public class HotKeysTests(ITestOutputHelper output, SharedConnectionFixture fixt
         await using var muxer = GetServer(key, out var server);
         await server.HotKeysStartAsync(sampleRatio: 3, duration: Duration);
         var db = muxer.GetDatabase();
-        await db.KeyDeleteAsync(key, flags: CommandFlags.FireAndForget);
-        for (int i = 0; i < 20; i++)
-        {
-            await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
-        }
+        await IncrementTwentyAsync(db, key);
 
         await server.HotKeysStopAsync(flags: CommandFlags.FireAndForget);
         var result = await server.HotKeysGetAsync();

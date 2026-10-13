@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -93,6 +93,18 @@ internal sealed class RefCountedBuffer : MemoryManager<byte>, IPayloadReservatio
     public static RefCountedBuffer CreateFixed(byte[] buffer) => new(buffer, buffer.Length, noReturn: true, pool: null);
 
     /// <summary>
+    /// Take over a buffer that the caller already rented from <see cref="ArrayPool{T}.Shared"/>, with a
+    /// reference count of one.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Rent"/> does its own renting, and <see cref="CreateFixed"/> never returns the buffer at
+    /// all; this is the case where bytes have already been written into a rented array and ownership is
+    /// being handed over rather than copied. The caller must not touch the array afterwards - it now
+    /// belongs to the reference count.
+    /// </remarks>
+    public static RefCountedBuffer Adopt(byte[] buffer, int length) => new(buffer, length, noReturn: false, pool: null);
+
+    /// <summary>
     /// The number of live references; for assertions and tests.
     /// </summary>
     internal int RefCount => Volatile.Read(ref _refCount);
@@ -111,6 +123,11 @@ internal sealed class RefCountedBuffer : MemoryManager<byte>, IPayloadReservatio
     /// </remarks>
     public bool TryAddRef()
     {
+        // a fixed buffer never dies (Release does not count it down), so there is nothing to count up either -
+        // and skipping the CAS is the point for a buffer read by many threads at once: the client-side cache
+        // stores replies in fixed buffers so that a hit on a hot key writes no shared cache line
+        if (_noReturn) return true;
+
         int count;
         do
         {

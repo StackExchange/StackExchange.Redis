@@ -217,8 +217,9 @@ public class ConnectionFailureErrorsTests(ITestOutputHelper output) : TestBase(o
                 server.SimulateConnectionFailure(SimulatedFailureType.All);
 
                 var lastFailure = ((RedisConnectionException?)conn.GetServerSnapshot()[0].LastException)!.FailureType;
-                // Depending on heartbeat races, the last exception will be a socket failure or an internal (follow-up) failure
-                Assert.Contains(lastFailure, new[] { ConnectionFailureType.SocketFailure, ConnectionFailureType.InternalFailure });
+                // Depending on heartbeat races, the last exception will be a socket failure or an internal (follow-up)
+                // failure - or, on the new core, which simulates the failure by closing the socket, a closure
+                Assert.Contains(lastFailure, new[] { ConnectionFailureType.SocketFailure, ConnectionFailureType.InternalFailure, ConnectionFailureType.SocketClosed });
 
                 // should reconnect within 1 keepalive interval
                 conn.AllowConnect = true;

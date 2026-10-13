@@ -1,0 +1,291 @@
+﻿using System;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using StackExchange.Redis.Protocol;
+using Xunit;
+
+namespace StackExchange.Redis.Tests;
+
+/// <summary>
+/// The third seam: a command needing a <b>connection-local</b> preamble, injected once the connection is
+/// finally known. <c>HIMPORT SET</c> references a field-set that must have been <c>PREPARE</c>d on that
+/// same physical connection, and the multiplexer does not promise which connection a command lands on.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The queue called this "bridge-level", a third mechanism after compose (<c>EVALSHA</c>) and accumulate
+/// (<c>MULTI</c>), on the grounds that the existing implementation injects from inside the bridge's write
+/// lock via a hard-coded type test on <c>HashImportSetMessage</c>. The probe asks whether the frame surface
+/// needs anything new for it, or whether <see cref="IRespPreambleGate"/> - built for <c>SCRIPT LOAD</c> -
+/// already covers it with a different scope.
+/// </para>
+/// <para>
+/// These run against a real server. The library gates <c>HashImport</c> at 8.10, but the command exists
+/// earlier, so the probe asks the server what it supports rather than asking the version.
+/// </para>
+/// </remarks>
+public partial class RespHashImportProbeTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
+{
+    // the tokens, framed once at compile time rather than encoded per call - the same route the command
+    // groups take, and the first thing to check when asking whether a new command family fits
+    internal static partial class Tokens
+    {
+        /// <summary>The <c>PREPARE</c> subcommand of <c>HIMPORT</c>.</summary>
+        [Resp("PREPARE")]
+        internal static partial RespFragment Prepare { get; }
+
+        /// <summary>The <c>SET</c> subcommand of <c>HIMPORT</c>.</summary>
+        [Resp("SET")]
+        internal static partial RespFragment Set { get; }
+
+        /// <summary>The two field names this probe's field-set declares.</summary>
+        [Resp("name", "age")]
+        internal static partial RespFragment NameAndAge { get; }
+    }
+
+    private static RespDatabaseContext NewContext(IConnectionMultiplexer conn, int db)
+    {
+        return TestMultiplexer.Unwrap(conn).Connections.GetDatabase(db);
+    }
+
+    private async Task<IConnectionMultiplexer> RequireHashImportAsync()
+    {
+        // NOT shared: these probes count what one connection writes, and a shared multiplexer carries every
+        // concurrently running test's traffic too. A batch or transaction elsewhere holds the write slot for
+        // its run, and a pair sent in that instant takes the sequential path - a second PREPARE, correctly,
+        // and a probe failure ("injections 1, established 2") seen only under a full parallel run.
+        var conn = Create(shared: false);
+        var server = conn.GetServers()[0];
+        var info = await server.ExecuteAsync("COMMAND", "INFO", "HIMPORT");
+        // an unknown command still answers, with a nil entry - which is the "not supported" signal here
+        if (info.Length != 1 || info[0].IsNull)
+        {
+            await conn.DisposeAsync();
+            Assert.Skip("Server does not support HIMPORT");
+        }
+
+        return conn;
+    }
+
+    /// <summary>
+    /// A gate whose scope is the <b>connection</b>, not the endpoint - the difference between a field-set
+    /// (session-local) and a loaded script (server-wide).
+    /// </summary>
+    private sealed class FieldSetGate : IRespPreambleGate
+    {
+        // one table per gate: the gate IS the field-set's identity, so membership means "this field-set is
+        // prepared on that connection". A dead connection is collected with its entry, which is exactly the
+        // reconnect behaviour wanted - a fresh connection has prepared nothing.
+        private readonly ConditionalWeakTable<IRespPreambleTarget, object> _prepared = new();
+        private static readonly object Marker = new();
+
+        internal int Injections;
+        internal int Established;
+
+        // which connections were asked and told about, by server-side CLIENT ID - so a failure can say
+        // whether a second injection was a second socket or a second answer on the same one
+        private readonly System.Collections.Generic.List<string> _events = [];
+
+        internal string Describe()
+        {
+            lock (_events) return $"injections {Injections}, established {Established}: {string.Join("; ", _events)}";
+        }
+
+        private void Note(string what, IRespPreambleTarget connection)
+        {
+            lock (_events) _events.Add($"{what} client-id {(connection as RespClientConnection)?.ConnectionId} thread {Environment.CurrentManagedThreadId} inside {Volatile.Read(ref _inside)}");
+        }
+
+        internal readonly bool ClaimOnWrite;
+
+        internal FieldSetGate(bool claimOnWrite) => ClaimOnWrite = claimOnWrite;
+
+        // how many IsNeeded calls are in progress: the library promises to ask inside the connection's write
+        // lock, so for one connection this should never be seen above 1
+        private int _inside;
+
+        public bool IsNeeded(IRespPreambleTarget connection)
+        {
+            Interlocked.Increment(ref _inside);
+            try
+            {
+                Note("asked", connection);
+                if (!ClaimOnWrite) return Claimed(connection) ? false : Count();
+                return TryClaim(connection) && Count(); // check-and-claim as one step, whatever the caller promises
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _inside);
+            }
+        }
+
+        private bool TryClaim(IRespPreambleTarget connection)
+        {
+            lock (_prepared)
+            {
+                if (_prepared.TryGetValue(connection, out _)) return false;
+                _prepared.Add(connection, Marker);
+                return true;
+            }
+        }
+
+        private bool Count()
+        {
+            Interlocked.Increment(ref Injections);
+            return true;
+        }
+
+        private bool Claimed(IRespPreambleTarget connection)
+        {
+            lock (_prepared) { return _prepared.TryGetValue(connection, out _); }
+        }
+
+        private void Claim(IRespPreambleTarget connection)
+        {
+            lock (_prepared)
+            {
+                if (!_prepared.TryGetValue(connection, out _)) _prepared.Add(connection, Marker);
+            }
+        }
+
+        public void OnEstablished(IRespPreambleTarget connection)
+        {
+            Interlocked.Increment(ref Established);
+            Note("told", connection);
+            if (!ClaimOnWrite) Claim(connection);
+        }
+    }
+
+    [Fact]
+    public async Task AConnectionLocalPreambleIsTheScriptSeamWithADifferentScope()
+    {
+        await using var conn = await RequireHashImportAsync();
+        var db = conn.GetDatabase();
+        var ctx = NewContext(conn, db.Database);
+
+        var prefix = Me();
+        RedisKey k1 = prefix + ":1", k2 = prefix + ":2";
+        await db.KeyDeleteAsync([k1, k2]);
+
+        // One more round trip before the probe. A command issued while the connection is still coming up is
+        // backlogged and written by the post-connect drain, and its reply can resume this method while that
+        // drain still holds the write slot. A pair sent in that window takes the sequential path, which
+        // sends the preamble without asking the gate (there is no settled connection to ask about) and
+        // only tells it afterwards - and a connection-local gate deliberately does not claim on being told.
+        // The next pair then prepares again: redundant and harmless, but two PREPAREs, which is not what this
+        // probe is measuring. By the time a second reply is back, the drain has long released the slot.
+        await ctx.PingAsync();
+
+        var fieldSet = (RedisValue)(prefix + ":fs");
+        var gate = new FieldSetGate(claimOnWrite: true);
+
+        for (var i = 0; i < 2; i++)
+        {
+            var key = i == 0 ? k1 : k2;
+            var preamble = ctx.Raw.Render($"{RedisCommand.HIMPORT}{Tokens.Prepare}{fieldSet}{Tokens.NameAndAge}");
+            var request = ctx.Raw.Render($"{RedisCommand.HIMPORT}{Tokens.Set}{(RedisKey)key}{fieldSet}{(RedisValue)("user" + i)}{(RedisValue)(30 + i)}");
+            try
+            {
+                // Boolean rather than Result: +OK is the reply, and a typed handler is what a real command
+                // group would use - the probe should not take an easier route than the thing it stands in for
+                Assert.True(await ctx.Raw.SendWithPreambleAsync(
+                    ref preamble, ref request, CommandFlags.None, RespHandlers.Boolean, gate));
+            }
+            finally
+            {
+                preamble.Dispose();
+                request.Dispose();
+            }
+        }
+
+        // the point: the preamble went once, not once per command, and the second SET still worked - so the
+        // gate's belief and the server's session state agree
+        Assert.True(gate.Injections == 1, gate.Describe());
+
+        // and the confirm half of the contract really does run - this is the assertion an earlier draft of
+        // this probe got wrong, by predicting OnEstablished was never called and "proving" it with a gate
+        // that threw. It passed, which means the throw went somewhere unseen rather than that the call
+        // never happened. Counting is the honest instrument; throwing on a background reply path is not.
+        Assert.True(gate.Established == 1, gate.Describe());
+        Assert.Equal("user0", await db.HashGetAsync(k1, "name"));
+        Assert.Equal(30, (int)await db.HashGetAsync(k1, "age"));
+        Assert.Equal("user1", await db.HashGetAsync(k2, "name"));
+        Assert.Equal(31, (int)await db.HashGetAsync(k2, "age"));
+    }
+
+    /// <summary>
+    /// Where the two seams actually differ: <b>when</b> the belief is recorded. A script's gate confirms on
+    /// the reply, because the effect is the server's and only the reply proves it. A field-set cannot
+    /// afford that - every import issued before the first <c>PREPARE</c>'s reply lands still reads "not
+    /// prepared", so a burst injects one preamble per command.
+    /// </summary>
+    /// <remarks>
+    /// Both strategies are correct - <c>PREPARE</c> is idempotent, and every import below succeeds either
+    /// way - so this is a cost difference, not a correctness one, and it is invisible without counting.
+    /// Measured: <b>8 preambles for 8 commands</b> confirming on the reply, <b>1</b> claiming on the write.
+    /// The first attempt at this test issued the sends from one loop and saw 1 either way, because each
+    /// reply landed while the next frame was still being rendered - so it was measuring the loop, not the
+    /// burst. The barrier is what makes the sends contend.
+    /// </remarks>
+    [Fact]
+    public async Task ConfirmOnReplyInjectsPerCommandUnderABurst()
+    {
+        await using var conn = await RequireHashImportAsync();
+        var db = conn.GetDatabase();
+        var ctx = NewContext(conn, db.Database);
+        var prefix = Me();
+        const int Burst = 8;
+
+        var counts = new int[2];
+        string? claimOnWriteStory = null;
+        for (var mode = 0; mode < 2; mode++)
+        {
+            var claimOnWrite = mode == 1;
+            var fieldSet = (RedisValue)($"{prefix}:fs{mode}");
+            var gate = new FieldSetGate(claimOnWrite);
+            var pending = new Task<bool>[Burst];
+
+            // a real burst needs the sends to contend, not to take turns: issuing them from one loop lets
+            // each reply land while the next frame is still being rendered, which is not the scenario
+            using var gun = new Barrier(Burst);
+            for (var i = 0; i < Burst; i++)
+            {
+                var index = i;
+                pending[i] = Task.Run(() =>
+                {
+                    var preamble = ctx.Raw.Render($"{RedisCommand.HIMPORT}{Tokens.Prepare}{fieldSet}{Tokens.NameAndAge}");
+                    var request = ctx.Raw.Render($"{RedisCommand.HIMPORT}{Tokens.Set}{(RedisKey)($"{prefix}:{mode}:{index}")}{fieldSet}{(RedisValue)("user" + index)}{(RedisValue)index}");
+                    try
+                    {
+                        gun.SignalAndWait();
+                        return ctx.Raw.SendWithPreambleAsync(
+                            ref preamble, ref request, CommandFlags.None, RespHandlers.Boolean, gate).AsTask();
+                    }
+                    finally
+                    {
+                        preamble.Dispose();
+                        request.Dispose();
+                    }
+                });
+            }
+
+            Assert.All(await Task.WhenAll(pending), Assert.True);
+            counts[mode] = gate.Injections;
+            if (claimOnWrite) claimOnWriteStory = gate.Describe();
+            Log($"{(claimOnWrite ? "claim-on-write" : "confirm-on-reply")}: {gate.Injections} preamble(s) for {Burst} commands");
+        }
+
+        // Claim-on-write is the deterministic half, and the one worth asserting: the claim happens inside
+        // the write lock, so however the eight tasks interleave, exactly one preamble goes out.
+        Assert.True(counts[1] == 1, claimOnWriteStory);
+
+        // Confirm-on-reply is NOT asserted, and that is a correction rather than an omission. An earlier
+        // version asserted it injected more, which held every time in isolation (8 for 8) and then failed
+        // under full-suite load, where the first PREPARE's reply landed before the other tasks reached
+        // IsNeeded - so the burst did not contend and one preamble covered all eight. The measurement is
+        // real and is recorded in the queue; what is not real is any guarantee about WHEN that race lands,
+        // so asserting on it made this test depend on machine load rather than on the library.
+        Log($"confirm-on-reply injected {counts[0]} preamble(s) for {Burst} commands; claim-on-write injected {counts[1]}");
+    }
+}

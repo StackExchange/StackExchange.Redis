@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
 
@@ -7,7 +7,7 @@ namespace StackExchange.Redis;
 /// and processed on the server as a single unit, exposing only asynchronous completion.
 /// This is the async-only counterpart to <see cref="ITransaction"/>, used where synchronous
 /// execution is not offered - for example, a retrying database created via
-/// <see cref="Availability.DatabaseExtensions.WithRetry"/>, where execution may inherently involve delays.
+/// <see cref="Availability.DatabaseExtensions.WithRetry(IDatabaseAsync, Availability.RetryPolicy?)"/>, where execution may inherently involve delays.
 /// </summary>
 /// <remarks>
 /// <para>Transactions can also include constraints (implemented via <c>WATCH</c>).</para>

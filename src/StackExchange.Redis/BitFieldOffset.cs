@@ -9,7 +9,7 @@ namespace StackExchange.Redis;
 /// the same width, which the server multiplies out for us (the <c>#</c> form).
 /// </summary>
 /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
-public readonly struct BitFieldOffset : IEquatable<BitFieldOffset>
+public readonly partial struct BitFieldOffset : IEquatable<BitFieldOffset>
 {
     private readonly long _value;
     private readonly bool _isElement;
@@ -44,19 +44,6 @@ public readonly struct BitFieldOffset : IEquatable<BitFieldOffset>
     /// </summary>
     /// <param name="bit">The bit position.</param>
     public static implicit operator BitFieldOffset(long bit) => Bit(bit);
-
-    internal void Write(in MessageWriter writer, Span<byte> scratch)
-    {
-        if (!_isElement)
-        {
-            writer.WriteBulkString(_value);
-            return;
-        }
-
-        scratch[0] = (byte)'#';
-        var len = Format.FormatInt64(_value, scratch.Slice(1)) + 1;
-        writer.WriteBulkString(scratch.Slice(0, len));
-    }
 
     /// <inheritdoc/>
     public override string ToString() => _isElement

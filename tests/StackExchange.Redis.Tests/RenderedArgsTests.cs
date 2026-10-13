@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
@@ -117,19 +117,6 @@ public class RenderedArgsTests
     }
 
     [Fact]
-    public void WritingAfterRecyclingFailsLoudlyRatherThanSilently()
-    {
-        // the header has already declared Count arguments by the time WriteTo runs, so quietly writing
-        // fewer would put a malformed frame on the wire and the server would complain later, somewhere
-        // else - this is the shape of a use-after-recycle, and it should fail here instead
-        var args = RenderedArgs.Create([(RedisKey)"key", (RedisValue)"value"], pool: null);
-        RenderedArgs.Recycle(ref args);
-
-        var ex = Assert.Throws<InvalidOperationException>(() => Write(in args));
-        Assert.Contains("2 value(s), but wrote 0", ex.Message);
-    }
-
-    [Fact]
     public void ConfiguredPoolIsUsedInsteadOfTheSharedArrayPool()
     {
         var pool = new CountingPool();
@@ -156,56 +143,6 @@ public class RenderedArgsTests
             var drained = Drain(in args);
             Assert.Single(drained);
             Assert.Equal(big, drained[0].Payload);
-        }
-        finally
-        {
-            RenderedArgs.Recycle(ref args);
-        }
-    }
-
-    private static byte[] Write(in RenderedArgs args)
-    {
-        var writer = new MessageWriter(null, CommandMap.Default, MessageWriter.BlockBuffer);
-        ReadOnlyMemory<byte> payload = default;
-        try
-        {
-            args.WriteTo(writer);
-            payload = MessageWriter.FlushBlockBuffer();
-            return payload.Span.ToArray();
-        }
-        catch
-        {
-            MessageWriter.RevertBlockBuffer();
-            throw;
-        }
-        finally
-        {
-            MessageWriter.ReleaseBlockBuffer(payload);
-        }
-    }
-
-    [Fact]
-    public void WritesEachEntryAsABulkString()
-    {
-        var args = RenderedArgs.Create([(RedisKey)"key", (RedisValue)"value", (RedisValue)42], pool: null);
-        try
-        {
-            // keys and values are indistinguishable on the wire; the flag is only for routing
-            Assert.Equal("$3\r\nkey\r\n$5\r\nvalue\r\n$2\r\n42\r\n", Encoding.UTF8.GetString(Write(in args)));
-        }
-        finally
-        {
-            RenderedArgs.Recycle(ref args);
-        }
-    }
-
-    [Fact]
-    public void WritesNothingForNoArguments()
-    {
-        var args = RenderedArgs.Create([], pool: null);
-        try
-        {
-            Assert.Empty(Write(in args));
         }
         finally
         {

@@ -165,28 +165,6 @@ namespace StackExchange.Redis
             }
         }
 
-        public ServerEndPoint? Select(Message message, bool allowDisconnected = false)
-        {
-            int slot = NoSlot;
-            switch (ServerType)
-            {
-                case ServerType.Cluster:
-                // strictly speaking some proxies use a different hashing algorithm, but the hash-tag behavior is
-                // the same, so this does a pretty good job of spotting illegal commands before sending them
-                case ServerType.Twemproxy:
-                    slot = message.GetHashSlot(this);
-                    if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer?.RawConfig?.IncludeDetailInExceptions ?? false, message);
-                    break;
-                /* just shown for completeness
-                case ServerType.Standalone: // don't use sharding
-                case ServerType.Envoyproxy: // defer to the proxy; see #2426
-                default: // unknown scenario; defer to the server
-                    break;
-                */
-            }
-            return Select(slot, message.Command, message.Flags, allowDisconnected);
-        }
-
         public ServerEndPoint? Select(RedisCommand command, in RedisKey key, CommandFlags flags, bool allowDisconnected = false)
         {
             int slot = ServerType == ServerType.Cluster ? HashSlot(key) : NoSlot;
@@ -197,87 +175,6 @@ namespace StackExchange.Redis
         {
             int slot = ServerType == ServerType.Cluster ? HashSlot(channel) : NoSlot;
             return Select(slot, command, flags, allowDisconnected);
-        }
-
-        public bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved, bool isSelf)
-        {
-            try
-            {
-                if ((ServerType == ServerType.Standalone && !isSelf) || hashSlot < 0 || hashSlot >= RedisClusterSlotCount) return false;
-
-                // a redirect target is legitimately ahead of the topology, so mark it as such: it must not be
-                // pruned merely for being absent from a topology reply that predates it
-                ServerEndPoint? server = multiplexer?.GetServerEndPoint(endpoint, provenance: ServerProvenance.Redirect);
-                if (server != null)
-                {
-                    // a MOVED names the node that now owns the slot, and only a primary can own one. If we still
-                    // believe it is a replica we have not caught up with a failover, and the resend below would be
-                    // refused client-side as a write to a replica - with no MOVED to follow, so nothing else would
-                    // correct it before the next scheduled role check. The next topology refresh remains the
-                    // authority and can overrule this
-                    if (isMoved && ServerType == ServerType.Cluster && server.IsReplica)
-                    {
-                        server.IsReplica = false;
-                    }
-
-                    bool retry = false;
-                    if ((message.Flags & CommandFlags.NoRedirect) == 0)
-                    {
-                        message.SetAsking(!isMoved);
-                        message.SetNoRedirect(); // once is enough
-                        if (isMoved) message.SetInternalCall();
-
-                        // Note that everything so far is talking about PRIMARY nodes
-                        // We might be wanting a REPLICA, so we'll check
-                        ServerEndPoint? resendVia = null;
-                        var command = message.Command;
-                        switch (Message.GetPrimaryReplicaFlags(message.Flags))
-                        {
-                            case CommandFlags.DemandMaster:
-                                resendVia = server.IsSelectable(command, isMoved) ? server : null;
-                                break;
-                            case CommandFlags.PreferMaster:
-                                resendVia = server.IsSelectable(command, isMoved) ? server : FindReplica(server, command);
-                                break;
-                            case CommandFlags.PreferReplica:
-                                resendVia = FindReplica(server, command, isMoved) ?? (server.IsSelectable(command, isMoved) ? server : null);
-                                break;
-                            case CommandFlags.DemandReplica:
-                                resendVia = FindReplica(server, command, isMoved);
-                                break;
-                        }
-                        if (resendVia == null)
-                        {
-                            multiplexer?.Trace("Unable to resend to " + endpoint);
-                        }
-                        else
-                        {
-                            message.PrepareToResend(resendVia, isMoved);
-#pragma warning disable CS0618 // Type or member is obsolete
-                            retry = resendVia.TryWriteSync(message) == WriteResult.Success;
-#pragma warning restore CS0618
-                        }
-                    }
-
-                    if (isMoved) // update map; note we can still update the map even if we aren't actually going to resend
-                    {
-                        var arr = MapForMutation();
-                        var oldServer = arr[hashSlot];
-                        arr[hashSlot] = server;
-                        if (oldServer != server)
-                        {
-                            multiplexer?.OnHashSlotMoved(hashSlot, oldServer?.EndPoint, endpoint);
-                        }
-                    }
-
-                    return retry;
-                }
-                return false;
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         internal static int CombineSlot(int oldSlot, int newSlot)
@@ -397,7 +294,7 @@ namespace StackExchange.Redis
         internal ServerEndPoint? Select(int slot, RedisCommand command, CommandFlags flags, bool allowDisconnected)
         {
             // Only interested in primary/replica preferences
-            flags = Message.GetPrimaryReplicaFlags(flags);
+            flags = CommandFlagsInternal.GetPrimaryReplicaFlags(flags);
 
             ServerEndPoint[]? arr;
             if (slot == NoSlot || (arr = map) == null) return Any(command, flags, allowDisconnected);

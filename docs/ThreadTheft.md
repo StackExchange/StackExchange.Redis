@@ -14,6 +14,8 @@ the short version is: try adding the following *early on* in your application st
 ConnectionMultiplexer.SetFeatureFlag("preventthreadtheft", true);
 ```
 
+(or set the environment variable `SEREDIS_PREVENTTHREADTHEFT=1`, which does the same without a code change)
+
 and see if that fixes things. If you want more context as to what this is about - keep reading!
 
 ## What is thread theft?

@@ -36,6 +36,7 @@ Unlike everything under [Usage](#usage), these describe code that does not do wh
 - [SER306](SER306) - waiting for a fire-and-forget result, which is always the default value
 - [SER307](../SyncOverAsync) - blocking on a redis call instead of awaiting it ("sync over async")
 - [SER308](../SyncOverAsync) - the same, via the library's own `Wait`/`WaitAll`/`TryWait` helpers
+- [SER309](SER309) - **error**: literal text in a RESP command is discarded rather than sent as an argument
 
 ## Usage
 
@@ -44,10 +45,13 @@ Unlike everything under [Usage](#usage), these describe code that does not do wh
 - [SER302](SER302) - condition may be redundant; the command already reports whether it acted (any server version)
 - [SER303](SER303) - two queued operations may be a single compound command (varies by pair)
 - [SER304](SER304) - the same operation queued repeatedly may suit the variadic overload (mostly any server)
+- [SER310](SER310) - this call cannot honour the `CancellationToken` the enclosing method accepts
 
 ## Build
 
 - [SER350](SER350) - language version too low for generated code
+- [SER351](SER351) - a `[Resp]` declaration the fragment generator cannot implement
+- [SER352](SER352) - generated database members that are not implemented and will throw
 
 ## When these rules stay quiet
 

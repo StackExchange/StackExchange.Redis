@@ -310,5 +310,105 @@ internal static class Diagnostics
         isEnabledByDefault: true,
         helpLinkUri: HelpLink("SER350"));
 
+    /// <summary>
+    /// Literal text inside a RESP interpolated command, which is discarded rather than sent.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An error, because the code cannot do what it plainly says: <c>$"{key} nx {val}"</c> reads as though
+    /// <c>nx</c> is an argument, and it is silently dropped. The handler's <c>AppendLiteral</c> is a deliberate
+    /// no-op, so there is no runtime check to fall back on - by design, because the failure is local (a
+    /// well-formed frame missing an argument) rather than protocol-damaging.
+    /// </para>
+    /// <para>
+    /// A single space is allowed and discarded, so <c>$"{cmd} {key} {value}"</c> can read the way the command
+    /// is written everywhere else. Everything else - two spaces, punctuation, a bare command name - is this.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor RespLiteralNotSent = new(
+        id: "SER309",
+        title: "Literal text in a RESP command is resolved on every call",
+        messageFormat: "Literal text \"{0}\" is parsed and encoded on every call; resolve it once - declare it with [Resp], as a RespFragment for a token or a RespCommand for a command",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Literal text becomes RESP arguments - whitespace-separated, with a leading token taken as the command - so the result is correct, but each token is parsed and UTF-8 encoded on every call where a declared fragment or a resolved command is prepared once. Whitespace-only literals are separators and cost nothing.",
+        helpLinkUri: HelpLink("SER309"));
+
+    /// <summary>
+    /// A redis call made from a method that has a <see cref="System.Threading.CancellationToken"/> to hand,
+    /// on a surface that cannot honour one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The point is not that cancellation is missing - it is that the caller <b>has a token and expects it
+    /// to mean something</b>. A method whose signature promises cancellation, calling something that cannot
+    /// cancel, is a promise the code cannot keep, and the failure mode is silence: the token is cancelled,
+    /// the caller waits anyway, and nothing in the source says why.
+    /// </para>
+    /// <para>
+    /// <b>A suggestion rather than a warning</b>, deliberately. There is nothing wrong with the code -
+    /// plenty of callers legitimately have an ambient token and no need to act on it - so this is guidance
+    /// at the moment it is useful, not a defect to be fixed. It is also why the fix is "move this call to
+    /// the context surface", not "hack cancellation into the old API": the old pipeline genuinely cannot
+    /// cancel an in-flight request, and pretending otherwise would be worse than saying so.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor CancellationIgnored = new(
+        id: "SER310",
+        title: "Redis call cannot honour the cancellation token in scope",
+        messageFormat: "'{0}' cannot be cancelled, so '{1}' has no effect on it; the RESP context surface accepts a cancellation token",
+        category: UsageCategory,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "This surface cannot cancel a request once it has been sent, so a cancellation token passed to - or in scope around - the call is silently ignored. Code that holds a token generally intends it to mean something; the context surface can honour one.",
+        helpLinkUri: HelpLink("SER310"));
+
+    /// <summary>
+    /// A <c>[Resp]</c> declaration the generator cannot implement, and would otherwise skip in silence.
+    /// </summary>
+    /// <remarks>
+    /// Build category, like <see cref="LanguageVersionTooLow"/>, and for the same reason: skipping quietly
+    /// surfaces as <c>CS9248 "must have an implementation part"</c> on a declaration that looks correct, with
+    /// nothing anywhere saying why. A warning rather than an error because the compiler already fails the
+    /// build for the partial case - this exists to explain it, not to duplicate it.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor RespFragmentNotGenerated = new(
+        id: "SER351",
+        title: "[Resp] declaration cannot be implemented",
+        messageFormat: "[Resp] on '{0}' is ignored: {1}",
+        category: BuildCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The RespFragment generator implements [Resp] partial properties of type RespFragment or RespCommand; a declaration it cannot match is skipped, which would otherwise appear only as a missing implementation part.",
+        helpLinkUri: HelpLink("SER351"));
+
+    /// <summary>
+    /// An <c>[AutoDatabase(WarnIfIncomplete = true)]</c> type still has members that only throw.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A transition tripwire, not a code-quality rule. A type being migrated to a new implementation one
+    /// command at a time has the rest generated as throwing stubs; that is fine while the work is in
+    /// progress and <b>not</b> fine in something that ships, and the difference is invisible at a glance
+    /// because the whole point of the generated half is that nobody writes or reads it.
+    /// </para>
+    /// <para>
+    /// Reported only for <c>Release</c> builds (detected by the absence of the <c>DEBUG</c> preprocessor
+    /// symbol) so the inner development loop stays quiet, and only where the attribute opts in - the other
+    /// <c>[AutoDatabase]</c> users generate members that genuinely work by forwarding, and counting those
+    /// as "not implemented" would be both wrong and deafening.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor AutoDatabaseIncomplete = new(
+        id: "SER352",
+        title: "Generated database members are not implemented",
+        messageFormat: "{0} member(s) of '{1}' are not implemented and will throw at run time",
+        category: BuildCategory,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A type generated by [AutoDatabase(WarnIfIncomplete = true)] still has members that only throw; it is mid-transition and should not ship in that state.",
+        helpLinkUri: HelpLink("SER352"));
+
     private static string HelpLink(string id) => string.Format(HelpLinkFormat, id);
 }

@@ -40,7 +40,7 @@ public class MSetTests(ITestOutputHelper output, SharedConnectionFixture fixture
         }
 
         var keys = Array.ConvertAll(pairs, pair => pair.Key);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         // set initial state
         await db.KeyDeleteAsync(keys, flags: CommandFlags.FireAndForget);
         if (precreate)
@@ -114,7 +114,7 @@ public class MSetTests(ITestOutputHelper output, SharedConnectionFixture fixture
         var expiry = TimeSpan.FromMinutes(10);
 
         var keys = Array.ConvertAll(pairs, pair => pair.Key);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         // set initial state
         await db.KeyDeleteAsync(keys, flags: CommandFlags.FireAndForget);
         if (precreate)

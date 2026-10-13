@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
@@ -18,7 +19,7 @@ public class Lease(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("*?\r\n.\r\n", 0)] // streaming empty array
     public void LeaseFloat32Processor_ValidInput(string resp, int expectedCount)
     {
-        var processor = ResultProcessor.LeaseFloat32;
+        var processor = VectorSets.Float32Handler.Writable;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -30,7 +31,7 @@ public class Lease(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         // Array of 3 floats: 1.5, 2.5, 3.5
         var resp = "*3\r\n,1.5\r\n,2.5\r\n,3.5\r\n";
-        var processor = ResultProcessor.LeaseFloat32;
+        var processor = VectorSets.Float32Handler.Writable;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -45,7 +46,7 @@ public class Lease(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("_\r\n")] // null (RESP3)
     public void LeaseFloat32Processor_NullArray(string resp)
     {
-        var processor = ResultProcessor.LeaseFloat32;
+        var processor = VectorSets.Float32Handler.Writable;
         var result = Execute(resp, processor);
 
         Assert.Null(result);
@@ -56,7 +57,7 @@ public class Lease(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData(":42\r\n")] // scalar integer (not an array)
     public void LeaseFloat32Processor_InvalidInput(string resp)
     {
-        var processor = ResultProcessor.LeaseFloat32;
+        var processor = VectorSets.Float32Handler.Writable;
         ExecuteUnexpected(resp, processor);
     }
 
@@ -66,7 +67,7 @@ public class Lease(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData(":42\r\n", "42")] // integer
     public void LeaseProcessor_ValidInput(string resp, string expected)
     {
-        var processor = ResultProcessor.Lease;
+        var processor = RespHandlers.Lease;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -80,7 +81,7 @@ public class Lease(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData("*1\r\n+world\r\n", "world")] // array of 1 simple string
     public void LeaseFromArrayProcessor_ValidInput(string resp, string expected)
     {
-        var processor = ResultProcessor.LeaseFromArray;
+        var processor = RespHandlers.SingletonLease;
         using var result = Execute(resp, processor);
 
         Assert.NotNull(result);
@@ -91,10 +92,20 @@ public class Lease(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 
     [Theory]
     [InlineData("*0\r\n")] // empty array
-    [InlineData("*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n")] // array of 2 (not 1)
     public void LeaseFromArrayProcessor_InvalidInput(string resp)
     {
-        var processor = ResultProcessor.LeaseFromArray;
+        var processor = RespHandlers.SingletonLease;
         ExecuteUnexpected(resp, processor);
+    }
+
+    // NEW BEHAVIOUR: the old processor demanded exactly one element; the singleton handler takes the first
+    // and ignores the rest. Its commands (HGETDEL/HGETEX with one field) always reply with exactly one, so
+    // this is leniency against a misbehaving server rather than a wrong answer for a real one.
+    [Fact]
+    public void LeaseFromArrayProcessor_TakesFirstOfSeveral()
+    {
+        using var result = Execute("*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n", RespHandlers.SingletonLease);
+        Assert.NotNull(result);
+        Assert.Equal("hello", Encoding.UTF8.GetString(result.Span));
     }
 }

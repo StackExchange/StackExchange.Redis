@@ -529,9 +529,6 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
 
             var pending = new Task<T>[ClientCount];
             int index = 0;
-#if DEBUG && NEWCORE
-            Internal.DebugCounters.Flush();
-#endif
             // optionally support cancellation, applied per-test
             CancellationToken cancellationToken = CancellationToken.None;
             using var cts = SupportCancel ? new CancellationTokenSource(TimeSpan.FromSeconds(20)) : null;
@@ -584,129 +581,6 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
         finally
         {
             _ = didNotRun;
-#if DEBUG && NEWCORE
-            var counters = Internal.DebugCounters.Flush(); // flush even if not showing
-            if (!Quiet & !didNotRun)
-            {
-                if (counters.WriteBytes != 0)
-                {
-                    Console.Write($"Write: {FormatBytes(counters.WriteBytes)}");
-                    if (counters.SyncWriteCount != 0) Console.Write($"; {counters.SyncWriteCount:#,##0} sync");
-                    if (counters.AsyncWriteInlineCount != 0)
-                        Console.Write($"; {counters.AsyncWriteInlineCount:#,##0} async-inline");
-                    if (counters.AsyncWriteCount != 0) Console.Write($"; {counters.AsyncWriteCount:#,##0} full-async");
-                    Console.WriteLine();
-                }
-
-                if (counters.ReadBytes != 0)
-                {
-                    Console.Write($"Read: {FormatBytes(counters.ReadBytes)}");
-                    if (counters.ReadCount != 0) Console.Write($"; {counters.ReadCount:#,##0} sync");
-                    if (counters.AsyncReadInlineCount != 0)
-                        Console.Write($"; {counters.AsyncReadInlineCount:#,##0} async-inline");
-                    if (counters.AsyncReadCount != 0) Console.Write($"; {counters.AsyncReadCount:#,##0} full-async");
-                    Console.WriteLine();
-                }
-
-                if (counters.DiscardFullCount + counters.DiscardPartialCount != 0)
-                {
-                    Console.Write($"Discard average: {FormatBytes(counters.DiscardAverage)}");
-                    if (counters.DiscardFullCount != 0) Console.Write($"; {counters.DiscardFullCount} full");
-                    if (counters.DiscardPartialCount != 0) Console.Write($"; {counters.DiscardPartialCount} partial");
-                    Console.WriteLine();
-                }
-
-                if (counters.CopyOutCount != 0)
-                {
-                    Console.WriteLine(
-                        $"Copy out: {FormatBytes(counters.CopyOutBytes)}; {counters.CopyOutCount:#,##0} times");
-                }
-
-                if (counters.PipelineFullAsyncCount != 0
-                    | counters.PipelineSendAsyncCount != 0
-                    | counters.PipelineFullSyncCount != 0)
-                {
-                    Console.Write("Pipelining");
-                    if (counters.PipelineFullSyncCount != 0)
-                        Console.Write($"; full sync: {counters.PipelineFullSyncCount:#,##0}");
-                    if (counters.PipelineSendAsyncCount != 0)
-                        Console.Write($"; send async: {counters.PipelineSendAsyncCount:#,##0}");
-                    if (counters.PipelineFullAsyncCount != 0)
-                        Console.Write($"; full async: {counters.PipelineFullAsyncCount:#,##0}");
-                    Console.WriteLine();
-                }
-
-                if (counters.BatchWriteCount != 0)
-                {
-                    Console.Write($"Batching; {counters.BatchWriteCount:#,##0} batches");
-                    if (counters.BatchWriteFullPageCount != 0)
-                        Console.Write($"; {counters.BatchWriteFullPageCount:#,###,##0} full pages");
-                    if (counters.BatchWritePartialPageCount != 0)
-                        Console.Write($"; {counters.BatchWritePartialPageCount:#,###,##0} partial pages");
-                    if (counters.BatchWriteMessageCount != 0)
-                        Console.Write($"; {counters.BatchWriteMessageCount:#,###,##0} messages");
-                    Console.WriteLine();
-                }
-
-                if (counters.BatchGrowCount != 0)
-                {
-                    Console.WriteLine(
-                        $"Batch growth; {counters.BatchGrowCount:#,##0} events, {counters.BatchGrowCopyCount:#,###,##0} elements copied");
-                }
-
-                if (counters.BatchBufferLeaseCount != 0 | counters.BatchMultiRootMessageCount != 0)
-                {
-                    Console.Write(
-                        $"Multi-message batching: {counters.BatchMultiRootMessageCount:#,###,##0} batches, {counters.BatchMultiChildMessageCount:#,###,##0} sub-messages");
-                    if (counters.BatchBufferLeaseCount != 0)
-                    {
-                        Console.Write(
-                            $"; {counters.BatchBufferLeaseCount:#,###,##0} blocks leased, {counters.BatchBufferReturnCount:#,###,##0} blocks returned, {counters.BatchBufferElementsOutstanding:#,###,##0} elements outstanding");
-                    }
-                    Console.WriteLine();
-                }
-
-                if (counters.BufferCreatedCount != 0 ||
-                    counters.BufferRecycledCount != 0 | counters.BufferMessageCount != 0)
-                {
-                    Console.Write("Buffers");
-                    if (counters.BufferCreatedCount != 0)
-                    {
-                        Console.Write(
-                            $"; created: {counters.BufferCreatedCount:#,###,##0}, {FormatBytes(counters.BufferTotalBytes)}");
-                        // always write recycled count - it being zero is important
-                        Console.Write(
-                            $"; recycled: {counters.BufferRecycledCount:#,###,##0}, {FormatBytes(counters.BufferRecycledBytes)}");
-                    }
-
-                    if (counters.BufferMessageCount != 0)
-                    {
-                        Console.Write(
-                            $"; {counters.BufferMessageCount:#,###,##0} messages, {FormatBytes(counters.BufferMessageBytes)}");
-                    }
-
-                    Console.Write(
-                        $"; max working {FormatBytes(counters.BufferMaxOutstandingBytes)}; {counters.BufferPinCount:#,###,##0} pins; {counters.BufferLeakCount:#,###,##0} leaks");
-                    Console.WriteLine();
-                }
-
-                static string FormatBytes(long bytes)
-                {
-                    // ReSharper disable InconsistentNaming
-                    const long k = 1024, M = k * k, G = M * k, T = G * k;
-
-                    // ReSharper restore InconsistentNaming
-                    return bytes switch
-                    {
-                        < k => $"{bytes:#,##0} B",
-                        < M => $"{bytes / (double)k:#,##0.00} KiB",
-                        < G => $"{bytes / (double)M:#,##0.00} MiB",
-                        < T => $"{bytes / (double)G:#,##0.00} GiB",
-                        _ => $"{bytes / (double)T:#,##0.00} TiB",
-                    };
-                }
-            }
-#endif
             if (!Quiet) Console.WriteLine();
         }
     }

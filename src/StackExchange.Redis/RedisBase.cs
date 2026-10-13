@@ -6,6 +6,43 @@ namespace StackExchange.Redis
 {
     internal abstract partial class RedisBase : IRedis
     {
+        /// <summary>Build the context commands are composed and sent through.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>A method rather than the interface property</b>, and <c>protected</c> rather than public.
+        /// <see cref="IRespTarget.Context"/> is hidden by the derived interfaces, so every implementer has
+        /// to supply two members that differ only in return type - the plain context and the typed one -
+        /// and neither can be the other's override. One overridable builder here is what both of them
+        /// call, so a subclass says how its context is made in exactly one place and nothing has to
+        /// remember to keep the two in step.
+        /// </para>
+        /// <para>
+        /// Not implemented here: a bare <see cref="RedisBase"/> has no context. The subclasses that can
+        /// build one override this; the rest inherit a throw that names the reason.
+        /// </para>
+        /// </remarks>
+        protected virtual RespContext GetContext()
+            => throw new NotImplementedException(
+                "The context surface is not yet wired to a live connection; see RespDatabaseContext.");
+
+        /// <summary>Lets the context surface ask what the receiving server can do.</summary>
+        /// <remarks>
+        /// Lives here rather than on <c>RedisDatabase</c> because a server context wants it too, and wants
+        /// it <i>more</i>: <c>RedisServer.GetFeatures</c> answers from its own endpoint, so the probe
+        /// reports an observation rather than the guess a database has to make before a server is selected.
+        /// </remarks>
+        internal sealed class ServerFeatureProbe(RedisBase target) : IRespServerFeatures
+        {
+            public bool TryGetFeatures(RedisCommand command, in RedisKey key, CommandFlags flags, out RedisFeatures features)
+            {
+                features = target.GetFeatures(key, flags, command, out var server);
+
+                // the features are always usable - GetFeatures falls back to the configured default
+                // version - but only a selected server makes them an observation rather than a guess
+                return server is not null;
+            }
+        }
+
         internal static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         internal readonly ConnectionMultiplexer multiplexer;
         protected readonly object? asyncState;
@@ -18,17 +55,9 @@ namespace StackExchange.Redis
 
         IConnectionMultiplexer IRedisAsync.Multiplexer => multiplexer;
 
-        public virtual TimeSpan Ping(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetTimerMessage(flags);
-            return ExecuteSync(msg, ResultProcessor.ResponseTimer);
-        }
+        public abstract TimeSpan Ping(CommandFlags flags = CommandFlags.None);
 
-        public virtual Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetTimerMessage(flags);
-            return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
-        }
+        public abstract Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None);
 
         public override string ToString() => multiplexer.ToString();
 
@@ -43,28 +72,6 @@ namespace StackExchange.Redis
 
         public void WaitAll(params Task[] tasks) => multiplexer.WaitAll(tasks);
         #pragma warning restore SER308
-
-        internal virtual Task<T> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, T defaultValue, ServerEndPoint? server = null)
-        {
-            if (message is null) return CompletedTask<T>.FromDefault(defaultValue, asyncState);
-            multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server, defaultValue);
-        }
-
-        internal virtual Task<T?> ExecuteAsync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null)
-        {
-            if (message is null) return CompletedTask<T>.Default(asyncState);
-            multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteAsyncImpl<T>(message, processor, asyncState, server);
-        }
-
-        [return: NotNullIfNotNull("defaultValue")]
-        internal virtual T? ExecuteSync<T>(Message? message, ResultProcessor<T>? processor, ServerEndPoint? server = null, T? defaultValue = default)
-        {
-            if (message is null) return defaultValue; // no-op
-            multiplexer.CheckMessage(message);
-            return multiplexer.ExecuteSyncImpl<T>(message, processor, server, defaultValue);
-        }
 
         internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, RedisCommand command, out ServerEndPoint? server)
         {
@@ -108,21 +115,6 @@ namespace StackExchange.Redis
                 default:
                     throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always, NotExists");
             }
-        }
-
-        private ResultProcessor.TimingProcessor.TimerMessage GetTimerMessage(CommandFlags flags)
-        {
-            // do the best we can with available commands
-            var map = multiplexer.CommandMap;
-            if (map.IsAvailable(RedisCommand.PING))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
-            if (map.IsAvailable(RedisCommand.TIME))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
-            if (map.IsAvailable(RedisCommand.ECHO))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
-            // as our fallback, we'll do something odd... we'll treat a key like a value, out of sheer desperation
-            // note: this usually means: twemproxy/envoyproxy - in which case we're fine anyway, since the proxy does the routing
-            return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
         }
 
         internal static class CursorUtils

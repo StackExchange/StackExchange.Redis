@@ -89,7 +89,11 @@ public sealed class RespProtocolTests(ITestOutputHelper output, SharedConnection
         {
             Assert.Equal(RedisProtocol.Resp2, server.Protocol);
         }
-        var cid = server.GetBridge(RedisCommand.GET)?.ConnectionId;
+        // asked of the multiplexer rather than of the shipped bridge: the question is whether the
+        // connection carrying commands has an id, and under the engine flag that connection is the other
+        // core's - this endpoint has no interactive bridge to ask at all. GetConnectionId already answers
+        // across both cores, which is what makes it the right question in either world.
+        var cid = muxer.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
         if (server.GetFeatures().ClientId)
         {
             Assert.NotNull(cid);

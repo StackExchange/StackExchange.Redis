@@ -63,6 +63,13 @@ public partial class ConnectionMultiplexer
     public event EventHandler<ConnectionFailedEventArgs>? ConnectionFailed;
     internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure, string? physicalName)
     {
+        // before the disposed check and before the handler dispatch, because this one is not an
+        // observation: server-assisted invalidation only works while we are listening, so anything that
+        // changed during the gap is never announced and an entry that survives it is stale with nothing
+        // left in the system that will ever say so. Synchronous for the same reason - queueing it behind
+        // CompleteAsWorker leaves a window in which we would answer from a cache we already know is suspect.
+        ClientCache?.OnFlush();
+
         if (_isDisposed) return;
         var handler = ConnectionFailed;
         if (handler != null)
@@ -101,7 +108,7 @@ public partial class ConnectionMultiplexer
     /// Raised whenever a physical connection is established.
     /// </summary>
     public event EventHandler<ConnectionFailedEventArgs>? ConnectionRestored;
-    internal void OnConnectionRestored(EndPoint endpoint, ConnectionType connectionType, string? physicalName)
+    internal void OnConnectionRestored(EndPoint endpoint, ConnectionType connectionType, string? physicalName, bool reconfigure = true)
     {
         if (_isDisposed) return;
         var handler = ConnectionRestored;
@@ -109,7 +116,10 @@ public partial class ConnectionMultiplexer
         {
             CompleteAsWorker(new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName));
         }
-        ReconfigureIfNeeded(endpoint, false, "connection restored");
+        if (reconfigure)
+        {
+            ReconfigureIfNeeded(endpoint, false, "connection restored");
+        }
     }
 
     /// <summary>

@@ -62,30 +62,38 @@ public class AsyncTests(ITestOutputHelper output) : TestBase(output)
 
         // This is done on another connection, because it queues a SELECT due to being an unknown command that will not timeout
         // at the head of the queue
+        var sincePause = Stopwatch.StartNew();
         await pauseConn.GetDatabase().ExecuteAsync("client", "pause", 4000).ForAwait(); // client pause returns immediately
-
-        var ms = Stopwatch.StartNew();
-        var ex = await Assert.ThrowsAsync<RedisTimeoutException>(async () =>
+        try
         {
-            Log("Issuing StringGetAsync");
-            await db.StringGetAsync(key).ForAwait(); // but *subsequent* operations are paused
+
+            var ms = Stopwatch.StartNew();
+            var ex = await Assert.ThrowsAsync<RedisTimeoutException>(async () =>
+            {
+                Log("Issuing StringGetAsync");
+                await db.StringGetAsync(key).ForAwait(); // but *subsequent* operations are paused
+                ms.Stop();
+                Log($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
+            }).ForAwait();
             ms.Stop();
-            Log($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
-        }).ForAwait();
-        ms.Stop();
-        Log($"Timed out after {ms.ElapsedMilliseconds}ms");
+            Log($"Timed out after {ms.ElapsedMilliseconds}ms");
 
-        Log("Exception message: " + ex.Message);
-        Assert.Contains("Timeout awaiting response", ex.Message);
-        // Ensure we are including the last payload size
-        Assert.Contains("last-in:", ex.Message);
-        Assert.DoesNotContain("last-in: 0", ex.Message);
-        Assert.NotNull(ex.Data["Redis-Last-Result-Bytes"]);
+            Log("Exception message: " + ex.Message);
+            Assert.Contains("Timeout awaiting response", ex.Message);
+            // Ensure we are including the last payload size
+            Assert.Contains("last-in:", ex.Message);
+            Assert.DoesNotContain("last-in: 0", ex.Message);
+            Assert.NotNull(ex.Data["Redis-Last-Result-Bytes"]);
 
-        Assert.Contains("cur-in:", ex.Message);
+            Assert.Contains("cur-in:", ex.Message);
 
-        string status = conn.GetStatus();
-        Log(status);
-        Assert.Contains("; async timeouts: 1;", status);
+            string status = conn.GetStatus();
+            Log(status);
+            Assert.Contains("; async timeouts: 1;", status);
+        }
+        finally
+        {
+            await WaitOutPauseAsync(sincePause, 4000);
+        }
     }
 }

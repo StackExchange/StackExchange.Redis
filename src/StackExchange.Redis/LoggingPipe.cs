@@ -29,7 +29,6 @@
                 Output = pipe.Writer;
                 CloneAsync(outPath, pipe.Reader, inner.Output).RedisFireAndForget();
             }
-
         }
 
         private async Task CloneAsync(string path, PipeReader from, PipeWriter to)

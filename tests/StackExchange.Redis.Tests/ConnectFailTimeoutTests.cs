@@ -29,6 +29,13 @@ public class ConnectFailTimeoutTests(ITestOutputHelper output) : TestBase(output
             conn.ConnectionRestored += (s, a) =>
                 Log("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
 
+            // Establish the connection first, which is the premise: this test is about a connection that
+            // EXISTED and broke. A core that dials on demand has not dialled anything until something is
+            // sent, and a first command against a FailFast multiplexer is deliberately allowed to connect
+            // rather than be refused - see RespEndpointExecutor.NeverConnected - so without this the ping
+            // below is that first command and succeeds against a perfectly healthy server.
+            server.Ping();
+
             // No need to delay, we're going to try a disconnected connection immediately so it'll fail...
             conn.IgnoreConnect = true;
             Log("simulating failure");

@@ -4,8 +4,8 @@
 Latency sucks. Modern computers can churn data at an alarming rate, and high speed networking (often with multiple parallel links between important servers) provides enormous bandwidth, but... that damned latency means that computers spend an awful lot of time *waiting for data* and that is one of the several reasons that continuation-based programming is becoming increasingly popular. Let's consider some regular procedural code:
 
 ```csharp
-string a = db.StringGet("a");
-string b = db.StringGet("b");
+string a = await db.Strings.GetAsync("a");
+string b = await db.Strings.GetAsync("b");
 ```
 
 In terms of steps involved, this looks like:
@@ -35,21 +35,26 @@ And keep in mind that this is **not to scale** - if this was scaled by time, it 
 Pipelining
 ---
 
-Because of this, many redis clients allow you to make use of *pipelining*; this is the process of sending multiple messages down the pipe without waiting on the reply from each - and (typically) processing the replies later when they come in. In .NET, the idea of an operation that can be initiated but is not yet complete, and which may complete or fault later is encapsulated by the [TPL][1] via the [`Task`][2] / [`Task<T>`][3] APIs. Essentially, a `Task<T>` represents a "future possible value of type `T`" (a non-generic `Task` is essentially a `Task<void>`). You can then either:
+Because of this, many redis clients allow you to make use of *pipelining*; this is the process of sending multiple messages down the pipe without waiting on the reply from each - and (typically) processing the replies later when they come in. In .NET, the idea of an operation that can be initiated but is not yet complete, and which may complete or fault later is encapsulated by the [TPL][1] via the [`Task`][2] / [`Task<T>`][3] APIs, and by `ValueTask<T>`, which is what the command groups return: a "future possible value of type `T`" that costs no allocation at all when the answer is already known.
 
-- at a later point block (`.Wait()`) until the operation has completed
-- schedule a *continuation* (`.ContinueWith(...)` or `await`) to occur when the operation has completed
-
-For example, to pipeline the two gets using procedural (blocking) code, we could use:
+Pipelining falls out of that: **start the operations, then await them**. The requests go onto the network as they are made, and nothing waits until you ask for an answer.
 
 ```csharp
-var aPending = db.StringGetAsync("a");
-var bPending = db.StringGetAsync("b");
-var a = db.Wait(aPending);
-var b = db.Wait(bPending);
+var aPending = db.Strings.GetAsync("a");
+var bPending = db.Strings.GetAsync("b");
+string a = await aPending;
+string b = await bPending;
 ```
 
-Note that I'm using `db.Wait` here because it will automatically apply the configured synchronous timeout, but you can use `aPending.Wait()` or `Task.WaitAll(aPending, bPending);` if you prefer. Using pipelining allows us to get both requests onto the network immediately, eliminating most of the latency. Additionally, it also helps reduce packet fragmentation: 20 requests sent individually (waiting for each response) will require at least 20 packets, but 20 requests sent in a pipeline could fit into much fewer packets (perhaps even just one).
+Using pipelining allows us to get both requests onto the network immediately, eliminating most of the latency. Additionally, it also helps reduce packet fragmentation: 20 requests sent individually (waiting for each response) will require at least 20 packets, but 20 requests sent in a pipeline could fit into much fewer packets (perhaps even just one).
+
+Two things to know about `ValueTask<T>` when you hold one rather than awaiting it immediately: **await it exactly once** (it is not a `Task`, and it may be recycled after you do), and call `.AsTask()` if you need to hand it to something that wants a `Task` - `Task.WhenAll`, a `List<Task>`, a continuation:
+
+```csharp
+var pending = new List<Task<RedisValue>>();
+for (int i = 0; i < 100; i++) pending.Add(db.Strings.GetAsync("key" + i).AsTask());
+var all = await Task.WhenAll(pending);
+```
 
 Fire and Forget
 ---
@@ -58,8 +63,8 @@ A special-case of pipelining is when we expressly don't care about the response 
 
 ```csharp
 // sliding expiration
-db.KeyExpire(key, TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
-var value = (string)db.StringGet(key);
+await db.Keys.ExpireAsync(key, TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
+var value = (string)await db.Strings.GetAsync(key);
 ```
 
 The `FireAndForget` flag causes the client library to queue the work as normal, but immediately return a default value (since `KeyExpire` returns a `bool`, this will return `false`, because `default(bool)` is `false` - however the return value is meaningless and should be ignored). This works for `*Async` methods too: an already-completed `Task<T>` is returned with the default value (or an already-completed `Task` is returned for `void` methods).
@@ -73,11 +78,11 @@ For this reason, the only redis features that StackExchange.Redis does not offer
 
 ```csharp
 sub.Subscribe(channel, delegate {
-    string work = db.ListRightPop(key);
+    string work = await db.Lists.RightPopAsync(key);
     if (work != null) Process(work);
 });
 //...
-db.ListLeftPush(key, newWork, flags: CommandFlags.FireAndForget);
+await db.Lists.LeftPushAsync(key, newWork, flags: CommandFlags.FireAndForget);
 sub.Publish(channel, "");
 ```
 
@@ -97,10 +102,10 @@ Concurrency
 It should be noted that the pipeline / multiplexer / future-value approach also plays very nicely with continuation-based asynchronous code; for example you could write:
 
 ```csharp
-string value = await db.StringGetAsync(key);
+string value = await db.Strings.GetAsync(key);
 if (value == null) {
     value = await ComputeValueFromDatabase(...);
-    db.StringSet(key, value, flags: CommandFlags.FireAndForget);
+    await db.Strings.SetAsync(key, value, flags: CommandFlags.FireAndForget);
 }
 return value;
 ```

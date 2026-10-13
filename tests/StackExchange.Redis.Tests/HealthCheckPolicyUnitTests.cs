@@ -23,15 +23,9 @@ public class HealthCheckPolicyUnitTests
         var flags = new HealthCheckContext(null!, TimeSpan.FromSeconds(1)).ProbeFlags;
         Assert.NotEqual(CommandFlags.None, flags);
 
-        var message = Message.Create(-1, flags, RedisCommand.PING);
-        Assert.True(message.IsProbe);
-        Assert.False(message.IsCallerFacing);
-        Assert.False(message.IsInternalCall);
-
-        // and an ordinary command is unaffected in both directions
-        var ordinary = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
-        Assert.False(ordinary.IsProbe);
-        Assert.True(ordinary.IsCallerFacing);
+        // the probe bit, and not the internal-call bit - which would also change how it queues
+        Assert.Equal(CommandFlagsInternal.ProbeFlag, flags & CommandFlagsInternal.ProbeFlag);
+        Assert.Equal(CommandFlags.None, flags & CommandFlagsInternal.InternalCallFlag);
     }
 
     [Theory]

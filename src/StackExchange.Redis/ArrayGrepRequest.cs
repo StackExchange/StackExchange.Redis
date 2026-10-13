@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -239,19 +240,22 @@ public class ArrayGrepRequest
         }
     }
 
-    internal Message CreateMessage(int db, RedisKey key, CommandFlags flags)
-    {
-        Freeze();
-        return new ArrayGrepMessage(db, key, this, flags);
-    }
-
     /// <summary>
     /// Describes a predicate used by an array grep operation.
     /// </summary>
     public abstract class Predicate
     {
         internal virtual int ArgCount => 2;
-        internal abstract void WriteTo(in MessageWriter writer);
+
+        /// <summary>The same predicate, written through the interpolated builder.</summary>
+        /// <remarks>
+        /// A second spelling rather than a shared one, because the two writers have no common interface -
+        /// <c>MessageWriter</c> is a class the classic pipeline owns and
+        /// <see cref="RespRequestBuilder"/> is a <c>ref struct</c>. Two lines each, and
+        /// <c>RespSurfaceArraysParityTests</c> is what keeps them agreeing.
+        /// </remarks>
+        internal abstract void WriteTo(scoped ref RespRequestBuilder handler);
+
         private protected Predicate() { }
 
         /// <summary>
@@ -286,10 +290,10 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"EXACT '{value}'";
 
-            internal override void WriteTo(in MessageWriter writer)
+            internal override void WriteTo(scoped ref RespRequestBuilder handler)
             {
-                writer.WriteRaw("$5\r\nEXACT\r\n"u8);
-                writer.WriteBulkString(value);
+                handler.AppendFormatted(RespLiterals.Exact);
+                handler.AppendFormatted(value);
             }
         }
 
@@ -297,10 +301,10 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"MATCH '{pattern}'";
 
-            internal override void WriteTo(in MessageWriter writer)
+            internal override void WriteTo(scoped ref RespRequestBuilder handler)
             {
-                writer.WriteRaw("$5\r\nMATCH\r\n"u8);
-                writer.WriteBulkString(pattern);
+                handler.AppendFormatted(RespLiterals.Match);
+                handler.AppendFormatted(pattern);
             }
         }
 
@@ -308,10 +312,10 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"GLOB '{pattern}'";
 
-            internal override void WriteTo(in MessageWriter writer)
+            internal override void WriteTo(scoped ref RespRequestBuilder handler)
             {
-                writer.WriteRaw("$4\r\nGLOB\r\n"u8);
-                writer.WriteBulkString(pattern);
+                handler.AppendFormatted(RespLiterals.Glob);
+                handler.AppendFormatted(pattern);
             }
         }
 
@@ -319,77 +323,85 @@ public class ArrayGrepRequest
         {
             public override string ToString() => $"RE '{re}'";
 
-            internal override void WriteTo(in MessageWriter writer)
+            internal override void WriteTo(scoped ref RespRequestBuilder handler)
             {
-                writer.WriteRaw("$2\r\nRE\r\n"u8);
-                writer.WriteBulkString(re);
+                handler.AppendFormatted(RespLiterals.Re);
+                handler.AppendFormatted(re);
             }
         }
     }
 
-    private sealed class ArrayGrepMessage(int db, RedisKey key, ArrayGrepRequest request, CommandFlags flags)
-        : Message(db, flags, RedisCommand.ARGREP)
+    /// <summary>How many arguments this request renders, including the key.</summary>
+    /// <remarks>
+    /// On the request rather than on the message, because both writers need it: the classic one for its
+    /// header and the interpolated one to size the buffer. One count means the two cannot disagree about
+    /// how many tokens they are about to write, which leaves only their order to drift.
+    /// </remarks>
+    internal int ArgCount
     {
-        public override int ArgCount
+        get
         {
-            get
+            var count = 3; // key, start, end
+            var pCount = Count;
+            for (int i = 0; i < pCount; i++)
             {
-                var count = 3; // key, start, end
-                var pCount = request.Count;
-                for (int i = 0; i < pCount; i++)
-                {
-                    count += request[i].ArgCount;
-                }
-
-                if (request.IsIntersection) count++;
-                if (request.IsCaseInsensitive) count++;
-                if (request.IncludeValues) count++;
-                var limit = request.Limit;
-                if (limit.HasValue) count += 2;
-                return count;
+                count += this[i].ArgCount;
             }
+
+            if (IsIntersection) count++;
+            if (IsCaseInsensitive) count++;
+            if (IncludeValues) count++;
+            if (Limit.HasValue) count += 2;
+            return count;
+        }
+    }
+
+    /// <summary>Write everything after the key, through the interpolated builder.</summary>
+    /// <remarks>
+    /// <b>The token order is <c>ArrayGrepMessage.WriteImpl</c>'s, and must stay so</b>: the bounds
+    /// swap when the request is reversed, the predicates follow in the order they were added, and the
+    /// three switches then <c>LIMIT</c> come last. <c>ArgCount</c> is shared between the two writers, so
+    /// only the order can drift - which is what the parity test compares.
+    /// </remarks>
+    internal void WriteTail(scoped ref RespRequestBuilder handler)
+    {
+        if (IsReversed)
+        {
+            WriteIndex(ref handler, End, isStart: false);
+            WriteIndex(ref handler, Start, isStart: true);
+        }
+        else
+        {
+            WriteIndex(ref handler, Start, isStart: true);
+            WriteIndex(ref handler, End, isStart: false);
         }
 
-        private static void AddIndex(in MessageWriter writer, RedisArrayIndex? index, ReadOnlySpan<byte> fallback)
+        var count = Count;
+        for (var i = 0; i < count; i++)
+        {
+            this[i].WriteTo(ref handler);
+        }
+
+        if (IsIntersection) handler.AppendFormatted(RespLiterals.And);
+        if (IsCaseInsensitive) handler.AppendFormatted(RespLiterals.NoCase);
+        if (IncludeValues) handler.AppendFormatted(RespLiterals.WithValues);
+
+        var limit = Limit;
+        if (limit.HasValue)
+        {
+            handler.AppendFormatted(RespLiterals.Limit);
+            handler.AppendFormatted(limit.GetValueOrDefault());
+        }
+
+        static void WriteIndex(scoped ref RespRequestBuilder handler, RedisArrayIndex? index, bool isStart)
         {
             if (index.HasValue)
             {
-                writer.WriteBulkString(index.GetValueOrDefault().Value);
+                handler.AppendFormatted(index.GetValueOrDefault());
             }
             else
             {
-                writer.WriteRaw(fallback);
-            }
-        }
-
-        protected override void WriteImpl(in MessageWriter writer)
-        {
-            writer.WriteHeader(Command, ArgCount);
-            writer.Write(key);
-            if (request.IsReversed)
-            {
-                AddIndex(writer, request.End, "$1\r\n+\r\n"u8);
-                AddIndex(writer, request.Start, "$1\r\n-\r\n"u8);
-            }
-            else
-            {
-                AddIndex(writer, request.Start, "$1\r\n-\r\n"u8);
-                AddIndex(writer, request.End, "$1\r\n+\r\n"u8);
-            }
-            var pCount = request.Count;
-            for (int i = 0; i < pCount; i++)
-            {
-                request[i].WriteTo(in writer);
-            }
-
-            if (request.IsIntersection) writer.WriteRaw("$3\r\nAND\r\n"u8);
-            if (request.IsCaseInsensitive) writer.WriteRaw("$6\r\nNOCASE\r\n"u8);
-            if (request.IncludeValues) writer.WriteRaw("$10\r\nWITHVALUES\r\n"u8);
-            var limit = request.Limit;
-            if (limit.HasValue)
-            {
-                writer.WriteRaw("$5\r\nLIMIT\r\n"u8);
-                writer.WriteBulkString(limit.GetValueOrDefault());
+                handler.AppendFormatted(isStart ? RespLiterals.RangeStart : RespLiterals.RangeEnd);
             }
         }
     }

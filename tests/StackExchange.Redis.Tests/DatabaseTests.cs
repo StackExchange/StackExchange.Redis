@@ -77,8 +77,11 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
             Skip.IfMissingDatabase(conn, db2Id);
             var server = GetAnyPrimary(conn);
 
-            // awaited, not fire-and-forget: the writes below happen on a *different* connection, so nothing
-            // orders them against these flushes, and an unlucky run counts the leftovers too
+            // Awaited, NOT fire-and-forget, for two separate reasons: this connection is disposed on the
+            // next line, so nothing would wait for them; and the writes below happen on a *different*
+            // connection, so nothing orders them against these flushes either. The databases are dedicated
+            // but not fresh - GetDedicatedDB restarts its counter every process, so the same index belongs to
+            // whichever test drew it that run, and leftovers from a previous run land in the counts below.
             await server.FlushDatabaseAsync(db1Id);
             await server.FlushDatabaseAsync(db2Id);
         }
@@ -87,11 +90,19 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
             Skip.IfMissingDatabase(conn, db1Id);
             Skip.IfMissingDatabase(conn, db2Id);
             var key = Me();
-            var dba = conn.GetDatabase(db1Id);
-            var dbb = conn.GetDatabase(db2Id);
+            var dba = GetDatabase(conn, db1Id);
+            var dbb = GetDatabase(conn, db2Id);
             dba.StringSet(key + ":abc", "def", flags: CommandFlags.FireAndForget);
             dba.StringIncrement(key, flags: CommandFlags.FireAndForget);
             dbb.StringIncrement(key, flags: CommandFlags.FireAndForget);
+
+            // one awaited round trip per database before asking the server to count them. Fire-and-forget
+            // promises the command is SENT, not that it has happened, so a DBSIZE issued straight after can
+            // legitimately see fewer keys than were written - and a caller that waits for each reply only
+            // gets the ordering by accident. One command routed into each database establishes that the
+            // writes before it have been executed there.
+            _ = dba.KeyExists(key);
+            _ = dbb.KeyExists(key);
 
             var server = GetAnyPrimary(conn);
             var c0 = server.DatabaseSizeAsync(db1Id);
@@ -123,9 +134,9 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
         await using var conn = Create();
 
         RedisKey key = Me();
-        var db0 = conn.GetDatabase(TestConfig.GetDedicatedDB(conn));
-        var db1 = conn.GetDatabase(TestConfig.GetDedicatedDB(conn));
-        var db2 = conn.GetDatabase(TestConfig.GetDedicatedDB(conn));
+        var db0 = GetDatabase(conn, TestConfig.GetDedicatedDB(conn));
+        var db1 = GetDatabase(conn, TestConfig.GetDedicatedDB(conn));
+        var db2 = GetDatabase(conn, TestConfig.GetDedicatedDB(conn));
 
         db0.KeyDelete(key, CommandFlags.FireAndForget);
         db1.KeyDelete(key, CommandFlags.FireAndForget);
@@ -151,9 +162,9 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
 
         RedisKey key = Me();
         var db0id = TestConfig.GetDedicatedDB(conn);
-        var db0 = conn.GetDatabase(db0id);
+        var db0 = GetDatabase(conn, db0id);
         var db1id = TestConfig.GetDedicatedDB(conn);
-        var db1 = conn.GetDatabase(db1id);
+        var db1 = GetDatabase(conn, db1id);
 
         db0.KeyDelete(key, CommandFlags.FireAndForget);
         db1.KeyDelete(key, CommandFlags.FireAndForget);
@@ -184,9 +195,9 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
 
         RedisKey key = Me();
         var db0id = TestConfig.GetDedicatedDB(conn);
-        var db0 = conn.GetDatabase(db0id);
+        var db0 = GetDatabase(conn, db0id);
         var db1id = TestConfig.GetDedicatedDB(conn);
-        var db1 = conn.GetDatabase(db1id);
+        var db1 = GetDatabase(conn, db1id);
 
         db0.KeyDelete(key, CommandFlags.FireAndForget);
         db1.KeyDelete(key, CommandFlags.FireAndForget);
@@ -201,7 +212,12 @@ public class DatabaseTests(ITestOutputHelper output, SharedConnectionFixture fix
         Assert.Equal("b", await b); // db:1
 
         var server = GetServer(conn);
-        _ = server.SwapDatabasesAsync(db0id, db1id).ForAwait();
+
+        // AWAITED, as the synchronous sibling's SwapDatabases() call is. Discarding the task let the reads
+        // below race the swap; that went unnoticed only because the server command and the reads shared one
+        // connection, so the write ordering was implicit. It is not implicit once they can be on different
+        // connections - which is the whole point of a database being able to move between them.
+        await server.SwapDatabasesAsync(db0id, db1id).ForAwait();
 
         var aNew = db1.StringGetAsync(key);
         var bNew = db0.StringGetAsync(key);

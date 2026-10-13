@@ -48,7 +48,7 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.Empty(arr);
 
         var now = await server.TimeAsync();
-        // Via IDatabase, not IServer: DEBUG is not in Message.RequiresDatabase's exclusion list, so
+        // Via IDatabase, not IServer: DEBUG is not in CommandFlagsInternal.RequiresDatabase's exclusion list, so
         // IServer.Execute - which has no database to offer - refuses it outright (see #3236).
         // DemandMaster so this provably lands on the same node being measured above, rather than
         // relying on the test topology happening to expose a single endpoint.
@@ -75,7 +75,7 @@ public class LatencyTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.Empty(arr);
 
         var now = await server.TimeAsync();
-        // Via IDatabase, not IServer: DEBUG is not in Message.RequiresDatabase's exclusion list, so
+        // Via IDatabase, not IServer: DEBUG is not in CommandFlagsInternal.RequiresDatabase's exclusion list, so
         // IServer.Execute - which has no database to offer - refuses it outright (see #3236).
         // DemandMaster so this provably lands on the same node being measured above, rather than
         // relying on the test topology happening to expose a single endpoint.

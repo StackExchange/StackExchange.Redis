@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
-using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
@@ -15,7 +14,6 @@ namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 public abstract class ResultProcessorUnitTest(ITestOutputHelper log)
 {
     private protected const string ATTRIB_FOO_BAR = "|1\r\n+foo\r\n+bar\r\n";
-    private protected static readonly ResultProcessor.Int64DefaultValueProcessor Int64DefaultValue999 = new(999);
 
     [return: NotNullIfNotNull(nameof(array))]
     protected static string? Join<T>(T[]? array, string separator = ",")
@@ -26,66 +24,44 @@ public abstract class ResultProcessorUnitTest(ITestOutputHelper log)
 
     public void Log(string message) => log?.WriteLine(message);
 
-    private protected static Message DummyMessage()
-        => Message.Create(0, default, RedisCommand.UNKNOWN);
-
-    private protected void ExecuteUnexpected<T>(
+    /// <summary>Parse a reply that the handler should reject.</summary>
+    /// <remarks>
+    /// The shipped processors reported a shape they did not expect as a <see cref="RedisConnectionException"/>
+    /// ("Unexpected response to ..."); a handler simply throws, and the operation turns that into the
+    /// caller's fault. What is pinned here is that it does not quietly produce a value.
+    /// </remarks>
+    private protected Exception ExecuteUnexpected<T>(
         string resp,
-        ResultProcessor<T> processor,
-        Message? message = null,
-        ConnectionType connectionType = ConnectionType.Interactive,
-        RedisProtocol protocol = RedisProtocol.Resp2,
+        IRespHandler<T> handler,
         [CallerMemberName] string caller = "")
     {
-        Assert.False(TryExecute(resp, processor, out _, out var ex, message, connectionType, protocol, caller), caller);
-        if (ex is not null) Log(ex.Message);
-        Assert.StartsWith("Unexpected response to UNKNOWN:", Assert.IsType<RedisConnectionException>(ex).Message);
-    }
-    private protected static T? Execute<T>(
-        string resp,
-        ResultProcessor<T> processor,
-        Message? message = null,
-        ConnectionType connectionType = ConnectionType.Interactive,
-        RedisProtocol protocol = RedisProtocol.Resp2,
-        [CallerMemberName] string caller = "")
-    {
-        Assert.True(TryExecute<T>(resp, processor, out var value, out var ex, message, connectionType, protocol, caller));
-        Assert.Null(ex);
-        return value;
+        Assert.False(TryExecute(resp, handler, out _, out var ex), caller);
+        Assert.NotNull(ex);
+        Log(ex.Message);
+        return ex;
     }
 
-    private protected static bool TryExecute<T>(
-        string resp,
-        ResultProcessor<T> processor,
-        out T? value,
-        out Exception? exception,
-        Message? message = null,
-        ConnectionType connectionType = ConnectionType.Interactive,
-        RedisProtocol protocol = RedisProtocol.Resp2,
-        [CallerMemberName] string caller = "")
+    private protected static T Execute<T>(string resp, IRespHandler<T> handler, [CallerMemberName] string caller = "")
     {
-        byte[]? lease = null;
+        var ok = TryExecute(resp, handler, out var value, out var ex);
+        Assert.True(ok, $"{caller}: {ex?.GetType().Name}: {ex?.Message}");
+        return value!;
+    }
+
+    /// <summary>Parse <paramref name="resp"/> exactly as the core does - through <c>RespExecutor.ParseFromSpan</c>.</summary>
+    private protected static bool TryExecute<T>(string resp, IRespHandler<T> handler, out T? value, out Exception? exception)
+    {
         try
         {
-            var maxLen = Encoding.UTF8.GetMaxByteCount(resp.Length);
-            const int MAX_STACK = 128;
-            Span<byte> oversized = maxLen <= MAX_STACK
-                ? stackalloc byte[MAX_STACK]
-                : (lease = ArrayPool<byte>.Shared.Rent(maxLen));
-
-            message ??= DummyMessage();
-            var box = SimpleResultBox<T>.Get();
-            message.SetSource(processor, box);
-
-            var reader = new RespReader(oversized.Slice(0, Encoding.UTF8.GetBytes(resp, oversized)));
-            PhysicalConnection connection = new(connectionType, protocol, name: caller);
-            Assert.True(processor.SetResult(connection, message, ref reader));
-            value = box.GetResult(out exception, canRecycle: true);
-            return exception is null;
+            value = RespExecutor.ParseFromSpan(handler, Encoding.UTF8.GetBytes(resp));
+            exception = null;
+            return true;
         }
-        finally
+        catch (Exception ex)
         {
-            if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
+            value = default;
+            exception = ex;
+            return false;
         }
     }
 }

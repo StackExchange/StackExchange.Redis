@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -18,7 +19,12 @@ public class BufferedStreamWriterTests
     public async Task FlushStateDoesNotLeakIntoNextPageActivation(WriteMode mode)
     {
         var stream = new ObservedStream();
-        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, stream, null, CancellationToken.None);
+
+        // an EXACT pool: this test is about the page boundary, so the page has to be PageSize. The shared pool
+        // does not promise that - on .NET Framework ArrayPool<byte>.Shared falls through to a larger bucket
+        // when the exact one is empty, so a page could be 16K or 32K, the write below then never completed a
+        // page, and nothing was written: failing most net481 runs depending on what other tests had returned
+        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, stream, ExactPool.Instance, CancellationToken.None);
         try
         {
             Write(writer, 1, 1);
@@ -30,7 +36,7 @@ public class BufferedStreamWriterTests
             Write(writer, PageSize, 2);
 
             var partial = writer.GetMemory(1);
-            await stream.WaitForBlockedWriteAsync().ForAwait();
+            await WaitWithTimeoutAsync(stream.WaitForBlockedWriteAsync(), TimeSpan.FromSeconds(5)).ForAwait(); // bounded: a write that never comes must fail the test, not hang the run
             partial.Span[0] = 3;
             writer.Advance(1);
 
@@ -51,14 +57,14 @@ public class BufferedStreamWriterTests
     public async Task WriterDoesNotLoseFlushRequestedDuringDrainFlush(WriteMode mode)
     {
         var stream = new ObservedStream();
-        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, stream, null, CancellationToken.None);
+        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, stream, ExactPool.Instance, CancellationToken.None);
         try
         {
             stream.BlockNextFlush();
             Write(writer, 1, 1);
             writer.Flush();
 
-            await stream.WaitForBlockedFlushAsync().ForAwait();
+            await WaitWithTimeoutAsync(stream.WaitForBlockedFlushAsync(), TimeSpan.FromSeconds(5)).ForAwait(); // bounded: a write that never comes must fail the test, not hang the run
 
             Write(writer, 1, 2);
             writer.Flush();
@@ -82,7 +88,7 @@ public class BufferedStreamWriterTests
     {
         var failure = new IOException("simulated target write failure");
         var stream = new ObservedStream { WriteException = failure };
-        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, stream, null, CancellationToken.None);
+        var writer = BufferedStreamWriter.Create((BufferedStreamWriter.WriteMode)mode, stream, ExactPool.Instance, CancellationToken.None);
 
         Write(writer, 1, 1);
         writer.Flush();
@@ -102,7 +108,7 @@ public class BufferedStreamWriterTests
     public async Task SyncWriterTransitionsToAsyncWhileIdleAndPreservesBufferedData()
     {
         var stream = new ObservedStream();
-        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, stream, null, CancellationToken.None);
+        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, stream, ExactPool.Instance, CancellationToken.None);
         try
         {
             Assert.True(writer.IsSync);
@@ -136,13 +142,13 @@ public class BufferedStreamWriterTests
     public async Task SyncWriterTransitionsToAsyncAfterActiveSyncDrain()
     {
         var stream = new ObservedStream();
-        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, stream, null, CancellationToken.None);
+        var writer = BufferedStreamWriter.Create(BufferedStreamWriter.WriteMode.Sync, stream, ExactPool.Instance, CancellationToken.None);
         try
         {
             stream.BlockNextWrite();
             Write(writer, PageSize, 1);
             writer.Flush();
-            await stream.WaitForBlockedWriteAsync().ForAwait();
+            await WaitWithTimeoutAsync(stream.WaitForBlockedWriteAsync(), TimeSpan.FromSeconds(5)).ForAwait(); // bounded: a write that never comes must fail the test, not hang the run
 
             Assert.True(writer.TransitionToAsync());
             Assert.True(writer.IsSync);
@@ -202,6 +208,26 @@ public class BufferedStreamWriterTests
         var first = await Task.WhenAny(task, delay).ForAwait();
         Assert.Same(task, first);
         await task.ForAwait();
+    }
+
+    /// <summary>Hands out exactly the size asked for, so a page is the size a test assumes.</summary>
+    private sealed class ExactPool : MemoryPool<byte>
+    {
+        public static readonly ExactPool Instance = new();
+
+        public override int MaxBufferSize => int.MaxValue;
+
+        public override IMemoryOwner<byte> Rent(int minBufferSize = -1)
+            => new Owner(new byte[minBufferSize <= 0 ? PageSize : minBufferSize]);
+
+        protected override void Dispose(bool disposing) { }
+
+        private sealed class Owner(byte[] array) : IMemoryOwner<byte>
+        {
+            public Memory<byte> Memory => array;
+
+            public void Dispose() { }
+        }
     }
 
     private sealed class ObservedStream : Stream

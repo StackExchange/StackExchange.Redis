@@ -15,7 +15,7 @@ namespace StackExchange.Redis
             DataServerKey = "redis-server",
             TimeoutHelpLink = "https://seredis.dev/Timeouts";
 
-        internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message? message, ServerEndPoint? server)
+        internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, IFaultSubject? message, ServerEndPoint? server)
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("This operation is not available unless admin mode is enabled: " + s);
@@ -29,7 +29,7 @@ namespace StackExchange.Redis
             => new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + command);
 
         internal static Exception TooManyArgs(string command, int argCount)
-            => new RedisCommandException($"This operation would involve too many arguments ({argCount + 1} vs the redis limit of {MessageWriter.REDIS_MAX_ARGS}): {command}");
+            => new RedisCommandException($"This operation would involve too many arguments ({argCount + 1} vs the redis limit of {RespWire.REDIS_MAX_ARGS}): {command}");
 
         internal static Exception CommandHasWhitespace(string command)
             => new RedisCommandException($"The command '{command}' contains whitespace and would be sent as a single unknown token; pass each word as a separate argument, for example Execute(\"ACL\", \"SETUSER\", \"x\") rather than Execute(\"ACL SETUSER x\").");
@@ -49,7 +49,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception DatabaseOutfRange(bool includeDetail, int targetDatabase, Message message, ServerEndPoint server)
+        internal static Exception DatabaseOutfRange(bool includeDetail, int targetDatabase, IFaultSubject message, ServerEndPoint server)
         {
             var ex = new RedisCommandException("The database does not exist on the server: " + targetDatabase);
             if (includeDetail) AddExceptionDetail(ex, message, server, null);
@@ -64,7 +64,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception PrimaryOnly(bool includeDetail, RedisCommand command, Message? message, ServerEndPoint? server)
+        internal static Exception PrimaryOnly(bool includeDetail, RedisCommand command, IFaultSubject? message, ServerEndPoint? server)
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("Command cannot be issued to a replica: " + s);
@@ -72,12 +72,25 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception MultiSlot(bool includeDetail, Message message)
+        internal static Exception MultiSlot(bool includeDetail, IFaultSubject message)
         {
-            var ex = new RedisCommandException("Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot");
+            var ex = new RedisCommandException(MultiSlotMessage);
             if (includeDetail) AddExceptionDetail(ex, message, null, null);
             return ex;
         }
+
+        /// <summary>
+        /// What a caller is told when one command's keys span slots - <b>shared with the context surface</b>,
+        /// which has no <c>Message</c> to attach detail to but owes the reader the same explanation.
+        /// </summary>
+        /// <remarks>
+        /// The hash-tag advice is the useful half: "this cannot be served" states the problem, and
+        /// <c>{/users/12345}</c> states the fix. A second, terser wording on the new surface meant the same
+        /// mistake got a worse answer depending on which path the caller happened to be on.
+        /// </remarks>
+        internal const string MultiSlotMessage =
+            "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. "
+            + "'{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot";
 
         internal static string GetInnerMostExceptionMessage(Exception? e)
         {
@@ -97,12 +110,18 @@ namespace StackExchange.Redis
 
         internal static Exception NoConnectionAvailable(
             ConnectionMultiplexer multiplexer,
-            Message? message,
+            IFaultSubject? message,
             ServerEndPoint? server,
             ReadOnlySpan<ServerEndPoint> serverSnapshot = default,
-            RedisCommand command = default)
+            RedisCommand command = default,
+            string? commandAndKey = null)
         {
-            string commandLabel = GetLabel(multiplexer.RawConfig.IncludeDetailInExceptions, message?.Command ?? command, message);
+            // commandAndKey is for a caller that has no Message to describe - the new core renders straight
+            // to bytes - but can still say what the command was and which key it named. Honoured only when
+            // detail is wanted, exactly as the Message path is: the key is the detail.
+            string commandLabel = commandAndKey is { Length: > 0 } && message is null
+                ? (multiplexer.RawConfig.IncludeDetailInExceptions ? commandAndKey : command.ToString())
+                : GetLabel(multiplexer.RawConfig.IncludeDetailInExceptions, message?.Command ?? command, message);
 
             if (server != null)
             {
@@ -129,7 +148,7 @@ namespace StackExchange.Redis
                 // This can happen in cloud environments often, where user disables abort and has the wrong config
                 initialMessage = $"Connection to Redis never succeeded (attempts: {attempts} - check your config), unable to service operation: ";
             }
-            else if (message is not null && message.IsPrimaryOnly() && multiplexer.IsConnected)
+            else if (message is not null && message.Command.IsPrimaryOnly() && multiplexer.IsConnected)
             {
                 // If we know it's a primary-only command, indicate that in the error message
                 initialMessage = "No connection (requires writable - not eligible for replica) is active/available to service this operation: ";
@@ -162,37 +181,6 @@ namespace StackExchange.Redis
                 sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary());
                 AddExceptionDetail(ex, message, server, commandLabel);
             }
-            return ex;
-        }
-
-        /// <summary>
-        /// A connection failure produces a single exception describing the *connection*, which is then handed
-        /// to every message that was in flight. Sharing one instance across many unrelated callers is dubious
-        /// in itself (<see cref="Exception.Data"/> is mutable, so each caller sees the others' additions), and
-        /// it discards the per-message detail the retry machinery needs: the command's retry category, and
-        /// whether this particular message had actually been written. Give each message its own.
-        /// </summary>
-        internal static Exception PerMessage(Exception shared, Message message)
-        {
-            // only connection failures get shared like this; anything else already describes one operation
-            if (shared is not RedisConnectionException conn
-                || (conn.Flags == message.Flags && conn.CommandStatus == message.Status))
-            {
-                return shared;
-            }
-
-            var ex = new RedisConnectionException(
-                conn.FailureType,
-                message.Flags,
-                conn.Message,
-                conn.InnerException,
-                message.Status);
-            foreach (DictionaryEntry entry in conn.Data)
-            {
-                ex.Data[entry.Key] = entry.Value;
-            }
-            ex.Data[DataSentStatusKey] = message.Status; // ...and correct this one for *this* message
-            if (conn.HelpLink is not null) ex.HelpLink = conn.HelpLink;
             return ex;
         }
 
@@ -247,24 +235,42 @@ namespace StackExchange.Redis
             }
         }
 
-        // message is null when the timeout isn't tied to one command: a scan without a pattern is a single
-        // HGETALL/SMEMBERS/etc. that the enumerator can only see as a task.
-        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message? message, ServerEndPoint? server, WriteResult? result = null, PhysicalBridge? bridge = null)
+        /// <summary>Report that a command ran out of time, with everything known about why.</summary>
+        /// <param name="multiplexer">The client the command was issued through.</param>
+        /// <param name="baseErrorMessage">How to open the report; a default is chosen when this is empty.</param>
+        /// <param name="message">The command that timed out.</param>
+        /// <param name="server">The server it was sent to, when that is known.</param>
+        /// <param name="lastConnectionFault">
+        /// What connecting last failed with, when the caller has it to hand. The v3 core read it off
+        /// the bridge; a core that has no bridge passes it directly, and the reading is what decides whether
+        /// a backlog timeout is reported as a connection fault or as a timeout.
+        /// </param>
+        internal static Exception Timeout(
+            ConnectionMultiplexer multiplexer,
+            string? baseErrorMessage,
+            IFaultSubject message,
+            ServerEndPoint? server,
+            RedisConnectionException? lastConnectionFault)
+            => Timeout(multiplexer, baseErrorMessage, message, server, WriteResult.TimeoutBeforeWrite, lastConnectionFault);
+
+        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, IFaultSubject message, ServerEndPoint? server, WriteResult? result = null)
+            => Timeout(multiplexer, baseErrorMessage, message, server, result, null);
+
+        private static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, IFaultSubject message, ServerEndPoint? server, WriteResult? result, RedisConnectionException? lastConnectionFault)
         {
-            var data = new List<Tuple<string, string>>();
-            if (message is not null) data.Add(Tuple.Create("Message", message.CommandAndKey));
+            List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
 
             // We timeout writing messages in quite different ways sync/async - so centralize messaging here.
             if (string.IsNullOrEmpty(baseErrorMessage) && result == WriteResult.TimeoutBeforeWrite)
             {
-                baseErrorMessage = message is { IsBacklogged: true }
+                baseErrorMessage = message.IsBacklogged
                     ? "The message timed out in the backlog attempting to send because no connection became available"
                     : "The timeout was reached before the message could be written to the output buffer, and it was not sent";
             }
 
-            var lastConnectionException = bridge?.LastException as RedisConnectionException;
-            var logConnectionException = message is { IsBacklogged: true } && lastConnectionException is not null;
+            var lastConnectionException = lastConnectionFault;
+            var logConnectionException = message.IsBacklogged && lastConnectionException is not null;
 
             if (!string.IsNullOrEmpty(baseErrorMessage))
             {
@@ -284,31 +290,13 @@ namespace StackExchange.Redis
             }
             else
             {
-                sb.Append("Timeout performing ").Append(message?.CommandString ?? "operation").Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
+                sb.Append("Timeout performing ").Append(message.CommandString).Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
             }
 
             // Add timeout data, if we have it
             if (result == WriteResult.TimeoutBeforeWrite)
             {
                 Add(data, sb, "Timeout", "timeout", Format.ToString(multiplexer.TimeoutMilliseconds));
-                try
-                {
-                    if (message != null && message.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
-                    {
-                        Add(data, sb, "Write-State", null, ws.ToString());
-                        Add(data, sb, "Read-State", null, rs.ToString());
-                        // these might not always be available
-                        if (sentDelta >= 0)
-                        {
-                            Add(data, sb, "OutboundDeltaKB", "outbound", $"{sentDelta >> 10}KiB");
-                        }
-                        if (receivedDelta >= 0)
-                        {
-                            Add(data, sb, "InboundDeltaKB", "inbound", $"{receivedDelta >> 10}KiB");
-                        }
-                    }
-                }
-                catch { }
             }
             AddCommonDetail(data, sb, message, multiplexer, server);
 
@@ -322,6 +310,7 @@ namespace StackExchange.Redis
             // If we're from a backlog timeout scenario, we log a more intuitive connection exception for the timeout...because the timeout was a symptom
             // and we have a more direct cause: we had no connection to send it on.
             var msgFlags = message?.Flags ?? CommandFlags.CommandRetryNever;
+
             // If the server had announced a disruption, say so on the fault: "timeout" and "timeout during an
             // announced failover" call for very different reactions from whoever reads the log.
             //
@@ -330,7 +319,7 @@ namespace StackExchange.Redis
             // closed by the time this runs - which used to report None for a timeout maintenance plainly
             // caused. The timeout that applied is the bound on how far back to look; take the async one when
             // this message was awaited, since the two can be configured very differently.
-            var applicableTimeout = message?.ResultBoxIsAsync == true
+            var applicableTimeout = message?.IsAsync == true
                 ? multiplexer.AsyncTimeoutMilliseconds
                 : multiplexer.TimeoutMilliseconds;
             var maintenanceType = server?.GetMaintenanceTypeForFault(applicableTimeout)
@@ -367,17 +356,10 @@ namespace StackExchange.Redis
         private static void AddCommonDetail(
             List<Tuple<string, string>> data,
             StringBuilder sb,
-            Message? message,
+            IFaultSubject? message,
             ConnectionMultiplexer multiplexer,
             ServerEndPoint? server)
         {
-            if (message != null)
-            {
-                message.TryGetHeadMessages(out var now, out var next);
-                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.RawConfig.IncludeDetailInExceptions ? now.CommandAndKey : now.CommandString);
-                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.RawConfig.IncludeDetailInExceptions ? next.CommandAndKey : next.CommandString);
-            }
-
             // Add server data, if we have it
             if (server != null && message != null)
             {
@@ -385,18 +367,30 @@ namespace StackExchange.Redis
 
                 switch (bs.Connection.ReadStatus)
                 {
-                    case PhysicalConnection.ReadStatus.CompletePendingMessageAsync:
-                    case PhysicalConnection.ReadStatus.CompletePendingMessageSync:
+                    case ReadStatus.CompletePendingMessageAsync:
+                    case ReadStatus.CompletePendingMessageSync:
                         sb.Append(" ** possible thread-theft indicated; see https://seredis.dev/ThreadTheft ** ");
                         break;
                 }
                 Add(data, sb, "OpsSinceLastHeartbeat", "inst", bs.MessagesSinceLastHeartbeat.ToString());
                 Add(data, sb, "Queue-Awaiting-Write", "qu", bs.BacklogMessagesPending.ToString());
                 Add(data, sb, "Queue-Awaiting-Response", "qs", bs.Connection.MessagesSentAwaitingResponse.ToString());
+
+                // the storm log: once per multiplexer until reset, and only when the queue is deep enough to be
+                // worth a person's reading - what was in flight is usually the answer to "why did this time out?"
+                if (multiplexer.StormLogThreshold >= 0
+                    && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold
+                    && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
+                {
+                    var stormLog = multiplexer.ConnectionsIfCreated?.GetStormLog(
+                        server.EndPoint, message.IsForSubscriptionBridge ? ConnectionType.Subscription : ConnectionType.Interactive);
+                    if (string.IsNullOrWhiteSpace(stormLog)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
+                    else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, stormLog);
+                }
                 Add(data, sb, "Active-Writer", "aw", bs.IsWriterActive.ToString());
                 Add(data, sb, "Backlog-Writer", "bw", bs.BacklogStatus.ToString());
-                if (bs.Connection.ReadStatus != PhysicalConnection.ReadStatus.NA) Add(data, sb, "Read-State", "rs", bs.Connection.ReadStatus.ToString());
-                if (bs.Connection.WriteStatus != PhysicalConnection.WriteStatus.NA) Add(data, sb, "Write-State", "ws", bs.Connection.WriteStatus.ToString());
+                if (bs.Connection.ReadStatus != ReadStatus.NA) Add(data, sb, "Read-State", "rs", bs.Connection.ReadStatus.ToString());
+                if (bs.Connection.WriteStatus != WriteStatus.NA) Add(data, sb, "Write-State", "ws", bs.Connection.WriteStatus.ToString());
 
                 if (bs.Connection.BytesAvailableOnSocket >= 0) Add(data, sb, "Inbound-Bytes", "in", bs.Connection.BytesAvailableOnSocket.ToString());
                 if (bs.Connection.BytesInReadPipe >= 0) Add(data, sb, "Inbound-Pipe-Bytes", "in-pipe", bs.Connection.BytesInReadPipe.ToString());
@@ -413,12 +407,6 @@ namespace StackExchange.Redis
                 Add(data, sb, "Sync-Ops", "sync-ops", multiplexer.syncOps.ToString());
                 Add(data, sb, "Async-Ops", "async-ops", multiplexer.asyncOps.ToString());
 
-                if (multiplexer.StormLogThreshold >= 0 && bs.Connection.MessagesSentAwaitingResponse >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
-                {
-                    var log = server.GetStormLog(message);
-                    if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
-                    else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
-                }
                 Add(data, sb, "Server-Endpoint", "serverEndpoint", (server.EndPoint.ToString() ?? "Unknown").Replace("Unspecified/", ""));
                 Add(data, sb, "Server-Connected-Seconds", "conn-sec", bs.ConnectedAt is DateTime dt ? (DateTime.UtcNow - dt).TotalSeconds.ToString("0.##") : "n/a");
                 Add(data, sb, "Abort-On-Connect", "aoc", multiplexer.RawConfig.AbortOnConnectFail ? "1" : "0");
@@ -447,7 +435,7 @@ namespace StackExchange.Redis
             Add(data, sb, "Version", "v", Utils.GetLibVersion());
         }
 
-        private static void AddExceptionDetail(Exception? exception, Message? message, ServerEndPoint? server, string? label)
+        private static void AddExceptionDetail(Exception? exception, IFaultSubject? message, ServerEndPoint? server, string? label)
         {
             if (exception != null)
             {
@@ -465,7 +453,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static string GetLabel(bool includeDetail, RedisCommand command, Message? message)
+        private static string GetLabel(bool includeDetail, RedisCommand command, IFaultSubject? message)
         {
             return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.CommandString);
         }
@@ -500,6 +488,22 @@ namespace StackExchange.Redis
             if (!failureMessage.IsNullOrWhiteSpace())
             {
                 sb.Append(' ').Append(failureMessage.Trim());
+            }
+            else if (inner is null && muxer is not null
+                && PopulateInnerExceptions(muxer.GetServerSnapshot()) is { } observed)
+            {
+                // WHY, when nobody handed us a reason. The caller's failureMessage comes from the faulted
+                // per-endpoint tasks of a reconfiguration, so a connection dialled outside that wait -
+                // which is how the core's eager connect is started - leaves it empty, and "Error connecting
+                // right now" on its own tells a user nothing they can act on.
+                //
+                // The servers themselves know: LastException spans both connections, so the protocol failure, the
+                // refused handshake or the socket error is already recorded against the endpoint it
+                // happened to. RespInProcTrackingTests asks for exactly this - a RESP2 connection with a
+                // client cache must explain that caching needs RESP3, and that explanation has to reach a
+                // human "either chained onto the connect failure, or in the connect log".
+                inner = observed;
+                sb.Append(' ').Append(GetInnerMostExceptionMessage(observed));
             }
 
             return new RedisConnectionException(failureType, CommandFlags.None, sb.ToString(), inner);

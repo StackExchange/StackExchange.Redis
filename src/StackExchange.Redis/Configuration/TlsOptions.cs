@@ -75,7 +75,7 @@ public readonly struct TlsOptions
     /// <remarks>This includes the ambient environment fallback (<c>SERedis_IssuerCertPath</c>), so a
     /// transport that uses this behaves as the library's own TLS path does.</remarks>
     public RemoteCertificateValidationCallback? CertificateValidationCallback
-        => _options is null ? null : _options.CertificateValidationCallback ?? PhysicalConnection.GetAmbientIssuerCertificateCallback();
+        => _options is null ? null : _options.CertificateValidationCallback ?? RespTransportFactory.GetAmbientIssuerCertificateCallback();
 
     /// <summary>
     /// The callback that selects the client certificate, or <c>null</c> for the platform default.
@@ -83,9 +83,10 @@ public readonly struct TlsOptions
     /// <remarks>This includes the ambient environment fallback (<c>SERedis_ClientCertPfxPath</c> etc), so
     /// a transport that uses this behaves as the library's own TLS path does.</remarks>
     public LocalCertificateSelectionCallback? CertificateSelectionCallback
-        => _options is null ? null : _options.CertificateSelectionCallback ?? PhysicalConnection.GetAmbientClientCertificateCallback();
+        => _options is null ? null : _options.CertificateSelectionCallback ?? RespTransportFactory.GetAmbientClientCertificateCallback();
 
 #if NET
+
     /// <summary>
     /// The caller-supplied authentication options for the given host, if any; corresponds to
     /// <see cref="ConfigurationOptions.SslClientAuthenticationOptions"/>. When this returns non-null it

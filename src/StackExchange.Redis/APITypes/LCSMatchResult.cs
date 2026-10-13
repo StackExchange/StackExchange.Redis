@@ -9,7 +9,7 @@ namespace StackExchange.Redis;
 /// Returns a list of the positions of each sub-match.
 /// </summary>
 // ReSharper disable once InconsistentNaming
-public readonly struct LCSMatchResult
+public readonly partial struct LCSMatchResult
 {
     internal static LCSMatchResult Null { get; } = new LCSMatchResult(Array.Empty<LCSMatch>(), 0);
 

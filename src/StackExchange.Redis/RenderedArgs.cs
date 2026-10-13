@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -154,30 +154,6 @@ namespace StackExchange.Redis
             var written = value.CopyTo(target.Slice(PrefixLength));
             Debug.Assert(written == length, "value length disagreed with itself");
             return target.Slice(PrefixLength + length);
-        }
-
-        /// <summary>
-        /// Write every entry as a RESP bulk string, in the order they were rendered.
-        /// </summary>
-        /// <remarks>
-        /// Keys and values are indistinguishable on the wire - the flag exists for slot routing, not for
-        /// framing - so this writes them identically.
-        /// </remarks>
-        public readonly void WriteTo(in MessageWriter writer)
-        {
-            var written = 0;
-            var iter = GetEnumerator();
-            while (iter.MoveNext())
-            {
-                writer.WriteBulkString(iter.Current);
-                written++;
-            }
-
-            // deliberately not a Debug.Assert: the header has already declared Count arguments, so writing
-            // a different number puts a malformed frame on the wire, and the server's complaint arrives
-            // later and somewhere else. If the buffer went away underneath us - recycled early, or torn by
-            // a race - fail here, loudly, attached to the request that caused it.
-            if (written != _count) ThrowArgCountMismatch(written, _count);
         }
 
         [DoesNotReturn]
