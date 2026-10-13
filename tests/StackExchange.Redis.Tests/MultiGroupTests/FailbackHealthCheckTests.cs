@@ -305,6 +305,21 @@ public class FailbackHealthCheckTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task AFailureInTheSameClockTickAsTheCutoffStillFailsBack()
+    {
+        // FailbackDelay zero means immediate: a passing check clears a failure recorded at the cutoff itself,
+        // which on .NET Framework's ~15.6ms clock is the ordinary case for two passes in quick succession
+        await using var f = new Fixture(log, (Alpha, 1), (Beta, 9));
+        await f.ConnectAsync();
+        var member = f.Members[0];
+
+        member.SetUnhealthy();
+        Assert.True(member.IsUnhealthy);
+        member.UpdateState(HealthCheckResult.Healthy, failbackFailureCutoffTicks: member.LastUnhealthyTicks);
+        Assert.False(member.IsUnhealthy);
+    }
+
+    [Fact]
     public void OptionsCarryTheFailbackHealthCheck()
     {
         Assert.Null(MultiGroupOptions.Default.FailbackHealthCheck);

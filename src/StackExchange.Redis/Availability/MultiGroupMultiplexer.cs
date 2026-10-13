@@ -125,6 +125,8 @@ namespace StackExchange.Redis
             // UTC ticks (DateTime.Ticks and TimeSpan.Ticks share the same 100ns unit); long for atomicity
             private long _lastUnhealthyTicks;
 
+            internal long LastUnhealthyTicks => Volatile.Read(ref _lastUnhealthyTicks);
+
             /// <summary>
             /// Clear the <see cref="IsUnhealthy"/> flag against this endpoint, allowing it to be reconsidered.
             /// </summary>
@@ -353,7 +355,10 @@ namespace StackExchange.Redis
 
                 if (isConnected)
                 {
-                    if (Volatile.Read(ref _lastUnhealthyTicks) < failbackFailureCutoffTicks) ResetIsUnhealthy();
+                    // at or before the cutoff: with a zero FailbackDelay the cutoff is "now", and on a coarse clock
+                    // (DateTime.UtcNow advances every ~15.6ms on .NET Framework) a failure and the pass that clears
+                    // it can share a tick - a strict comparison would then hold the member out for another interval
+                    if (Volatile.Read(ref _lastUnhealthyTicks) <= failbackFailureCutoffTicks) ResetIsUnhealthy();
                 }
                 else
                 {
@@ -707,7 +712,7 @@ namespace StackExchange.Redis
                 // stop being provisional once it has caught up; a normal active member is not
                 var active = _activeStub.Active;
                 var provisional = Volatile.Read(ref _provisional);
-                List<(ConnectionGroupMember Member, Task<HealthCheckResult> Pending)>? checks = null;
+                List<PendingFailbackCheck>? checks = null;
                 int totalTimeoutMillis = 0;
                 foreach (var member in members)
                 {
@@ -721,7 +726,7 @@ namespace StackExchange.Redis
                     }
 
                     totalTimeoutMillis = Math.Max(totalTimeoutMillis, check.TotalTimeoutMillis());
-                    (checks ??= []).Add((member, check.CheckHealthAsync(member.Multiplexer)));
+                    (checks ??= []).Add(new(member, check.CheckHealthAsync(member.Multiplexer)));
                 }
 
                 if (checks is null) return;
@@ -730,8 +735,10 @@ namespace StackExchange.Redis
                 for (int i = 0; i < all.Length; i++) all[i] = checks[i].Pending;
                 await Task.WhenAll(all).TimeoutAfter(totalTimeoutMillis).ForAwait();
 
-                foreach (var (member, pending) in checks)
+                foreach (var item in checks)
                 {
+                    var member = item.Member;
+                    var pending = item.Pending;
                     if (pending.IsCompletedSuccessfully)
                     {
                         member.FailbackVerified = await pending.ForAwait() is HealthCheckResult.Healthy;
@@ -742,6 +749,14 @@ namespace StackExchange.Redis
                         member.FailbackVerified = false;
                     }
                 }
+            }
+
+            // a named pair rather than a tuple: the library must not reference System.ValueTuple (see SanityCheckTests)
+            private readonly struct PendingFailbackCheck(ConnectionGroupMember member, Task<HealthCheckResult> pending)
+            {
+                public ConnectionGroupMember Member { get; } = member;
+
+                public Task<HealthCheckResult> Pending { get; } = pending;
             }
 
             // Eligible to become (or stay) active: an explicit failover target always is, as is the active member
