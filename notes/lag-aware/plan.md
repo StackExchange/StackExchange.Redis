@@ -6,8 +6,8 @@ sequence.
 Status: **proposed. Step 0 is cleared; step 1 is answered (findings §10): the lag check flips under
 real Active-Active lag, on the stale member only, and the tolerance is honoured on a running link.
 Cross-region lag magnitudes remain unmeasured (both test clusters share a region).** The core change
-(failback health check, member-scoped probes, selection rules) and the REST probe are implemented behind
-`SER011`, with stubbed-transport tests (step 5, tier 1) and a fault-injector scenario test (tier 3,
+(failback health check, member-scoped probes, selection rules) and the REST probe are implemented (not
+experimental: `SER011` was removed before shipping), with stubbed-transport tests (step 5, tier 1) and a fault-injector scenario test (tier 3,
 `LagAwareFailbackScenarioTests`, passing against a live Active-Active pair on 2026-10-08). Tier 2 (the
 Kestrel toy) is not done and arguably not needed now that tiers 1 and 3 exist.
 See [`api-sketch.md`](api-sketch.md).
