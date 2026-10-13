@@ -83,6 +83,7 @@ Because the policies are immutable, there is no question of whether a change "ta
 | `RetryPolicy` | `MultiGroupOptions.RetryPolicy` | *(none; retry is applied per-database via `WithRetry`)* |
 | `HealthCheckInterval` | `MultiGroupOptions.HealthCheckInterval` | *(none; it is the group's re-evaluation cadence)* |
 | `FailbackDelay` | `MultiGroupOptions.FailbackDelay` | `ConnectionGroupMember.FailbackDelay` |
+| `FailbackHealthCheck` | `MultiGroupOptions.FailbackHealthCheck` | `ConnectionGroupMember.FailbackHealthCheck` |
 | `Weight` | *(none)* | `ConnectionGroupMember.Weight` |
 | `SkipInitialHealthCheck` | *(none)* | `ConnectionGroupMember.SkipInitialHealthCheck` |
 
@@ -430,7 +431,7 @@ The probe policy determines how multiple probe results are evaluated to determin
 
 #### HealthCheckProbePolicy.AnySuccess
 
-The health check passes if **any** probe succeeds. This provides the most lenient evaluation:
+The health check passes if **any** probe succeeds, and fails only if at least one probe failed and none succeeded. This provides the most lenient evaluation. A run in which every probe was `Inconclusive` reports `Inconclusive`, not `Unhealthy`:
 
 ```csharp
 HealthCheck healthCheck = new HealthCheck.Builder
@@ -443,7 +444,7 @@ HealthCheck healthCheck = new HealthCheck.Builder
 
 #### HealthCheckProbePolicy.AllSuccess (Default)
 
-The health check passes only if **all** probes succeed. This provides the strictest evaluation:
+The health check passes only if **no** probe fails and at least one succeeds. This provides the strictest evaluation. A run in which every probe was `Inconclusive` (the probe could not tell) reports `Inconclusive`, not `Healthy`:
 
 ```csharp
 HealthCheck healthCheck = new HealthCheck.Builder
@@ -753,7 +754,88 @@ ConnectionGroupMember[] members = [
 
 This guards against **flapping**: a member that is intermittently failing will keep pushing its "last failure" time forward, so it never satisfies the delay and stays out of rotation until it is genuinely stable.
 
-> Implementation note: the failback check is pure tick math on the wall clock — the last-failure time and the cutoff (`UtcNow - FailbackDelay`) are both compared as raw `long` UTC ticks, so `DateTimeKind` never enters into it. (`DateTime.Ticks` and `TimeSpan.Ticks` share the same 100 ns unit.)
+> Implementation note: the `FailbackDelay` comparison is pure tick math on the wall clock — the last-failure time and the cutoff (`UtcNow - FailbackDelay`) are both compared as raw `long` UTC ticks, so `DateTimeKind` never enters into it. (`DateTime.Ticks` and `TimeSpan.Ticks` share the same 100 ns unit.)
+
+### Failback health checks
+
+`HealthCheck` answers "is this member alive". Some deployments need a second question answered before traffic
+moves *to* a member: "has it caught up". In an Active-Active deployment, a region that has just come back can be
+reachable but stale, and failing back onto it reads (and builds on) data that is behind.
+`ConnectionGroupMember.FailbackHealthCheck` (or the group default, `MultiGroupOptions.FailbackHealthCheck`) is
+that second question:
+
+```csharp
+ConnectionGroupMember member = new("us-west.redis.example.com:6379", name: "US West")
+{
+    Weight = 10,
+    // CaughtUpProbe stands for a probe of your own; see "Custom Health Check Probes"
+    FailbackHealthCheck = new HealthCheck.Builder { Probe = new CaughtUpProbe(), ProbeCount = 1 },
+};
+```
+
+The rules:
+
+- **It never removes the active member.** It is consulted only for members that are not active, and only
+  decides whether they may *become* active. Liveness stays with `HealthCheck`.
+- **Only `Healthy` makes a member eligible.** `Inconclusive` (for example, the probe could not reach whatever
+  it asks) leaves the member ineligible, as does `Unhealthy`; neither marks it unhealthy.
+- **A verdict is not kept while it cannot be acted on.** A member that is active, or not connected, is checked
+  afresh before it is next eligible.
+- **If no connected member is eligible, selection falls back to liveness alone.** In a partition between
+  regions every member can be behind at once, and a group that refused to serve from any of them would turn a
+  consistency precaution into an outage. When the active member is lost, the best eligible survivor is
+  preferred, then the best live one.
+- **A member chosen that way is provisional.** It is left for an eligible member as soon as one is
+  available, whatever their weights, and becomes an ordinary active member once it passes its own failback
+  check. Other clients never select a member that fails its lag check at all; this is the nearest
+  equivalent that still serves when every member is behind.
+- **An explicit `TryFailoverTo(member)` overrides it**, as it does `IsUnhealthy`.
+
+A probe that asks about the database as a whole, rather than one endpoint, can set
+`HealthCheckProbe.Scope` to `HealthCheckProbeScope.Member`, so that it runs once per member per pass rather than
+once per endpoint.
+
+#### Redis Enterprise: lag-aware availability
+
+For Redis Enterprise Active-Active deployments, `HealthCheck.LagAware(...)` asks the cluster's own
+[database availability API](https://redis.io/docs/latest/operate/rs/monitoring/db-availability/) whether a
+member is available and caught up. The only thing it needs is the cluster's management credentials:
+
+```csharp
+ConnectionGroupMember member = new("redis-14460.us-west.example.com:14460,password=...", name: "US West")
+{
+    Weight = 10,
+    FailbackHealthCheck = HealthCheck.LagAware(new LagAwareOptions
+    {
+        Credentials = _ => new(new NetworkCredential("probe@example.com", secrets.Get("us-west-mgmt"))),
+    }),
+};
+```
+
+What it does by default, and why:
+
+- **The REST endpoint is derived** from the member's first configured endpoint: a database named
+  `redis-{port}.{cluster}` (the form Redis Enterprise assigns) is asked via `https://{cluster}:9443/`. The
+  cluster name matters, because only the cluster's master answers every route the check uses; other nodes
+  redirect to its internal address, which is usually unreachable from outside the cluster's network.
+  Redirects are never followed. Set `RestEndpoint` if the database is reached through a name of your own.
+- **The database is found** by matching that endpoint against the cluster's databases, using only filtered
+  requests (unfiltered database listings include database passwords, even for read-only roles); set
+  `DatabaseId` to skip this.
+- **The lag question is only asked of Active-Active databases** (`LagCheck = LagCheckMode.Auto`). Asked of
+  any other database, the server reports it unavailable regardless of tolerance.
+- **No tolerance is sent**, so the cluster's own `availability_lag_tolerance_ms` applies; set `LagTolerance`
+  to override it. (Other clients default to 5000 ms; the server's default is 100 ms.)
+- **"Could not ask" is `Inconclusive`, not `Unhealthy`.** A management-plane problem (REST API unreachable,
+  credentials rejected) never fails anything over; as a failback check it simply leaves the member
+  ineligible. A role with `management: db_viewer` is sufficient.
+- **The management certificate is usually self-signed by the cluster**, so it will not validate against the
+  platform trust store; `options.TrustIssuer(path)` with the cluster's own certificate (or its issuer) works,
+  as it does for the data plane, but it is a separate setting from the database's TLS trust.
+
+One limitation to plan around: measured on Redis Enterprise 8.0, when the link between regions breaks, the
+lag check keeps reporting "caught up" for roughly a minute before it notices. A failback in that window is not
+protected by it; a `FailbackDelay` of at least that long closes the gap.
 
 ### Anti-flap tiebreak in selection
 
