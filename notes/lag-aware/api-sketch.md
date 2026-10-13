@@ -6,9 +6,7 @@ with stubbed-transport tests replaying the measured response shapes. The fault-i
 against a live Active-Active pair. Not yet: client-certificate support for the REST call.
 Evidence is in [`findings.md`](findings.md) (section 10 especially); sequence in [`plan.md`](plan.md).
 *Correction:* `SER007` was retired when geo-redundant failover went GA (#3247), so the shipped
-`Availability/` API is not experimental. Everything new here was first gated behind a new diagnostic,
-`SER011`; *decided 2026-10-13:* it ships **without** an experiment, like the rest of `Availability/`, and
-`SER011` was removed before ever shipping (so it is not a reserved ID).
+`Availability/` API is not experimental, and nothing here is either.
 
 Aim: parity with Lettuce, Jedis, redis-py and go-redis where it serves users, and deliberate,
 documented deviations where the measurements say the others get it wrong.
