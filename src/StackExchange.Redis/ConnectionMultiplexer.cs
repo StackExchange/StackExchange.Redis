@@ -2157,10 +2157,13 @@ namespace StackExchange.Redis
                 // node including those serving nothing. Asked as a pair for symmetry - trusting the topology
                 // cached from autoconfigure here would mean acting on possibly-stale data while deliberately
                 // re-reading the other half
+                // ObserveErrors: if either await below throws, the *other* task is abandoned mid-flight,
+                // and both ride the same connection - a faulted orphan must never surface as an
+                // UnobservedTaskException in the host
                 var slotsTask = ExecuteAsyncImpl(
-                    RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server);
+                    RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server).ObserveErrors();
                 var nodesTask = ExecuteAsyncImpl(
-                    RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
+                    RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server).ObserveErrors();
 
                 ClusterSlotsResult? slots;
                 try
