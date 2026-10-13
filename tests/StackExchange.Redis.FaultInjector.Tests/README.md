@@ -127,7 +127,7 @@ otherwise looks exactly like a failback that never happened.
 
 ## Lag-aware failback
 
-`LagAwareFailbackScenarioTests` checks the lag-aware failback check (`HealthCheck.LagAware`, `SER011`) against the
+`LagAwareFailbackScenarioTests` checks the lag-aware failback check (`HealthCheck.LagAware`) against the
 same `re-active-active` pair: the group must not fail back onto a member that is alive but behind, and must
 return once it has caught up. It needs credentials for **both** clusters in `env_output.json` (the AWS
 multi-cluster template has them) and skips otherwise.

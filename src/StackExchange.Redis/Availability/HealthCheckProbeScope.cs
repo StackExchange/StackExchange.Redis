@@ -1,12 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
-using RESPite;
-
 namespace StackExchange.Redis.Availability;
 
 /// <summary>
 /// How often a <see cref="HealthCheckProbe"/> is invoked when a whole member is checked.
 /// </summary>
-[Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
 public enum HealthCheckProbeScope
 {
     /// <summary>

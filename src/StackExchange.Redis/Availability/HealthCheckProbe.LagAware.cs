@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -11,7 +10,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using RESPite;
 
 namespace StackExchange.Redis.Availability;
 
@@ -28,7 +26,6 @@ public abstract partial class HealthCheckProbe
     /// problem is never mistaken for the database being down. Intended as a
     /// <see cref="ConnectionGroupMember.FailbackHealthCheck"/>.
     /// </remarks>
-    [Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
     public static HealthCheckProbe LagAware(LagAwareOptions options) => new LagAwareProbe(options);
 
     internal sealed class LagAwareProbe : HealthCheckProbe

@@ -80,7 +80,6 @@ public sealed class MultiGroupOptions
     /// The failback health check to use for members of the group when no per-member one is specified;
     /// <see langword="null"/> (the default) means none. See <see cref="ConnectionGroupMember.FailbackHealthCheck"/>.
     /// </summary>
-    [Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
     public HealthCheck? FailbackHealthCheck { get; }
 
     /// <summary>
@@ -140,7 +139,6 @@ public sealed class MultiGroupOptions
         /// The failback health check to use for members of the group when no per-member one is specified;
         /// <see langword="null"/> (the default) means none. See <see cref="ConnectionGroupMember.FailbackHealthCheck"/>.
         /// </summary>
-        [Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
         public HealthCheck? FailbackHealthCheck { get; set; }
 
         /// <summary>

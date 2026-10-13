@@ -1,6 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-using RESPite;
-
 namespace StackExchange.Redis.Availability;
 
 public sealed partial class HealthCheck
@@ -14,7 +11,6 @@ public sealed partial class HealthCheck
     /// For different probe counts or timeouts, use
     /// <c>new HealthCheck.Builder { Probe = HealthCheckProbe.LagAware(options), ... }</c>.
     /// </remarks>
-    [Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
     public static HealthCheck LagAware(LagAwareOptions options)
         => new Builder { Probe = HealthCheckProbe.LagAware(options), ProbeCount = 1 }.Create();
 }

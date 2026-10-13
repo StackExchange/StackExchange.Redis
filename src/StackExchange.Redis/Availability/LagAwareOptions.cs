@@ -1,12 +1,10 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Http;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
-using RESPite;
 
 namespace StackExchange.Redis.Availability;
 
@@ -19,7 +17,6 @@ namespace StackExchange.Redis.Availability;
 /// an Active-Active member are discovered, and no lag tolerance is sent unless one is set, so the cluster's
 /// own setting applies. The options are read when the probe is created; later changes have no effect on it.
 /// </remarks>
-[Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
 public sealed class LagAwareOptions
 {
     /// <summary>
@@ -119,7 +116,6 @@ public sealed class LagAwareOptions
 /// <summary>
 /// Whether a <see cref="HealthCheck.LagAware"/> check asks the lag question.
 /// </summary>
-[Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
 public enum LagCheckMode
 {
     /// <summary>

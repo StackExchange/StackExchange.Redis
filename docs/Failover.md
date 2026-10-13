@@ -83,7 +83,7 @@ Because the policies are immutable, there is no question of whether a change "ta
 | `RetryPolicy` | `MultiGroupOptions.RetryPolicy` | *(none; retry is applied per-database via `WithRetry`)* |
 | `HealthCheckInterval` | `MultiGroupOptions.HealthCheckInterval` | *(none; it is the group's re-evaluation cadence)* |
 | `FailbackDelay` | `MultiGroupOptions.FailbackDelay` | `ConnectionGroupMember.FailbackDelay` |
-| `FailbackHealthCheck` (experimental, `SER011`) | `MultiGroupOptions.FailbackHealthCheck` | `ConnectionGroupMember.FailbackHealthCheck` |
+| `FailbackHealthCheck` | `MultiGroupOptions.FailbackHealthCheck` | `ConnectionGroupMember.FailbackHealthCheck` |
 | `Weight` | *(none)* | `ConnectionGroupMember.Weight` |
 | `SkipInitialHealthCheck` | *(none)* | `ConnectionGroupMember.SkipInitialHealthCheck` |
 
@@ -757,8 +757,6 @@ This guards against **flapping**: a member that is intermittently failing will k
 > Implementation note: the `FailbackDelay` comparison is pure tick math on the wall clock — the last-failure time and the cutoff (`UtcNow - FailbackDelay`) are both compared as raw `long` UTC ticks, so `DateTimeKind` never enters into it. (`DateTime.Ticks` and `TimeSpan.Ticks` share the same 100 ns unit.)
 
 ### Failback health checks
-
-> Experimental, behind diagnostic id `SER011`; see [SER011](exp/SER011.md).
 
 `HealthCheck` answers "is this member alive". Some deployments need a second question answered before traffic
 moves *to* a member: "has it caught up". In an Active-Active deployment, a region that has just come back can be

@@ -244,7 +244,6 @@ namespace StackExchange.Redis
             /// leaves it ineligible. If no connected member is eligible, selection falls back to connectivity and
             /// <see cref="HealthCheck"/> alone, so the group always serves from somewhere when it can.
             /// </remarks>
-            [Experimental(Experiments.LagAwareFailover, UrlFormat = Experiments.UrlFormat)]
             public HealthCheck? FailbackHealthCheck { get; set; }
 
             // the breaker to hand to this member's connections: member override, else its own config, else the group
