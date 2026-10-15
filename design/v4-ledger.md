@@ -186,7 +186,15 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
 
 - **.NET 11 TFM:** try runtime async; prototype caller-driven TLS (`TlsBufferSession`); run the suite and RespFest on
   11 early.
-
+  **The RC2 thread-pool regression (dotnet/runtime#135855) lands mostly on our own hops** (2026-10-15, 64 callers,
+  GET 1 KiB, local Redis, client on 12 CPUs, median of 2): v4 default 762k -> 532k ops/s (-30%) at 5us caller work,
+  but `SEREDIS_DEDICATEDTHREADS=1` on RC2 gives 758k (.NET 10 dedicated: 798k), and 1.17M at no work (.NET 10
+  default 963k). `SEREDIS_SINGLEREADLOOP=1` alone: -17% on RC2 - the filler->parser hop is a large share. The
+  socket/reader hops are ~0.1 pool items per op but gate every caller on the connection. The Redis-free repro
+  (`--io dedicated`, `--complete ownpool|inline`, scratch patch) splits its -36% about 1/3 IO hop, 2/3 caller
+  continuations; a naive own pool for continuations is 25% slower than .NET 10's pool, inline is serial (82k).
+  Next: dedicated reader (+writer) by default on net11+, with a cap for wide clusters; 1 caller costs -7% ops but
+  less CPU per op.
 - **Unobserved faults on the new surface** (the transitional `Task` surface was fixed in the commit that removed
   this item's first half: it now bridges through its own task and marks a fault observed). A `ValueTask` over the
   pooled operation has no `Task` and no finalizer, but a non-pooled `async ValueTask` that completes asynchronously
