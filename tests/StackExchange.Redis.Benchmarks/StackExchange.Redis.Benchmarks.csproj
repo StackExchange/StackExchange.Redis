@@ -21,7 +21,7 @@
     benchmark method's OWN state machine survives and masks part of what the library saved.
   -->
   <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0' and '$(DisableRuntimeAsync)' != 'true'">
-    <Features>runtime-async=on</Features>
+    <Features>$(Features);runtime-async=on</Features>
   </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' != 'net11.0' or '$(DisableRuntimeAsync)' == 'true'">
     <Compile Remove="RuntimeAsyncOptIn.cs" />
