@@ -582,11 +582,11 @@ namespace StackExchange.Redis
         private int connectStartTicks;
         private long connectTimeoutRetryCount = 0;
 
+        /// <summary>Milliseconds since the current (or most recent) connection attempt began.</summary>
+        private int ConnectElapsedMilliseconds() => unchecked(Environment.TickCount - Volatile.Read(ref connectStartTicks));
+
         private bool DueForConnectRetry()
-        {
-            int connectTimeMilliseconds = unchecked(Environment.TickCount - Volatile.Read(ref connectStartTicks));
-            return Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Volatile.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
-        }
+            => Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Volatile.Read(ref connectTimeoutRetryCount), ConnectElapsedMilliseconds());
 
         internal void OnHeartbeat(bool ifConnectedOnly)
         {
@@ -618,7 +618,13 @@ namespace StackExchange.Redis
                 switch (state)
                 {
                     case State.Connecting:
-                        if (DueForConnectRetry())
+                        // The retry policy spaces attempts; it must not cut one short while it is still inside its
+                        // ConnectTimeout budget. The default policy (ExponentialRetry at half the connect timeout)
+                        // would otherwise abandon an attempt after 2.5s - less than name resolution alone takes
+                        // when a DNS server is not answering - and then report it as a connect timeout (#2894).
+                        // The socket connect carries its own ConnectTimeout cancellation; this check is what bounds
+                        // TLS and anything after it.
+                        if (ConnectElapsedMilliseconds() >= Multiplexer.RawConfig.ConnectTimeout && DueForConnectRetry())
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
                             var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout", Name);
