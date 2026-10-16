@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Linq;
@@ -111,6 +111,51 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
             Assert.False(timedOut.IsSuccess);
             Assert.NotNull(timedOut.Exception);
             Assert.All(attempts, a => Assert.NotNull(a.Exception));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task AttemptIsNotAbandonedBeforeConnectTimeout()
+    {
+        // never answers the TLS handshake, so every attempt lives until the library gives up on it. The retry policy
+        // here says "retry after 50ms", but an attempt must still get its full ConnectTimeout: the default policy's
+        // 2.5s first interval was killing attempts whose name resolution alone took longer than that (#2894)
+        var listener = new TcpListener(IPAddress.Loopback, 0); // not IDisposable on net481
+        listener.Start();
+        try
+        {
+            const int connectTimeout = 1500;
+            var options = new ConfigurationOptions
+            {
+                EndPoints = { (IPEndPoint)listener.LocalEndpoint },
+                Ssl = true,
+                AbortOnConnectFail = false,
+                ConnectTimeout = connectTimeout,
+                HeartbeatInterval = TimeSpan.FromMilliseconds(100),
+                ReconnectRetryPolicy = new LinearRetry(50),
+            };
+            var attempts = Observe(options);
+
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
+
+            // an abandoned attempt is followed at once by the next, so the gap between consecutive timeouts on one
+            // connection is how long an attempt was allowed to live
+            static bool IsInteractiveTimeout(ConnectionAttemptCompletedEventArgs a)
+                => a.ConnectionType == ConnectionType.Interactive && a.FailureType == ConnectionFailureType.UnableToConnect;
+            await WaitForAsync(() => attempts.Count(IsInteractiveTimeout) >= 3, timeoutMilliseconds: 20000);
+            var timedOut = attempts.Where(IsInteractiveTimeout).OrderBy(a => a.SequenceNumber).Take(3).ToArray();
+            for (int i = 1; i < timedOut.Length; i++)
+            {
+                var lifetime = timedOut[i].CompletedTimeUtc - timedOut[i - 1].CompletedTimeUtc;
+                output.WriteLine($"attempt lifetime: {lifetime.TotalMilliseconds:0}ms");
+                Assert.True(
+                    lifetime >= TimeSpan.FromMilliseconds(connectTimeout - 250),
+                    $"attempt abandoned after {lifetime.TotalMilliseconds:0}ms, inside the {connectTimeout}ms connect timeout");
+            }
         }
         finally
         {
