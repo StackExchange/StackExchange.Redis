@@ -642,6 +642,18 @@ internal static partial class LoggerExtensions
         Message = "{Server}: Auto-configured (HELLO) role: {Role}")]
     internal static partial void LogInformationAutoConfiguredHelloRole(this ILogger logger, ServerEndPointLogValue server, string role);
 
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 131,
+        Message = "{Server}: Auto-configured (HELLO) product: {Variant} {Version}")]
+    internal static partial void LogInformationAutoConfiguredHelloProductVariant(this ILogger logger, ServerEndPointLogValue server, ProductVariant variant, string version);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 132,
+        Message = "{Server}: Auto-configured (HELLO) unrecognized server '{ServerName}'; ignoring its version")]
+    internal static partial void LogInformationAutoConfiguredHelloUnknownServer(this ILogger logger, ServerEndPointLogValue server, string serverName);
+
     // PhysicalBridge logging methods
     [LoggerMessage(
         Level = LogLevel.Information,

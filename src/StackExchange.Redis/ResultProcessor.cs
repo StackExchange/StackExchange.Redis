@@ -1152,6 +1152,14 @@ namespace StackExchange.Redis
                 // Handle HELLO command (returns array/map of key-value pairs)
                 if (message?.Command == RedisCommand.HELLO && reader.IsAggregate)
                 {
+                    // "version" means different things depending on "server": Redis (and Garnet, which presents as
+                    // "redis" and adds "garnet_version") report the Redis API version, but Valkey reports *its own*
+                    // version ("server" => "valkey", "version" => "9.1.2", while INFO still says redis_version:7.2.4),
+                    // so we can only decide what to do with "version" once the whole map has been read (#3278).
+                    bool serverIsRedis = true; // absent means redis (older servers)
+                    ProductVariant? helloVariant = null, vendorVariant = null;
+                    string? helloVersion = null, vendorVersion = null;
+
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext())
                     {
@@ -1167,9 +1175,40 @@ namespace StackExchange.Redis
 
                             switch (field)
                             {
-                                case HelloField.Version when iter.Value.TryParseScalar(Format.TryParseVersion!, out Version version):
-                                    server.Version = version;
-                                    Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
+                                case HelloField.Server:
+                                    if (iter.Value.TryParseScalar(&ProductVariantMetadata.TryParse, out ProductVariant parsedVariant))
+                                    {
+                                        helloVariant = parsedVariant;
+                                        serverIsRedis = parsedVariant is ProductVariant.Redis;
+                                    }
+                                    else
+                                    {
+                                        serverIsRedis = false;
+                                        Log?.LogInformationAutoConfiguredHelloUnknownServer(new(server), iter.Value.ReadString() ?? "");
+                                    }
+                                    break;
+                                case HelloField.Version:
+                                    helloVersion = iter.Value.ReadString();
+                                    break;
+                                case HelloField.GarnetVersion:
+                                    vendorVariant = ProductVariant.Garnet;
+                                    vendorVersion = iter.Value.ReadString();
+                                    break;
+                                case HelloField.ValkeyVersion:
+                                    vendorVariant = ProductVariant.Valkey;
+                                    vendorVersion = iter.Value.ReadString();
+                                    break;
+                                case HelloField.DragonflyVersion:
+                                    vendorVariant = ProductVariant.Dragonfly;
+                                    vendorVersion = iter.Value.ReadString();
+                                    break;
+                                case HelloField.MemuraiVersion:
+                                    vendorVariant = ProductVariant.Memurai;
+                                    vendorVersion = iter.Value.ReadString();
+                                    break;
+                                case HelloField.RedictVersion:
+                                    vendorVariant = ProductVariant.Redict;
+                                    vendorVersion = iter.Value.ReadString();
                                     break;
                                 case HelloField.Proto when iter.Value.TryReadInt64(out var i64):
                                     connection.SetProtocol(i64 >= 3 ? RedisProtocol.Resp3 : RedisProtocol.Resp2);
@@ -1204,6 +1243,34 @@ namespace StackExchange.Redis
                         }
                     }
 
+                    if (serverIsRedis)
+                    {
+                        // "version" is the Redis API version; a "{vendor}_version" field, if any, identifies the product
+                        if (Format.TryParseVersion(helloVersion, out Version? version))
+                        {
+                            server.Version = version;
+                            Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
+                        }
+                        if (vendorVariant is { } fromField && !string.IsNullOrWhiteSpace(vendorVersion))
+                        {
+                            server.SetProductVariant(fromField, vendorVersion!);
+                            Log?.LogInformationAutoConfiguredHelloProductVariant(new(server), fromField, vendorVersion!);
+                        }
+                    }
+                    else if (helloVariant is { } fromServer)
+                    {
+                        // a known non-Redis server: "version" is the vendor's own version, and the Redis API version
+                        // (if the server reports one at all) comes from INFO's redis_version
+                        var productVersion = vendorVariant == fromServer && !string.IsNullOrWhiteSpace(vendorVersion)
+                            ? vendorVersion! : helloVersion;
+                        if (!string.IsNullOrWhiteSpace(productVersion))
+                        {
+                            server.SetProductVariant(fromServer, productVersion!);
+                            Log?.LogInformationAutoConfiguredHelloProductVariant(new(server), fromServer, productVersion!);
+                        }
+                    }
+
+                    // (an unrecognized server falls through: we can't know what its "version" means, so we leave it alone)
                     SetResult(message, true);
                     return true;
                 }

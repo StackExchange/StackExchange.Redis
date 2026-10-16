@@ -625,23 +625,46 @@ namespace StackExchange.Redis.Server
             client.IsAuthenticated = isAuthed;
             client.Name = name;
 
-            var reply = TypedRedisValue.Rent(14, out var span, RespPrefix.Map);
+            var extras = HelloExtraFields;
+            var reply = TypedRedisValue.Rent(14 + (2 * extras.Count), out var span, RespPrefix.Map);
             span[0] = TypedRedisValue.BulkString("server");
-            span[1] = TypedRedisValue.BulkString("redis");
+            span[1] = TypedRedisValue.BulkString(HelloServerName);
             span[2] = TypedRedisValue.BulkString("version");
-            span[3] = TypedRedisValue.BulkString(VersionString);
-            span[4] = TypedRedisValue.BulkString("proto");
-            span[5] = TypedRedisValue.Integer(proto32);
-            span[6] = TypedRedisValue.BulkString("id");
-            span[7] = TypedRedisValue.Integer(client.Id);
-            span[8] = TypedRedisValue.BulkString("mode");
-            span[9] = TypedRedisValue.BulkString(ServerModeValue);
-            span[10] = TypedRedisValue.BulkString("role");
-            span[11] = TypedRedisValue.BulkString(GetPrimaryOf(client?.Node) is null ? "master" : "replica");
-            span[12] = TypedRedisValue.BulkString("modules");
-            span[13] = TypedRedisValue.EmptyArray(RespPrefix.Array);
+            span[3] = TypedRedisValue.BulkString(HelloVersionString);
+            int index = 4;
+            foreach (var pair in extras)
+            {
+                span[index++] = TypedRedisValue.BulkString(pair.Key);
+                span[index++] = TypedRedisValue.BulkString(pair.Value);
+            }
+            span[index++] = TypedRedisValue.BulkString("proto");
+            span[index++] = TypedRedisValue.Integer(proto32);
+            span[index++] = TypedRedisValue.BulkString("id");
+            span[index++] = TypedRedisValue.Integer(client.Id);
+            span[index++] = TypedRedisValue.BulkString("mode");
+            span[index++] = TypedRedisValue.BulkString(ServerModeValue);
+            span[index++] = TypedRedisValue.BulkString("role");
+            span[index++] = TypedRedisValue.BulkString(GetPrimaryOf(client?.Node) is null ? "master" : "replica");
+            span[index++] = TypedRedisValue.BulkString("modules");
+            span[index] = TypedRedisValue.EmptyArray(RespPrefix.Array);
             return reply;
         }
+
+        /// <summary>
+        /// The <c>server</c> reported by <c>HELLO</c>; Redis (and Garnet) report <c>redis</c>, Valkey reports <c>valkey</c>.
+        /// </summary>
+        protected virtual string HelloServerName => "redis";
+
+        /// <summary>
+        /// The <c>version</c> reported by <c>HELLO</c>; this is the Redis API version when <see cref="HelloServerName"/>
+        /// is <c>redis</c>, but Valkey reports its own version here.
+        /// </summary>
+        protected virtual string HelloVersionString => VersionString;
+
+        /// <summary>
+        /// Additional fields reported by <c>HELLO</c> (Garnet adds <c>garnet_version</c>, for example).
+        /// </summary>
+        protected virtual IReadOnlyList<KeyValuePair<string, string>> HelloExtraFields => [];
 
         [RedisCommand(-3)]
         protected virtual TypedRedisValue Sadd(RedisClient client, in RedisRequest request)
