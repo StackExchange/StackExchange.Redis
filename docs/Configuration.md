@@ -36,6 +36,11 @@ pointing to that primary server that will automatically be updated if the primar
 var conn = ConnectionMultiplexer.Connect("localhost,serviceName=myprimary");
 ```
 
+`abortConnect` applies to sentinel connections the same way it applies to everything else. With `abortConnect=true` (the default), `Connect`
+throws if the sentinels cannot be reached or do not know the service. With `abortConnect=false`, `Connect` returns a multiplexer even then:
+it is not connected, operations fail with a connection exception that names the problem, and it connects itself to the primary once the
+sentinels become reachable and name one. If you want startup to fail when the sentinels are unavailable, keep `abortConnect=true`.
+
 An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
 
 ```csharp
