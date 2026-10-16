@@ -63,8 +63,9 @@ public enum ProductVariant
 internal static partial class ProductVariantMetadata
 {
     /// <summary>
-    /// Parses the <c>server</c> value reported by <c>HELLO</c> (<c>redis</c>, <c>valkey</c>, etc).
+    /// Parses the <c>server</c> value reported by <c>HELLO</c> (<c>redis</c>, <c>valkey</c>, etc); this is the vendor's
+    /// name rather than a protocol token, so the match is case-insensitive.
     /// </summary>
-    [AsciiHash]
+    [AsciiHash(CaseSensitive = false)]
     internal static partial bool TryParse(ReadOnlySpan<byte> value, out ProductVariant variant);
 }

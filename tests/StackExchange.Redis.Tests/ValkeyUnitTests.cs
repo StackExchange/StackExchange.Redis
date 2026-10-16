@@ -26,8 +26,8 @@ public class ValkeyUnitTests(ITestOutputHelper log)
         // see https://github.com/StackExchange/StackExchange.Redis/pull/3050
         protected override string ServerModeKey => "server_mode";
 
-        // Valkey reports its own version as HELLO "version" (see #3278)
-        protected override string HelloServerName => "valkey";
+        // Valkey reports its own version as HELLO "version" (see #3278); the name match is case-insensitive
+        protected override string HelloServerName => "Valkey";
         protected override string HelloVersionString => "8.1";
 
         protected override void Info(StringBuilder sb, string section, Server.RedisClient? client = null)
