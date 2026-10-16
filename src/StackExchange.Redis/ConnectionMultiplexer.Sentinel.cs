@@ -15,14 +15,21 @@ public partial class ConnectionMultiplexer
     internal Timer? sentinelPrimaryReconnectTimer;
     internal readonly Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren = new();
     internal ConnectionMultiplexer? sentinelConnection;
+    private int _sentinelInitialized;
 
     /// <summary>
     /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
     /// </summary>
+    /// <remarks>
+    /// Runs once. It is reached from the connect paths, and also from the reconfigure loop when a connection
+    /// that soft-failed its initial connect (<see cref="ConfigurationOptions.AbortOnConnectFail"/> is <c>false</c>) later
+    /// reaches a sentinel: without that, a connection that started while the sentinels were down would never subscribe
+    /// to <c>+switch-master</c>, and would track failovers only through the fallback polling.
+    /// </remarks>
     /// <param name="log">The <see cref="ILogger"/> to log to, if any.</param>
     internal void InitializeSentinel(ILogger? log)
     {
-        if (!_isSentinel)
+        if (!_isSentinel || Interlocked.Exchange(ref _sentinelInitialized, 1) != 0)
         {
             return;
         }
@@ -253,8 +260,7 @@ public partial class ConnectionMultiplexer
                     }
 
                     if (connection is not null) try { connection.Dispose(); } catch { }
-                    endpoints = config.EndPoints.Clone();
-                    connection = ConnectImpl(config, log, endpoints: endpoints);
+                    connection = SeedConnection(failure);
                     break;
                 }
 
@@ -330,11 +336,7 @@ public partial class ConnectionMultiplexer
                     throw failure;
                 }
 
-                if (connection is null)
-                {
-                    endpoints = config.EndPoints.Clone();
-                    connection = ConnectImpl(config, log, endpoints: endpoints);
-                }
+                connection ??= SeedConnection(failure);
 
                 connection.LastException = failure;
                 connection.Logger?.LogErrorSyncConnectTimeout(failure, failure.Message);
@@ -385,6 +387,20 @@ public partial class ConnectionMultiplexer
             }
             throw;
         }
+
+        // AbortOnConnectFail=false with no primary discovered: hand back a multiplexer seeded with whatever endpoints
+        // the caller gave us (the sentinel addresses, via Connect), for SwitchPrimary to rebuild once discovery works.
+        // A config with no endpoints of its own has nothing to seed with, and that is the discovery failure the caller
+        // should see - not the "No nodes to consider" that ConnectImpl would throw at an empty endpoint list.
+        ConnectionMultiplexer SeedConnection(RedisConnectionException discoveryFailure)
+        {
+            if (config.EndPoints.Count == 0)
+            {
+                throw discoveryFailure;
+            }
+            endpoints = config.EndPoints.Clone();
+            return ConnectImpl(config, log, endpoints: endpoints);
+        }
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
@@ -423,6 +439,11 @@ public partial class ConnectionMultiplexer
                 // we are not aware of, so retry
                 SwitchPrimary(e.EndPoint, connection);
             }
+
+            // A soft-failed connect (AbortOnConnectFail=false) records the discovery failure as LastException, and
+            // the exception factory folds that into every "no connection available" message. We are connected to a
+            // sentinel-approved primary again, so stop reporting it.
+            connection.LastException = null;
         }
         catch (Exception)
         {

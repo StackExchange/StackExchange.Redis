@@ -2038,6 +2038,13 @@ namespace StackExchange.Redis
                         else if (standaloneCount == 0 && sentinelCount > 0)
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Sentinel;
+                            if (!first)
+                            {
+                                // A sentinel connection whose initial connect soft-failed (AbortOnConnectFail=false) is
+                                // only now reaching a sentinel; the connect path that would have wired up the sentinel
+                                // handlers has long since returned. (The first connect leaves that to ConnectImpl.)
+                                InitializeSentinel(log);
+                            }
                         }
                         else if (standaloneCount > 0)
                         {
