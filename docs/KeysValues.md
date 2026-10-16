@@ -77,6 +77,23 @@ db.KeyDelete("abc");
 var value = (int?)db.StringGet("abc"); // behaves as you would expect
 ```
 
+### Value comparison and numeric conversions
+
+Default `RedisValue` comparison and hashing recognize numeric text using the same
+byte parser for strings, byte arrays, memory and segmented sequences. For example,
+`"5."`, `"+5"` and `"1e2"` compare equal to `"5"`, `"5"` and `"100"`, respectively.
+Text such as `"1,000"`, `"(5)"` and `" 5 "` remains text: it equals its own UTF-8 bytes,
+not the numbers `1000`, `-5` or `5`. This corrects earlier storage-dependent comparison
+results and changes the hash codes of the affected string values. Hash codes must
+not be persisted between processes.
+
+Explicit numeric conversions retain their existing behavior; string conversions may
+accept forms that comparison does not treat as numbers. Special text such as `"nan"`
+and `"inf"` remains case-sensitive text for comparison. Default comparison still uses
+decoded text semantics for nonnumeric bytes, including malformed UTF-8. Use
+`RedisValue.EqualityComparer.Binary` when equality must follow the encoded bytes
+instead; that opt-in comparer is unchanged.
+
 Hashes
 ---
 
