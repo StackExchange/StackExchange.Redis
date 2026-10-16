@@ -624,54 +624,48 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Parses a UTF-8 version (<c>7.4.3</c>, say) directly from the wire, allowing a major-only version like
-        /// the other overloads; <c>net10.0</c> has a built-in UTF-8 <c>Version.TryParse</c>,
-        /// everything else parses the dotted components itself rather than transcoding to chars (and, downlevel,
-        /// to a string).
+        /// Parses a UTF-8 version (<c>7.4.3</c>, say) directly from the wire. This must give exactly the same result as
+        /// the <c>char</c> overload for the same text (including <see cref="Version"/>'s -1 for unspecified parts, and
+        /// its tolerance of whitespace and signs), because callers used to go via that overload: <c>net10.0</c> fast-paths
+        /// the built-in UTF-8 <c>Version.TryParse</c>; everything else transcodes and defers to the <c>char</c> overload
+        /// (which, on .NET Framework, allocates a string: that's fine).
         /// </summary>
         internal static bool TryParseVersion(ReadOnlySpan<byte> input, [NotNullWhen(true)] out Version? version)
         {
 #if NET10_0_OR_GREATER
             if (Version.TryParse(input, out version)) return true;
-            if (Utf8Parser.TryParse(input, out int i32, out int bytes, standardFormat: 'D') && bytes == input.Length && i32 >= 0)
-            {
-                version = new(i32, 0);
-                return true;
-            }
-            version = null;
-            return false;
-#else
-            Span<int> parts = stackalloc int[4];
-            int count = 0;
-            while (true)
-            {
-                if (count == parts.Length
-                    || !Utf8Parser.TryParse(input, out int i32, out int bytes, standardFormat: 'D')
-                    || bytes == 0 || i32 < 0)
-                {
-                    version = null;
-                    return false;
-                }
-                parts[count++] = i32;
-                input = input.Slice(bytes);
-                if (input.IsEmpty) break;
-                if (input[0] != (byte)'.' || input.Length == 1)
-                {
-                    // something other than a separator, or a trailing separator
-                    version = null;
-                    return false;
-                }
-                input = input.Slice(1);
-            }
-            version = count switch
-            {
-                1 => new(parts[0], 0),
-                2 => new(parts[0], parts[1]),
-                3 => new(parts[0], parts[1], parts[2]),
-                _ => new(parts[0], parts[1], parts[2], parts[3]),
-            };
-            return true;
+            // anything else (including our major-only extension) defers to the char overload, so the edge cases
+            // (whitespace, signs, etc) resolve identically
 #endif
+            if (input.IsEmpty)
+            {
+                version = null;
+                return false;
+            }
+            char[]? lease = null;
+            int maxChars = Encoding.UTF8.GetMaxCharCount(input.Length);
+            Span<char> chars = maxChars <= 64 ? stackalloc char[64] : (lease = ArrayPool<char>.Shared.Rent(maxChars));
+            try
+            {
+                int len;
+#if NET
+                len = Encoding.UTF8.GetChars(input, chars);
+#else
+                unsafe
+                {
+                    fixed (byte* bPtr = &MemoryMarshal.GetReference(input))
+                    fixed (char* cPtr = &MemoryMarshal.GetReference(chars))
+                    {
+                        len = Encoding.UTF8.GetChars(bPtr, input.Length, cPtr, chars.Length);
+                    }
+                }
+#endif
+                return TryParseVersion(chars.Slice(0, len), out version);
+            }
+            finally
+            {
+                if (lease is not null) ArrayPool<char>.Shared.Return(lease);
+            }
         }
 
         internal static bool TryParseVersion(string? input, [NotNullWhen(true)] out Version? version)

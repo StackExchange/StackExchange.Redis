@@ -23,6 +23,13 @@ public class FormatTests(ITestOutputHelper output) : TestBase(output)
     [InlineData("255.255.65535.65535", 255, 255, 65535, 65535)]
     [InlineData("0.0", 0, 0, -1, -1)]
     [InlineData("007.040", 7, 40, -1, -1)]
+    // System.Version uses int.TryParse per part, which tolerates whitespace and a sign; we inherit that, not fix it
+    [InlineData(" 7.4", 7, 4, -1, -1)]
+    [InlineData("7.4 ", 7, 4, -1, -1)]
+    [InlineData("7. 4", 7, 4, -1, -1)]
+    [InlineData("+7.4", 7, 4, -1, -1)]
+    [InlineData("7.+4", 7, 4, -1, -1)]
+    [InlineData(" 7 ", 7, 0, -1, -1)]
     [InlineData("", null, null, null, null)]
     [InlineData(".", null, null, null, null)]
     [InlineData("7.", null, null, null, null)]
