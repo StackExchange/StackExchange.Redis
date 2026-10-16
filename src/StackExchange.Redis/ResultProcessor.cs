@@ -1158,7 +1158,10 @@ namespace StackExchange.Redis
                     // so we can only decide what to do with "version" once the whole map has been read (#3278).
                     bool serverIsRedis = true; // absent means redis (older servers)
                     ProductVariant? helloVariant = null, vendorVariant = null;
-                    string? helloVersion = null, vendorVersion = null;
+                    string? vendorVersion = null;
+                    // a snapshot of the "version" value, so we can read it as a Version or a string once we know which
+                    RespReader helloVersion = default;
+                    bool hasHelloVersion = false;
 
                     var iter = reader.AggregateChildren();
                     while (iter.MoveNext())
@@ -1188,7 +1191,8 @@ namespace StackExchange.Redis
                                     }
                                     break;
                                 case HelloField.Version:
-                                    helloVersion = iter.Value.ReadString();
+                                    helloVersion = iter.Value;
+                                    hasHelloVersion = true;
                                     break;
                                 case HelloField.GarnetVersion:
                                     vendorVariant = ProductVariant.Garnet;
@@ -1246,7 +1250,7 @@ namespace StackExchange.Redis
                     if (serverIsRedis)
                     {
                         // "version" is the Redis API version; a "{vendor}_version" field, if any, identifies the product
-                        if (Format.TryParseVersion(helloVersion, out Version? version))
+                        if (hasHelloVersion && helloVersion.TryParseScalar(Format.TryParseVersion!, out Version version))
                         {
                             server.Version = version;
                             Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
@@ -1262,7 +1266,7 @@ namespace StackExchange.Redis
                         // a known non-Redis server: "version" is the vendor's own version, and the Redis API version
                         // (if the server reports one at all) comes from INFO's redis_version
                         var productVersion = vendorVariant == fromServer && !string.IsNullOrWhiteSpace(vendorVersion)
-                            ? vendorVersion! : helloVersion;
+                            ? vendorVersion! : hasHelloVersion ? helloVersion.ReadString() : null;
                         if (!string.IsNullOrWhiteSpace(productVersion))
                         {
                             server.SetProductVariant(fromServer, productVersion!);
