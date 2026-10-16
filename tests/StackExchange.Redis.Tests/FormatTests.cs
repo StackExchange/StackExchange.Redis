@@ -8,6 +8,35 @@ namespace StackExchange.Redis.Tests;
 
 public class FormatTests(ITestOutputHelper output) : TestBase(output)
 {
+    [Theory]
+    [InlineData("7", "7.0")]
+    [InlineData("7.4", "7.4")]
+    [InlineData("7.4.3", "7.4.3")]
+    [InlineData("9.1.2", "9.1.2")]
+    [InlineData("7.4.3.1", "7.4.3.1")]
+    [InlineData("255.255.65535.65535", "255.255.65535.65535")]
+    [InlineData("0.0", "0.0")]
+    [InlineData("", null)]
+    [InlineData(".", null)]
+    [InlineData("7.", null)]
+    [InlineData(".7", null)]
+    [InlineData("7..4", null)]
+    [InlineData("1.2.3.4.5", null)]
+    [InlineData("9.1.2-rc1", null)]
+    [InlineData("-1.2", null)]
+    [InlineData("a.b", null)]
+    [InlineData("1.2.3-preview4", null)]
+    public void TryParseVersionUtf8MatchesChars(string input, string? expected)
+    {
+        // the UTF-8 overload is what the HELLO handler uses; keep it in step with the char/string overloads
+        bool success = Format.TryParseVersion(Encoding.UTF8.GetBytes(input), out var fromBytes);
+        Assert.Equal(expected is not null, success);
+        Assert.Equal(expected, fromBytes?.ToString());
+
+        Assert.Equal(success, Format.TryParseVersion(input.AsSpan(), out var fromChars));
+        Assert.Equal(fromBytes, fromChars);
+    }
+
     public static IEnumerable<object?[]> EndpointData()
     {
         // note: the 3rd arg is for formatting; null means "expect the original string"

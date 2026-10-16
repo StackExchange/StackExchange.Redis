@@ -623,6 +623,57 @@ namespace StackExchange.Redis
 #endif
         }
 
+        /// <summary>
+        /// Parses a UTF-8 version (<c>7.4.3</c>, say) directly from the wire, allowing a major-only version like
+        /// the other overloads; <c>net10.0</c> has a built-in UTF-8 <c>Version.TryParse</c>,
+        /// everything else parses the dotted components itself rather than transcoding to chars (and, downlevel,
+        /// to a string).
+        /// </summary>
+        internal static bool TryParseVersion(ReadOnlySpan<byte> input, [NotNullWhen(true)] out Version? version)
+        {
+#if NET10_0_OR_GREATER
+            if (Version.TryParse(input, out version)) return true;
+            if (Utf8Parser.TryParse(input, out int i32, out int bytes, standardFormat: 'D') && bytes == input.Length && i32 >= 0)
+            {
+                version = new(i32, 0);
+                return true;
+            }
+            version = null;
+            return false;
+#else
+            Span<int> parts = stackalloc int[4];
+            int count = 0;
+            while (true)
+            {
+                if (count == parts.Length
+                    || !Utf8Parser.TryParse(input, out int i32, out int bytes, standardFormat: 'D')
+                    || bytes == 0 || i32 < 0)
+                {
+                    version = null;
+                    return false;
+                }
+                parts[count++] = i32;
+                input = input.Slice(bytes);
+                if (input.IsEmpty) break;
+                if (input[0] != (byte)'.' || input.Length == 1)
+                {
+                    // something other than a separator, or a trailing separator
+                    version = null;
+                    return false;
+                }
+                input = input.Slice(1);
+            }
+            version = count switch
+            {
+                1 => new(parts[0], 0),
+                2 => new(parts[0], parts[1]),
+                3 => new(parts[0], parts[1], parts[2]),
+                _ => new(parts[0], parts[1], parts[2], parts[3]),
+            };
+            return true;
+#endif
+        }
+
         internal static bool TryParseVersion(string? input, [NotNullWhen(true)] out Version? version)
         {
             if (input is not null)

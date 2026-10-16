@@ -1250,10 +1250,15 @@ namespace StackExchange.Redis
                     if (serverIsRedis)
                     {
                         // "version" is the Redis API version; a "{vendor}_version" field, if any, identifies the product
-                        if (hasHelloVersion && helloVersion.TryParseScalar(Format.TryParseVersion!, out Version version))
+                        Version? version;
+                        unsafe
                         {
-                            server.Version = version;
-                            Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
+                            // (the null test is for the compiler: the function-pointer form loses the NotNullWhen annotation)
+                            if (hasHelloVersion && helloVersion.TryParseScalar(&Format.TryParseVersion, out version) && version is not null)
+                            {
+                                server.Version = version;
+                                Log?.LogInformationAutoConfiguredHelloServerVersion(new(server), version);
+                            }
                         }
                         if (vendorVariant is { } fromField && !string.IsNullOrWhiteSpace(vendorVersion))
                         {
