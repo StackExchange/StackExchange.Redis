@@ -16,6 +16,7 @@ public partial class ConnectionMultiplexer
     internal readonly Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren = new();
     internal ConnectionMultiplexer? sentinelConnection;
     private int _sentinelInitialized;
+    private int _demotedPrimaryRecoveryActive;
 
     /// <summary>
     /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
@@ -513,6 +514,150 @@ public partial class ConnectionMultiplexer
         {
             timer.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Re-resolves the primary through sentinel for every managed connection whose primary has been demoted
+    /// while its connection stayed up.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every other recovery path needs a signal that this case does not produce: <c>+switch-master</c> can be
+    /// missed (pub/sub delivery is not guaranteed, and the sentinel-clients guidance says not to rely on it),
+    /// and the reconnect timer and the restore handler only run once a connection fails. A primary that is
+    /// demoted in place, with nothing announced and nothing disconnected, is still noticed by the managed
+    /// connection - its periodic <c>INFO replication</c> sees the role change - but then only re-elected
+    /// among the nodes it already knows. When sentinel promoted a node at an address it has never seen,
+    /// there is no primary among them, and nothing asked sentinel again.
+    /// </para>
+    /// <para>
+    /// Runs on this sentinel connection's heartbeat. The check reads only local state, so sentinel is asked
+    /// only when the managed connection itself reports the demotion, and at most one recovery per managed
+    /// connection is in flight. A recovery that does not take - sentinel not yet updated, or a reconfigure
+    /// already running - is simply retried on a later heartbeat, and the check clears itself once the
+    /// sentinel-reported primary is connected as a primary.
+    /// </para>
+    /// </remarks>
+    private void CheckManagedPrimariesDemoted()
+    {
+        List<ConnectionMultiplexer>? demoted = null;
+        List<string>? disposed = null;
+        lock (sentinelConnectionChildren)
+        {
+            foreach (var pair in sentinelConnectionChildren)
+            {
+                if (pair.Value.IsDisposed)
+                {
+                    (disposed ??= new List<string>()).Add(pair.Key);
+                }
+                else if (IsSentinelPrimaryDemoted(pair.Value))
+                {
+                    (demoted ??= new List<ConnectionMultiplexer>()).Add(pair.Value);
+                }
+            }
+
+            // forget disposed children, as the +switch-master handler does
+            if (disposed is not null)
+            {
+                foreach (var serviceName in disposed)
+                {
+                    var child = sentinelConnectionChildren[serviceName];
+                    child.ConnectionFailed -= OnManagedConnectionFailed;
+                    child.ConnectionRestored -= OnManagedConnectionRestored;
+                    sentinelConnectionChildren.Remove(serviceName);
+                }
+            }
+        }
+
+        if (demoted is null) return;
+        foreach (var child in demoted)
+        {
+            if (Interlocked.CompareExchange(ref child._demotedPrimaryRecoveryActive, 1, 0) != 0) continue;
+
+            // asking sentinel and SwitchPrimary both block; keep that off the heartbeat
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    RecoverDemotedPrimary(child);
+                }
+                catch (Exception ex)
+                {
+                    // sentinel unreachable, or either connection disposed meanwhile: a later heartbeat looks again
+                    Trace("Demoted primary recovery failed: " + ex.Message, "Sentinel");
+                }
+                finally
+                {
+                    Volatile.Write(ref child._demotedPrimaryRecoveryActive, 0);
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// One recovery attempt for a managed connection whose sentinel-reported primary was seen demoted.
+    /// </summary>
+    /// <remarks>
+    /// Sentinel is asked first, because what to do depends on its answer, and a repeat of an unchanged answer
+    /// must stay cheap - the attempt runs on every heartbeat until the view clears:
+    /// <list type="bullet">
+    /// <item><description>no answer: nothing to act on; the next heartbeat asks again.</description></item>
+    /// <item><description>a node we hold as a connected replica: either sentinel has not failed over yet, or our
+    /// view of that node's role is stale. Re-reading its role settles both, where a switch would reconfigure every
+    /// node to elect a primary that may not exist - once per second for as long as sentinel lags. Where that read
+    /// cannot be sent (<c>INFO</c> unavailable), fall through to the switch rather than ask sentinel forever.</description></item>
+    /// <item><description>anything else: switch, exactly as a <c>+switch-master</c> announcement would have.</description></item>
+    /// </list>
+    /// A reconfigure already running is left alone: it would refuse ours, and <see cref="SwitchPrimary"/> rewrites
+    /// the endpoint list before it finds that out.
+    /// </remarks>
+    private void RecoverDemotedPrimary(ConnectionMultiplexer connection)
+    {
+        if (IsDisposed || connection.IsDisposed || connection.RawConfig.ServiceName is not string serviceName) return;
+        if (Volatile.Read(ref connection.activeConfigCause) is not null) return;
+
+        if (GetConfiguredPrimaryForService(serviceName) is not EndPoint reported) return;
+        if (connection.TryResolveServerEndPoint(reported) is { IsConnected: true, IsReplica: true } replica
+            && replica.CheckInfoReplication())
+        {
+            return;
+        }
+
+        // the view may have been put right while sentinel was answering
+        if (!IsSentinelPrimaryDemoted(connection) || Volatile.Read(ref connection.activeConfigCause) is not null) return;
+
+        SwitchPrimary(connection.currentSentinelPrimaryEndPoint, connection);
+    }
+
+    /// <summary>
+    /// Whether the primary sentinel last reported for <paramref name="connection"/> is connected and reporting
+    /// itself as a replica, or was never added (a switch to it whose reconfigure did not run). A disconnected
+    /// primary is not this case: that is the reconnect timer's job.
+    /// </summary>
+    private static bool IsSentinelPrimaryDemoted(ConnectionMultiplexer connection)
+    {
+        if (connection.IsDisposed
+            || Volatile.Read(ref connection.sentinelPrimaryReconnectTimer) is not null
+            || connection.currentSentinelPrimaryEndPoint is not EndPoint primary)
+        {
+            return false;
+        }
+
+        // a lookup, not GetServerEndPoint: that would create a server for an endpoint the connection does not have
+        if (connection.TryResolveServerEndPoint(primary) is { } server)
+        {
+            return server.IsConnected && server.IsReplica;
+        }
+
+        // never added: a switch to it whose reconfigure was refused (another was running) or threw. A missing server
+        // alone is not enough evidence - the endpoint sentinel gave may simply be spelled differently from the
+        // server's own (a DNS name against an address) - so only while nothing else is serving as the primary,
+        // which keeps a healthy connection from switching on every heartbeat.
+        foreach (var other in connection.GetServerSnapshot())
+        {
+            if (other.ServerType != ServerType.Sentinel && other.IsConnected && !other.IsReplica) return false;
+        }
+        return true;
     }
 
     internal EndPoint? GetConfiguredPrimaryForService(string serviceName) =>
