@@ -1401,6 +1401,7 @@ namespace StackExchange.Redis
                 Trace("heartbeat");
 
                 CheckTopologyRefreshDue(now);
+                if (_isSentinel) CheckManagedPrimariesDemoted();
 
                 var tmp = GetServerSnapshot();
                 int token = 0;
