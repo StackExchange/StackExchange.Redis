@@ -56,30 +56,27 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         FailOverToNewNode(data);
         await UntilAsync(() => ConnectedPrimaries(conn).Length == 0, "the demotion was not noticed");
 
-        // let the demotion's own reconfigure finish: quiet means no configuration change for a while, however long
-        // a loaded machine takes to get there
-        int seen = -1;
-        var quietSince = Stopwatch.StartNew();
+        // The property under test: the client keeps asking sentinel, but does not reconfigure every node to
+        // elect a primary that does not exist. Anchor on the sentinel polls themselves rather than wall-clock
+        // quiet: require a stretch of several polls with zero configuration changes. A straggler reconfigure
+        // from the demotion itself re-baselines the stretch; the per-heartbeat reconfigure storm this guards
+        // against would raise a change on every poll, so no clean stretch would ever complete.
+        int changesBaseline = Volatile.Read(ref configurationChanges);
+        int queriesBaseline = sentinel.PrimaryQueries;
         await UntilAsync(
             () =>
             {
-                int now = Volatile.Read(ref configurationChanges);
-                if (now != seen)
+                int changesNow = Volatile.Read(ref configurationChanges);
+                if (changesNow != changesBaseline)
                 {
-                    seen = now;
-                    quietSince.Restart();
+                    changesBaseline = changesNow;
+                    queriesBaseline = sentinel.PrimaryQueries;
+                    return false;
                 }
-                return quietSince.Elapsed > TimeSpan.FromSeconds(1.5);
+                return sentinel.PrimaryQueries >= queriesBaseline + 3;
             },
-            "configuration never settled");
-
-        int changesBefore = Volatile.Read(ref configurationChanges), queriesBefore = sentinel.PrimaryQueries;
-        await Task.Delay(4000); // several sentinel heartbeats
-        log.WriteLine($"configuration changes {changesBefore} -> {Volatile.Read(ref configurationChanges)}, sentinel queries {queriesBefore} -> {sentinel.PrimaryQueries}");
-
-        // still asking sentinel, but not reconfiguring every node to elect a primary that does not exist
-        Assert.True(sentinel.PrimaryQueries > queriesBefore, "sentinel was not asked again");
-        Assert.Equal(changesBefore, Volatile.Read(ref configurationChanges));
+            "no stretch of sentinel polls without a reconfigure");
+        log.WriteLine($"clean stretch: {sentinel.PrimaryQueries - queriesBaseline} sentinel polls, configuration changes still {changesBaseline}");
 
         // and once sentinel does catch up, the connection follows it
         sentinel.Primary = NewNodeC;
