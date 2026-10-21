@@ -41,6 +41,13 @@ throws if the sentinels cannot be reached or do not know the service. With `abor
 it is not connected, operations fail with a connection exception that names the problem, and it connects itself to the primary once the
 sentinels become reachable and name one. If you want startup to fail when the sentinels are unavailable, keep `abortConnect=true`.
 
+A sentinel-managed connection tracks failovers through several signals: the `+switch-master` announcement, a reconnect poll whenever the
+connection to the primary is lost, and - because the announcement is delivered over pub/sub and can be missed - a periodic check that
+notices when the node last named as primary is still connected but now reports itself as a replica (a failover where nothing disconnected,
+such as a primary demoted in place). In that last case the client re-asks sentinel for the current primary and follows its answer, even to
+a node at an address it has never seen; while sentinel still names the demoted node (sentinel itself has not yet failed over), the client
+keeps asking without tearing down or reconfiguring the healthy connections.
+
 An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
 
 ```csharp

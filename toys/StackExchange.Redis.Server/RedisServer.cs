@@ -149,6 +149,39 @@ namespace StackExchange.Redis.Server
             Log($"failover: {Format.ToString(replica)} promoted, {demoted.Host}:{demoted.Port} demoted");
         }
 
+        /// <summary>
+        /// Makes <paramref name="node"/> replicate <paramref name="primary"/> - or a primary again, when <paramref name="primary"/>
+        /// is <c>null</c> - as <c>REPLICAOF</c> does on a standalone server. Nothing is announced and no connection is dropped;
+        /// a client finds out from <c>ROLE</c> or <c>INFO replication</c>, or not at all. Both nodes are left serving
+        /// the whole keyspace, as every standalone node does - including one added by <see cref="AddEmptyNode(EndPoint, NodeFlags)"/>,
+        /// which otherwise owns no slots and would redirect every key.
+        /// </summary>
+        public void SetReplicaOf(EndPoint node, EndPoint primary)
+        {
+            if (ServerType == ServerType.Cluster) throw new InvalidOperationException($"Server mode is {ServerType}; use {nameof(Failover)}");
+            if (!TryGetNode(node ?? throw new ArgumentNullException(nameof(node)), out var target)) throw new KeyNotFoundException($"Node not found: {Format.ToString(node)}");
+            Node primaryNode = null;
+            if (primary is not null)
+            {
+                if (!TryGetNode(primary, out primaryNode)) throw new KeyNotFoundException($"Node not found: {Format.ToString(primary)}");
+                if (ReferenceEquals(primaryNode, target)) throw new ArgumentException("A node cannot replicate itself", nameof(primary));
+            }
+
+            target.UpdateSlots(null);
+            if (primaryNode is null)
+            {
+                target.PrimaryId = null;
+                target.Flags &= ~NodeFlags.Replica;
+            }
+            else
+            {
+                primaryNode.UpdateSlots(null);
+                target.PrimaryId = primaryNode.Id;
+                target.Flags |= NodeFlags.Replica;
+            }
+            Log($"replicaof: {Format.ToString(node)} now replicates {(primary is null ? "no one" : Format.ToString(primary))}");
+        }
+
         public bool Migrate(Span<byte> key, EndPoint to) => Migrate(ServerSelectionStrategy.GetClusterSlot(key), to);
         public bool Migrate(in RedisKey key, EndPoint to) => Migrate(GetHashSlot(key), to);
 

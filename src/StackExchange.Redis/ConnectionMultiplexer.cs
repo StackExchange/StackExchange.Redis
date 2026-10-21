@@ -1401,6 +1401,7 @@ namespace StackExchange.Redis
                 Trace("heartbeat");
 
                 CheckTopologyRefreshDue(now);
+                if (_isSentinel) CheckManagedPrimariesDemoted();
 
                 var tmp = GetServerSnapshot();
                 int token = 0;
@@ -1760,6 +1761,20 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Claims the reconfigure gate without running a reconfigure, so that work that must not interleave with
+        /// one (such as <see cref="SwitchPrimary"/> rewriting the endpoint list) can make its pre-checks and its
+        /// side effects atomic with respect to competing reconfigures. A successful claim MUST be handed to
+        /// <see cref="ReconfigureAsync(bool, bool, ILogger, EndPoint, string, bool, CommandFlags, bool)"/> with
+        /// <c>claimed: true</c> (which releases it however it exits), or released via
+        /// <see cref="ReleaseReconfigureClaim"/> - a leaked claim refuses every later reconfigure.
+        /// </summary>
+        internal bool TryClaimReconfigure(string cause) =>
+            Interlocked.CompareExchange(ref activeConfigCause, cause, null) == null;
+
+        /// <summary>Releases a claim taken by <see cref="TryClaimReconfigure"/> that was never handed to a reconfigure.</summary>
+        internal void ReleaseReconfigureClaim() => Interlocked.Exchange(ref activeConfigCause, null);
+
         internal bool ReconfigureIfNeeded(EndPoint? blame, bool fromBroadcast, string cause, bool publishReconfigure = false, CommandFlags flags = CommandFlags.None)
         {
             if (fromBroadcast)
@@ -1788,16 +1803,23 @@ namespace StackExchange.Redis
         public Task<bool> ReconfigureAsync(string reason) =>
             ReconfigureAsync(first: false, reconfigureAll: false, log: Logger, blame: null, cause: reason);
 
-        internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, ILogger? log, EndPoint? blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
+        internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, ILogger? log, EndPoint? blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None, bool claimed = false)
         {
-            if (_isDisposed) throw new ObjectDisposedException(ToString());
+            if (_isDisposed)
+            {
+                // a caller-held claim must not leak: nothing else would ever release it
+                if (claimed) ReleaseReconfigureClaim();
+                throw new ObjectDisposedException(ToString());
+            }
             bool showStats = log is not null;
 
             bool ranThisCall = false;
             try
             {
-                // Note that we *always* exchange the reason (first one counts) to prevent duplicate runs
-                ranThisCall = Interlocked.CompareExchange(ref activeConfigCause, cause, null) == null;
+                // Note that we *always* exchange the reason (first one counts) to prevent duplicate runs;
+                // claimed means the caller already owns the gate (TryClaimReconfigure) and we run under - and
+                // release - that claim
+                ranThisCall = claimed || Interlocked.CompareExchange(ref activeConfigCause, cause, null) == null;
 
                 if (!ranThisCall)
                 {
