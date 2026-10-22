@@ -69,6 +69,7 @@ namespace StackExchange.Redis.Caching
         private long _refusedTooLarge;
         private long _evicted;
         private long _evictionCandidates;
+        private long _promoted;
         private long _bytes;
         private int _count;
 
@@ -222,6 +223,17 @@ namespace StackExchange.Redis.Caching
         /// assert on, because timing would be measuring the machine.
         /// </remarks>
         public long EvictionCandidates => Volatile.Read(ref _evictionCandidates);
+
+        /// <summary>
+        /// Entries carried forward into the current slab instead of dying with the slab they were in, because
+        /// they had been read since they were stored there.
+        /// </summary>
+        /// <remarks>
+        /// The slab path's half of recency: a slab is evicted whole, so without this a hot entry's fate was the
+        /// age of its neighbours. Rising steadily on a stable working set is the policy doing its job; rising as
+        /// fast as <see cref="Stored"/> means nearly everything is hot and the budget is simply too small.
+        /// </remarks>
+        public long Promoted => Volatile.Read(ref _promoted);
 
         /// <summary>
         /// The memory currently held by cached replies.
@@ -497,6 +509,9 @@ namespace StackExchange.Redis.Caching
                             shouldRefresh = true;
                         }
 
+                        // the one thing a hit records: a flag that is read before it is written, so a hot entry's
+                        // line is written once per eviction cycle, not once per hit - see Entry.Touch
+                        entry.Touch();
                         payload = entry.Payload;
                         return true;
                     }
@@ -1102,15 +1117,24 @@ namespace StackExchange.Redis.Caching
             => (includeBytes && Options.MaxBytes is long maxBytes && Bytes > maxBytes)
                || (Options.MaxEntries is int maxEntries && Count > maxEntries);
 
-        /// <summary>Evict one entry, preferring a dead one and otherwise the longest-resident.</summary>
+        /// <summary>Evict one entry: a dead one if the window holds one, otherwise the longest-resident that has not been read since it was last examined.</summary>
         /// <returns>Whether an entry was removed.</returns>
         /// <remarks>
         /// <para>
-        /// <b>Second chance, over a queue of keys in the order they were stored.</b> The head is the
-        /// longest-resident entry; a live one examined and not taken goes to the back, which is what makes
-        /// this second-chance rather than plain FIFO - surviving a scan buys another pass. A dead entry is
-        /// taken on sight within the window, because it costs nothing to release and, unlike a live one,
-        /// nobody wanted it.
+        /// <b>Clock (second chance), over a queue of keys in the order they were stored.</b> The head is the
+        /// longest-resident entry. A live one that has been read since it was stored or last examined
+        /// (<see cref="Entry.TryClearReferenced"/>) is spared: its flag is cleared and it goes to the back, so
+        /// it must be read again before its next turn to survive that one. A live one that has not been read
+        /// goes. That is the LRU approximation: an entry's survival depends on whether it was used, not on when
+        /// it was stored, at the cost of one flag write per entry per cycle on the hit path rather than a
+        /// recency write per hit. A dead entry is taken on sight within the window, because it costs nothing to
+        /// release and, unlike a live one, nobody wanted it; an entry past its lifetime counts as dead, since it
+        /// can never be served again.
+        /// </para>
+        /// <para>
+        /// The window bounds the walk: after <see cref="CacheOptions.EvictionSampleSize"/> live entries have all
+        /// been found referenced, the first of them goes - longest-resident, flag now cleared. A larger window
+        /// is closer to true Clock, and so to LRU, at proportionally more work per eviction.
         /// </para>
         /// <para>
         /// <b>This replaced sampling the dictionary directly, which was O(n) per eviction.</b> That version
@@ -1130,10 +1154,11 @@ namespace StackExchange.Redis.Caching
         private bool TryEvictOne()
         {
             var sampleSize = Options.EvictionSampleSize;
+            var lifetime = Policy.TimeToLiveTicks;
 
-            // the first LIVE candidate seen: what gets taken if nothing dead turns up in the window
-            EntryKey firstLiveKey = default;
-            var haveFirstLive = false;
+            // the first live candidate spared: what goes if every live entry in the window had been read
+            EntryKey firstSparedKey = default;
+            var haveFirstSpared = false;
 
             // bounded twice over: by the window for live entries, and by a stale allowance so a queue full
             // of departed keys cannot spin. Both are cheap; neither depends on how big the cache is
@@ -1149,32 +1174,40 @@ namespace StackExchange.Redis.Caching
                     continue;
                 }
 
-                if (!entry.IsValid)
+                if (!entry.IsValid || CachePolicy.IsOlderThan(entry.FilledAt, lifetime))
                 {
-                    // dead, and we are holding its key: take it now
+                    // dead or expired, and we are holding its key: take it now
                     if (TryRemoveSampled(candidate)) return true;
                     continue;
                 }
 
                 seen++;
-                if (!haveFirstLive)
+                if (entry.TryClearReferenced())
                 {
-                    firstLiveKey = candidate;
-                    haveFirstLive = true;
+                    // read since it was last examined: spared, and to the back to be examined again. Re-enqueued
+                    // as the entry's OWN key rather than the one dequeued: after a promotion the entry has a newer
+                    // copy, and the older key would keep the slab it was stored in reachable for as long as the
+                    // entry stayed hot
+                    var spared = new EntryKey(entry.Key, candidate.Database);
+                    _evictionOrder.Enqueue(spared);
+                    if (!haveFirstSpared)
+                    {
+                        firstSparedKey = spared;
+                        haveFirstSpared = true;
+                    }
+
+                    continue;
                 }
-                else
-                {
-                    // examined and spared: back of the queue, to be looked at again later
-                    _evictionOrder.Enqueue(candidate);
-                }
+
+                // live, and not read since it was stored or last examined
+                if (TryRemoveSampled(candidate)) return true;
+
+                // somebody else took it between the look and the removal; keep looking
             }
 
-            if (!haveFirstLive) return false;
-
-            if (TryRemoveSampled(firstLiveKey)) return true;
-
-            // somebody else took it between the look and the removal; its key is already gone with it
-            return false;
+            // every live entry in the window had been read: the longest-resident of them goes, its flag now
+            // cleared. Its re-enqueued key is left behind as a stale one, which the allowance above absorbs
+            return haveFirstSpared && TryRemoveSampled(firstSparedKey);
         }
 
         /// <summary>Remove an entry named by a key sampled from the live enumeration.</summary>
@@ -1435,6 +1468,10 @@ namespace StackExchange.Redis.Caching
 
             private int _refreshing;
 
+            // Whether this entry has been read since it was stored, or since eviction last examined it. The hit
+            // path's only write, and a conditional one - see Touch
+            private int _referenced;
+
             internal RespPayload Payload { get; } = payload;
 
             /// <summary>
@@ -1461,7 +1498,38 @@ namespace StackExchange.Redis.Caching
             internal int Bytes { get; } = slab is null ? payload.RetainedBytes + EntryOverheadBytes + key.Span.Length : EntryOverheadBytes;
 
             /// <summary>When this entry was filled, for expiry. See <see cref="CachePolicy.TimeToLive"/>.</summary>
-            internal long FilledAt { get; } = CacheClock.Now;
+            /// <remarks>Carried forward by <see cref="CopyForward"/>: moving an entry to a newer slab must not make it younger.</remarks>
+            internal long FilledAt { get; private init; } = CacheClock.Now;
+
+            /// <summary>Note that this entry was served.</summary>
+            /// <remarks>
+            /// <b>Read before written</b>, so that on a hot entry the write happens once per eviction cycle rather
+            /// than once per hit: the line is already in cache from reading the payload, and a plain store that
+            /// usually does not happen is as near to free as recording anything can be. A plain field, not
+            /// volatile or interlocked: a flag that is a little late to be seen costs at worst one extra pass.
+            /// </remarks>
+            internal void Touch()
+            {
+                if (_referenced == 0) _referenced = 1;
+            }
+
+            /// <summary>
+            /// Whether this entry was read since the flag was last cleared; clears it. Eviction's side of
+            /// <see cref="Touch"/>: a spared entry must be read again to be spared again.
+            /// </summary>
+            internal bool TryClearReferenced()
+            {
+                if (Volatile.Read(ref _referenced) == 0) return false;
+                Volatile.Write(ref _referenced, 0);
+                return true;
+            }
+
+            /// <summary>
+            /// The same entry, held in a newer slab: same dependencies, same age, with the payload and key copied
+            /// there. The referenced flag starts cleared.
+            /// </summary>
+            internal Entry CopyForward(RespPayload payload, RespRequest key, Slab? slab)
+                => new(payload, _many ?? [_single], key, slab) { FilledAt = FilledAt };
 
             internal bool IsValid => _many is null ? _single.IsValid : Dependency.AllValid(_many);
 

@@ -23,8 +23,9 @@ A server-assisted cache (`CLIENT TRACKING`, RESP3 only, `BCAST` by default), one
 request was **sent**; the server's invalidation pushes bump those generations, so an entry is valid exactly while
 every key it depends on is unchanged. Everything that can be wrong fails closed - to a miss - and a finite
 `TimeToLive` backs up the invalidation stream against anything it misses. Replies live in large GC-owned slabs, are
-admitted only on a repeated miss, and are evicted oldest-slab-first; a hit reads, validates and returns without
-writing anything shared.
+admitted only on a repeated miss, and are evicted Clock-style - oldest first among those not read since they were
+last examined, with read entries carried forward out of an evicted slab; a hit reads, validates and returns having
+written at most a per-entry flag.
 
 ## 2. The invariants everything else serves
 
@@ -40,7 +41,8 @@ writing anything shared.
    serve-stale, not by a coalesced waiter. Local writes stamp their keys *before* the write is sent.
 5. **Stamp before drop.** Entries hold the key table's node directly; a node is stamped invalid before it can ever
    leave the table, or entries pointing at it would never learn.
-6. **The hit path writes nothing shared.** Every cost that can be moved to a miss, an eviction or a sweep is.
+6. **The hit path writes nothing shared**, bar one flag per entry per eviction cycle (§8, §12). Every cost that can
+   be moved to a miss, an eviction or a sweep is.
 
 One tolerated race, recorded so nobody "fixes" it: validation is not atomic across a multi-key entry (validate A,
 A is invalidated, validate B, serve). The read overlapped the write, so either answer is a legitimate observation.
@@ -55,7 +57,7 @@ A is invalidated, validate B, serve). The read overlapped the write, so either a
 | What may be cached | `IsCacheable`, `TryBeginFill`, `IsCacheableReply` | read-only, keyed, non-error |
 | Storage | `RespClientCache.Slabs.cs` | slabs of `MaxBytes/32`, ≤ 1 MiB |
 | Budget | `MaxBytes`, `MaxEntries`, `MaxPayloadBytes` | all unbounded |
-| Eviction | `EvictSlabsToBudget`, `TryEvictOne` | oldest slab; second-chance queue |
+| Eviction | `EvictSlabsToBudget`, `TryEvictOne`, `Promote` | Clock: oldest slab with read entries carried forward; Clock queue |
 | Admission | `CacheAdmission`, `CacheDoorkeeper` | `OnRepeatedMiss` |
 | Ageing | `CachePolicy`, `WithMaxCacheAge`, `CacheClock` | TTL 1 min; no early refresh; no grace |
 | Stampedes | `InFlight`, `TryAwaitInFlight`, refresh claim | on |
@@ -214,19 +216,35 @@ per-entry accounting. A reply over an eighth of a slab gets its own array.
 - **Bytes go by slab, oldest first** (`EvictSlabsToBudget`): evicting single entries frees no memory until their
   whole slab is empty. **One evictor at a time**: when every over-budget store evicted "the oldest", concurrent stores
   each took a slab where one was due, and a 32 MiB cache held ~11k 1 KiB entries instead of ~31k.
-- Entries die in roughly the order they were born (TTL runs from the fill, and a hot key's refresh lands in the
-  current slab), which is why FIFO-by-slab loses little - but it **is** FIFO: a hot entry in the oldest slab goes
-  with it. Hits record nothing, deliberately (§12).
-- **Entry-at-a-time eviction** (unslabbed replies, and `MaxEntries`) is **second chance over a queue of keys in
-  store order** (`ae71b985`): the head is taken if dead, a live head examined and spared goes to the back, and the
-  first live entry in a window of `EvictionSampleSize` (8) goes. It replaced sampling the dictionary, which had to
-  walk to a moving offset - O(n) per eviction: removing the walk took the all-miss cell from 71k to 419k ops/s. Only
-  entries that this path will read are enqueued; enqueueing every slabbed entry grew the queue without bound
-  (`a5af2dec`).
-- **Rejected:** true LRU (a write on every hit - Redis approximates its own LRU by sampling for the same reason);
-  per-entry striped refcounts (~150 MB of padded counters); the pinned-object heap for entries (no better);
-  finalizer-driven slab recycling (interior pointers outlive the wrapper, and finalizable objects are mid-life by
-  construction).
+- **Read entries are carried forward** (`Promote`, 2026-10-22): when the oldest slab goes, an entry in it whose
+  flag is set (`Entry.Touch` on a hit; `TryClearReferenced` here) is copied into the current slab - same
+  dependencies, same `FilledAt` - with the flag cleared, so it must be read again before its new slab comes up.
+  Entries past their lifetime are not carried whatever their flag. Before this, slab eviction was FIFO by cohort: a
+  hot entry in the oldest slab went with its neighbours. The copy goes **remove-then-add, not `TryUpdate`**: the
+  dictionary keeps the key object it has, whose bytes live in the slab being evicted, so updating in place would
+  keep that array reachable for as long as the key stayed hot while the budget counted it freed. (`TryCompleteCore`'s
+  refresh path does update in place and so does pin the original slab of a refreshed key; rarer, and left as is.)
+  `EvictSlabsToBudget` takes at most `MaxSlabsPerEviction` (4) slabs per call: a run of hot slabs is mostly copied,
+  not freed, and the worst case - everything hot - would otherwise copy the whole cache in one store.
+- **Entry-at-a-time eviction** (unslabbed replies, and `MaxEntries`) is **Clock over a queue of keys in store
+  order**: a dead or expired head is taken on sight; a live head whose flag is set is cleared and goes to the back
+  (re-enqueued as the entry's *current* key, so a promoted entry's old key does not pin its old slab); the first live
+  head whose flag is clear goes. After `EvictionSampleSize` (8) spared entries the first of them goes. Its
+  predecessor (`ae71b985`) walked the same queue but, with no flag to read, evicted the first live entry and sent
+  the rest of the window to the tail - "second chance" in name only, and the tail-send scrambled store order. The
+  queue replaced sampling the dictionary, which had to walk to a moving offset - O(n) per eviction: removing the walk
+  took the all-miss cell from 71k to 419k ops/s. Only entries that this path will read are enqueued; enqueueing
+  every slabbed entry grew the queue without bound (`a5af2dec`).
+- **Measured** (`RespClientCacheTests.HitRateOnASkewedTraceIsCloseToLru`, against an exact LRU and FIFO on the same
+  capacity, in-test): Zipf s=0.99 over 10k keys at ~1k capacity - LRU 66%, FIFO 62%, Clock 67% on either path; a
+  hot set of 500 with one-off reads a quarter of the stream at capacity 1000 - LRU 74.5%, FIFO 56%, Clock 74.5%. A
+  variant that walked the whole window dead-first and re-queued unread entries measured 65.7% at window 8 and 63.7%
+  at 64: the free lap it gave unread entries cost more than the dead entries it found, so the walk stops at the
+  first unread live entry and a dead one beyond it waits for the sweep.
+- **Rejected:** true LRU (a write on every hit - Redis approximates its own LRU by sampling for the same reason;
+  Clock gets its result for one conditional write per entry per cycle); per-entry striped refcounts (~150 MB of
+  padded counters); the pinned-object heap for entries (no better); finalizer-driven slab recycling (interior
+  pointers outlive the wrapper, and finalizable objects are mid-life by construction).
 
 ## 9. Admission: only what is read again
 
@@ -308,16 +326,18 @@ the precise clock: it can be tens of milliseconds, and is read only for an inval
 ## 12. The hit path
 
 What a hit does: hash the frame (borrowed, not detached), one dictionary lookup, validate one inline dependency
-(dereference + compare), read the coarse clock, return a payload over the slab. Nothing shared is written: no
-refcount, no recency, no frequency. Hits never touch the doorkeeper.
+(dereference + compare), read the coarse clock, set the entry's referenced flag if it is clear (`Entry.Touch`: a
+read of a field on the entry already in cache, and a plain store only the first time per eviction cycle), return a
+payload over the slab. No refcount, no recency stamp, no frequency. Hits never touch the doorkeeper.
 
 Measured: single-thread hit 134 → 114 ns over the 2026-10-10 work; asking the route for a constant on every cached
 read had been ~30% of RespFest's cached throughput (`c5370268`). What remains is mostly the request builder
 (~26 ns over a 4 ns floor; `design/parked/builder-inlining.patch`, unmeasured).
 
 The trade this forces is explicit and runs through §8 and §9: **every policy that wants to know what was hit - LRU,
-second chance at slab eviction, a frequency sketch - costs a write on this path.** None has yet shown enough to pay
-for it.
+a frequency sketch - costs a write on this path.** The one taken (2026-10-22) is the cheapest form of it: a flag
+that is read before it is written, so a hot entry's line is written once per eviction cycle rather than once per
+hit. It buys Clock on both eviction paths (§8), which measured at or above exact LRU on a Zipf trace.
 
 ## 13. Reclaiming memory
 
@@ -331,8 +351,9 @@ one sweep. A cost property, not a correctness one: overlapping sweeps are alread
 From the ledger unless noted; none blocks shipping.
 
 - **Admission beyond the doorkeeper** (§9): frequency against the victim, at the price of a write per hit.
-- **Second chance at slab eviction** (§8): copy entries that were hit forward rather than evict them with their slab
-  - a write-once "touched" flag per entry. Only if hot keys are seen churning out.
+- **The refresh path pins a refreshed key's original slab** (§8): `TryUpdate` keeps the dictionary's key object,
+  whose bytes are in the slab the entry was first stored in. Promotion avoids this by remove-then-add; refresh could
+  do the same.
 - **`RespKeyTable` never removes a node**, so it grows with every distinct key ever cached, not with the cache.
   Bounded by the keyspace, but unbounded by the budget.
 - **The cached miss sends untyped and parses afterwards**, where an uncached send parses typed on the reader.

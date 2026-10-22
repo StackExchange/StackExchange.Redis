@@ -1416,11 +1416,13 @@ public class RespClientCacheTests
         return condition();
     }
 
-    /// <summary>Eviction prefers entries that are already dead, and only then the oldest of a sample.</summary>
+    /// <summary>Eviction takes a dead entry it reaches before sparing a live one that was read.</summary>
     /// <remarks>
-    /// The sample is being walked anyway, so a dead entry is taken on sight: it costs nothing to release
+    /// The queue is being walked anyway, so a dead entry is taken on sight: it costs nothing to release
     /// and, unlike a live one, nobody wanted it. Anything else would evict something useful while something
-    /// useless sat next to it.
+    /// useless sat next to it. The walk stops at the first live entry that was NOT read, so a dead entry
+    /// further on than that waits for the sweep - which is why the live entries ahead of the dead one are
+    /// read here: with them spared, the dead one is what the walk reaches.
     /// </remarks>
     [Fact]
     public void EvictionTakesDeadEntriesBeforeLiveOnes()
@@ -1433,7 +1435,9 @@ public class RespClientCacheTests
         Assert.Equal(10, cache.Count);
 
         // key3 is invalidated but still resident - it is key0 that is OLDEST, so an age-only policy would
-        // take that one and leave the dead entry sitting there
+        // take that one and leave the dead entry sitting there. key0..key2 are read, so recency spares them
+        // too; the dead entry is the first thing the walk can take
+        for (var i = 0; i < 3; i++) Assert.True(TryRead(cache, "key" + i, out _));
         cache.OnInvalidate(Utf8("key3"));
 
         var extra = Get("pushes-us-over");
@@ -1449,6 +1453,254 @@ public class RespClientCacheTests
         using var oldest = Get("key0");
         Assert.True(cache.TryGet(oldest.AsLookupKey(), 0, out var alive), "the oldest LIVE entry should have survived");
         alive.Release();
+    }
+
+    /// <summary>A read spares an entry from eviction - once; it has to be read again to be spared again.</summary>
+    /// <remarks>
+    /// The entry path's Clock, step by step. Four slots; <c>key0</c> is read and the others are not, so it is
+    /// <c>key1</c> - the oldest UNREAD entry - that goes when a fifth arrives, and <c>key0</c> moves to the back
+    /// with its flag cleared. From there it is just another entry: when its turn comes round again without a
+    /// read in between, it goes. FIFO would have taken <c>key0</c> first; LRU would never take it while it is
+    /// read; Clock is in between, by design.
+    /// </remarks>
+    [Fact]
+    public void AReadSparesAnEntryFromEvictionOnce()
+    {
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxEntries = 4 });
+        Fill(cache, 4); // key0..key3, in that order
+
+        Assert.True(TryRead(cache, "key0", out _)); // the only read
+
+        Fill(cache, "key4", "$1\r\nx\r\n");
+        Assert.Equal(4, cache.Count);
+        Assert.True(TryRead(cache, "key0", out _), "the entry that was read should have been spared");
+        Assert.False(TryRead(cache, "key1", out _), "the oldest unread entry should have gone instead");
+
+        // key0 was read again just now, so it is spared once more as key2, key3 and key4 go in turn
+        Fill(cache, "key5", "$1\r\nx\r\n");
+        Fill(cache, "key6", "$1\r\nx\r\n");
+        Fill(cache, "key7", "$1\r\nx\r\n");
+        Assert.False(TryRead(cache, "key2", out _));
+        Assert.False(TryRead(cache, "key3", out _));
+        Assert.False(TryRead(cache, "key4", out _));
+        Assert.True(TryRead(cache, "key0", out _), "still being read, still spared");
+
+        // ...and now it is not read. The read above set its flag again, so it is spared once more as key5 goes
+        // (and moves behind key8); the flag is cleared by that, so when it next reaches the head - after key6,
+        // key7 and key8 have gone - it goes, even though it was once the hottest thing here
+        Fill(cache, "key8", "$1\r\nx\r\n");
+        Fill(cache, "key9", "$1\r\nx\r\n");
+        Fill(cache, "key10", "$1\r\nx\r\n");
+        Fill(cache, "key11", "$1\r\nx\r\n");
+        Fill(cache, "key12", "$1\r\nx\r\n");
+        Assert.False(TryRead(cache, "key0", out _), "an entry that stops being read is not spared for ever");
+        Assert.Equal(4, cache.Count);
+    }
+
+    /// <summary>
+    /// An entry that was read is carried forward when its slab is evicted, rather than dying with its
+    /// neighbours; one that was not read goes with the slab.
+    /// </summary>
+    /// <remarks>
+    /// The slab path's Clock. Slabs are cohorts by fill time, so before this a hot entry lived exactly as long
+    /// as the cold ones filled alongside it. The budget here is the smallest that uses slabs (4 MiB; 128 KiB
+    /// slabs), the replies ~8 KiB so a slab holds a handful, and <c>hot</c> is read between every few fills
+    /// while <c>cold</c>, stored beside it, never is.
+    /// </remarks>
+    [Fact]
+    public void AReadEntryIsCarriedForwardWhenItsSlabIsEvicted()
+    {
+        const long budget = 4L * 1024 * 1024;
+        var reply = "$8000\r\n" + new string('x', 8000) + "\r\n";
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxBytes = budget });
+
+        Fill(cache, "hot", reply);
+        Fill(cache, "cold", reply);
+
+        // several times the budget, reading hot as we go
+        for (var i = 0; i < 3000; i++)
+        {
+            Fill(cache, "filler" + i, reply);
+            if (i % 4 == 0) Assert.True(TryRead(cache, "hot", out _), $"hot was lost after {i} fills (promoted: {cache.Promoted}, evicted: {cache.Evicted})");
+        }
+
+        Assert.True(cache.Promoted > 0, "hot was never carried forward");
+        Assert.True(cache.Evicted > 0, "nothing was evicted");
+        Assert.False(TryRead(cache, "cold", out _), "an entry nobody read should have gone with its slab");
+        Assert.True(cache.Bytes <= budget, $"over budget: {cache.Bytes}");
+
+        // stop reading it: one more cycle round the budget and it is gone, like anything else
+        for (var i = 3000; i < 6000; i++) Fill(cache, "filler" + i, reply);
+        Assert.False(TryRead(cache, "hot", out _), "an entry that stops being read is not carried forward for ever");
+    }
+
+    /// <summary>
+    /// Under a hot set that fits, plus a stream of one-off reads that does not, every read of the hot set hits
+    /// once it is loaded - which is what LRU does and what FIFO cannot.
+    /// </summary>
+    /// <remarks>
+    /// The sharpest test of recency there is: FIFO evicts a hot entry when its turn comes whatever its history,
+    /// so here it would miss on a quarter of the hot reads (the one-offs are a quarter of the inserts and the
+    /// hot set is half the capacity); LRU never misses on them because each is re-read well within the
+    /// capacity. The cache has to match LRU exactly on this one, on both eviction paths.
+    /// </remarks>
+    [Theory]
+    [InlineData(false)] // MaxEntries: the entry-at-a-time queue
+    [InlineData(true)]  // MaxBytes: whole slabs
+    public void AHotSetThatFitsIsNeverEvicted(bool slabs)
+    {
+        const int hot = 500, capacity = 1000;
+        // ~1 KiB replies: with slabs the budget below holds about `capacity` of them (reply + key + 256 bytes of
+        // bookkeeping each, charged by whole 128 KiB slab); without, MaxEntries says so directly
+        var reply = "$1000\r\n" + new string('x', 1000) + "\r\n";
+        using var cache = new RespClientCache(slabs
+            ? new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxBytes = 4L * 1024 * 1024 }
+            : new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxEntries = capacity });
+
+        for (var i = 0; i < hot; i++) Fill(cache, "hot" + i, reply);
+
+        long hotReads = 0, hotMisses = 0;
+        var cold = 0;
+        for (var i = 0; i < 40_000; i++)
+        {
+            if (i % 4 == 3)
+            {
+                Fill(cache, "cold" + cold++, reply); // never read again
+                continue;
+            }
+
+            var key = "hot" + (i % hot);
+            hotReads++;
+            if (!TryRead(cache, key, out _))
+            {
+                hotMisses++;
+                Fill(cache, key, reply);
+            }
+        }
+
+        Assert.True(cache.Evicted > 0, "the test never filled the cache");
+        Assert.Equal(0, hotMisses);
+        Assert.True(hotReads > 20_000);
+    }
+
+    /// <summary>
+    /// On a skewed trace the hit rate is within a little of true LRU on the same capacity, and clear of FIFO.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The LRU-likeness claim, measured rather than asserted from the mechanism. The same Zipf trace is run
+    /// through the cache and through two reference policies kept in plain collections here: an exact LRU and
+    /// an exact FIFO, each at the capacity the cache actually held. Clock is expected to land at or above LRU
+    /// on a Zipf trace (sparing by use has a little of frequency in it) and well above FIFO; the asserts leave
+    /// room for the approximation (a bounded window; whole slabs) without leaving room for FIFO.
+    /// </para>
+    /// <para>
+    /// Admission is on first miss so that this measures eviction alone; the doorkeeper is its own policy, with
+    /// its own tests.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HitRateOnASkewedTraceIsCloseToLru(bool slabs)
+    {
+        const int keyspace = 10_000, ops = 200_000;
+        var reply = "$1000\r\n" + new string('x', 1000) + "\r\n";
+        using var cache = new RespClientCache(slabs
+            ? new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxBytes = 4L * 1024 * 1024 }
+            : new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxEntries = 1000 });
+
+        var trace = Zipf(keyspace, ops, 0.99, seed: 12345);
+
+        var hits = 0;
+        var capacity = 0;
+        foreach (var k in trace)
+        {
+            var key = "z" + k;
+            if (TryRead(cache, key, out _)) hits++;
+            else Fill(cache, key, reply);
+            capacity = Math.Max(capacity, cache.Count);
+        }
+
+        var lru = ReferenceLru(trace, capacity);
+        var fifo = ReferenceFifo(trace, capacity);
+        double Rate(int h) => h / (double)ops;
+
+        // what the three did, for the log and for the failure message
+        var summary = $"cache {Rate(hits):P1}, LRU {Rate(lru):P1}, FIFO {Rate(fifo):P1} at capacity {capacity} (promoted {cache.Promoted})";
+
+        Assert.True(lru > fifo, "the trace does not separate LRU from FIFO: " + summary);
+        Assert.True(Rate(hits) >= Rate(lru) - 0.02, "further from LRU than the approximation allows: " + summary);
+        Assert.True(hits >= fifo + ((lru - fifo) / 2), "no better than halfway from FIFO to LRU: " + summary);
+    }
+
+    /// <summary>A seeded Zipf trace over <c>0..keyspace-1</c>, rank 0 the most popular.</summary>
+    private static int[] Zipf(int keyspace, int count, double s, int seed)
+    {
+        var cumulative = new double[keyspace];
+        var total = 0.0;
+        for (var i = 0; i < keyspace; i++)
+        {
+            total += 1.0 / Math.Pow(i + 1, s);
+            cumulative[i] = total;
+        }
+
+        var rng = new Random(seed);
+        var trace = new int[count];
+        for (var i = 0; i < count; i++)
+        {
+            var index = Array.BinarySearch(cumulative, rng.NextDouble() * total);
+            trace[i] = index < 0 ? ~index : index;
+        }
+
+        return trace;
+    }
+
+    private static int ReferenceLru(int[] trace, int capacity)
+    {
+        var order = new LinkedList<int>();
+        var nodes = new Dictionary<int, LinkedListNode<int>>();
+        var hits = 0;
+        foreach (var k in trace)
+        {
+            if (nodes.TryGetValue(k, out var node))
+            {
+                hits++;
+                order.Remove(node);
+                order.AddLast(node);
+                continue;
+            }
+
+            nodes[k] = order.AddLast(k);
+            if (nodes.Count > capacity)
+            {
+                nodes.Remove(order.First!.Value);
+                order.RemoveFirst();
+            }
+        }
+
+        return hits;
+    }
+
+    private static int ReferenceFifo(int[] trace, int capacity)
+    {
+        var resident = new HashSet<int>();
+        var order = new Queue<int>();
+        var hits = 0;
+        foreach (var k in trace)
+        {
+            if (resident.Contains(k))
+            {
+                hits++;
+                continue;
+            }
+
+            resident.Add(k);
+            order.Enqueue(k);
+            if (resident.Count > capacity) resident.Remove(order.Dequeue());
+        }
+
+        return hits;
     }
 
     /// <summary>Budgets must be positive; null is how you say "no limit".</summary>

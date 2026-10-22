@@ -106,10 +106,10 @@ Controlling it
 | `Enabled` | `true` | Whether the cache exists. Setting `ClientCache` at all is what turns caching on; this lets you keep the options and switch it off. |
 | `TrackingMode` | `Default` (= `Tracking` today, or `Broadcast` when `Prefixes` are set) | How the server decides which changes to announce - see below. |
 | `Prefixes` | none (all keys) | Which keys to track and cache, in `Broadcast` mode; setting any selects that mode. |
-| `MaxBytes` | unbounded | A memory budget for cached replies. Entries are evicted, roughly oldest first, to get back under it. |
+| `MaxBytes` | unbounded | A memory budget for cached replies. Entries that have not been read since they were stored are evicted, oldest first, to get back under it - see [Eviction](#eviction). |
 | `MaxEntries` | unbounded | A limit on the number of entries - use it alongside `MaxBytes` when replies are small and numerous. |
 | `MaxPayloadBytes` | 1 MiB | The largest single reply that may be cached. |
-| `EvictionSampleSize` | 8 | How many entries eviction considers per choice; larger is closer to true LRU, and costs more per eviction. |
+| `EvictionSampleSize` | 8 | How many live entries one eviction will examine before taking one that was read; larger is closer to true LRU, and costs more per eviction. Only applies to eviction by count (`MaxEntries`) and to replies too large to share a slab. |
 | `SweepInterval` | 10 seconds | How often memory held by invalidated or expired entries is reclaimed. Correctness does not depend on it. |
 | `DefaultPolicy` | `CachePolicy.Default` | How entries behave as they age - see below. |
 | `Admission` | `Default` (= `OnRepeatedMiss` today) | When a reply that missed is stored: only once the same request has missed recently before, or (`OnFirstMiss`) every time. See below. |
@@ -180,6 +180,12 @@ options.ClientCache = new CacheOptions
 ```
 
 `CacheAdmission.Default` (the value you get by not setting it) means "the library's choice", which is `OnRepeatedMiss` today; name a rule explicitly if you depend on it.
+
+### Eviction
+
+The policy is **Clock**, an approximation of LRU: each entry carries a flag that a read sets, and eviction walks the entries oldest first, sparing - and clearing the flag of - any entry that was read since it was last examined, and taking the first that was not. An entry that keeps being read is never evicted; one that stops being read goes the next time its turn comes round. What a read costs is one flag write per entry per eviction cycle, not a write per read.
+
+Under `MaxBytes`, replies are stored in large slabs in the order they arrive and memory comes back a slab at a time: the oldest slab is evicted, and the entries in it that were read are copied forward into the current slab instead of being dropped (`Promoted` in the cache's counters). Measured on a skewed trace (Zipf s = 0.99, a cache a tenth of the keyspace), the hit rate lands at or slightly above an exact LRU on the same capacity, and about five points above FIFO; on a hot set that fits plus a stream of one-off reads, every read of the hot set hits, where FIFO would miss a quarter of them. Admission (below) decides what is stored in the first place; eviction decides what is kept.
 
 ### Tracking modes and prefixes
 
