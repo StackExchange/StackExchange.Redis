@@ -696,6 +696,14 @@ namespace StackExchange.Redis
             }
 
             var ex = innerException is RedisException ? innerException : outerException;
+            if (ex is not RedisException)
+            {
+                // the detailed exception above is built once, for the bridge's *current* connection; a repeat
+                // report for the same connection, or one the bridge has already replaced, must still fail
+                // whatever is queued - and with a RedisConnectionException, not the raw transport fault, nor
+                // (when there is no exception at all, e.g. EOF) a TaskCanceledException nobody asked for (#3283)
+                ex = new RedisConnectionException(failureType, CommandFlags.None, failureType + " on " + ToString(), innerException);
+            }
 
             nextMessage = Interlocked.Exchange(ref _awaitingToken, null);
             if (nextMessage is not null)
