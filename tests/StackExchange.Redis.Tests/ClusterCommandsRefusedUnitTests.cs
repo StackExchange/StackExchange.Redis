@@ -65,20 +65,29 @@ public class ClusterCommandsRefusedUnitTests(ITestOutputHelper log)
         config.LoggerFactory = logger;
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
 
-        log.WriteLine(logger.All);
-        Assert.Empty(logger.Matching("Encountered error while updating cluster config"));
-        Assert.NotEmpty(logger.Matching("CLUSTER NODES was refused"));
+        try
+        {
+            Assert.Empty(logger.Matching("Encountered error while updating cluster config"));
+            Assert.NotEmpty(logger.Matching("CLUSTER NODES was refused"));
 
-        await conn.GetDatabase().PingAsync();
+            await conn.GetDatabase().PingAsync();
 
-        // ...and a later explicit reconfigure stays quiet too
-        Assert.True(await conn.ReconfigureAsync("test"));
-        Assert.Empty(logger.Matching("Encountered error while updating cluster config"));
+            // ...and a later explicit reconfigure stays quiet too; the connect's own follow-on reconfigures
+            // (connection restored, autoconfigure changes) may still be in flight, and ReconfigureAsync declines
+            // while one is, so insist on a pass that actually ran
+            await Poll.ReconfigureAsync(conn, "test");
+            Assert.Empty(logger.Matching("Encountered error while updating cluster config"));
 
-        // with no slot map there is nothing to route by, so we must not *route* as a cluster - in particular,
-        // cross-slot commands go to the proxy rather than being refused client-side (#3284)
-        Assert.NotEmpty(logger.Matching("no slot map is available; routing as standalone"));
-        Assert.Equal(ServerType.Standalone, conn.ServerSelectionStrategy.ServerType);
-        await conn.GetDatabase().StringGetAsync(["a", "b"]);
+            // with no slot map there is nothing to route by, so we must not *route* as a cluster - in particular,
+            // cross-slot commands go to the proxy rather than being refused client-side (#3284)
+            Assert.NotEmpty(logger.Matching("no slot map is available; routing as standalone"));
+            Assert.Equal(ServerType.Standalone, conn.ServerSelectionStrategy.ServerType);
+            await conn.GetDatabase().StringGetAsync(["a", "b"]);
+        }
+        finally
+        {
+            // after the assertions, so a failure shows what the multiplexer actually logged
+            log.WriteLine(logger.All);
+        }
     }
 }
