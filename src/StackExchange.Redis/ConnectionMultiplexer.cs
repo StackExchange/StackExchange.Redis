@@ -2052,13 +2052,13 @@ namespace StackExchange.Redis
                     // only thing cluster mode would add is rejecting cross-slot commands client-side, which the
                     // proxy would have accepted. The map is never cleared once populated, so an established
                     // cluster whose refresh is refused (#3275) keeps routing as one.
-                    long coveredSlots = clusterCount > 0 ? ServerSelectionStrategy.CountCoveredSlots() : 0;
-                    if (clusterCount > 0 && coveredSlots == 0)
+                    bool noSlotMap = ServerSelectionStrategy.IsSlotMapEmpty;
+                    if (clusterCount > 0 && noSlotMap)
                     {
                         log?.LogInformationClusterWithoutSlotMap(clusterCount);
                     }
 
-                    if (clusterCount == 0 || coveredSlots == 0)
+                    if (clusterCount == 0 || noSlotMap)
                     {
                         // Set the serverSelectionStrategy
                         if (RawConfig.Proxy == Proxy.Twemproxy)
@@ -2109,7 +2109,7 @@ namespace StackExchange.Redis
                     else
                     {
                         ServerSelectionStrategy.ServerType = ServerType.Cluster;
-                        log?.LogInformationClusterSlotsCovered(coveredSlots, ServerSelectionStrategy.TotalSlots);
+                        log?.LogInformationClusterSlotsCovered(ServerSelectionStrategy.CountCoveredSlots(), ServerSelectionStrategy.TotalSlots);
 
                         // a cluster has many primaries by design; if we routed as standalone before the map
                         // arrived, the nomination above may have marked all but one of them redundant
