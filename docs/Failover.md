@@ -380,7 +380,7 @@ ConnectionGroupMember[] members = [
 ];
 ```
 
-To disable periodic checking for the whole group, set `MultiGroupOptions.HealthCheckInterval` to `TimeSpan.MaxValue`; the group is then only re-evaluated in response to connection events (such as a tripped circuit-breaker).
+To disable periodic checking for the whole group, set `MultiGroupOptions.HealthCheckInterval` to `TimeSpan.MaxValue`; the group is then only re-evaluated in response to connection events (a tripped circuit-breaker, or a member answering `LOADING`).
 
 ### Built-in Probes
 
@@ -494,6 +494,8 @@ Where health checks *actively* probe each member on a timer, a **circuit breaker
 
 When a circuit breaker trips, it shuts the underlying physical connection down with `ConnectionFailureType.CircuitBreaker`. The connection then reconnects as usual, and - in a connection group - the health check and member-selection logic route traffic to other members until the affected member recovers. A circuit breaker is evaluated **per connection**, so
 its state is scoped to exactly the connection whose health it is measuring; a reconnect starts from a clean slate - but breaking the connection is sufficient for the group to notice non-availability.
+
+A member that answers `-LOADING` (a server still loading its dataset after a restart) is treated the same way by a connection group: the connection is dropped with `ConnectionFailureType.Loading`, the group re-probes and re-selects immediately, and traffic moves to another member rather than queuing against one whose every reconnect will fail with the same error until the load completes. The health check brings the member back once it passes.
 
 ### Configuring a Circuit Breaker for a Group
 

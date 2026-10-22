@@ -993,13 +993,17 @@ namespace StackExchange.Redis
                 }
             }
 
-            private int _circuitBreakerDebounce = 0;
+            private int _rerouteDebounce = 0;
             private void OnMemberConnectionFailed(object? sender, ConnectionFailedEventArgs e)
             {
-                // deliberately scoped to this one failure type; re-probe and re-select promptly rather
-                // than waiting for the next poll tick, so traffic routes away from the dropped member
-                if (e.FailureType is ConnectionFailureType.CircuitBreaker
-                    && Interlocked.CompareExchange(ref _circuitBreakerDebounce, 1, 0) is 0)
+                // deliberately scoped to these failure types; re-probe and re-select promptly rather than
+                // waiting for the next poll tick, so traffic routes away from the dropped member. A breaker
+                // trip is the member's own traffic telling us it is unstable; LOADING is the server telling
+                // us outright that it cannot serve yet (and its handshake will keep failing the same way
+                // until it can, so nothing routed there in the meantime gets a reply - the breaker only ever
+                // sees replies, so it cannot be what moves us). Ordinary socket drops are left to reconnect
+                if (e.FailureType is ConnectionFailureType.CircuitBreaker or ConnectionFailureType.Loading
+                    && Interlocked.CompareExchange(ref _rerouteDebounce, 1, 0) is 0)
                 {
                     GetMember(sender as ConnectionMultiplexer)?.SetUnhealthy();
                     _ = Task.Run(async () =>
@@ -1014,7 +1018,7 @@ namespace StackExchange.Redis
                         }
                         finally
                         {
-                            Volatile.Write(ref _circuitBreakerDebounce, 0);
+                            Volatile.Write(ref _rerouteDebounce, 0);
                         }
                     });
                 }
