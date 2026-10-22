@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -70,6 +70,17 @@ public class BatchWriteFailureTests(ITestOutputHelper log)
                 t.IsCompletedSuccessfully || t.IsCanceled || t.Exception?.GetBaseException() is RedisConnectionException, t.Status.ToString()));
         }
         long succeeded = increments.Count(t => t.IsCompletedSuccessfully);
+
+        // under fail-fast the tail is refused rather than backlogged, so nothing above waited for the reconnect;
+        // the verification read must not fail for the same reason
+        var reconnected = Task.Run(async () =>
+        {
+            while (!conn.IsConnected) await Task.Delay(50);
+        });
+        if (await Task.WhenAny(reconnected, Task.Delay(TimeSpan.FromSeconds(10))) != reconnected)
+        {
+            Assert.Fail("did not reconnect");
+        }
         Assert.InRange((long)await db.StringGetAsync(key), succeeded, increments.Length);
     }
 }

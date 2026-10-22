@@ -810,11 +810,13 @@ namespace StackExchange.Redis
             }
             foreach (var message in messages)
             {
-                if (NeedsReconnect)
+                if (NeedsReconnect || physical.IsWriteFaulted)
                 {
                     // the connection went away part-way through the batch (typically an earlier message's write
                     // faulted it); give the remainder the treatment a single command gets at the top of
-                    // TryWriteSync - backlog or fail, per policy - rather than writing to a dead connection (#3282)
+                    // TryWriteSync - backlog or fail, per policy - rather than writing to a dead connection (#3282).
+                    // Both flags matter: the reconnect flag is cleared as soon as a replacement connection starts
+                    // (TryConnect, on another thread), but the connection we are still holding stays poisoned
                     QueueOrFailMessage(message);
                     continue;
                 }
