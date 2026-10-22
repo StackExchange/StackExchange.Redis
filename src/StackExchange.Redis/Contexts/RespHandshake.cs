@@ -1290,11 +1290,11 @@ namespace StackExchange.Redis
         /// <remarks>
         /// <para>
         /// <b>It has to be THIS connection, which is the whole reason this exists here.</b> Invalidations
-        /// arrive as out-of-band pushes on the connection that asked for them, and in per-key mode the
+        /// arrive as out-of-band pushes on the connection that asked for them, and in tracking mode the
         /// server registers what <i>that connection</i> read. Negotiating tracking on the v3 core's
         /// socket while the reads happened on this one gave a cache that was filled and never invalidated:
-        /// broadcast mode survived it, because the server pushes regardless of who read, and per-key did
-        /// not - `RespInProcTrackingTests.PerKeyTrackingAsksForNoBroadcastAndStillInvalidates` is the
+        /// broadcast mode survived it, because the server pushes regardless of who read, and tracking did
+        /// not - `RespInProcTrackingTests.TrackingModeAsksForNoBroadcastAndStillInvalidates` is the
         /// difference made visible.
         /// </para>
         /// <para>

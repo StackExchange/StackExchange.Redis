@@ -7,8 +7,8 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis.Benchmarks;
 
-// The invalidation path, which under CLIENT TRACKING BCAST is fed EVERY key touched on the server -
-// almost none of which this client has cached. So the number that matters is Invalidate_Miss.
+// The invalidation path, which under CLIENT TRACKING BCAST (what Prefixes select) is fed EVERY key touched
+// on the server - almost none of which this client has cached. So the number that matters is Invalidate_Miss.
 [Config(typeof(CustomConfig))]
 [MemoryDiagnoser]
 public class ClientCacheBenchmarks

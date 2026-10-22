@@ -134,20 +134,23 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
     }
 
     /// <summary>
-    /// Per-key tracking is the other half of <see cref="CacheTrackingMode"/>: no BCAST, and the server
-    /// remembers what this connection read rather than being told what to watch.
+    /// Tracking mode is the other half of <see cref="CacheTrackingMode"/>, and the default: no BCAST, and
+    /// the server remembers what this connection read rather than being told what to watch.
     /// </summary>
     /// <remarks>
-    /// Worth its own test because the two modes fail differently. Broadcast over-delivers; per-key
+    /// Worth its own test because the two modes fail differently. Broadcast over-delivers; a tracking
     /// registration is consumed when it fires, so it is only sound while every cached entry still has a live
     /// registration behind it - which holds here because an invalidation evicts, and the next read is
-    /// therefore a server read that re-registers.
+    /// therefore a server read that re-registers. Run twice: once naming the mode, once leaving it at
+    /// <see cref="CacheTrackingMode.Default"/>, which must resolve to the same thing.
     /// </remarks>
-    [Fact]
-    public async Task PerKeyTrackingAsksForNoBroadcastAndStillInvalidates()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TrackingModeAsksForNoBroadcastAndStillInvalidates(bool explicitMode)
     {
         var (server, muxer, cache) = await ConnectAsync(
-            new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.PerKey });
+            new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = explicitMode ? CacheTrackingMode.Tracking : CacheTrackingMode.Default });
         using var _ = server;
         await using var __ = muxer;
 
@@ -161,7 +164,7 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
         {
             if (client.TrackingEnabled) tracked.Add(client);
         });
-        Assert.False(Assert.Single(tracked).TrackingBroadcast, "per-key mode must not send BCAST");
+        Assert.False(Assert.Single(tracked).TrackingBroadcast, "tracking mode must not send BCAST");
 
         await using var other = await ConnectionMultiplexer.ConnectAsync(server.GetClientConfig());
         await other.GetDatabase().StringSetAsync("k", "v2");

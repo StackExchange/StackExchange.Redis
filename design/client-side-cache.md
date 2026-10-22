@@ -119,11 +119,15 @@ invalidation, validating against a key that changed); the cross-index.
   we would survive it (generations captured at send), but there is no reason to pay for a protocol that needs it.
   Without RESP3, caching is **refused loudly** at connect (`RespHandshake`), never silently degraded into a cache
   nothing invalidates.
-- **`BCAST` by default**, empty prefix (all keys). The server keeps no per-client table, so it cannot run out of
-  room; we pay in hearing about keys we never read, which `Prefixes` bounds. `PerKey` is offered; `OPTIN`/`OPTOUT`
-  are not, because `CLIENT CACHING YES|NO` applies to "the next command on that connection", which a multiplexer
-  cannot promise. The enum's zero is `Default` ("no opinion"), resolved in one place, so the library can change its
-  mind without overriding anybody who chose.
+- **`Tracking` (plain `CLIENT TRACKING ON`) by default**; `Broadcast` (`BCAST`) when `Prefixes` are given, since
+  `PREFIX` is only accepted with `BCAST`. Originally `BCAST` with an empty prefix was the default: the server keeps
+  no per-client table, so it cannot run out of room, and we paid in hearing about keys we never read. Reversed
+  (2026-10-22) because that cost is unbounded on a busy server and lands on every caching client, whereas the
+  tracking table's cost is bounded by `tracking-table-max-keys` and an eviction there is a refill, not a stale read.
+  `OPTIN`/`OPTOUT` are not offered, because `CLIENT CACHING YES|NO` applies to "the next command on that
+  connection", which a multiplexer cannot promise; measured against Redis 8.9, `ON OPTOUT` is otherwise identical to
+  `ON`, so it is available later at no behavioural cost. The enum's zero is `Default` ("no opinion"), resolved in
+  one place, so the library can change its mind without overriding anybody who chose.
 - **Prefixes are a connection-level knob, never derived from context key-prefixes**: server prefixes are global,
   must not overlap, and cannot be removed one at a time, while context prefixes nest. A prefix list is also a
   statement about what may be cached: a key outside it is never announced, so it is refused (`RefusedNotTracked`).

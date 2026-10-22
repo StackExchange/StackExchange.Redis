@@ -928,7 +928,7 @@ public class RespClientCacheTests
     [Fact]
     public void NoPrefixesMeansEverythingIsCacheable()
     {
-        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy() }); // the default: BCAST with no prefix
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy() }); // the default: no prefix, so tracking mode
 
         var frame = Ctx.Render($"{RedisCommand.GET}{(RedisKey)"anything at all"}");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));
@@ -1214,7 +1214,7 @@ public class RespClientCacheTests
     }
 
     /// <summary>
-    /// Prefixes require broadcast: under per-key tracking there is nothing to filter.
+    /// Prefixes require broadcast: under tracking mode there is nothing to filter.
     /// </summary>
     /// <remarks>
     /// Raised when the cache is built rather than from an <c>init</c> accessor, because an object
@@ -1227,7 +1227,7 @@ public class RespClientCacheTests
         var options = new CacheOptions
         {
             Admission = CacheAdmission.OnFirstMiss,
-            TrackingMode = CacheTrackingMode.PerKey,
+            TrackingMode = CacheTrackingMode.Tracking,
             Prefixes = ["app:"],
         };
 
@@ -1240,13 +1240,31 @@ public class RespClientCacheTests
     }
 
     /// <summary>
-    /// Under per-key tracking every key we read is tracked by definition, so nothing is refused for being
+    /// <see cref="CacheTrackingMode.Default"/> means tracking, unless prefixes are given - which only mean
+    /// anything under broadcast, so giving them selects it rather than failing.
+    /// </summary>
+    [Fact]
+    public void DefaultModeIsTrackingUnlessPrefixesAreGiven()
+    {
+        Assert.Equal(CacheTrackingMode.Tracking, new CacheOptions().ResolvedTrackingMode);
+        Assert.Equal(CacheTrackingMode.Broadcast, new CacheOptions { Prefixes = ["app:"] }.ResolvedTrackingMode);
+
+        // a named mode is never second-guessed
+        Assert.Equal(CacheTrackingMode.Broadcast, new CacheOptions { TrackingMode = CacheTrackingMode.Broadcast }.ResolvedTrackingMode);
+        Assert.Equal(CacheTrackingMode.Tracking, new CacheOptions { TrackingMode = CacheTrackingMode.Tracking }.ResolvedTrackingMode);
+
+        // and prefixes with Default build a cache without complaint
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:"] });
+    }
+
+    /// <summary>
+    /// Under tracking mode every key we read is tracked by definition, so nothing is refused for being
     /// outside a set.
     /// </summary>
     [Fact]
-    public void PerKeyTrackingCachesAnyKey()
+    public void TrackingModeCachesAnyKey()
     {
-        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.PerKey });
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.Tracking });
 
         var frame = Get("anything at all");
         Assert.True(cache.TryBeginFill(ref frame, 0, out var fill));

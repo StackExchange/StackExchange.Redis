@@ -104,8 +104,8 @@ Controlling it
 | option | default | what it does |
 |---|---|---|
 | `Enabled` | `true` | Whether the cache exists. Setting `ClientCache` at all is what turns caching on; this lets you keep the options and switch it off. |
-| `TrackingMode` | `Default` (= `Broadcast` today) | How the server decides which changes to announce - see below. |
-| `Prefixes` | none (all keys) | Which keys to track and cache, in `Broadcast` mode. |
+| `TrackingMode` | `Default` (= `Tracking` today, or `Broadcast` when `Prefixes` are set) | How the server decides which changes to announce - see below. |
+| `Prefixes` | none (all keys) | Which keys to track and cache, in `Broadcast` mode; setting any selects that mode. |
 | `MaxBytes` | unbounded | A memory budget for cached replies. Entries are evicted, roughly oldest first, to get back under it. |
 | `MaxEntries` | unbounded | A limit on the number of entries - use it alongside `MaxBytes` when replies are small and numerous. |
 | `MaxPayloadBytes` | 1 MiB | The largest single reply that may be cached. |
@@ -183,8 +183,10 @@ options.ClientCache = new CacheOptions
 
 ### Tracking modes and prefixes
 
-- **`Broadcast`** (the default): the server announces every change to every key matching your `Prefixes`, whoever made it, and keeps no record of what you read. Cheap for the server; the cost is on the client, which hears about keys it never cached. **Set `Prefixes` to the parts of the keyspace you actually want cached**: with none, this connection hears about every write to every key in the instance, which on a busy server is a lot of traffic. Keys outside the prefixes are simply not cached. Prefixes must not overlap one another (`"app:"` and `"app:user:"` together are rejected), and they are compared with the key as sent - so if you use `WithKeyPrefix`, include that prefix.
-- **`PerKey`**: the server remembers which keys this client read and announces only those. Precise, but the server holds a table per client, and evicts from it (announcing what it drops) under pressure. `Prefixes` cannot be combined with it.
+- **`Tracking`** (the default): the server remembers which keys this client read and announces only those. Precise - invalidation traffic scales with what this client holds, not with how busy the server is - but the server holds a table per client, and evicts from it (announcing what it drops) under pressure, which costs a refill here. `Prefixes` cannot be combined with it.
+- **`Broadcast`** (the default when `Prefixes` are set): the server announces every change to every key matching your `Prefixes`, whoever made it, and keeps no record of what you read. Cheap for the server; the cost is on the client, which hears about keys it never cached. **Set `Prefixes` to the parts of the keyspace you actually want cached**: with none, this connection hears about every write to every key in the instance, which on a busy server is a lot of traffic. Keys outside the prefixes are simply not cached. Prefixes must not overlap one another (`"app:"` and `"app:user:"` together are rejected), and they are compared with the key as sent - so if you use `WithKeyPrefix`, include that prefix.
+
+`CacheTrackingMode.Default` (the value you get by not setting it) means "the library's choice", resolved as above today; name a mode explicitly if you depend on it.
 
 ### Per call, and per context
 

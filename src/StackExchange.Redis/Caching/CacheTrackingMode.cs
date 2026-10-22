@@ -15,27 +15,28 @@ namespace StackExchange.Redis.Caching
     /// <para>
     /// An enum rather than a <c>bool Broadcast</c> because the server has two further modes -
     /// <c>OPTIN</c> and <c>OPTOUT</c> - and a boolean cannot grow to hold them. Whether they will ever be
-    /// offered here is genuinely open; see <see cref="PerKey"/>.
+    /// offered here is genuinely open; see <see cref="Tracking"/>.
     /// </para>
     /// </remarks>
     public enum CacheTrackingMode
     {
         /// <summary>
-        /// Let the library choose; today that is <see cref="Broadcast"/>.
+        /// Let the library choose; today that is <see cref="Tracking"/>, or <see cref="Broadcast"/> when
+        /// <see cref="CacheOptions.Prefixes"/> are given, since prefixes only mean anything there.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// <b>Zero means "no opinion", not "broadcast".</b> Which of the two modes is cheaper depends on
+        /// <b>Zero means "no opinion", not a mode.</b> Which of the two modes is cheaper depends on
         /// whose resource is scarce - the remarks on this type say the library cannot know that - and
         /// wiring a real mode to zero says the opposite: that an unset value is a considered choice. It
         /// also makes the two indistinguishable, so the library can never tell a caller who asked for
-        /// broadcasting from one who never thought about it, and can never change its mind without
-        /// silently overriding the first.
+        /// a mode from one who never thought about it, and can never change its mind without silently
+        /// overriding the first.
         /// </para>
         /// <para>
         /// So the answer this resolves to may move - if server or client heuristics make one clearly
-        /// better, or if it starts depending on what else is configured. Name the mode explicitly if you
-        /// need it pinned.
+        /// better, or if it starts depending on more of what else is configured. Name the mode explicitly
+        /// if you need it pinned.
         /// </para>
         /// </remarks>
         Default = 0,
@@ -46,10 +47,11 @@ namespace StackExchange.Redis.Caching
         /// </summary>
         /// <remarks>
         /// <para>
-        /// What <see cref="Default"/> resolves to today, because the cost lands on the side that can see
-        /// it. The server keeps no per-client
-        /// key table at all, so it cannot run out of room for one; what we pay instead is being told about
-        /// keys we never asked for, which <see cref="CacheOptions.Prefixes"/> exists to bound.
+        /// What <see cref="Default"/> resolves to when <see cref="CacheOptions.Prefixes"/> are given, and
+        /// otherwise a choice to make by name. The server keeps no per-client key table at all, so it
+        /// cannot run out of room for one; what we pay instead is being told about every key anyone
+        /// changes, whether or not we hold it, which <see cref="CacheOptions.Prefixes"/> exists to bound.
+        /// Without prefixes on a busy server that is a lot of pushes, nearly all of them misses here.
         /// </para>
         /// <para>
         /// The consequence that reaches the cache: a key outside the prefixes is never announced, so it is
@@ -64,10 +66,13 @@ namespace StackExchange.Redis.Caching
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Precise - no key we did not ask about is ever mentioned - and <see cref="CacheOptions.Prefixes"/>
-        /// is meaningless here, because there is nothing to filter. The cost moves to the server, which must
-        /// hold a table of keys per client and evicts from it under pressure
-        /// (<c>tracking-table-max-keys</c>), announcing what it drops.
+        /// What <see cref="Default"/> resolves to today, unless <see cref="CacheOptions.Prefixes"/> are
+        /// given. Precise - no key we did not ask about is ever mentioned, so the invalidation traffic is
+        /// proportional to what this client holds rather than to what the server does - and
+        /// <see cref="CacheOptions.Prefixes"/> is meaningless here, because there is nothing to filter.
+        /// The cost moves to the server, which must hold a table of keys per client and evicts from it
+        /// under pressure (<c>tracking-table-max-keys</c>), announcing what it drops; an eviction there
+        /// costs us a refill, never a stale read.
         /// </para>
         /// <para>
         /// <b>Two hazards specific to this mode.</b> The server stops tracking a key once it has told us
@@ -80,6 +85,6 @@ namespace StackExchange.Redis.Caching
         /// they are absent from this enum rather than present and throwing.
         /// </para>
         /// </remarks>
-        PerKey = 2,
+        Tracking = 2,
     }
 }

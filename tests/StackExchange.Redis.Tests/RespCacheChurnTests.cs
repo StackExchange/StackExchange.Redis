@@ -56,7 +56,7 @@ public class RespCacheChurnTests(ITestOutputHelper output) : TestBase(output)
 
     /// <param name="shape">
     /// Which <see cref="CacheOptions"/> to use. "scoped" declares a prefix, as the suite's other cache
-    /// tests do; "unscoped" declares none, so under BCAST the server announces every key anyone writes;
+    /// tests do, so it negotiates BCAST with a PREFIX; "unscoped" declares none, so it negotiates plain tracking;
     /// "benchmark" is exactly what the RespFest entry configures. Whichever of these behaves differently
     /// is the finding.
     /// </param>

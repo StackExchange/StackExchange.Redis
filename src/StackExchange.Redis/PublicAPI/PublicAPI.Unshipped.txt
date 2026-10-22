@@ -72,7 +72,7 @@ StackExchange.Redis.Caching.CachePolicy.TimeToLive.init -> void
 StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Broadcast = 1 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Default = 0 -> StackExchange.Redis.Caching.CacheTrackingMode
-StackExchange.Redis.Caching.CacheTrackingMode.PerKey = 2 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.Tracking = 2 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlagsExtensions
 static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackExchange.Redis.CommandFlags flags, StackExchange.Redis.CommandFlags category) -> StackExchange.Redis.CommandFlags

@@ -40,10 +40,11 @@ namespace StackExchange.Redis.Caching
         /// <summary>How the server decides which keys to tell us about.</summary>
         /// <remarks>
         /// <see cref="CacheTrackingMode.Default"/> unless you say otherwise, which resolves to
-        /// <see cref="CacheTrackingMode.Broadcast"/> today: it costs the server nothing to remember, and
-        /// what it costs us - hearing about keys we never asked for - is the part we can bound, with
-        /// <see cref="Prefixes"/>. Read <see cref="ResolvedTrackingMode"/> rather than this one when you
-        /// need the mode that will actually be negotiated.
+        /// <see cref="CacheTrackingMode.Tracking"/> today: the server announces only what this client
+        /// read, so the invalidation traffic scales with what we hold rather than with what the server
+        /// does. Giving <see cref="Prefixes"/> resolves it to <see cref="CacheTrackingMode.Broadcast"/>
+        /// instead, since prefixes only mean anything there. Read <see cref="ResolvedTrackingMode"/>
+        /// rather than this one when you need the mode that will actually be negotiated.
         /// </remarks>
         public CacheTrackingMode TrackingMode { get; init; }
 
@@ -53,12 +54,16 @@ namespace StackExchange.Redis.Caching
         /// </summary>
         /// <remarks>
         /// <b>The one place the choice is made.</b> Every consumer reads this rather than comparing against
-        /// <see cref="CacheTrackingMode.Broadcast"/> itself, so changing what "no opinion" means is an edit
-        /// here and nowhere else - and so that no caller can accidentally treat an unset mode as a third
-        /// behaviour.
+        /// a mode itself, so changing what "no opinion" means is an edit here and nowhere else - and so that
+        /// no caller can accidentally treat an unset mode as a third behaviour. Today: <see cref="Prefixes"/>
+        /// mean broadcast, because <c>PREFIX</c> is only accepted with <c>BCAST</c>; otherwise tracking.
         /// </remarks>
-        internal CacheTrackingMode ResolvedTrackingMode =>
-            TrackingMode == CacheTrackingMode.Default ? CacheTrackingMode.Broadcast : TrackingMode;
+        internal CacheTrackingMode ResolvedTrackingMode => TrackingMode switch
+        {
+            CacheTrackingMode.Default when HasPrefixes => CacheTrackingMode.Broadcast,
+            CacheTrackingMode.Default => CacheTrackingMode.Tracking,
+            var explicitMode => explicitMode,
+        };
 
         /// <summary>How entries behave, unless a caller says otherwise.</summary>
         public CachePolicy DefaultPolicy { get; init; } = CachePolicy.Default;
@@ -239,15 +244,19 @@ namespace StackExchange.Redis.Caching
         /// the cost of only caching what is in scope.
         /// </para>
         /// <para>
-        /// Empty - the default - means <c>BCAST</c> with no prefix: every key is tracked, so every key is
-        /// cacheable. An empty or null entry is not a way to spell that; it is rejected, because
-        /// <c>""</c> matches everything and would silently turn a narrow list into a total one.
+        /// Empty - the default - means no filter: every key is cacheable. Under
+        /// <see cref="CacheTrackingMode.Broadcast"/> that is <c>BCAST</c> with no prefix, and the server
+        /// announces every key anyone changes. An empty or null entry is not a way to spell that; it is
+        /// rejected, because <c>""</c> matches everything and would silently turn a narrow list into a
+        /// total one.
         /// </para>
         /// <para>
         /// <b>Broadcast only.</b> <c>PREFIX</c> is meaningless under
-        /// <see cref="CacheTrackingMode.PerKey"/> - the server announces what we read, so there is nothing
-        /// to filter - and <c>CLIENT TRACKING</c> rejects the combination outright. Setting both is an
-        /// error, raised when the cache is built rather than at the handshake.
+        /// <see cref="CacheTrackingMode.Tracking"/> - the server announces what we read, so there is nothing
+        /// to filter - and <c>CLIENT TRACKING</c> rejects the combination outright. So giving prefixes with
+        /// <see cref="TrackingMode"/> left at <see cref="CacheTrackingMode.Default"/> selects broadcast; giving
+        /// them with <see cref="CacheTrackingMode.Tracking"/> named is an error, raised when the cache is built
+        /// rather than at the handshake.
         /// </para>
         /// </remarks>
         public IReadOnlyList<string> Prefixes
@@ -266,7 +275,7 @@ namespace StackExchange.Redis.Caching
         /// <summary>Whether <see cref="Prefixes"/> restricts what may be cached.</summary>
         /// <remarks>
         /// Only ever true in <see cref="CacheTrackingMode.Broadcast"/>: under
-        /// <see cref="CacheTrackingMode.PerKey"/> the server announces exactly what we read, so there is no
+        /// <see cref="CacheTrackingMode.Tracking"/> the server announces exactly what we read, so there is no
         /// such thing as an untracked key and nothing for the gate to refuse.
         /// </remarks>
         internal bool HasPrefixes => _prefixBytes.Length != 0;
