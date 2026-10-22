@@ -63,12 +63,7 @@ public class HelloClusterModeUnitTests(ITestOutputHelper log)
 
         // the restored connection triggers a fire-and-forget reconfigure (and so can a server-type change);
         // ReconfigureAsync declines while one is in flight, so insist on one that actually ran
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (!await conn.ReconfigureAsync("after subscription reconnect"))
-        {
-            if (DateTime.UtcNow > deadline) throw new TimeoutException("Timed out waiting for a reconfigure to run");
-            await Task.Delay(50);
-        }
+        await Poll.ReconfigureAsync(conn, "after subscription reconnect");
 
         try
         {

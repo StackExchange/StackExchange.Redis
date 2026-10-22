@@ -37,4 +37,24 @@ internal static class Poll
 
         return false;
     }
+
+    /// <summary>
+    /// Runs a reconfigure that is guaranteed to have actually executed, rather than been declined.
+    /// </summary>
+    /// <remarks>
+    /// A freshly connected multiplexer fires its own fire-and-forget reconfigures (connection-restored for each
+    /// physical connection, autoconfigure field changes), and <see cref="ConnectionMultiplexer.ReconfigureAsync(string)"/>
+    /// returns <c>false</c> while one is in flight. A test that asserts on that return value races those, and
+    /// loses on a slow runner; this keeps asking until a pass runs under the caller's cause.
+    /// </remarks>
+    public static async Task ReconfigureAsync(ConnectionMultiplexer conn, string cause, int timeoutMilliseconds = 10000, int pollMilliseconds = 50)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        for (int i = 0; i <= timeoutMilliseconds / pollMilliseconds; i++)
+        {
+            if (await conn.ReconfigureAsync(cause).ConfigureAwait(false)) return;
+            await Task.Delay(pollMilliseconds, cancellationToken).ConfigureAwait(false);
+        }
+        throw new TimeoutException("Timed out waiting for a reconfigure to run: " + cause);
+    }
 }
