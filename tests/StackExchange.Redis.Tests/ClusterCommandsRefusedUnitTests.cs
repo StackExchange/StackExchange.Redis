@@ -24,6 +24,9 @@ public class ClusterCommandsRefusedUnitTests(ITestOutputHelper log)
 
         protected override TypedRedisValue ClusterNodes(RedisClient client, in RedisRequest request)
             => refuseNodes ? TypedRedisValue.Error("ERR command is not allowed") : base.ClusterNodes(client, request);
+
+        // a proxy that hides the shards accepts cross-slot commands itself
+        public override bool CheckCrossSlot => false;
     }
 
     [Fact]
@@ -71,5 +74,11 @@ public class ClusterCommandsRefusedUnitTests(ITestOutputHelper log)
         // ...and a later explicit reconfigure stays quiet too
         Assert.True(await conn.ReconfigureAsync("test"));
         Assert.Empty(logger.Matching("Encountered error while updating cluster config"));
+
+        // with no slot map there is nothing to route by, so we must not *route* as a cluster - in particular,
+        // cross-slot commands go to the proxy rather than being refused client-side (#3284)
+        Assert.NotEmpty(logger.Matching("no slot map is available; routing as standalone"));
+        Assert.Equal(ServerType.Standalone, conn.ServerSelectionStrategy.ServerType);
+        await conn.GetDatabase().StringGetAsync(["a", "b"]);
     }
 }

@@ -322,6 +322,18 @@ namespace StackExchange.Redis
             return false;
         }
 
+        /// <summary>
+        /// Whether no slot has an owner, i.e. we hold no cluster topology to route by.
+        /// </summary>
+        /// <remarks>
+        /// Derived from the map rather than tracked separately, which is sound because the map is allocated only by
+        /// <see cref="MapForMutation"/>, immediately before a write; the writers never store <c>null</c> and refuse
+        /// empty ranges (see <see cref="UpdateClusterRange(int, int, ServerEndPoint)"/>); and nothing ever clears an entry -
+        /// retirement declines to drop a server the map still references (<see cref="OwnsAnySlot"/>). So a non-null
+        /// map always covers at least one slot. O(1); <see cref="CountCoveredSlots"/> is the scan, for logging.
+        /// </remarks>
+        internal bool IsSlotMapEmpty => map is null;
+
         internal int CountCoveredSlots()
         {
             var arr = map;
@@ -334,6 +346,11 @@ namespace StackExchange.Redis
 
         internal void UpdateClusterRange(int fromInclusive, int toInclusive, ServerEndPoint server)
         {
+            // never allocate without writing (see IsSlotMapEmpty): SlotRange does not validate ordering, and the
+            // reply-driven paths build ranges straight from what the server sent - an inverted or out-of-range
+            // range is garbage, so ignore it rather than guess at what was meant (or index out of bounds)
+            if (fromInclusive < 0 || toInclusive >= RedisClusterSlotCount || fromInclusive > toInclusive) return;
+
             var arr = MapForMutation();
             for (int i = fromInclusive; i <= toInclusive; i++)
             {

@@ -78,5 +78,16 @@ namespace StackExchange.Redis
             ServerType.Envoyproxy => false,
             _ => true,
         };
+
+        /// <summary>
+        /// Whether a server of this type can be sent commands when the multiplexer is routing as <paramref name="routing"/>.
+        /// </summary>
+        /// <remarks>
+        /// Usually the types match, and the check keeps data traffic away from sentinels; but a server that calls itself
+        /// a cluster while giving us no slot map is routed as a single standalone server (see #3284), so it must remain a
+        /// target in that mode.
+        /// </remarks>
+        internal static bool IsRoutableAs(this ServerType server, ServerType routing)
+            => server == routing || (routing == ServerType.Standalone && server == ServerType.Cluster);
     }
 }
