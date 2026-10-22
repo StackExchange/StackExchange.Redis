@@ -1518,7 +1518,7 @@ namespace StackExchange.Redis
             for (int i = 0; i < len; i++)
             {
                 var server = tmp[(int)(((uint)i + startOffset) % len)];
-                if (server != null && server.ServerType == serverType && server.IsSelectable(command, allowDisconnected))
+                if (server != null && server.ServerType.IsRoutableAs(serverType) && server.IsSelectable(command, allowDisconnected))
                 {
                     if (server.IsReplica)
                     {
@@ -2046,7 +2046,19 @@ namespace StackExchange.Redis
                         }
                     }
 
-                    if (clusterCount == 0)
+                    // A server *saying* it is a cluster is not enough to route as one: that needs a slot map, and
+                    // proxied deployments can announce "cluster" while refusing every CLUSTER subcommand (AMR with
+                    // the Enterprise clustering policy, #3284). With no map there is nothing to route by and the
+                    // only thing cluster mode would add is rejecting cross-slot commands client-side, which the
+                    // proxy would have accepted. The map is never cleared once populated, so an established
+                    // cluster whose refresh is refused (#3275) keeps routing as one.
+                    long coveredSlots = clusterCount > 0 ? ServerSelectionStrategy.CountCoveredSlots() : 0;
+                    if (clusterCount > 0 && coveredSlots == 0)
+                    {
+                        log?.LogInformationClusterWithoutSlotMap(clusterCount);
+                    }
+
+                    if (clusterCount == 0 || coveredSlots == 0)
                     {
                         // Set the serverSelectionStrategy
                         if (RawConfig.Proxy == Proxy.Twemproxy)
@@ -2068,7 +2080,7 @@ namespace StackExchange.Redis
                                 InitializeSentinel(log);
                             }
                         }
-                        else if (standaloneCount > 0)
+                        else if (standaloneCount > 0 || clusterCount > 0)
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
@@ -2097,8 +2109,14 @@ namespace StackExchange.Redis
                     else
                     {
                         ServerSelectionStrategy.ServerType = ServerType.Cluster;
-                        long coveredSlots = ServerSelectionStrategy.CountCoveredSlots();
                         log?.LogInformationClusterSlotsCovered(coveredSlots, ServerSelectionStrategy.TotalSlots);
+
+                        // a cluster has many primaries by design; if we routed as standalone before the map
+                        // arrived, the nomination above may have marked all but one of them redundant
+                        foreach (var primary in primaries)
+                        {
+                            primary.ClearUnselectable(UnselectableFlags.RedundantPrimary);
+                        }
                     }
                     if (!first)
                     {

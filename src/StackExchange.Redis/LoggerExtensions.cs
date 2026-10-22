@@ -282,6 +282,12 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        EventId = 133,
+        Message = "{ClusterCount} server(s) identify as a cluster but no slot map is available; routing as standalone")]
+    internal static partial void LogInformationClusterWithoutSlotMap(this ILogger logger, int clusterCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         EventId = 35,
         Message = "No subscription changes necessary")]
     internal static partial void LogInformationNoSubscriptionChanges(this ILogger logger);

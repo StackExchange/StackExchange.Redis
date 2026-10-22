@@ -1157,6 +1157,11 @@ namespace StackExchange.Redis
                     // version ("server" => "valkey", "version" => "9.1.2", while INFO still says redis_version:7.2.4),
                     // so we can only decide what to do with "version" once the whole map has been read (#3278).
                     bool serverIsRedis = true; // absent means redis (older servers)
+                    // "mode" and "role" describe the *server*, and only the interactive connection does discovery:
+                    // the subscription connection's handshake is HELLO alone, with no INFO to follow, so a proxy
+                    // whose HELLO disagrees with its INFO (AMR says "cluster" to one and "standalone" to the other,
+                    // #3284) would otherwise have the last word every time pub/sub reconnects on its own
+                    bool helloFromInteractive = connection.BridgeCouldBeNull?.ConnectionType == ConnectionType.Interactive;
                     ProductVariant? helloVariant = null, vendorVariant = null;
                     string? vendorVersion = null;
                     // a snapshot of the "version" value (IsScalar when present), so we can read it as a Version or a
@@ -1226,15 +1231,17 @@ namespace StackExchange.Redis
                                 // note: "mode" and "role" describe a *server*, so we only trust them when we're
                                 // talking to one directly; a proxy may answer HELLO from an arbitrary backend node
                                 // (envoy 1.39 does), and taking that at face value would flip us into cluster mode
-                                // or mark the proxy as a replica
+                                // or mark the proxy as a replica - and only from the interactive connection (above)
                                 case HelloField.Mode
-                                    when server.ServerType.SupportsAutoConfigure()
+                                    when helloFromInteractive
+                                        && server.ServerType.SupportsAutoConfigure()
                                         && iter.Value.TryParseScalar(&ServerTypeMetadata.TryParse, out ServerType serverType):
                                     server.ServerType = serverType;
                                     Log?.LogInformationAutoConfiguredHelloServerType(new(server), serverType);
                                     break;
                                 case HelloField.Role
-                                    when server.ServerType.SupportsAutoConfigure()
+                                    when helloFromInteractive
+                                        && server.ServerType.SupportsAutoConfigure()
                                         && iter.Value.TryParseScalar(&KnownRoleMetadata.TryParse, out bool isReplica):
                                     server.IsReplica = isReplica;
                                     server.RoleKnownFromHello = true; // so we don't need the key-based fallback probe

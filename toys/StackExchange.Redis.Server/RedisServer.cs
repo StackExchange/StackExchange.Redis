@@ -675,7 +675,7 @@ namespace StackExchange.Redis.Server
             span[index++] = TypedRedisValue.BulkString("id");
             span[index++] = TypedRedisValue.Integer(client.Id);
             span[index++] = TypedRedisValue.BulkString("mode");
-            span[index++] = TypedRedisValue.BulkString(ServerModeValue);
+            span[index++] = TypedRedisValue.BulkString(HelloModeValue);
             span[index++] = TypedRedisValue.BulkString("role");
             span[index++] = TypedRedisValue.BulkString(GetPrimaryOf(client?.Node) is null ? "master" : "replica");
             span[index++] = TypedRedisValue.BulkString("modules");
@@ -698,6 +698,12 @@ namespace StackExchange.Redis.Server
         /// Additional fields reported by <c>HELLO</c> (Garnet adds <c>garnet_version</c>, for example).
         /// </summary>
         protected virtual IReadOnlyList<KeyValuePair<string, string>> HelloExtraFields => [];
+
+        /// <summary>
+        /// The <c>mode</c> reported by <c>HELLO</c>; by default the same as <c>INFO</c>'s <c>redis_mode</c>, but a
+        /// proxy can disagree with itself (see #3284), so tests can override this independently.
+        /// </summary>
+        protected virtual string HelloModeValue => ServerModeValue;
 
         [RedisCommand(-3)]
         protected virtual TypedRedisValue Sadd(RedisClient client, in RedisRequest request)
