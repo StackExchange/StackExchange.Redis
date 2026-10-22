@@ -193,17 +193,18 @@ namespace StackExchange.Redis
             }
 
             // Anything else goes in the bin - we're just not ready for you yet
-            message.Cancel();
-            Multiplexer.OnMessageFaulted(message, null);
-            message.Complete(null);
-            return WriteResult.NoConnectionAvailable;
+            return FailDueToNoConnection(message);
         }
 
         private WriteResult FailDueToNoConnection(Message message)
         {
-            message.Cancel();
-            Multiplexer.OnMessageFaulted(message, null);
-            message.Complete(null);
+            // fail with the exception the caller would otherwise construct from the result, rather than Cancel():
+            // a cancelled box surfaces as TaskCanceledException, and although ExecuteAsyncImpl then tries to
+            // fault the task with the real exception, the box's continuation can get there first (#3283) - and a
+            // batch has no caller translating the result at all
+            var ex = ExceptionFactory.NoConnectionAvailable(Multiplexer, message, ServerEndPoint);
+            Multiplexer.OnMessageFaulted(message, ex);
+            message.SetExceptionAndComplete(ex, null);
             return WriteResult.NoConnectionAvailable;
         }
 
@@ -1368,9 +1369,10 @@ namespace StackExchange.Redis
 
         private WriteResult TimedOutBeforeWrite(Message message)
         {
-            message.Cancel();
-            Multiplexer.OnMessageFaulted(message, null);
-            message.Complete(null);
+            // as FailDueToNoConnection: a real exception, not Cancel()
+            var ex = ExceptionFactory.Timeout(Multiplexer, null, message, ServerEndPoint, WriteResult.TimeoutBeforeWrite, this);
+            Multiplexer.OnMessageFaulted(message, ex);
+            message.SetExceptionAndComplete(ex, null);
             return WriteResult.TimeoutBeforeWrite;
         }
 
