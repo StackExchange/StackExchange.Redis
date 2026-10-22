@@ -1272,6 +1272,75 @@ public class RespClientCacheTests
         Assert.Equal(0, cache.RefusedNotTracked);
     }
 
+    /// <summary>
+    /// A caller's invalidation through the public view drops the entry at once, as a write from this process
+    /// would - the grace period does not soften it - and the view's counters are the cache's.
+    /// </summary>
+    [Fact]
+    public void ExplicitInvalidationActsLikeALocalWrite()
+    {
+        using var cache = new RespClientCache(new CacheOptions
+        {
+            Admission = CacheAdmission.OnFirstMiss,
+            DefaultPolicy = new CachePolicy { InvalidationGracePeriod = TimeSpan.FromSeconds(10) },
+        });
+        var view = cache.View;
+
+        Fill(cache, "k", "$1\r\nx\r\n");
+        Assert.True(TryRead(cache, "k", out _));
+        Assert.Equal(1, view.Count);
+        Assert.Equal(1, view.Stored);
+        Assert.Equal(cache.Bytes, view.Bytes);
+
+        Assert.True(view.Invalidate((RedisKey)"k"));
+        Assert.False(TryRead(cache, "k", out _), "a caller's invalidation is not softened by the grace period");
+        Assert.Equal(0, view.ServedStale);
+
+        Assert.False(view.Invalidate((RedisKey)"nothing-here"), "nothing depended on it");
+        Assert.False(view.Invalidate(default(RedisKey)));
+    }
+
+    /// <summary>A prefixed key is rendered as the server would see it, and a raw span works as is.</summary>
+    [Fact]
+    public void ExplicitInvalidationRendersTheKey()
+    {
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
+        Fill(cache, "app:k", "$1\r\nx\r\n");
+        Fill(cache, "app:j", "$1\r\nx\r\n");
+
+        Assert.True(cache.View.Invalidate(((RedisKey)"k").Prepend("app:")));
+        Assert.False(TryRead(cache, "app:k", out _));
+        Assert.True(TryRead(cache, "app:j", out _));
+
+        Assert.True(cache.View.Invalidate(Utf8("app:j")));
+        Assert.False(TryRead(cache, "app:j", out _));
+    }
+
+    /// <summary>
+    /// A caller's invalidation reaches every peer, as a local write does: the caller does not know which
+    /// member of a group is active, and must not have to.
+    /// </summary>
+    [Fact]
+    public void ExplicitInvalidationReachesPeers()
+    {
+        using var a = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
+        using var b = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
+        a.SetPeers([b]);
+        b.SetPeers([a]);
+
+        Fill(a, "k", "$1\r\nx\r\n");
+        Fill(b, "k", "$1\r\nx\r\n");
+        Fill(b, "j", "$1\r\nx\r\n");
+
+        a.View.Invalidate((RedisKey)"k");
+        Assert.False(TryRead(a, "k", out _));
+        Assert.False(TryRead(b, "k", out _), "the peer should have been stamped too");
+        Assert.True(TryRead(b, "j", out _), "only the named key");
+
+        a.View.InvalidateAll();
+        Assert.False(TryRead(b, "j", out _), "a flush reaches the peers too");
+    }
+
     /// <summary>Fill a cache with <paramref name="count"/> distinct single-key entries.</summary>
     private static void Fill(RespClientCache cache, int count, string response = "$1\r\nx\r\n")
     {

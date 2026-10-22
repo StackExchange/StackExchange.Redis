@@ -73,6 +73,20 @@ StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Broadcast = 1 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Default = 0 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Tracking = 2 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.ClientCache
+StackExchange.Redis.Caching.ClientCache.Bytes.get -> long
+StackExchange.Redis.Caching.ClientCache.Count.get -> int
+StackExchange.Redis.Caching.ClientCache.Evicted.get -> long
+StackExchange.Redis.Caching.ClientCache.Expired.get -> long
+StackExchange.Redis.Caching.ClientCache.Invalidate(StackExchange.Redis.RedisKey key) -> bool
+StackExchange.Redis.Caching.ClientCache.Invalidate(System.ReadOnlySpan<byte> key) -> bool
+StackExchange.Redis.Caching.ClientCache.InvalidateAll() -> void
+StackExchange.Redis.Caching.ClientCache.Options.get -> StackExchange.Redis.Caching.CacheOptions!
+StackExchange.Redis.Caching.ClientCache.Promoted.get -> long
+StackExchange.Redis.Caching.ClientCache.Refreshes.get -> long
+StackExchange.Redis.Caching.ClientCache.ServedStale.get -> long
+StackExchange.Redis.Caching.ClientCache.Stored.get -> long
+StackExchange.Redis.Caching.ClientCache.TrackedKeys.get -> int
 StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlagsExtensions
 static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackExchange.Redis.CommandFlags flags, StackExchange.Redis.CommandFlags category) -> StackExchange.Redis.CommandFlags
@@ -404,6 +418,7 @@ StackExchange.Redis.RespConfig
 StackExchange.Redis.RespConfig.RespConfig() -> void
 StackExchange.Redis.RespConfig.RespConfig(StackExchange.Redis.RespContext! context) -> void
 StackExchange.Redis.RespConnectionExtensions
+static StackExchange.Redis.RespConnectionExtensions.GetClientCache(this StackExchange.Redis.IConnectionMultiplexer! multiplexer) -> StackExchange.Redis.Caching.ClientCache?
 static StackExchange.Redis.RespConnectionExtensions.GetDatabaseContext(this StackExchange.Redis.IConnectionMultiplexer! multiplexer, int db = -1, object? asyncState = null) -> StackExchange.Redis.RespDatabaseContext
 static StackExchange.Redis.RespConnectionExtensions.GetServerContext(this StackExchange.Redis.IConnectionMultiplexer! multiplexer, System.Net.EndPoint! endpoint, object? asyncState = null) -> StackExchange.Redis.RespServerContext
 static StackExchange.Redis.RespConnectionExtensions.GetServerContext(this StackExchange.Redis.IConnectionMultiplexer! multiplexer, string! host, int port, object? asyncState = null) -> StackExchange.Redis.RespServerContext

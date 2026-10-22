@@ -174,6 +174,36 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
             "the per-key invalidation never arrived");
     }
 
+    /// <summary>
+    /// The public view reaches the connection's cache, and an invalidation through it makes the next read a
+    /// server read; without a cache configured there is nothing to reach.
+    /// </summary>
+    [Fact]
+    public async Task GetClientCacheReachesTheConnectionsCache()
+    {
+        var (server, muxer, cache) = await ConnectAsync();
+        using var _ = server;
+        await using var __ = muxer;
+
+        var view = muxer.GetClientCache();
+        Assert.NotNull(view);
+        Assert.Same(view, muxer.GetClientCache());
+
+        var db = muxer.GetDatabase();
+        await db.StringSetAsync("k", "v1");
+        await PrimeAsync(db, cache, "k", "v1");
+        Assert.Equal(cache.Count, view.Count);
+        Assert.Equal(cache.Stored, view.Stored);
+
+        var stored = cache.Stored;
+        Assert.True(view.Invalidate((RedisKey)"k"));
+        Assert.Equal("v1", await db.Strings.GetAsync("k")); // the entry was dropped, so this went to the server...
+        Assert.True(cache.Stored > stored, "...and was stored again");
+
+        await using var plain = await ConnectionMultiplexer.ConnectAsync(server.GetClientConfig());
+        Assert.Null(plain.GetClientCache());
+    }
+
     /// <summary>A flush is the invalidation no prefix can filter.</summary>
     [Fact]
     public async Task AFlushEmptiesEverything()

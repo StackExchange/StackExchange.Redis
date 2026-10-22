@@ -58,6 +58,7 @@ A is invalidated, validate B, serve). The read overlapped the write, so either a
 | Storage | `RespClientCache.Slabs.cs` | slabs of `MaxBytes/32`, ≤ 1 MiB |
 | Budget | `MaxBytes`, `MaxEntries`, `MaxPayloadBytes` | all unbounded |
 | Eviction | `EvictSlabsToBudget`, `TryEvictOne`, `Promote` | Clock: oldest slab with read entries carried forward; Clock queue |
+| Public view | `ClientCache` via `GetClientCache()` | counters; `Invalidate`/`InvalidateAll` act as local writes (peers stamped, no grace) |
 | Admission | `CacheAdmission`, `CacheDoorkeeper` | `OnRepeatedMiss` |
 | Ageing | `CachePolicy`, `WithMaxCacheAge`, `CacheClock` | TTL 1 min; no early refresh; no grace |
 | Stampedes | `InFlight`, `TryAwaitInFlight`, refresh claim | on |

@@ -194,6 +194,20 @@ Under `MaxBytes`, replies are stored in large slabs in the order they arrive and
 
 `CacheTrackingMode.Default` (the value you get by not setting it) means "the library's choice", resolved as above today; name a mode explicitly if you depend on it.
 
+### Invalidating by hand
+
+The server announces every change it sees, so you normally never touch the cache. For the change it cannot announce - a key whose expiry you know has passed (expiry is not announced), a module command that opted out of signalling, or a value you simply know is wrong - the cache can be told directly:
+
+```csharp
+var cache = multiplexer.GetClientCache();   // null when ClientCache was not configured
+cache?.Invalidate(key);                      // one key, as sent to the server (include any context prefix)
+cache?.InvalidateAll();                      // everything
+```
+
+These behave as a write from this process does: the entries are dropped at once, `InvalidationGracePeriod` does not apply, and on a connection group every member's cache is stamped. Nothing is sent to the server. `Invalidate` returns whether anything cached depended on the key.
+
+The same object carries the cache's counters - `Count`, `Bytes`, `Stored`, `Evicted`, `Promoted`, `Expired`, `Refreshes`, `ServedStale` - cumulative since the connection was made. There is no hit counter, because a hit deliberately records nothing; see [Is it working?](#is-it-working) for the measurement that cannot be fooled.
+
 ### Per call, and per context
 
 - **`CommandFlags.NoClientCache`** - this call neither reads from nor writes to the cache:
@@ -232,7 +246,7 @@ A cache hit completes its `ValueTask` synchronously. Do not use that as a test f
 Is it working?
 ---
 
-There are no public counters for the cache in this version. The reliable check is on the server, which cannot be fooled by the client:
+`multiplexer.GetClientCache()` exposes the cache's own counters (see [Invalidating by hand](#invalidating-by-hand)), which tell you what was stored and what was evicted but not how often a read was answered locally. The reliable check for that is on the server, which cannot be fooled by the client:
 
 - `CLIENT TRACKINGINFO` on the connection, or `CLIENT LIST` (look for `flags=t` on the interactive connections), confirms tracking is on;
 - comparing `total_commands_processed` from `INFO stats` before and after a read-heavy workload shows how many reads reached the server - an operation answered from the cache is one the server never sees. This is how this library's own tests measure hit rate;

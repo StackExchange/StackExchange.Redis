@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using StackExchange.Redis.Caching;
 
 namespace StackExchange.Redis
 {
@@ -47,6 +48,28 @@ namespace StackExchange.Redis
         {
             if (multiplexer is null) throw new ArgumentNullException(nameof(multiplexer));
             return multiplexer.GetDatabase(db, asyncState).Context;
+        }
+
+        /// <summary>
+        /// The client-side cache of this connection, or <see langword="null"/> if
+        /// <see cref="ConfigurationOptions.ClientCache"/> did not ask for one.
+        /// </summary>
+        /// <param name="multiplexer">The connection.</param>
+        /// <remarks>
+        /// <para>
+        /// Resolved through the default database's context - the same route as
+        /// <see cref="GetDatabaseContext"/>, for the same reasons - so on a connection group it is the active
+        /// member's cache. That is the right one to hold: an invalidation through it reaches every member, as a
+        /// write from this process does, and its counters are the member currently answering reads.
+        /// </para>
+        /// <para>
+        /// The same instance every time, for the life of the connection; there is nothing to dispose.
+        /// </para>
+        /// </remarks>
+        public static ClientCache? GetClientCache(this IConnectionMultiplexer multiplexer)
+        {
+            if (multiplexer is null) throw new ArgumentNullException(nameof(multiplexer));
+            return multiplexer.GetDatabase().Context.Raw.Cache?.View;
         }
 
         /// <summary>

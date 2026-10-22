@@ -110,10 +110,15 @@ namespace StackExchange.Redis.Caching
                 // times too short - else a modest default for an unbounded cache
                 _doorkeeper = new CacheDoorkeeper(Options.MaxEntries ?? (Options.MaxBytes is long bytes ? bytes / EntryOverheadBytes : 65_536));
             }
+
+            View = new ClientCache(this);
         }
 
         /// <summary>How this cache is built: the settled-once decisions.</summary>
         public CacheOptions Options { get; }
+
+        /// <summary>This cache as callers see it; one instance, created with the cache. See <see cref="ClientCache"/>.</summary>
+        internal ClientCache View { get; }
 
         /// <summary>How entries in this cache behave, unless a caller overrides it.</summary>
         public CachePolicy Policy => Options.DefaultPolicy;
@@ -403,8 +408,7 @@ namespace StackExchange.Redis.Caching
             {
                 // unreadable rather than merely unmarked; nothing left but the blunt instrument - here and on
                 // every peer, since the write lands on whichever member is active
-                OnFlush();
-                foreach (var peer in Volatile.Read(ref _peers)) peer.OnFlush();
+                OnLocalFlush();
                 return -1;
             }
 
@@ -425,6 +429,17 @@ namespace StackExchange.Redis.Caching
         /// lookup and the memory is reclaimed by <see cref="Sweep"/>.
         /// </remarks>
         public void OnFlush() => _keys.InvalidateAll();
+
+        /// <summary>
+        /// Invalidate everything here and on every peer: a flush <b>this process</b> asserts - an unreadable
+        /// write, or a caller's <see cref="ClientCache.InvalidateAll"/> - rather than one a server reported,
+        /// which concerns only that server's member.
+        /// </summary>
+        internal void OnLocalFlush()
+        {
+            OnFlush();
+            foreach (var peer in Volatile.Read(ref _peers)) peer.OnFlush();
+        }
 
         /// <summary>
         /// Look for a cached response. On success the payload is returned <b>retained</b> - release it when
