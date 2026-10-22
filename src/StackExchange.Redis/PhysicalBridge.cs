@@ -811,6 +811,17 @@ namespace StackExchange.Redis
             }
             foreach (var message in messages)
             {
+                if (NeedsReconnect || physical.IsWriteFaulted)
+                {
+                    // the connection went away part-way through the batch (typically an earlier message's write
+                    // faulted it); give the remainder the treatment a single command gets at the top of
+                    // TryWriteSync - backlog or fail, per policy - rather than writing to a dead connection (#3282).
+                    // Both flags matter: the reconnect flag is cleared as soon as a replacement connection starts
+                    // (TryConnect, on another thread), but the connection we are still holding stays poisoned
+                    QueueOrFailMessage(message);
+                    continue;
+                }
+
                 // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
@@ -1655,7 +1666,11 @@ namespace StackExchange.Redis
 
             if (connection.IsWriteFaulted)
             {
-                // never add to the response queue of a connection whose queue we no longer trust
+                // never add to the response queue of a connection whose queue we no longer trust - but, like every
+                // other refusal to write, complete the message *here*: a caller writing a list (a batch) does not
+                // act on the result, and a message that is neither queued nor completed is awaited forever (#3282)
+                message.Fail(ConnectionFailureType.SocketFailure, null, "an earlier write on this connection failed; this command was not written", Multiplexer);
+                message.Complete(connection);
                 return WriteResult.WriteFailure;
             }
 
