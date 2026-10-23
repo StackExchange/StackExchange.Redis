@@ -151,7 +151,7 @@ namespace StackExchange.Redis.Protocol
 
         /// <summary>
         /// As <see cref="TryGetKeys"/>, for a caller holding the buffer and marks rather than a frame -
-        /// which is how <see cref="RespRequest"/> answers the same question after <see cref="Detach"/>.
+        /// which is how <see cref="RespRequest"/> answers the same question after <see cref="Detach(CommandFlags)"/>.
         /// </summary>
         internal static int ResolveKeys(
             byte[] buffer,
@@ -309,7 +309,12 @@ namespace StackExchange.Redis.Protocol
         /// the frame, so a copy taken earlier still holds the array reference and must not be disposed.
         /// </para>
         /// </remarks>
-        public RespRequest Detach(CommandFlags flags = CommandFlags.None)
+        public RespRequest Detach(CommandFlags flags = CommandFlags.None) => Detach(flags, prefix: null);
+
+        /// <inheritdoc cref="Detach(CommandFlags)"/>
+        /// <param name="flags">The request's flags.</param>
+        /// <param name="prefix">A frame to write ahead of the request, or null; see <see cref="RespRequest.Prefix"/>.</param>
+        internal RespRequest Detach(CommandFlags flags, byte[]? prefix)
         {
             var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespRequestFrame));
             _buffer = null; // ownership moves to the lease
@@ -323,7 +328,8 @@ namespace StackExchange.Redis.Protocol
                 ArgCount,
                 flags,
                 Command,
-                Database);
+                Database,
+                prefix);
         }
 
         /// <summary>
@@ -333,17 +339,22 @@ namespace StackExchange.Redis.Protocol
         /// <remarks>
         /// <para>
         /// This is the zero-allocation path, and it is the common one: on a cache HIT the caller never wanted
-        /// the buffer, so paying for a lease to find that out is pure waste. <see cref="Detach"/> allocates a
+        /// the buffer, so paying for a lease to find that out is pure waste. <see cref="Detach(CommandFlags)"/> allocates a
         /// <see cref="RefCountedBuffer"/> - small, but one per lookup, which is exactly the kind of per-call
-        /// cost this whole design exists to remove. Measured: 48 bytes a lookup with <see cref="Detach"/>,
+        /// cost this whole design exists to remove. Measured: 48 bytes a lookup with <see cref="Detach(CommandFlags)"/>,
         /// zero with this.
         /// </para>
         /// <para>
-        /// The returned key cannot be retained and so cannot be stored; call <see cref="Detach"/> on a miss,
+        /// The returned key cannot be retained and so cannot be stored; call <see cref="Detach(CommandFlags)"/> on a miss,
         /// when ownership is actually wanted.
         /// </para>
         /// </remarks>
-        public RespRequest AsLookupKey(CommandFlags flags = CommandFlags.None)
+        public RespRequest AsLookupKey(CommandFlags flags = CommandFlags.None) => AsLookupKey(flags, prefix: null);
+
+        /// <inheritdoc cref="AsLookupKey(CommandFlags)"/>
+        /// <param name="flags">The request's flags.</param>
+        /// <param name="prefix">A frame to write ahead of the request, or null; see <see cref="RespRequest.Prefix"/>.</param>
+        internal RespRequest AsLookupKey(CommandFlags flags, byte[]? prefix)
         {
             var buffer = _buffer ?? throw new ObjectDisposedException(nameof(RespRequestFrame));
             return new RespRequest(
@@ -356,7 +367,8 @@ namespace StackExchange.Redis.Protocol
                 ArgCount,
                 flags,
                 Command,
-                Database);
+                Database,
+                prefix);
         }
 
         /// <summary>Return the underlying buffer to the pool; safe to call more than once.</summary>

@@ -1986,6 +1986,13 @@ a server-side opt-out buys is invalidation-table memory — which under `BCAST` 
 `CLIENT CACHING yes` pipelined immediately ahead of each command, with two traps — it applies to **all**
 commands in a following `MULTI`, and to **all** commands executed by a following Lua script.
 
+> **Revisited 2026-10-23.** We went per-key by default (see `client-side-cache.md` §6) and then did exactly this:
+> `CacheTrackingMode.Tracking` negotiates `OPTOUT`, `TrackingOptIn` negotiates `OPTIN`, and the per-command field
+> is two bits (`CacheOptIn`, `CacheOptOut`, both reserved). The "pipelined immediately ahead" requirement is met
+> by a per-request prefix frame written under the connection's write lock with a discard sink for its reply, not
+> by a separate send. The `MULTI` trap became a feature: `NO` ahead of a transaction that reads. The Lua trap is
+> moot for `YES` (scripts are not opted in) and accepted for `NO` (a `CacheOptOut` `EVAL_RO` is opted out whole).
+
 **Invalidate locally on every write. Do not enable `NOLOOP`.** Two separate decisions that look like one.
 
 Local invalidation of the keys a write touches is a strict improvement, independent of `NOLOOP`:

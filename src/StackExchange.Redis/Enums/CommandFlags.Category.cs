@@ -77,11 +77,14 @@ public static class CommandFlagsExtensions
     /// (design notes 6.13).
     /// </para>
     /// <para>
-    /// It uses the same bit as the caller-facing <see cref="CommandFlags.NoClientCache"/> deliberately: the
-    /// effect is identical, and a caller cannot unset what the command surface has already or-ed in.
+    /// Locally it is <see cref="CommandFlags.CacheOptOut"/> - the cache is neither consulted nor filled, and a
+    /// caller cannot unset what the command surface has already or-ed in. It is a separate, internal bit
+    /// because <see cref="CommandFlags.CacheOptOut"/> also has a wire half (<c>CLIENT CACHING NO</c> ahead of
+    /// the command, under <see cref="Caching.CacheTrackingMode.Tracking"/>), and these commands do not want
+    /// it: an extra frame in front of every <c>HPTTL</c> costs more than the tracking entry it would save.
     /// </para>
     /// </remarks>
-    internal static CommandFlags NeverCached(this CommandFlags flags) => flags | CommandFlags.NoClientCache;
+    internal static CommandFlags NeverCached(this CommandFlags flags) => flags | CommandFlagsInternal.NeverCachedFlag;
 
     internal static CommandFlags WithDefaultCategory(this CommandFlags flags, RedisCommand command)
     {

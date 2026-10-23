@@ -364,6 +364,15 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     protected ReadOnlyMemory<byte> RequestForDiagnostics
         => Volatile.Read(ref _requestRefCount) == 0 ? default : _request;
 
+    /// <inheritdoc cref="IRespMessage.Prefix"/>
+    /// <remarks>
+    /// Per life, like the request: set after <see cref="SetRequest"/> by whoever attaches the request, and
+    /// cleared by the reset that ends the life, so a recycled instance cannot carry a previous command's
+    /// modifier in front of the next one. Plain field semantics - it is written by the single owner before
+    /// the message is handed to a connection, and read by the connection under its write lock.
+    /// </remarks>
+    public byte[]? Prefix { get; protected set; }
+
     /// <inheritdoc/>
     public bool TryReserveRequest(short token, out ReadOnlyMemory<byte> payload, bool recordSent = true)
     {
@@ -740,6 +749,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         UnregisterCancellation();
         TryReleaseRequest();
         _diagnostics = default; // the whole point of keeping it in one struct
+        Prefix = null; // a modifier belongs to the command it was attached for, not to the instance
         OnReset();
 
         _asyncCore.Reset();

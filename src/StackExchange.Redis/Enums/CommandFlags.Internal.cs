@@ -17,7 +17,16 @@ internal static class CommandFlagsInternal
         CommandServerSpecific = (CommandFlags)(1 << 18),
         // "probe" (bit 19): health-check traffic. Deliberately *not* InternalCallFlag, which also decides
         // queuing - see Message.IsCallerFacing.
-        ProbeFlag = (CommandFlags)(1 << 19);
+        ProbeFlag = (CommandFlags)(1 << 19),
+        // "never cached" (bit 22): set by the command surface for reads whose reply is not a function of
+        // their keys - random members, TTLs. Locally it is CacheOptOut: the cache is neither consulted nor
+        // filled. On the wire it is NOTHING, which is the reason it is a separate bit: CacheOptOut also
+        // tells a tracking server not to track the key, and a CLIENT CACHING NO in front of every HPTTL
+        // would cost more than the tracking entry it saves. See CommandFlagsExtensions.NeverCached.
+        NeverCachedFlag = (CommandFlags)(1 << 22);
+
+    /// <summary>The caller-facing client-cache field: two bits, three meanings, both set reserved.</summary>
+    internal const CommandFlags MaskClientCache = CommandFlags.CacheOptIn | CommandFlags.CacheOptOut;
 
     internal const CommandFlags MaskPrimaryServerPreference = CommandFlags.DemandMaster
                                                              | CommandFlags.DemandReplica
@@ -38,7 +47,7 @@ internal static class CommandFlagsInternal
                                                      | CommandFlags.FireAndForget
                                                      | CommandFlags.NoRedirect
                                                      | CommandFlags.NoScriptCache
-                                                     | CommandFlags.NoClientCache
+                                                     | MaskClientCache // CacheOptIn and CacheOptOut
                                                      | MaskRetryCategory // caller may override the retry category...
                                                      | CommandServerSpecific // ...and the server-specific flag
                                                      | NoFlushFlag // we'll allow this one even though not advertised

@@ -341,7 +341,22 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        private void SendInvalidation(RedisClient client, List<RedisKey> keys)
+        /// <summary>
+        /// A reply has just been queued for <paramref name="command"/> (with <paramref name="subcommand"/>
+        /// for <c>CLIENT</c>, else null); anything queued here lands immediately behind it and ahead of the
+        /// next command's reply.
+        /// </summary>
+        /// <remarks>
+        /// A test seam: it is how a test forces an out-of-band push to arrive between a prefix's <c>+OK</c>
+        /// and the reply of the command the prefix modified, which a real server does whenever it likes
+        /// and a test cannot otherwise time.
+        /// </remarks>
+        private protected virtual void OnReplyQueued(RedisClient client, RedisCommand command, string subcommand)
+        {
+        }
+
+        /// <summary>Push an <c>invalidate</c> to one client for the given keys, regardless of what it is tracking.</summary>
+        public void SendInvalidation(RedisClient client, List<RedisKey> keys)
         {
             var msg = TypedRedisValue.Rent(2, out var span, RespPrefix.Push);
             span[0] = TypedRedisValue.BulkString("invalidate");
@@ -427,8 +442,12 @@ namespace StackExchange.Redis.Server
                         }
                         else
                         {
+                            // captured before the awaits: the request is a ref struct and cannot cross them
+                            var repliedCommand = request.KnownCommand;
+                            var repliedSubcommand = repliedCommand == RedisCommand.CLIENT && request.Count > 1 ? request.GetString(1) : null;
                             await ClientPauseAsync(client, request);
                             await client.AddOutboundAsync(response);
+                            OnReplyQueued(client, repliedCommand, repliedSubcommand);
                         }
                         client.ResetAfterRequest();
 

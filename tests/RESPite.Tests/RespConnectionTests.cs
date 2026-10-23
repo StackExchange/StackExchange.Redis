@@ -694,4 +694,127 @@ public class RespConnectionTests
         Assert.Equal(messages.Length, connection.PendingCount);
     }
 
+    /// <summary>A message that carries a <see cref="IRespMessage.Prefix"/>, as a cache-modified read does.</summary>
+    private sealed class PrefixedMessage : RespMessageBase<string?>
+    {
+        protected override string? Parse(ref RespReader reader)
+            => reader.TryGetSpan(out var span) ? Encoding.UTF8.GetString(span.ToArray()) : null;
+
+        internal static PrefixedMessage For(string prefix, string command)
+        {
+            var message = new PrefixedMessage();
+            message.SetRequest(Encoding.UTF8.GetBytes(command), null, default);
+            message.Prefix = Encoding.UTF8.GetBytes(prefix);
+            return message;
+        }
+    }
+
+    private const string CachingYes = "*3\r\n$6\r\nCLIENT\r\n$7\r\nCACHING\r\n$3\r\nYES\r\n";
+
+    [Fact]
+    public void APrefixIsWrittenImmediatelyBeforeItsRequestAndItsReplyIsSwallowed()
+    {
+        // the whole point: CLIENT CACHING applies to the next command on the connection, so the two must be
+        // one write; and the +OK it earns is nobody's result
+        var (connection, transport) = Connect();
+        var message = PrefixedMessage.For(CachingYes, "*1\r\n$4\r\nPING\r\n");
+
+        Assert.True(connection.Send(message));
+        Assert.Equal("*3|$6|CLIENT|$7|CACHING|$3|YES|*1|$4|PING|", transport.Written);
+        Assert.Equal(2, connection.PendingCount); // one reply owed for the prefix, one for the request
+
+        transport.Receive("+OK\r\n+PONG\r\n");
+        Assert.Equal("PONG", message.GetResult(message.Token));
+        Assert.Equal(0, connection.PendingCount);
+        Assert.Equal(0, connection.PrefixErrors);
+    }
+
+    [Fact]
+    public void APrefixErrorIsCountedNotSurfaced()
+    {
+        // the modifier was refused; the command behind it still ran, so failing the read would be worse
+        // than the degradation - but the refusal must be visible to whoever asks why nothing is tracked
+        var (connection, transport) = Connect();
+        var message = PrefixedMessage.For(CachingYes, "*1\r\n$4\r\nPING\r\n");
+        Assert.True(connection.Send(message));
+
+        transport.Receive("-ERR CLIENT CACHING YES is only valid when tracking is enabled in OPTIN mode.\r\n+PONG\r\n");
+        Assert.Equal("PONG", message.GetResult(message.Token));
+        Assert.Equal(1, connection.PrefixErrors);
+        Assert.Equal("ERR CLIENT CACHING YES is only valid when tracking is enabled in OPTIN mode.", connection.LastPrefixError);
+    }
+
+    [Fact]
+    public void APrefixInARunStaysNextToItsOwnRequest()
+    {
+        // a batch is a run; the second element's modifier must land between the first and the second, not
+        // at the front of the run, and the replies must still find their owners
+        var (connection, transport) = Connect();
+        var first = TextMessage.For("*1\r\n$1\r\nA\r\n");
+        var second = PrefixedMessage.For(CachingYes, "*1\r\n$1\r\nB\r\n");
+        var third = TextMessage.For("*1\r\n$1\r\nC\r\n");
+
+        Assert.True(connection.Send([RespRunEntry.Of(first), RespRunEntry.Of(second), RespRunEntry.Of(third)], 3));
+        Assert.Equal("*1|$1|A|*3|$6|CLIENT|$7|CACHING|$3|YES|*1|$1|B|*1|$1|C|", transport.Written);
+
+        transport.Receive("+a\r\n+OK\r\n+b\r\n+c\r\n");
+        Assert.Equal("a", first.GetResult(first.Token));
+        Assert.Equal("b", second.GetResult(second.Token));
+        Assert.Equal("c", third.GetResult(third.Token));
+        Assert.Equal(0, connection.PendingCount);
+    }
+
+    [Fact]
+    public void APrefixIsWrittenWhenTheHolderDrainsTheInbox()
+    {
+        // the combining path hands a busy sender's message to whoever holds the lock; the prefix has to
+        // travel with it, or a CLIENT CACHING is silently dropped exactly when the connection is busiest
+        var transport = new InterceptingTransport();
+        var connection = new RespConnection(transport) { CombineWrites = true };
+        var blocker = TextMessage.For("*1\r\n$1\r\nX\r\n");
+        var combined = PrefixedMessage.For(CachingYes, "*1\r\n$1\r\nY\r\n");
+        transport.OnWrite = () =>
+        {
+            transport.OnWrite = null;
+            // inside the holder's write: the lock is taken, so this lands in the inbox and is drained by the holder
+            Assert.True(connection.Send(combined));
+        };
+
+        Assert.True(connection.Send(blocker));
+        Assert.Equal(3, connection.PendingCount); // X, the prefix's discard, Y
+
+        transport.Receive("+x\r\n+OK\r\n+y\r\n");
+        Assert.Equal("x", blocker.GetResult(blocker.Token));
+        Assert.Equal("y", combined.GetResult(combined.Token));
+    }
+
+    [Fact]
+    public void AnOutOfBandPushBetweenThePrefixReplyAndTheRequestReplyConsumesNothing()
+    {
+        // RESP3 invalidations arrive whenever the server likes, including between a prefix's +OK and the
+        // reply it precedes. A push is classified before anything is dequeued, so it must not take the
+        // sink's entry or the request's: +OK to the sink, the push out of band, the reply to the request.
+        var (connection, transport) = Connect();
+        var message = PrefixedMessage.For(CachingYes, "*2\r\n$3\r\nGET\r\n$1\r\nk\r\n");
+        Assert.True(connection.Send(message));
+
+        transport.Receive("+OK\r\n>2\r\n$10\r\ninvalidate\r\n*1\r\n$1\r\nk\r\n$1\r\nv\r\n");
+        Assert.Equal("v", message.GetResult(message.Token));
+        Assert.Equal(0, connection.PendingCount);
+        Assert.Equal(0, connection.PrefixErrors);
+    }
+
+    [Fact]
+    public void ThePrefixDoesNotOutliveTheLifeItWasAttachedFor()
+    {
+        // a pooled operation is rented again for an unrelated command; the previous life's modifier must
+        // not go out in front of it
+        var (connection, transport) = Connect();
+        var message = PrefixedMessage.For(CachingYes, "*1\r\n$4\r\nPING\r\n");
+        Assert.True(connection.Send(message));
+        transport.Receive("+OK\r\n+PONG\r\n");
+        Assert.Equal("PONG", message.GetResult(message.Token)); // the life ends here
+
+        Assert.Null(message.Prefix);
+    }
 }

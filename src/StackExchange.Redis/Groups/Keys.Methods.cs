@@ -361,7 +361,7 @@ public static partial class Keys
     /// other read. It is just rarely worth it: <c>DUMP</c> is a migration and backup primitive, so the
     /// read is usually one-shot and the payload is the whole value. A bulk migration will therefore
     /// spend the cache's budget on entries nothing will ever read again. Pass
-    /// <see cref="CommandFlags.NoClientCache"/> for that; genuinely large payloads are refused anyway,
+    /// <see cref="CommandFlags.CacheOptOut"/> for that; genuinely large payloads are refused anyway,
     /// by <see cref="CacheOptions.MaxPayloadBytes"/>.
     /// </para>
     /// </remarks>

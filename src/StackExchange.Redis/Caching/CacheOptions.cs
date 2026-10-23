@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Caching
         /// <summary>Whether a cache is created at all.</summary>
         /// <remarks>
         /// The global switch. Suppressing the cache for one <i>command</i> is
-        /// <see cref="CommandFlags.NoClientCache"/>, which suppresses the probe as well as the store; this
+        /// <see cref="CommandFlags.CacheOptOut"/>, which suppresses the probe as well as the store; this
         /// is the deployment-level decision that there is no cache to probe.
         /// </remarks>
         public bool Enabled { get; init; } = true;
@@ -42,8 +42,8 @@ namespace StackExchange.Redis.Caching
         /// <see cref="CacheTrackingMode.Default"/> unless you say otherwise, which resolves to
         /// <see cref="CacheTrackingMode.Tracking"/> today: the server announces only what this client
         /// read, so the invalidation traffic scales with what we hold rather than with what the server
-        /// does. Giving <see cref="Prefixes"/> resolves it to <see cref="CacheTrackingMode.Broadcast"/>
-        /// instead, since prefixes only mean anything there. Read <see cref="ResolvedTrackingMode"/>
+        /// does. Giving <see cref="Prefixes"/> resolves it to <see cref="CacheTrackingMode.TrackingByPrefix"/>
+        /// instead: the prefixes say what to cache, and the server still hears only about that. Read <see cref="ResolvedTrackingMode"/>
         /// rather than this one when you need the mode that will actually be negotiated.
         /// </remarks>
         public CacheTrackingMode TrackingMode { get; init; }
@@ -56,11 +56,13 @@ namespace StackExchange.Redis.Caching
         /// <b>The one place the choice is made.</b> Every consumer reads this rather than comparing against
         /// a mode itself, so changing what "no opinion" means is an edit here and nowhere else - and so that
         /// no caller can accidentally treat an unset mode as a third behaviour. Today: <see cref="Prefixes"/>
-        /// mean broadcast, because <c>PREFIX</c> is only accepted with <c>BCAST</c>; otherwise tracking.
+        /// mean <see cref="CacheTrackingMode.TrackingByPrefix"/> (broadcast until 2026-10-23, when a per-key
+        /// mode that reads the list arrived; its cost is bounded by our own misses, broadcast's by the server's
+        /// write rate); otherwise tracking.
         /// </remarks>
         internal CacheTrackingMode ResolvedTrackingMode => TrackingMode switch
         {
-            CacheTrackingMode.Default when HasPrefixes => CacheTrackingMode.Broadcast,
+            CacheTrackingMode.Default when HasPrefixes => CacheTrackingMode.TrackingByPrefix,
             CacheTrackingMode.Default => CacheTrackingMode.Tracking,
             var explicitMode => explicitMode,
         };
@@ -251,12 +253,17 @@ namespace StackExchange.Redis.Caching
         /// total one.
         /// </para>
         /// <para>
-        /// <b>Broadcast only.</b> <c>PREFIX</c> is meaningless under
-        /// <see cref="CacheTrackingMode.Tracking"/> - the server announces what we read, so there is nothing
-        /// to filter - and <c>CLIENT TRACKING</c> rejects the combination outright. So giving prefixes with
-        /// <see cref="TrackingMode"/> left at <see cref="CacheTrackingMode.Default"/> selects broadcast; giving
-        /// them with <see cref="CacheTrackingMode.Tracking"/> named is an error, raised when the cache is built
-        /// rather than at the handshake.
+        /// <b>Two modes read it.</b> Under <see cref="CacheTrackingMode.Broadcast"/> it goes to the server as
+        /// <c>PREFIX</c> arguments and filters what is announced, as well as what is cached. Under
+        /// <see cref="CacheTrackingMode.TrackingByPrefix"/> it stays here and decides which unflagged reads
+        /// are opted in (sent behind <c>CLIENT CACHING YES</c>, tracked, stored); the per-call flags override
+        /// it there. It is rejected with <see cref="CacheTrackingMode.Tracking"/> or
+        /// <see cref="CacheTrackingMode.TrackingOptIn"/> named - the server announces what we read, so there
+        /// is nothing to filter, and <c>CLIENT TRACKING</c> refuses <c>PREFIX</c> without <c>BCAST</c> anyway -
+        /// and required by <see cref="CacheTrackingMode.TrackingByPrefix"/>, which has nothing to decide with
+        /// otherwise. Giving prefixes with <see cref="TrackingMode"/> left at
+        /// <see cref="CacheTrackingMode.Default"/> selects <see cref="CacheTrackingMode.TrackingByPrefix"/>.
+        /// Either mistake is raised when the cache is built rather than at the handshake.
         /// </para>
         /// </remarks>
         public IReadOnlyList<string> Prefixes
@@ -274,7 +281,8 @@ namespace StackExchange.Redis.Caching
 
         /// <summary>Whether <see cref="Prefixes"/> restricts what may be cached.</summary>
         /// <remarks>
-        /// Only ever true in <see cref="CacheTrackingMode.Broadcast"/>: under
+        /// Only ever true in <see cref="CacheTrackingMode.Broadcast"/> and
+        /// <see cref="CacheTrackingMode.TrackingByPrefix"/>, the two modes that accept a list: under
         /// <see cref="CacheTrackingMode.Tracking"/> the server announces exactly what we read, so there is no
         /// such thing as an untracked key and nothing for the gate to refuse.
         /// </remarks>
@@ -291,11 +299,22 @@ namespace StackExchange.Redis.Caching
         /// </remarks>
         internal void Validate()
         {
-            if (HasPrefixes && ResolvedTrackingMode != CacheTrackingMode.Broadcast)
+            var mode = ResolvedTrackingMode;
+            if (HasPrefixes && mode is not (CacheTrackingMode.Broadcast or CacheTrackingMode.TrackingByPrefix))
             {
                 throw new ArgumentException(
-                    $"Cache prefixes require {nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.Broadcast)};"
+                    $"Cache prefixes require {nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.Broadcast)}"
+                    + $" or {nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.TrackingByPrefix)};"
                     + $" {TrackingMode} announces the keys that were read, so there is nothing to filter.",
+                    nameof(Prefixes));
+            }
+
+            if (mode == CacheTrackingMode.TrackingByPrefix && !HasPrefixes)
+            {
+                throw new ArgumentException(
+                    $"{nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.TrackingByPrefix)} needs {nameof(Prefixes)}:"
+                    + $" without a list there is nothing to opt in by. Use {nameof(CacheTrackingMode.TrackingOptIn)}"
+                    + $" to opt in by flag alone, or {nameof(CacheTrackingMode.Tracking)} to cache every read.",
                     nameof(Prefixes));
             }
         }

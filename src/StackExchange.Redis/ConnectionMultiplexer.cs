@@ -227,7 +227,7 @@ namespace StackExchange.Redis
             // would be handed the pushes of a connection it does not own.
             if (RawConfig.ClientCache is { Enabled: true } cacheOptions)
             {
-                ClientCache = new RespClientCache(cacheOptions);
+                ClientCache = new RespClientCache(cacheOptions, commandMap: map);
             }
 
             var configChannel = configuration.ConfigurationChannel;

@@ -122,15 +122,52 @@ invalidation, validating against a key that changed); the cross-index.
   we would survive it (generations captured at send), but there is no reason to pay for a protocol that needs it.
   Without RESP3, caching is **refused loudly** at connect (`RespHandshake`), never silently degraded into a cache
   nothing invalidates.
-- **`Tracking` (plain `CLIENT TRACKING ON`) by default**; `Broadcast` (`BCAST`) when `Prefixes` are given, since
-  `PREFIX` is only accepted with `BCAST`. Originally `BCAST` with an empty prefix was the default: the server keeps
-  no per-client table, so it cannot run out of room, and we paid in hearing about keys we never read. Reversed
-  (2026-10-22) because that cost is unbounded on a busy server and lands on every caching client, whereas the
-  tracking table's cost is bounded by `tracking-table-max-keys` and an eviction there is a refill, not a stale read.
-  `OPTIN`/`OPTOUT` are not offered, because `CLIENT CACHING YES|NO` applies to "the next command on that
-  connection", which a multiplexer cannot promise; measured against Redis 8.9, `ON OPTOUT` is otherwise identical to
-  `ON`, so it is available later at no behavioural cost. The enum's zero is `Default` ("no opinion"), resolved in
-  one place, so the library can change its mind without overriding anybody who chose.
+- **`Tracking` (`CLIENT TRACKING ON OPTOUT`) by default**; `TrackingByPrefix` when `Prefixes` are given (below).
+  Originally `BCAST` with an empty prefix was the default: the server keeps no per-client table, so it cannot run
+  out of room, and we paid in hearing about keys we never read. Reversed (2026-10-22) because that cost is unbounded
+  on a busy server and lands on every caching client, whereas the tracking table's cost is bounded by
+  `tracking-table-max-keys` and an eviction there is a refill, not a stale read. Prefixes kept selecting `Broadcast`
+  for one more day, because `PREFIX` is only accepted with `BCAST` and no per-key mode read the list; once one did
+  (2026-10-23) the same argument applied to that case too, and `Default` with prefixes moved off broadcast. The
+  enum's zero is `Default` ("no opinion"), resolved in one place, so the library can change its mind without
+  overriding anybody who chose.
+- **`TrackingByPrefix` (2026-10-23): `OPTIN` on the wire, `Prefixes` applied here.** Making `Prefixes` a filter in
+  the per-key modes was first proposed as a hard boundary - "the keys I am interested in", with anything outside
+  forced to `CacheOptOut` - and rejected because it demotes the flags: a `CacheOptIn` that cannot reach outside the
+  list is a weaker statement than the one it makes everywhere else. So it is a mode instead, and the list is the
+  policy for reads that passed no flag; the flags win. An unflagged read whose keys all match is treated as
+  `CacheOptIn` (sent behind `YES`, tracked, stored on first miss, admission skipped - a `YES` that tracks a key we
+  then refuse to store would be the worst of both); an unflagged read outside, or straddling, is sent plain and
+  refused as `RefusedNotTracked`; `CacheOptIn` outside is cached (the server can track any key it is told to, unlike
+  under `BCAST`, where the list went to the server and is final); `CacheOptOut` inside is uncached with nothing on
+  the wire, `OPTIN` having no `NO` to say. `OPTIN` rather than `OPTOUT` because of where the extra frame lands: on
+  the misses of the set chosen for caching, which the cache exists to shrink, rather than on every read outside it
+  (all of which reach the server). The inverse shape - "everything but these" - is `Tracking` with `CacheOptOut` on
+  the few, not a switch on this mode. The unflagged outside read costs a lookup that is bound to miss before the
+  refusal; checking the list first would cost about the same, and keeps the hit path untouched. `Prefixes` is
+  rejected with `Tracking`/`TrackingOptIn` named (nothing reads it) and required by `TrackingByPrefix` (nothing else
+  to decide with).
+- **`OPTIN`/`OPTOUT` are offered (2026-10-23), as `TrackingOptIn` and `Tracking`, driven by a two-bit per-command
+  field: `CacheOptIn`, `CacheOptOut`, both-set reserved.** They were previously off the table because
+  `CLIENT CACHING YES|NO` applies to "the next command on that connection", which a multiplexer could not promise.
+  It can now: a request carries a *prefix* (`RespRequest.Prefix` → `IRespMessage.Prefix`), one frame the connection
+  writes immediately ahead of the request under the same write lock, enqueueing a discard sink for its reply - so
+  the server's "next command" is exactly ours, whatever `SELECT`, `ASKING` or `SCRIPT LOAD` heads went in front, and
+  per element inside a batch. Measured against Redis 8.9: `ON OPTOUT` is identical to `ON` except that it permits
+  `CLIENT CACHING NO`, so `Tracking` negotiates `OPTOUT` for free; `CACHING YES|NO` is consumed by whatever command
+  follows (a `PING` or `SET` included); `OPTIN`/`OPTOUT` are refused with `BCAST`; `CACHING` before `MULTI` governs
+  the whole transaction; pipelining the pair in one write scopes correctly; and a key is dropped from the table
+  once its invalidation has been sent. Where the frame goes: under `OPTIN`, `YES` ahead of the read that fills (and
+  of a refresh); under `OPTOUT`, `NO` ahead of a read the caller flagged `CacheOptOut`, and ahead of a transaction's
+  `MULTI` when the transaction contains a read (reads inside `MULTI` are never cached, so tracking them is pure
+  server cost). Never ahead of a write (never tracked), never inside `MULTI` (it would be queued and desync `EXEC`),
+  never under `BCAST`, and not for the command surface's `NeverCached` marker (random members, TTLs), which stays a
+  separate internal bit precisely so that a `CLIENT CACHING NO` per `HPTTL` does not cost more than the entry it
+  saves. An error reply to a prefix is swallowed and counted on the connection (`RespConnection.PrefixErrors`), so a
+  refused modifier degrades a read to uncached rather than failing it. `CacheOptIn` also bypasses admission: the
+  caller has decided, and under `OPTIN` the first miss is the one that paid for `YES`. The fourth encoding is
+  reserved: the candidates - "skip the lookup but store" (a refresh, already `WithMaxCacheAge(0)`) and "look up
+  but never store" - were not worth spending it on today.
 - **Prefixes are a connection-level knob, never derived from context key-prefixes**: server prefixes are global,
   must not overlap, and cannot be removed one at a time, while context prefixes nest. A prefix list is also a
   statement about what may be cached: a key outside it is never announced, so it is refused (`RefusedNotTracked`).
@@ -163,11 +200,11 @@ The gates, in the order a fill meets them (`TryBeginFill`, `TryCompleteCore`):
 | Gate | Refusal counter | Why |
 |---|---|---|
 | Retry category **declared** and ≤ `CommandRetryReadOnly` | `RefusedByFlags` | Undeclared is zero, which a naive `<=` reads as safest; undeclared must mean "no". Read-only is necessary, not sufficient: non-deterministic and cursor commands are excluded in command metadata, beside the category. |
-| Not `NoClientCache`, not `FireAndForget` | `RefusedByFlags` | Opt-out, not opt-in (§6.10: opt-in touches every method and fails silently by omission). Fire-and-forget promises `default`; a hit would return something else. |
+| Not `CacheOptOut`, not `NeverCached`, not `FireAndForget`; under `TrackingOptIn`, `CacheOptIn` present | `RefusedByFlags` | Opt-out by default (§6.10: opt-in touches every method and fails silently by omission); `TrackingOptIn` is the explicit opt-in mode, where the server tracks nothing we did not ask for, so nothing else may be kept. `TrackingByPrefix` passes unflagged reads here and lets the prefix gate below decide. Fire-and-forget promises `default`; a hit would return something else. |
 | Not inside a transaction | - | A cached answer inside `MULTI` returns a value from before the transaction's own writes. Batches are fine: pipelining, not atomicity. |
 | At least one key, and all keys listable (≤ 62 arguments) | `RefusedNoKeys` | Invalidation reports keys; a keyless entry is valid forever - not even a flush reaches it. A partial key list is worse than none. |
-| Every key inside `Prefixes` | `RefusedNotTracked` | Every key, not any: one unannounced key makes the whole reply uninvalidatable. |
-| Admission (§9) | `RefusedNotAdmitted` | Last of the refusals before anything is allocated. |
+| Every key inside `Prefixes`, unless `TrackingByPrefix` and `CacheOptIn` | `RefusedNotTracked` | Every key, not any: one unannounced key makes the whole reply uninvalidatable. Under `TrackingByPrefix` the list is the default policy, not a boundary: a flagged opt-in outside it is sent behind `YES` and the server tracks it. |
+| Admission (§9), unless `CacheOptIn` or `TrackingByPrefix` | `RefusedNotAdmitted` | Last of the refusals before anything is allocated. `CacheOptIn` skips it: the caller decided, and under `OPTIN` this miss already paid for `CLIENT CACHING YES`. Under `TrackingByPrefix` every read that reaches this gate is an opt-in, by flag or by prefix, and the same reasoning applies. |
 | Reply is not an error | `RefusedError` | An error need not be a function of the keys (config, ACLs, topology, OOM); cached, a transient failure becomes permanent. Classified by the first **content** element - RESP3 attributes may precede it. Nulls *are* cached: Redis tracks keys that do not exist. |
 | Keys unchanged since send | `RefusedRaced` | Invariant 3. |
 | Reply ≤ `MaxPayloadBytes` | `RefusedTooLarge` | Cheapest bound, needs no bookkeeping. |

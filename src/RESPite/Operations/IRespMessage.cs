@@ -67,6 +67,31 @@ internal interface IRespMessage : IValueTaskSource
     /// </remarks>
     void OnEnqueued(object connection, long bytesSent, long bytesReceived);
 
+    /// <summary>
+    /// One complete RESP frame to write <b>immediately before</b> the request, on the same connection and
+    /// under the same write lock, or <see langword="null"/> for none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>For a server-side modifier that applies to "the next command on this connection"</b> -
+    /// <c>CLIENT CACHING YES|NO</c> is the motivating case - which is only honoured if nothing else can
+    /// slip in between. A separate preamble send cannot promise that under a multiplexer; a prefix carried
+    /// by the message can, because the connection writes the two as one unit.
+    /// </para>
+    /// <para>
+    /// The connection writes it, expects one reply for it, and <b>discards that reply</b> - the message
+    /// never sees it. That is what distinguishes a prefix from a preamble: a preamble is an operation of its
+    /// own, with its own completion; a prefix is bytes that belong to this request and a reply nobody is
+    /// waiting for. An error reply is swallowed too, and counted on the connection, so a prefix the server
+    /// did not accept degrades the request rather than failing it.
+    /// </para>
+    /// <para>
+    /// Exactly one frame, by contract: the connection enqueues exactly one discard for it. A fixed buffer,
+    /// never returned to a pool, so it can be shared by every message that needs the same words.
+    /// </para>
+    /// </remarks>
+    byte[]? Prefix { get; }
+
     /// <summary>Deliver a reply held in a single span.</summary>
     /// <param name="token">The version this caller holds.</param>
     /// <param name="response">The complete reply frame.</param>

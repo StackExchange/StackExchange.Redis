@@ -135,14 +135,28 @@ namespace StackExchange.Redis
         /// </remarks>
         NoScriptCache = 512,
 
+        // 524288 (bit 19): "probe" - health-check traffic; never user-specified, so not visible on the public API
+        // (see CommandFlagsInternal.ProbeFlag)
+
         /// <summary>
-        /// Indicates that this command must not be served from, or stored in, the client-side cache.
+        /// This command must not be served from, or stored in, the client-side cache - and, where the
+        /// server is tracking what this client reads, the server is told not to track it either.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Client-side caching is opt-out rather than opt-in: a command that declares a retry category no
-        /// more severe than <see cref="CommandRetryReadOnly"/> and names at least one key is cacheable by
-        /// default. This suppresses that.
+        /// Client-side caching is opt-out by default: a command that declares a retry category no more
+        /// severe than <see cref="CommandRetryReadOnly"/> and names at least one key is cacheable. This
+        /// suppresses that for one call: the cache is neither consulted nor filled.
+        /// </para>
+        /// <para>
+        /// <b>The wire half.</b> Under <see cref="Caching.CacheTrackingMode.Tracking"/> the server keeps a
+        /// table of the keys this client has read, and a read it will never cache is a table entry and an
+        /// invalidation push for nothing; so there the command goes out behind <c>CLIENT CACHING NO</c>,
+        /// written as one unit with it, and the key is not tracked. Under
+        /// <see cref="Caching.CacheTrackingMode.Broadcast"/> nothing is sent, because the server tracks
+        /// nothing per client; under <see cref="Caching.CacheTrackingMode.TrackingOptIn"/> nothing is sent,
+        /// because nothing is tracked unless asked. Writes are never tracked, so the flag on a write does
+        /// nothing at all.
         /// </para>
         /// <para>
         /// Two reasons to reach for it. A value that changes so often that invalidation traffic costs more
@@ -160,8 +174,41 @@ namespace StackExchange.Redis
         /// than introducing it, and cannot fix it - declaring every key touched is the fix, and was the fix
         /// before any of this existed.
         /// </para>
+        /// <para>
+        /// Combining this with <see cref="CacheOptIn"/> is rejected: the pair is reserved.
+        /// </para>
         /// </remarks>
-        NoClientCache = 1 << 19,
+        CacheOptOut = 1 << 20,
+
+        /// <summary>
+        /// This command's reply should be cached, and the server told to track its keys, even where the
+        /// default would be not to.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Under <see cref="Caching.CacheTrackingMode.TrackingOptIn"/> this is the only way anything is
+        /// cached.</b> The server tracks nothing unless a read is preceded by <c>CLIENT CACHING YES</c>;
+        /// this flag writes that ahead of the command, as one unit with it, and stores the reply. A read
+        /// without it goes to the server and is not kept, because nothing would ever invalidate it.
+        /// </para>
+        /// <para>
+        /// Under the other modes the server already tracks (or broadcasts) everything, so nothing is sent;
+        /// what remains is the local effect: the reply is stored on its first miss, bypassing
+        /// <see cref="Caching.CacheOptions.Admission"/>. The caller has said "cache this", and making them
+        /// say it twice would be odd.
+        /// </para>
+        /// <para>
+        /// It cannot make a command cacheable that is not: a write, a keyless read, a read whose answer is
+        /// not a function of its keys (random members, TTLs), or - under
+        /// <see cref="Caching.CacheTrackingMode.Broadcast"/> - a key outside
+        /// <see cref="Caching.CacheOptions.Prefixes"/>, is still refused, with the same counters saying why.
+        /// Combining this with <see cref="CacheOptOut"/> is rejected: the pair is reserved.
+        /// </para>
+        /// </remarks>
+        CacheOptIn = 1 << 21,
+
+        // 4194304 (bit 22): "never cached" - set by the command surface for reads whose reply is not a function
+        // of their keys; never user-specified, so not visible on the public API (see CommandFlagsInternal.NeverCachedFlag)
 
         // 1024: used for "no flush"; never user-specified, so not visible on the public API
 

@@ -893,7 +893,7 @@ namespace StackExchange.Redis
             pre.Database = Database;
 
             var body = RespPayloadOperation.Rent();
-            body.Attach(request.Span, request.Flags, cancellationToken);
+            body.Attach(request.Span, request.Flags, cancellationToken, request.Prefix);
             body.Slot = request.Slot;
             body.Command = request.Command;
             body.Observer = this;

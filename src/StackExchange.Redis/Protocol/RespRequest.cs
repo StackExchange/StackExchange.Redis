@@ -21,7 +21,7 @@ namespace StackExchange.Redis.Protocol
     /// past the call.
     /// </para>
     /// <para>
-    /// <b>Lifetime.</b> Whoever retains, releases. <see cref="RespRequestFrame.Detach"/> hands back a key holding
+    /// <b>Lifetime.</b> Whoever retains, releases. <see cref="RespRequestFrame.Detach(CommandFlags)"/> hands back a key holding
     /// one reference; <see cref="TryRetain"/> takes another. Dispose each one exactly once. The rule for the
     /// dictionary is that the STORED key holds its own reference for as long as it is in the dictionary -
     /// see the remarks on <see cref="TryRetain"/> - which is what section 6.4 of the design doc means by "the
@@ -56,9 +56,11 @@ namespace StackExchange.Redis.Protocol
             int argCount = 0,
             CommandFlags flags = CommandFlags.None,
             RedisCommand command = RedisCommand.UNKNOWN,
-            int database = -1)
+            int database = -1,
+            byte[]? prefix = null)
         {
             _array = array;
+            Prefix = prefix;
             _lease = lease;
             _offset = offset;
             _length = length;
@@ -89,6 +91,20 @@ namespace StackExchange.Redis.Protocol
         public CommandFlags Flags { get; }
 
         /// <summary>
+        /// One complete frame to write immediately ahead of this request, as one unit with it, or
+        /// <see langword="null"/>; its reply is discarded by the connection.
+        /// </summary>
+        /// <remarks>
+        /// <c>CLIENT CACHING YES|NO</c>, decided by the cache from the tracking mode and the command's
+        /// flags. <b>Not part of the key</b>: equality, hashing and <see cref="Span"/> see only the
+        /// command, so a prefixed request and its unprefixed twin look up the same entry - the prefix
+        /// says how the server should treat the read, not what was read. Dropped by
+        /// <see cref="CopyForCacheKey()"/> for the same reason. A fixed, shared buffer: never pooled, never
+        /// released. See <c>RESPite.Operations.IRespMessage.Prefix</c>.
+        /// </remarks>
+        internal byte[]? Prefix { get; }
+
+        /// <summary>
         /// How many arguments were keys, or <c>-1</c> when the request cannot report them.
         /// </summary>
         /// <inheritdoc cref="RespRequestFrame.KeyCount" path="/remarks"/>
@@ -115,7 +131,7 @@ namespace StackExchange.Redis.Protocol
         /// Whether this key owns a reference to its buffer, and so may be stored.
         /// </summary>
         /// <remarks>
-        /// False for a key from <see cref="RespRequestFrame.AsLookupKey"/>, which borrows the frame's buffer and is
+        /// False for a key from <see cref="RespRequestFrame.AsLookupKey(CommandFlags)"/>, which borrows the frame's buffer and is
         /// valid only until the frame is disposed. Storing a borrowed key would put a pooled array into a
         /// cache and then hand it back to the pool - design doc section 6.4, whose failure mode is wrong data
         /// served from cache rather than a crash. <see cref="TryRetain"/> refuses, so the documented
@@ -134,7 +150,7 @@ namespace StackExchange.Redis.Protocol
             var array = ArrayPool<byte>.Shared.Rent(Math.Max(span.Length, 1));
             span.CopyTo(array);
             return new RespRequest(
-                array, RefCountedBuffer.Adopt(array, array.Length), 0, span.Length, _keyMarks, Slot, ArgCount, Flags, Command, Database);
+                array, RefCountedBuffer.Adopt(array, array.Length), 0, span.Length, _keyMarks, Slot, ArgCount, Flags, Command, Database, Prefix);
         }
 
         /// <summary>Take a reference of our own on these bytes, rather than copying them.</summary>
@@ -265,7 +281,7 @@ namespace StackExchange.Redis.Protocol
         /// <inheritdoc/>
         /// <remarks>
         /// Tests the buffer rather than the lease, because owning a lease is not the same question as
-        /// having content: a BORROWED request - <see cref="RespRequestFrame.AsLookupKey"/>, or a shared
+        /// having content: a BORROWED request - <see cref="RespRequestFrame.AsLookupKey(CommandFlags)"/>, or a shared
         /// fixed rendering - has no lease and is perfectly readable. Asking the lease reported every one of
         /// those as "(empty)" in diagnostics, which is exactly when you are reading them.
         /// </remarks>
