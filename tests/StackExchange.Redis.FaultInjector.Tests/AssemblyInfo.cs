@@ -1,4 +1,5 @@
-using Xunit;
+using Xunit.Sdk;
+using Xunit.v3;
 
 // One cluster, one injector, and scenarios that mutate *cluster* state - node exclusions, maintenance mode,
 // endpoint policies. Running classes in parallel therefore breaks two ways at once: they interfere semantically
@@ -8,4 +9,4 @@ using Xunit;
 //
 // So this tier is strictly serial. It costs wall-clock - the scenarios are minutes each - and buys results that
 // mean something.
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Parallelization(Mode = ParallelMode.None)]

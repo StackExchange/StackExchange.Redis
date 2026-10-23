@@ -11,15 +11,15 @@
     <DebugType>full</DebugType>
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <!-- xunit.v3 4.x runs on Microsoft.Testing.Platform; global.json selects that runner for `dotnet test`, so the
+         VSTest adapter packages (Microsoft.NET.Test.Sdk, xunit.runner.visualstudio) are no longer referenced -->
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
     <PackageReference Include="GitHubActionsTestLogger" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Microsoft.Testing.Platform" />
     <PackageReference Include="xunit.v3" />
-    <PackageReference Include="xunit.v3.runner.console" PrivateAssets="all" />
-    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
   </ItemGroup>
 </Project>

@@ -225,7 +225,9 @@ jobs:
         run: |
           $exitCode = 0
           foreach ($tfm in @("net10.0", "net481")) {
-            dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj --no-build -c Release -f $tfm --logger trx --logger GitHubActions --results-directory ./test-results/ /p:CI=true
+            # Microsoft.Testing.Platform `dotnet test` (selected in global.json): the GitHub Actions reporter registers itself
+            # as a platform extension, so only the TRX report (for dorny/test-reporter below) needs asking for
+            dotnet test --project tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj --no-build -c Release -f $tfm --results-directory ./test-results/ --report-xunit-trx
             if ($LASTEXITCODE -ne 0) {
               $exitCode = $LASTEXITCODE
             }

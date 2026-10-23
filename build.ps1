@@ -31,9 +31,9 @@ if ($RunTests) {
     }
     Write-Host "Running tests: Build.csproj traversal (all frameworks)" -ForegroundColor "Magenta"
     if ($NetCoreOnlyTests) {
-        dotnet test ".\Build.csproj" -c Release -f net8.0 --no-build --logger trx
+        dotnet test --solution ".\StackExchange.Redis.slnx" -c Release -f net8.0 --no-build --report-xunit-trx
     } else {
-        dotnet test ".\Build.csproj" -c Release --no-build --logger trx
+        dotnet test --solution ".\StackExchange.Redis.slnx" -c Release --no-build --report-xunit-trx
     }
     if ($LastExitCode -ne 0) {
         Write-Host "Error with tests, aborting build." -Foreground "Red"
