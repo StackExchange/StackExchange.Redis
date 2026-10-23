@@ -11,9 +11,11 @@ public sealed partial class HealthCheck
     /// Evaluate the health of the specified multiplexer, by evaluating all endpoints.
     /// </summary>
     public Task<HealthCheckResult> CheckHealthAsync(IConnectionMultiplexer multiplexer)
-        => !IsEnabled ? HealthCheckProbe.InconclusiveTask
-        : multiplexer.IsConnected ? CheckHealthCoreAsync(multiplexer)
-        : HealthCheckProbe.UnhealthyTask;
+        => !IsEnabled
+            ? HealthCheckProbe.InconclusiveTask
+            : multiplexer.IsConnected
+                ? CheckHealthCoreAsync(multiplexer)
+                : HealthCheckProbe.UnhealthyTask;
 
     private async Task<HealthCheckResult> CheckHealthCoreAsync(IConnectionMultiplexer multiplexer)
     {
@@ -171,9 +173,11 @@ public sealed partial class HealthCheck
     /// Evaluate the health of an endpoint.
     /// </summary>
     public Task<HealthCheckResult> CheckHealthAsync(IServer server)
-        => !IsEnabled ? HealthCheckProbe.InconclusiveTask
-        : server.IsConnected ? CheckHealthCoreAsync(server)
-        : HealthCheckProbe.UnhealthyTask;
+        => !IsEnabled
+            ? HealthCheckProbe.InconclusiveTask
+            : server.IsConnected
+                ? CheckHealthCoreAsync(server)
+                : HealthCheckProbe.UnhealthyTask;
 
     private async Task<HealthCheckResult> CheckHealthCoreAsync(IServer server)
     {

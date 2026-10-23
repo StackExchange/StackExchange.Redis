@@ -42,7 +42,7 @@ namespace StackExchange.Redis
         bool IResultBox.IsFaulted => _exception != null;
         bool IResultBox.IsCompleted => _completed;
         Exception? IResultBox.Fault => _exception;
-        void IResultBox.SetException(Exception exception) => _exception = exception ?? CancelledException;
+        void IResultBox.SetException(Exception ex) => _exception = ex ?? CancelledException;
         void IResultBox.Cancel() => _exception = CancelledException;
 
         void IResultBox.ActivateContinuations()
@@ -131,7 +131,7 @@ namespace StackExchange.Redis
 
         void IResultBox<T>.SetResult(T value) => _value = value;
 
-        T? IResultBox<T>.GetResult(out Exception? ex, bool unused)
+        T? IResultBox<T>.GetResult(out Exception? ex, bool canRecycle)
         {
             ex = _exception;
             return _value;

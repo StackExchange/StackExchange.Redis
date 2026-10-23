@@ -367,9 +367,11 @@ namespace StackExchange.Redis
                 var oldConnected = IsConnected;
                 IsConnected = isConnected;
 
-                return isConnected == oldConnected ? GroupConnectionChangedEventArgs.ChangeType.Unknown
-                    : isConnected ? GroupConnectionChangedEventArgs.ChangeType.Reconnected
-                    : GroupConnectionChangedEventArgs.ChangeType.Disconnected;
+                return isConnected == oldConnected
+                    ? GroupConnectionChangedEventArgs.ChangeType.Unknown
+                    : isConnected
+                        ? GroupConnectionChangedEventArgs.ChangeType.Reconnected
+                        : GroupConnectionChangedEventArgs.ChangeType.Disconnected;
             }
 
             internal void UpdateLatency()
@@ -643,7 +645,7 @@ namespace StackExchange.Redis
                         // note the interval is a group-level concern (how often we re-evaluate the active
                         // member), not a property of any individual health-check
                         interval = typed._options.HealthCheckInterval;
-                        return interval > TimeSpan.Zero & interval != TimeSpan.MaxValue;
+                        return (interval > TimeSpan.Zero) & (interval != TimeSpan.MaxValue);
                     }
 
                     interval = TimeSpan.Zero;
@@ -1249,7 +1251,7 @@ namespace StackExchange.Redis
 
             public IDatabase GetDatabase(int db = -1, object? asyncState = null)
             {
-                if (asyncState is null & db >= -1 & db <= ConnectionMultiplexer.MaxCachedDatabaseInstance)
+                if ((asyncState is null) & (db >= -1) & (db <= ConnectionMultiplexer.MaxCachedDatabaseInstance))
                 {
                     return _databases[db + 1] ??= new MultiGroupDatabase(this, db, null);
                 }

@@ -930,7 +930,7 @@ namespace StackExchange.Redis
 
                 var result = WriteMessageInsideLock(physical, message);
 
-                if (result == WriteResult.Success & message.IsFlushRequiredSync)
+                if ((result == WriteResult.Success) & message.IsFlushRequiredSync)
                 {
                     physical.Flush();
                 }
@@ -1433,7 +1433,7 @@ namespace StackExchange.Redis
                     if (!gotLock) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
                 }
                 var result = WriteMessageInsideLock(physical, message);
-                if (result == WriteResult.Success & message.IsFlushRequiredAsync)
+                if ((result == WriteResult.Success) & message.IsFlushRequiredAsync)
                 {
                     physical.Flush();
                 }

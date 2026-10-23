@@ -111,8 +111,8 @@ namespace StackExchange.Redis
         private RedisServer? _defaultServer;
         public RedisServer GetRedisServer(object? asyncState)
             => asyncState is null
-            ? (_defaultServer ??= new RedisServer(this, null)) // reuse and memoize
-            : new RedisServer(this, asyncState);
+                ? (_defaultServer ??= new RedisServer(this, null)) // reuse and memoize
+                : new RedisServer(this, asyncState);
 
         public EndPoint EndPoint { get; }
 
@@ -249,7 +249,10 @@ namespace StackExchange.Redis
 
         public bool AllowReplicaWrites
         {
-            get => allowReplicaWrites;
+            get
+            {
+                return allowReplicaWrites;
+            }
             set
             {
                 allowReplicaWrites = value;
@@ -789,7 +792,10 @@ namespace StackExchange.Redis
         private string? runId;
         internal string? RunId
         {
-            get => runId;
+            get
+            {
+                return runId;
+            }
             set
             {
                 // We only care about changes

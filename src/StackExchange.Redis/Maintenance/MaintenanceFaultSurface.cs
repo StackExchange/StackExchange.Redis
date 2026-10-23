@@ -4,10 +4,10 @@ using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// Carries maintenance context on the faults a disruption can cause, so that a timeout during an announced
 /// migration is distinguishable from an ordinary one.
-/// </summary>
+/// </content>
 /// <remarks>
 /// This follows the established pattern on these types - <c>Commandstatus</c> and <c>Flags</c> on
 /// <see cref="RedisTimeoutException"/>, <c>FailureType</c> on <see cref="RedisConnectionException"/> - rather

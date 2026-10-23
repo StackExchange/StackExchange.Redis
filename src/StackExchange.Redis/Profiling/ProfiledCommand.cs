@@ -120,11 +120,16 @@ namespace StackExchange.Redis.Profiling
             }
         }
 
-        public override string ToString() =>
-$@"{Command} (DB: {Db}, Flags: {Flags})
+        public override string ToString()
+        {
+            var retransmission = RetransmissionOf != null
+                ? @"
+     RetransmissionOf = " + RetransmissionOf
+                : "";
+            return $@"{Command} (DB: {Db}, Flags: {Flags})
      EndPoint = {EndPoint} ({ConnectionType})
      Created = {CommandCreated:HH:mm:ss.ffff}
-     ElapsedTime = {ElapsedTime.TotalMilliseconds} ms (CreationToEnqueued: {CreationToEnqueued.TotalMilliseconds} ms, EnqueuedToSending: {EnqueuedToSending.TotalMilliseconds} ms, SentToResponse: {SentToResponse.TotalMilliseconds} ms, ResponseToCompletion = {ResponseToCompletion.TotalMilliseconds} ms){(RetransmissionOf != null ? @"
-     RetransmissionOf = " + RetransmissionOf : "")}";
+     ElapsedTime = {ElapsedTime.TotalMilliseconds} ms (CreationToEnqueued: {CreationToEnqueued.TotalMilliseconds} ms, EnqueuedToSending: {EnqueuedToSending.TotalMilliseconds} ms, SentToResponse: {SentToResponse.TotalMilliseconds} ms, ResponseToCompletion = {ResponseToCompletion.TotalMilliseconds} ms){retransmission}";
+        }
     }
 }

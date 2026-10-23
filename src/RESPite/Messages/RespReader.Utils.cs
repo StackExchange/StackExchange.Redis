@@ -349,7 +349,7 @@ public ref partial struct RespReader
             target = target.Slice(span.Length);
             if (!reader.TryMoveToNextSegment()) break;
         }
-        if (remaining != 0 | !target.IsEmpty) ThrowEof();
+        if ((remaining != 0) | !target.IsEmpty) ThrowEof();
         return arr;
     }
 }

@@ -37,13 +37,13 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>,
     public override string ToString() => _length == 0 ? "" : Encoding.ASCII.GetString(_arr, _index, _length);
 
     /// <inheritdoc/>
-    public override bool Equals(object? other) => other is AsciiHash hash && Equals(hash);
+    public override bool Equals(object? obj) => obj is AsciiHash hash && Equals(hash);
 
     /// <inheritdoc cref="Equals(object)" />
     [CLSCompliant(false)]
     public bool Equals(in AsciiHash other)
     {
-        return (_length == other.Length & _hashCS == other._hashCS)
+        return ((_length == other.Length) & (_hashCS == other._hashCS))
                && (_length <= MaxBytesHashed || Span.SequenceEqual(other.Span));
     }
 
@@ -65,7 +65,7 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>,
     {
         var cs = HashCS(value);
         var len = _length;
-        if (cs != _hashCS | value.Length != len) return false;
+        if ((cs != _hashCS) | (value.Length != len)) return false;
         return len <= MaxBytesHashed || Span.SequenceEqual(value);
     }
 
@@ -73,7 +73,7 @@ public readonly partial struct AsciiHash : IEquatable<AsciiHash>,
     {
         var uc = HashUC(value);
         var len = _length;
-        if (uc != _hashUC | value.Length != len) return false;
+        if ((uc != _hashUC) | (value.Length != len)) return false;
         return len <= MaxBytesHashed || SequenceEqualsCI(Span, value);
     }
 

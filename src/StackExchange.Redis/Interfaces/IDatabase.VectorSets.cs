@@ -4,9 +4,9 @@ using RESPite;
 // ReSharper disable once CheckNamespace
 namespace StackExchange.Redis;
 
-/// <summary>
-/// Describes functionality that is common to both standalone redis servers and redis clusters.
-/// </summary>
+/// <content>
+/// Vector set operations.
+/// </content>
 public partial interface IDatabase
 {
     // Vector Set operations

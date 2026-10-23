@@ -233,10 +233,10 @@ namespace StackExchange.Redis
             ulong.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
 
         internal static bool TryParseUInt64(ReadOnlySpan<byte> s, out ulong value) =>
-            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
+            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & (bytes == s.Length);
 
         internal static bool TryParseInt64(ReadOnlySpan<byte> s, out long value) =>
-            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
+            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & (bytes == s.Length);
 
         internal static bool CouldBeInteger(string s)
         {
@@ -245,18 +245,18 @@ namespace StackExchange.Redis
             for (int i = isSigned ? 1 : 0; i < s.Length; i++)
             {
                 char c = s[i];
-                if (c < '0' | c > '9') return false;
+                if ((c < '0') | (c > '9')) return false;
             }
             return true;
         }
         internal static bool CouldBeInteger(ReadOnlySpan<byte> s)
         {
-            if (s.IsEmpty | s.Length > Format.MaxInt64TextLen) return false;
+            if (s.IsEmpty | (s.Length > Format.MaxInt64TextLen)) return false;
             bool isSigned = s[0] == '-';
             for (int i = isSigned ? 1 : 0; i < s.Length; i++)
             {
                 byte c = s[i];
-                if (c < (byte)'0' | c > (byte)'9') return false;
+                if ((c < (byte)'0') | (c > (byte)'9')) return false;
             }
             return true;
         }
@@ -281,7 +281,7 @@ namespace StackExchange.Redis
                 case 4 when s[0] == '-' && TryParseInfNaN(s.Slice(1), false, out value):
                     return true;
             }
-            return Utf8Parser.TryParse(s, out value, out int bytes) & bytes == s.Length;
+            return Utf8Parser.TryParse(s, out value, out int bytes) & (bytes == s.Length);
 
             static bool TryParseInfNaN(ReadOnlySpan<byte> s, bool positive, out double value)
             {

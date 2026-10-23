@@ -391,14 +391,16 @@ public abstract class LoggingTunnel : Tunnel
     /// <inheritdoc/>
     public override ValueTask BeforeSocketConnectAsync(EndPoint endPoint, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken)
     {
-        return _tail is null ? base.BeforeSocketConnectAsync(endPoint, connectionType, socket, cancellationToken)
+        return _tail is null
+            ? base.BeforeSocketConnectAsync(endPoint, connectionType, socket, cancellationToken)
             : _tail.BeforeSocketConnectAsync(endPoint, connectionType, socket, cancellationToken);
     }
 
     /// <inheritdoc/>
     public override ValueTask<EndPoint?> GetSocketConnectEndpointAsync(EndPoint endpoint, CancellationToken cancellationToken)
     {
-        return _tail is null ? base.GetSocketConnectEndpointAsync(endpoint, cancellationToken)
+        return _tail is null
+            ? base.GetSocketConnectEndpointAsync(endpoint, cancellationToken)
             : _tail.GetSocketConnectEndpointAsync(endpoint, cancellationToken);
     }
 

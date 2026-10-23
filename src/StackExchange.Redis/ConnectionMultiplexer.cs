@@ -95,8 +95,8 @@ namespace StackExchange.Redis
         private int _activeHeartbeatErrors, lastHeartbeatTicks;
         internal long LastHeartbeatSecondsAgo =>
             pulse is null
-            ? -1
-            : unchecked(Environment.TickCount - Volatile.Read(ref lastHeartbeatTicks)) / 1000;
+                ? -1
+                : unchecked(Environment.TickCount - Volatile.Read(ref lastHeartbeatTicks)) / 1000;
 
         private static int lastGlobalHeartbeatTicks = Environment.TickCount;
         internal static long LastGlobalHeartbeatSecondsAgo =>
@@ -1003,7 +1003,8 @@ namespace StackExchange.Redis
             // a retired server may still be referenced by an alias for a moment; never hand one back, or the
             // caller receives something whose bridges are gone
             return _serverIdentities.TryGetValue(endpoint, out var byIdentity) && !byIdentity.IsDisposed
-                ? byIdentity : null;
+                ? byIdentity
+                : null;
         }
 
         // bumped once per applied cluster topology; absence is measured in these rather than in time, so a
@@ -1483,7 +1484,8 @@ namespace StackExchange.Redis
 
             // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
             return (asyncState == null && db <= MaxCachedDatabaseInstance)
-                ? GetCachedDatabaseInstance(db) : new RedisDatabase(this, db, asyncState);
+                ? GetCachedDatabaseInstance(db)
+                : new RedisDatabase(this, db, asyncState);
         }
 
         // DB zero is stored separately, since 0-only is a massively common use-case
@@ -1565,8 +1567,8 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The async state to pass into the resulting <see cref="RedisServer"/>.</param>
         public IServer GetServer(string hostAndPort, object? asyncState = null) =>
             Format.TryParseEndPoint(hostAndPort, out var ep)
-            ? GetServer(ep, asyncState)
-            : throw new ArgumentException($"The specified host and port could not be parsed: {hostAndPort}", nameof(hostAndPort));
+                ? GetServer(ep, asyncState)
+                : throw new ArgumentException($"The specified host and port could not be parsed: {hostAndPort}", nameof(hostAndPort));
 
         /// <summary>
         /// Obtain a configuration API for an individual server.
@@ -3020,8 +3022,8 @@ namespace StackExchange.Redis
             return quits;
         }
 
-        long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
-            => TryResolveServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+        long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endPoint, ConnectionType type)
+            => TryResolveServerEndPoint(endPoint)?.GetBridge(type)?.ConnectionId;
 
         internal uint UpdateLatency()
         {

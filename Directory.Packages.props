@@ -51,7 +51,7 @@
          major, so this is not a lagging pin to be bumped to 3.x/4.x when the others are refreshed -->
     <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
     <PackageVersion Include="StackExchange.Redis.StrongName" Version="1.2.6" />
-    <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" />
+    <PackageVersion Include="StyleCop.Analyzers" Version="1.3.151-beta" />
     <PackageVersion Include="System.Collections.Immutable" Version="10.0.13" />
     <PackageVersion Include="System.Reflection.Metadata" Version="10.0.13" />
     <!-- For binding redirect testing, main package gets this transitively -->

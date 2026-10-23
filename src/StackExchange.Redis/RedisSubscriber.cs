@@ -332,7 +332,7 @@ namespace StackExchange.Redis
             ThrowIfNull(channel);
             if (multiplexer.TryGetSubscription(channel, out sub))
             {
-                if (handler == null & queue == null)
+                if ((handler == null) & (queue == null))
                 {
                     // This was a blanket wipe, so clear it completely
                     sub.MarkCompleted();
