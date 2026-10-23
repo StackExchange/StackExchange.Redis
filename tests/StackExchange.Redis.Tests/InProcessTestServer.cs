@@ -181,7 +181,14 @@ public class InProcessTestServer : MemoryCacheRedisServer
 
     public override void Log(string message)
     {
-        _log?.WriteLine(message);
+        // the server's own background work (write loops, delayed closes after MOVING) can outlive the test that
+        // created it; xunit v3 throws on output with no active test, and from a fire-and-forget task that only
+        // surfaces as an unobserved exception at the end of the run
+        try
+        {
+            _log?.WriteLine(message);
+        }
+        catch (InvalidOperationException) { }
         base.Log(message);
     }
 
