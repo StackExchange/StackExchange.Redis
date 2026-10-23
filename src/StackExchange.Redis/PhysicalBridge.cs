@@ -865,6 +865,9 @@ namespace StackExchange.Redis
                 SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
                 foreach (var subCommand in multiMessage.GetMessages(physical))
                 {
+                    // sub-commands do not pass through SetEnqueued (only the parent did, before the backlog);
+                    // without a write time the heartbeat sees them as overdue by the process uptime (#3292)
+                    if (!ReferenceEquals(subCommand, message)) subCommand.InheritWriteTime(message);
                     result = WriteMessageToServerInsideWriteLock(physical, subCommand);
                     if (result != WriteResult.Success)
                     {
@@ -1614,6 +1617,21 @@ namespace StackExchange.Redis
             Multiplexer.OnInternalError(exception, ServerEndPoint.EndPoint, ConnectionType, origin);
         }
 
+        /// <summary>
+        /// Writes a fire-and-forget command that is injected ahead of a caller's message (SELECT, READONLY, ASKING, PREPARE).
+        /// These never pass through <see cref="Message.SetEnqueued"/>, so the write time is stamped here; some of them are
+        /// shared static instances, so the stamp can be overwritten by another connection, but only ever with a later time,
+        /// which can make a pending prefix look younger than it is - never older (#3292).
+        /// </summary>
+        private void WritePrefixCommandInsideWriteLock(PhysicalConnection connection, Message prefix)
+        {
+            prefix.SetWriteTime();
+            connection.EnqueueInsideWriteLock(prefix);
+            prefix.WriteTo(connection);
+            prefix.SetRequestSent();
+            IncrementOpCount();
+        }
+
         private void SelectDatabaseInsideWriteLock(PhysicalConnection connection, Message message)
         {
             int db = message.Db;
@@ -1622,10 +1640,7 @@ namespace StackExchange.Redis
                 var sel = connection.GetSelectDatabaseCommand(db, message);
                 if (sel != null)
                 {
-                    connection.EnqueueInsideWriteLock(sel);
-                    sel.WriteTo(connection);
-                    sel.SetRequestSent();
-                    IncrementOpCount();
+                    WritePrefixCommandInsideWriteLock(connection, sel);
                 }
             }
         }
@@ -1644,10 +1659,7 @@ namespace StackExchange.Redis
                 if (connection.TryAddPreparedFieldSet(fieldSet.Id))
                 {
                     var prepare = fieldSet.CreatePrepareMessage(message.Db);
-                    connection.EnqueueInsideWriteLock(prepare);
-                    prepare.WriteTo(connection);
-                    prepare.SetRequestSent();
-                    IncrementOpCount();
+                    WritePrefixCommandInsideWriteLock(connection, prepare);
                     fieldSet.RegisterServer(ServerEndPoint, message.Db);
                 }
             }
@@ -1707,19 +1719,12 @@ namespace StackExchange.Redis
                         var readmode = connection.GetReadModeCommand(isPrimaryOnly);
                         if (readmode != null)
                         {
-                            connection.EnqueueInsideWriteLock(readmode);
-                            readmode.WriteTo(connection);
-                            readmode.SetRequestSent();
-                            IncrementOpCount();
+                            WritePrefixCommandInsideWriteLock(connection, readmode);
                         }
                     }
                     if (message.IsAsking)
                     {
-                        var asking = ReusableAskingCommand;
-                        connection.EnqueueInsideWriteLock(asking);
-                        asking.WriteTo(connection);
-                        asking.SetRequestSent();
-                        IncrementOpCount();
+                        WritePrefixCommandInsideWriteLock(connection, ReusableAskingCommand);
                     }
                 }
                 switch (cmd)
