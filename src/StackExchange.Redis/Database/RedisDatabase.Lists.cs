@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// The list commands, where they have moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// <para>
     /// <c>ListRightPopLeftPush</c> is the interesting adapter here: the group has no method of its own for

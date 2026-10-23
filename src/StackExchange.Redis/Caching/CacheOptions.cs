@@ -103,7 +103,11 @@ namespace StackExchange.Redis.Caching
         /// </remarks>
         public int? MaxPayloadBytes
         {
-            get => _maxPayloadBytes;
+            get
+            {
+                return _maxPayloadBytes;
+            }
+
             init => _maxPayloadBytes = value is null or > 0
                 ? value
                 : throw new ArgumentOutOfRangeException(nameof(value), "The maximum payload size must be positive, or null for no limit.");
@@ -137,7 +141,11 @@ namespace StackExchange.Redis.Caching
         /// </remarks>
         public long? MaxBytes
         {
-            get => _maxBytes;
+            get
+            {
+                return _maxBytes;
+            }
+
             init => _maxBytes = value is null or > 0
                 ? value
                 : throw new ArgumentOutOfRangeException(nameof(value), "The memory budget must be positive, or null for no limit.");
@@ -155,7 +163,11 @@ namespace StackExchange.Redis.Caching
         /// </remarks>
         public int? MaxEntries
         {
-            get => _maxEntries;
+            get
+            {
+                return _maxEntries;
+            }
+
             init => _maxEntries = value is null or > 0
                 ? value
                 : throw new ArgumentOutOfRangeException(nameof(value), "The entry limit must be positive, or null for no limit.");
@@ -190,7 +202,11 @@ namespace StackExchange.Redis.Caching
         /// </remarks>
         public int EvictionSampleSize
         {
-            get => _evictionSampleSize;
+            get
+            {
+                return _evictionSampleSize;
+            }
+
             init => _evictionSampleSize = value > 0
                 ? value
                 : throw new ArgumentOutOfRangeException(nameof(value), "The eviction sample size must be positive.");
@@ -268,7 +284,11 @@ namespace StackExchange.Redis.Caching
         /// </remarks>
         public IReadOnlyList<string> Prefixes
         {
-            get => _prefixes;
+            get
+            {
+                return _prefixes;
+            }
+
             init
             {
                 _prefixes = value ?? throw new ArgumentNullException(nameof(value));

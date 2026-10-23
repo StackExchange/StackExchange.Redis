@@ -1564,9 +1564,11 @@ namespace StackExchange.Redis
                     else if (field == HelloField.Mode && reader.IsScalar)
                     {
                         // "standalone" | "sentinel" | "cluster"; only the last changes routing
-                        mode = reader.Is("cluster"u8) ? ServerType.Cluster
-                            : reader.Is("sentinel"u8) ? ServerType.Sentinel
-                            : ServerType.Standalone;
+                        mode = reader.Is("cluster"u8)
+                            ? ServerType.Cluster
+                            : reader.Is("sentinel"u8)
+                                ? ServerType.Sentinel
+                                : ServerType.Standalone;
                     }
                     else
                     {

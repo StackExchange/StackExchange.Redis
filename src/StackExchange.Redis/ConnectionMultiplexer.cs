@@ -1441,7 +1441,8 @@ namespace StackExchange.Redis
 
             // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
             return (asyncState == null && db <= MaxCachedDatabaseInstance)
-                ? GetCachedDatabaseInstance(db) : Surface(db, asyncState);
+                ? GetCachedDatabaseInstance(db)
+                : Surface(db, asyncState);
         }
 
         /// <summary>A database over the new core's connections.</summary>
@@ -2902,12 +2903,12 @@ namespace StackExchange.Redis
             }
         }
 
-        long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
+        long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endPoint, ConnectionType type)
             // the core's connection, which is the one actually carrying the commands and the only one the
             // server can name. Asking must not dial: while both cores existed this asked a v3 bridge first,
             // and creating one here connected it - a whole v3 handshake on a third socket just to answer a
             // question
-            => ConnectionsIfCreated?.ConnectionId(endpoint, type);
+            => ConnectionsIfCreated?.ConnectionId(endPoint, type);
 
         internal uint UpdateLatency()
         {

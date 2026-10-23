@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// The stream commands, where they have moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// The scalar half only; the reads return composites holding arrays and have not moved yet. Note the
     /// array parameters here: the old signatures promise <c>RedisValue[]</c>, so this is where an array

@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// The vector-set commands, where they have moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// The thinnest adapter of the lot, because the old surface was already lease-shaped: every member is
     /// a rename plus a writable-lease sibling, and there is no array anywhere except

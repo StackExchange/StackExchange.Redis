@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// <c>SORT</c>, where it has moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// Four members and one renderer. The group is <c>Keys</c> rather than a group of its own, because
     /// <c>SORT</c> takes a list, a set or a sorted set and Redis files it under the generic commands.

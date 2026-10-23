@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// The string commands, where they have moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// <para>
     /// One file per command group, named to match the group it adapts - <c>RespSurface.Strings.cs</c>

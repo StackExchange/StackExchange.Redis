@@ -6,9 +6,9 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// The <c>CONFIG</c> commands.
-/// </summary>
+/// </content>
 /// <remarks><inheritdoc cref="HyperLogLog" path="/remarks"/></remarks>
 public static partial class Config
 {

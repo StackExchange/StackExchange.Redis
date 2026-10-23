@@ -288,7 +288,11 @@ namespace StackExchange.Redis
         /// </remarks>
         internal string? UnroutableRedirectMessage
         {
-            get => _redirectUnroutable ? _redirectMessage : null;
+            get
+            {
+                return _redirectUnroutable ? _redirectMessage : null;
+            }
+
             set
             {
                 _redirectMessage = value;
@@ -319,7 +323,11 @@ namespace StackExchange.Redis
         /// </remarks>
         internal string? DeclinedRedirectMessage
         {
-            get => _redirectUnroutable ? null : _redirectMessage;
+            get
+            {
+                return _redirectUnroutable ? null : _redirectMessage;
+            }
+
             set
             {
                 _redirectMessage = value;

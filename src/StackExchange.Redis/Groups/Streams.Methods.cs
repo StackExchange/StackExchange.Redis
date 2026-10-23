@@ -8,9 +8,9 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// The stream commands: <c>target.Streams.LengthAsync(...)</c>.
-/// </summary>
+/// </content>
 /// <remarks>
 /// <para>
 /// <b>Here rather than in a single surface-wide class</b>, so that a group is one place: its type, its
@@ -207,11 +207,13 @@ public static partial class Streams
 
         StreamAutoClaimResult IRespHandler<StreamAutoClaimResult>.Parse(ref RespReader reader)
             => RespParsers.TryParseStreamAutoClaim(ref reader, allowJaggedFields: true, out var value)
-                ? value : throw Unexpected("XAUTOCLAIM", ref reader);
+                ? value
+                : throw Unexpected("XAUTOCLAIM", ref reader);
 
         StreamAutoClaimIdsOnlyResult IRespHandler<StreamAutoClaimIdsOnlyResult>.Parse(ref RespReader reader)
             => RespParsers.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
-                ? value : throw Unexpected("XAUTOCLAIM", ref reader);
+                ? value
+                : throw Unexpected("XAUTOCLAIM", ref reader);
 
         RedisStream[] IRespHandler<RedisStream[]>.Parse(ref RespReader reader)
             => RespParsers.ParseRedisStreams(ref reader, reader.Prefix == RespPrefix.Map, allowJaggedFields: true);
@@ -799,10 +801,11 @@ public static partial class Streams
     /// repeat. Raised here because only here are the positions visible; v3 did the same in its message.
     /// </remarks>
     private static CommandFlags ReadGroupFlags(CommandFlags flags, RedisValue? position, TimeSpan? claimMinIdleTime)
-        => claimMinIdleTime is null && position is { } explicitPosition
-            && StreamPosition.Resolve(explicitPosition, RedisCommand.XREADGROUP) != StreamConstants.UndeliveredMessages
-            ? flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly)
-            : flags;
+    {
+        var readOnly = claimMinIdleTime is null && position is { } explicitPosition
+            && StreamPosition.Resolve(explicitPosition, RedisCommand.XREADGROUP) != StreamConstants.UndeliveredMessages;
+        return readOnly ? flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly) : flags;
+    }
 
     /// <inheritdoc cref="ReadGroupFlags(CommandFlags, RedisValue?, TimeSpan?)"/>
     /// <remarks>For several streams, a single <c>&gt;</c> anywhere consumes, so all of them must be explicit.</remarks>

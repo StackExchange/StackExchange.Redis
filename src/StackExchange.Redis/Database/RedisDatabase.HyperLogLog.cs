@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// The HyperLogLog commands, where they have moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// The old surface spells every one of these twice - a fixed-arity form and an array form - and the
     /// group collapses both onto the span, so the pairs meet again here. <c>HyperLogLogMerge</c> is the

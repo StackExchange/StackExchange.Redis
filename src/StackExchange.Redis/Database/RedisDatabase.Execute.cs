@@ -5,9 +5,9 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// The ad-hoc escape hatch, where it has moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// <para>
     /// Its own file rather than a command group, because it is not one: this is the route for commands

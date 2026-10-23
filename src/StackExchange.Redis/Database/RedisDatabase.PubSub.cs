@@ -2,9 +2,9 @@
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// <c>PUBLISH</c>, where it has moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// <para>
     /// The last two members SER352 was counting, and the ones that took the longest to be sure about.

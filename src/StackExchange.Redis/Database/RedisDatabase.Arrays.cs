@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// The array commands, where they have moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// The whole family, <c>ARGREP</c> included: <see cref="ArrayGrepRequest"/> now renders its predicates
     /// through either writer, so the decision that was owed about that type is made. Arrays become spans

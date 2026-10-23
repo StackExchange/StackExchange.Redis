@@ -6,9 +6,9 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// The stream reply shapes, as <b>windows over the reply buffer</b>.
-/// </summary>
+/// </content>
 /// <remarks>
 /// <para>
 /// <b>Nested in the group, because these types are the group's.</b> A stream entry means nothing outside
@@ -355,7 +355,8 @@ public static partial class Streams
             var reader = GetReader();
             reader.MoveNext();
             return RespParsers.TryParseStreamAutoClaim(ref reader, allowJaggedFields: true, out var value)
-                ? value : StreamAutoClaimResult.Null;
+                ? value
+                : StreamAutoClaimResult.Null;
         }
 
         /// <inheritdoc/>
@@ -427,7 +428,8 @@ public static partial class Streams
             var reader = GetReader();
             reader.MoveNext();
             return RespParsers.TryParseStreamAutoClaimIdsOnly(ref reader, out var value)
-                ? value : StreamAutoClaimIdsOnlyResult.Null;
+                ? value
+                : StreamAutoClaimIdsOnlyResult.Null;
         }
 
         /// <inheritdoc/>

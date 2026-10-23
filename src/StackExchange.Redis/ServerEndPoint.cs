@@ -219,7 +219,11 @@ namespace StackExchange.Redis
 
         public bool IsReplica
         {
-            get => isReplica;
+            get
+            {
+                return isReplica;
+            }
+
             set
             {
                 var changed = isReplica != value;

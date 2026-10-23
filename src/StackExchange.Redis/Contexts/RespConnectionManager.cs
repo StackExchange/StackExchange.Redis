@@ -137,9 +137,11 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         private static RespClusterState SeedTopology(ConnectionMultiplexer multiplexer)
-            => multiplexer.ServerSelectionStrategy.ServerType == ServerType.Cluster ? RespClusterState.Yes
-                : multiplexer.IsConnected ? RespClusterState.No
-                : RespClusterState.Unknown;
+            => multiplexer.ServerSelectionStrategy.ServerType == ServerType.Cluster
+                ? RespClusterState.Yes
+                : multiplexer.IsConnected
+                    ? RespClusterState.No
+                    : RespClusterState.Unknown;
 
         internal bool RoutesBySlotForTest => _topology.RoutesBySlot;
 
