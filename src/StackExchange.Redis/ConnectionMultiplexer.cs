@@ -2282,17 +2282,7 @@ namespace StackExchange.Redis
             var slotsRead = ReadClusterSlotsAsync(server).ObserveErrors();
             var nodesRead = new RedisServer(server, null).ClusterNodesAsync().ObserveErrors();
 
-            ClusterTopology? topology;
-            try
-            {
-                topology = ClusterTopology.From(await slotsRead.ForAwait());
-            }
-            catch (RedisServerException ex)
-            {
-                log?.LogInformationClusterSlotsRefused(new(server), ex.Message);
-                topology = null;
-            }
-
+            var topology = await AwaitSlotsViewAsync(slotsRead, server, log).ForAwait();
             try
             {
                 return new(await nodesRead.ForAwait(), topology);
@@ -2301,6 +2291,23 @@ namespace StackExchange.Redis
             {
                 log?.LogInformationClusterNodesRefused(new(server), ex.Message);
                 return new(null, topology);
+            }
+        }
+
+        /// <summary>The <c>SLOTS</c> view alone, or null when the server refused it (logged, not thrown).</summary>
+        private static Task<ClusterTopology?> ReadSlotsViewAsync(ServerEndPoint server, ILogger? log)
+            => AwaitSlotsViewAsync(ReadClusterSlotsAsync(server), server, log);
+
+        private static async Task<ClusterTopology?> AwaitSlotsViewAsync(Task<ClusterSlotsResult?> slotsRead, ServerEndPoint server, ILogger? log)
+        {
+            try
+            {
+                return ClusterTopology.From(await slotsRead.ForAwait());
+            }
+            catch (RedisServerException ex)
+            {
+                log?.LogInformationClusterSlotsRefused(new(server), ex.Message);
+                return null;
             }
         }
 
@@ -2371,6 +2378,14 @@ namespace StackExchange.Redis
                         var asked = await ReadClusterViewsAsync(server, log).ForAwait();
                         clusterConfig = asked.Nodes;
                         topology ??= asked.Topology;
+                    }
+                    else if (topology is null)
+                    {
+                        // NODES is known but nobody holds a SLOTS view: ask for one, so that a server which keeps
+                        // refusing it says so in the log on every pass (main #3275) rather than leaving "why is
+                        // there no slot map?" unanswered, and so that a cluster whose refusal was transient gets
+                        // its map back without waiting for a redirect
+                        topology = await ReadSlotsViewAsync(server, log).ForAwait();
                     }
                 }
                 else

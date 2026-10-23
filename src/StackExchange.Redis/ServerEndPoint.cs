@@ -812,6 +812,31 @@ namespace StackExchange.Redis
         [ThreadStatic]
         private static Random? r;
 
+        private int lastRoleCheckTicks;
+
+        /// <summary>Seconds since this server's role was last read, by the handshake or by the heartbeat.</summary>
+        internal int LastRoleCheckSecondsAgo => unchecked(Environment.TickCount - Volatile.Read(ref lastRoleCheckTicks)) / 1000;
+
+        /// <summary>
+        /// Whether the heartbeat should re-read this server's role now: <see cref="ConfigCheckSeconds"/> have passed
+        /// since the last read. Zero disables the check, as it did for the shipped core's <c>INFO replication</c>.
+        /// </summary>
+        internal bool RoleCheckDue => ConfigCheckSeconds > 0 && LastRoleCheckSecondsAgo >= ConfigCheckSeconds;
+
+        /// <summary>
+        /// Note that the role was just read, and ease the pacing back towards the configured interval.
+        /// </summary>
+        /// <remarks>
+        /// What <c>CheckInfoReplication</c> recorded in the shipped core before sending its <c>INFO replication</c>;
+        /// here the read itself is <c>RespConnectionManager.TryRefreshRole</c>, driven from the core's heartbeat,
+        /// and the handshake counts as a read too, since it learns the role as it connects.
+        /// </remarks>
+        internal void OnRoleChecked()
+        {
+            Volatile.Write(ref lastRoleCheckTicks, Environment.TickCount);
+            ResetExponentiallyReplicationCheck();
+        }
+
         /// <summary>
         /// Forces frequent replication check starting from 1 second up to max ConfigCheckSeconds with an exponential increment.
         /// </summary>

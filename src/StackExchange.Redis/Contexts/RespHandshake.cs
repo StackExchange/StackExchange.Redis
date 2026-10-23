@@ -306,6 +306,19 @@ namespace StackExchange.Redis
                     version = hello.Version;
                     roleFromHello = hello.IsReplica;
 
+                    // what HELLO said the product is, when it named a vendor (main #3279): "server" for a server that
+                    // is not Redis, or a "{vendor}_version" field beside a Redis-compatible "version"
+                    if (server is not null)
+                    {
+                        if (hello.Variant is { } variant && hello.ProductVersion is { Length: > 0 } productVersion)
+                        {
+                            server.SetProductVariant(variant, productVersion);
+                            log?.LogInformationAutoConfiguredHelloProductVariant(new(server), variant, productVersion);
+                        }
+
+                        if (hello.UnknownServer is { } unknown) log?.LogInformationAutoConfiguredHelloUnknownServer(new(server), unknown);
+                    }
+
                     if (log is not null)
                     {
                         log.LogInformationAutoConfiguredHelloProtocol(new(server!), protocol);
@@ -402,9 +415,11 @@ namespace StackExchange.Redis
                     // slots exist, so this is a cluster whatever CLUSTER INFO did or did not say
                     if (slots is { Assignments.Count: > 0 }) serverType = ServerType.Cluster;
                 }
-                catch (RedisServerException)
+                catch (RedisServerException ex)
                 {
-                    // no map from this server; the selector still answers
+                    // no map from this server; the selector still answers. Said in the log (main #3275), because
+                    // the consequence - a cluster routed as standalone until a map arrives - is otherwise silent
+                    if (server is not null) log?.LogInformationClusterSlotsRefused(new(server), ex.Message);
                 }
             }
 
@@ -416,8 +431,16 @@ namespace StackExchange.Redis
 
             // BEFORE the connection is handed back, and that ordering is the point: the endpoint executor
             // publishes the connection and drains its backlog the moment this returns, and a backlog
-            // draining against an unset topology is exactly the window that loses per-slot ordering
-            topology?.OnServerType(serverType);
+            // draining against an unset topology is exactly the window that loses per-slot ordering.
+            //
+            // ...and only from the connection that does discovery (main #3285, #3284). The subscription
+            // connection's handshake is HELLO alone, with no INFO or CLUSTER follow-up, so a proxy whose HELLO
+            // disagrees with its INFO (AMR says "cluster" to one and "standalone" to the other) would otherwise
+            // have the last word every time pub/sub reconnects on its own. "mode" and "role" describe the
+            // server, and the interactive connection is the one that establishes them; a reply that carried
+            // slots is proof of a cluster whichever socket asked, and counts.
+            var discovers = connectionType == ConnectionType.Interactive || slots is { Assignments.Count: > 0 };
+            if (discovers) topology?.OnServerType(serverType);
 
             if (slots is not null && topology is not null)
             {
@@ -573,7 +596,8 @@ namespace StackExchange.Redis
                 LogResponse(log, server, connectionType, "SELECT " + database.ToString(CultureInfo.InvariantCulture), "OK");
             }
 
-            return new RespHandshakeResult(protocol, serverType, version, knowServerType, connectionId, roleFromHello, clusterNodes, slots);
+            // the server type and role are published only by the connection that discovers them (see `discovers`)
+            return new RespHandshakeResult(protocol, serverType, version, knowServerType && discovers, connectionId, discovers ? roleFromHello : null, clusterNodes, slots);
         }
 
         /// <summary>Read the server-wide settings the client models, for a server nothing has described yet.</summary>
@@ -1057,9 +1081,12 @@ namespace StackExchange.Redis
         /// never learns the product applies the wrong rule to a real deployment.
         /// </para>
         /// <para>
-        /// <b>From <c>INFO</c>, not from <c>HELLO</c>, which is deliberate and matches the v3 core.</b>
-        /// <c>HELLO</c> does carry a <c>server</c> field, and reading it would be free - but it names the
-        /// product without its product version, and the version is half of what is being established. The
+        /// <b>From <c>INFO</c>, unless <c>HELLO</c> already named the product.</b> <c>HELLO</c> carries a
+        /// <c>server</c> field and, for some products, a <c>{vendor}_version</c> beside it; since main #3279 the
+        /// handshake reads those (see <c>HelloHandler</c>), and a server so described skips this. What is left
+        /// for <c>INFO</c> is a server whose <c>HELLO</c> said nothing - RESP2-only, or plain "redis" with no
+        /// vendor field - and, separately, the Redis API version of a Valkey, whose <c>HELLO</c> "version" is its
+        /// own (that is the version fallback above, not this). The
         /// variant is decided across the whole reply rather than per line, because both
         /// <c>redis_version</c> and <c>valkey_version</c> can be present in either order; that was the
         /// v3 processor's rule and this reuses its field table rather than growing a second copy.
@@ -1373,15 +1400,35 @@ namespace StackExchange.Redis
         /// <param name="version">The version it reported, if it did.</param>
         /// <param name="isReplica">What it said this server's role is, when it said.</param>
         /// <param name="connectionId">What it said this connection's id is, when it said.</param>
+        /// <param name="variant">The product the reply named, when it named one other than plain Redis.</param>
+        /// <param name="productVersion">That product's own version, when <paramref name="variant"/> is set.</param>
+        /// <param name="unknownServer">A "server" value this library does not know, for logging; null otherwise.</param>
         /// <remarks>
         /// A struct rather than a tuple: the library must not reference <c>System.ValueTuple</c>, which
         /// would add a facade dependency on the down-level targets - asserted by
         /// <c>SanityCheckTests.ValueTupleNotReferenced</c>, which is how this was caught.
         /// </remarks>
-        private readonly struct HelloReply(int proto, ServerType? mode, Version? version, bool? isReplica, long? connectionId = null)
+        private readonly struct HelloReply(
+            int proto,
+            ServerType? mode,
+            Version? version,
+            bool? isReplica,
+            long? connectionId = null,
+            ProductVariant? variant = null,
+            string? productVersion = null,
+            string? unknownServer = null)
         {
             /// <summary>What the reply said this connection's id is, when it said.</summary>
             internal long? ConnectionId { get; } = connectionId;
+
+            /// <summary>The product the reply named, when it named one other than plain Redis.</summary>
+            internal ProductVariant? Variant { get; } = variant;
+
+            /// <summary>That product's own version, when <see cref="Variant"/> is set.</summary>
+            internal string? ProductVersion { get; } = productVersion;
+
+            /// <summary>A "server" value this library does not know, so that it can be logged; null otherwise.</summary>
+            internal string? UnknownServer { get; } = unknownServer;
 
             internal int Proto { get; } = proto;
 
@@ -1444,35 +1491,66 @@ namespace StackExchange.Redis
             {
                 var proto = 2; // a reply we could not read is not a reason to claim RESP3
                 ServerType? mode = null;
-                Version? version = null;
                 bool? isReplica = null;
                 long? connectionId = null;
+
+                // "version" means different things depending on "server" (main #3279, #3278): Redis - and Garnet,
+                // which presents as "redis" and adds "garnet_version" - report the Redis API version, but Valkey
+                // reports ITS OWN ("server" => "valkey", "version" => "9.1.2", while INFO still says
+                // redis_version:7.2.4). So what "version" is can only be decided once the whole map has been read.
+                var serverIsRedis = true; // absent means redis: older servers
+                ProductVariant? helloVariant = null, vendorVariant = null;
+                string? versionText = null, vendorVersion = null, unknownServer = null;
 
                 var count = reader.AggregateLength();
                 for (var i = 0; i < count; i++)
                 {
                     if (!reader.TryMoveNext()) break;
-                    var isProto = reader.Is("proto"u8);
-                    var isMode = !isProto && reader.Is("mode"u8);
-                    var isVersion = !isProto && !isMode && reader.Is("version"u8);
-                    var isRole = !isProto && !isMode && !isVersion && reader.Is("role"u8);
-                    var isId = !isProto && !isMode && !isVersion && !isRole && reader.Is("id"u8);
+                    var field = reader.IsScalar && reader.TryGetSpan(out var name) && HelloFieldMetadata.TryParse(name, out var parsed)
+                        ? parsed
+                        : HelloField.Unknown;
                     if (!reader.TryMoveNext()) break;
                     i++;
 
-                    if (isProto && reader.IsScalar && reader.TryReadInt64(out var value))
+                    if (field == HelloField.Proto && reader.IsScalar && reader.TryReadInt64(out var value))
                     {
                         proto = (int)value;
                     }
-                    else if (isId && reader.IsScalar && reader.TryReadInt64(out var id))
+                    else if (field == HelloField.Id && reader.IsScalar && reader.TryReadInt64(out var id))
                     {
                         connectionId = id;
                     }
-                    else if (isVersion && reader.IsScalar)
+                    else if (field == HelloField.Server && reader.IsScalar)
                     {
-                        _ = Format.TryParseVersion(reader.ReadString(), out version);
+                        if (reader.TryGetSpan(out var span) && ProductVariantMetadata.TryParse(span, out var named))
+                        {
+                            helloVariant = named;
+                            serverIsRedis = named == ProductVariant.Redis;
+                        }
+                        else
+                        {
+                            serverIsRedis = false;
+                            unknownServer = reader.ReadString() ?? "";
+                        }
                     }
-                    else if (isRole && reader.IsScalar)
+                    else if (field == HelloField.Version && reader.IsScalar)
+                    {
+                        versionText = reader.ReadString();
+                    }
+                    else if (field is HelloField.GarnetVersion or HelloField.ValkeyVersion or HelloField.DragonflyVersion
+                        or HelloField.MemuraiVersion or HelloField.RedictVersion && reader.IsScalar)
+                    {
+                        vendorVariant = field switch
+                        {
+                            HelloField.GarnetVersion => ProductVariant.Garnet,
+                            HelloField.ValkeyVersion => ProductVariant.Valkey,
+                            HelloField.DragonflyVersion => ProductVariant.Dragonfly,
+                            HelloField.MemuraiVersion => ProductVariant.Memurai,
+                            _ => ProductVariant.Redict,
+                        };
+                        vendorVersion = reader.ReadString();
+                    }
+                    else if (field == HelloField.Role && reader.IsScalar)
                     {
                         // FREE, and it removes the need to ask: the v3 handshake tracked exactly this
                         // as RoleKnownFromHello, and skipped its SET probe when it was set. #2968 is about
@@ -1483,7 +1561,7 @@ namespace StackExchange.Redis
                             isReplica = replica;
                         }
                     }
-                    else if (isMode && reader.IsScalar)
+                    else if (field == HelloField.Mode && reader.IsScalar)
                     {
                         // "standalone" | "sentinel" | "cluster"; only the last changes routing
                         mode = reader.Is("cluster"u8) ? ServerType.Cluster
@@ -1496,7 +1574,28 @@ namespace StackExchange.Redis
                     }
                 }
 
-                return new HelloReply(proto, mode, version, isReplica, connectionId);
+                Version? version = null;
+                ProductVariant? variant = null;
+                string? productVersion = null;
+                if (serverIsRedis)
+                {
+                    // "version" is the Redis API version; a "{vendor}_version" field, if any, names the product
+                    if (versionText is not null) _ = Format.TryParseVersion(versionText, out version);
+                    if (vendorVariant is { } fromField && !string.IsNullOrWhiteSpace(vendorVersion))
+                    {
+                        variant = fromField;
+                        productVersion = vendorVersion;
+                    }
+                }
+                else if (helloVariant is { } fromServer)
+                {
+                    // a known non-Redis server: "version" is the vendor's own, and the Redis API version has to
+                    // come from INFO (redis_version), or stay at the configured default - never from here
+                    variant = fromServer;
+                    productVersion = !string.IsNullOrWhiteSpace(vendorVersion) ? vendorVersion : versionText;
+                }
+
+                return new HelloReply(proto, mode, version, isReplica, connectionId, variant, productVersion, unknownServer);
             }
         }
 

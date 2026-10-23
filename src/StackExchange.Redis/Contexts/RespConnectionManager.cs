@@ -111,7 +111,7 @@ namespace StackExchange.Redis
                 RoleLearned = PublishRoleToSelector,
             };
             _features = new ObservedFeatureProbe(this);
-            _select = new SelectPreamble(new RespContext(multiplexer.RawConfig.CommandMap));
+            _select = new SelectPreamble(new RespContext(multiplexer.CommandMap));
             _defaultDatabase = multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault();
             _router = Rebind(multiplexer.RawConfig.DefaultDatabase.GetValueOrDefault());
             SeedRoles();
@@ -186,7 +186,7 @@ namespace StackExchange.Redis
         internal RespDatabaseContext GetDatabase(int database = 0)
         {
             return new(new RespContext(
-                    _multiplexer.RawConfig.CommandMap,
+                    _multiplexer.CommandMap,
                     database: database,
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithTopology(_topology)
@@ -468,6 +468,15 @@ namespace StackExchange.Redis
                 && CommandFlagsInternal.GetPrimaryReplicaFlags(flags) is CommandFlags.DemandReplica or CommandFlags.PreferReplica;
 
             if (wantsReplica && PickReplica(_topology.Replicas) is { } replica) return replica;
+
+            // A primary-only command sent with PreferReplica goes to the primary, which the shipped core
+            // arranged by rewriting the flags before the selector saw them (Message.SetPrimaryOnly; main #3291,
+            // #2821): the selector honours the preference as written, and the pre-send check would then refuse
+            // the command on the replica it chose. DemandReplica is left alone so that it still fails the same way.
+            if (command.IsPrimaryOnly() && CommandFlagsInternal.GetPrimaryReplicaFlags(flags) == CommandFlags.PreferReplica)
+            {
+                flags = CommandFlagsInternal.SetPrimaryReplicaFlags(flags, CommandFlags.DemandMaster);
+            }
 
             // ...and the selector for the keyless choice, for the same reason and with the same measurement:
             // it knows every configured endpoint's role and selectability without this core having dialled
@@ -758,7 +767,7 @@ namespace StackExchange.Redis
         /// </remarks>
         internal RespServerContext ServerContext(EndPoint endpoint)
             => new(new RespContext(
-                    _multiplexer.RawConfig.CommandMap,
+                    _multiplexer.CommandMap,
                     database: -1,
                     serverType: _multiplexer.ServerSelectionStrategy.ServerType)
                 .WithScriptCache(_multiplexer.ScriptCache)
@@ -776,7 +785,7 @@ namespace StackExchange.Redis
         /// prefix, because that IS the channel as far as the wire is concerned.
         /// </remarks>
         internal RespContext SubscriptionContext(EndPoint endpoint)
-            => new RespContext(_multiplexer.RawConfig.CommandMap)
+            => new RespContext(_multiplexer.CommandMap)
                 .AppendChannelPrefix(_multiplexer.RawConfig.ChannelPrefix)
                 .WithServices(_features)
                 .WithExecutor(SubscriptionEndpoint(endpoint));
@@ -1209,7 +1218,7 @@ namespace StackExchange.Redis
                     && result.Protocol < RedisProtocol.Resp3
                     && config.TryResp3()
                     && _multiplexer.RawConfig.SharedSubscriptionConnection
-                    && _multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)
+                    && _multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE)
                     && (_multiplexer.AnySubscribed()
                         || _multiplexer.ConfigurationChangedChannel is not null))
                 {
@@ -1331,7 +1340,7 @@ namespace StackExchange.Redis
         internal void DialSubscriptionSocketForConfigurationChannel(EndPoint endpoint)
         {
             if (_multiplexer.ConfigurationChangedChannel is null
-                || !_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
+                || !_multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
             {
                 return;
             }
@@ -2121,7 +2130,7 @@ namespace StackExchange.Redis
         internal void SetLibraryName(string libraryName)
         {
             if (string.IsNullOrWhiteSpace(libraryName)) return;
-            if (!_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.CLIENT)) return;
+            if (!_multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT)) return;
 
             foreach (var pair in _endpoints) Announce(pair.Key, pair.Value);
             foreach (var pair in _subscriptions) Announce(pair.Key, pair.Value);
@@ -2131,7 +2140,7 @@ namespace StackExchange.Redis
                 if (!executor.IsConnectedNow) return;
                 try
                 {
-                    var context = new RespContext(_multiplexer.RawConfig.CommandMap, database: -1)
+                    var context = new RespContext(_multiplexer.CommandMap, database: -1)
                         .WithExecutor(executor.WithDatabase(-1));
                     _ = context.SendAsync(
                         $"{RedisCommand.CLIENT}{RedisLiterals.SETINFO}{RedisLiterals.lib_name}{(RedisValue)libraryName}",
@@ -2170,6 +2179,7 @@ namespace StackExchange.Redis
         {
             if (result.Version is { } version) server.Version = version;
             if (result.RoleFromHello is { } isReplica) server.IsReplica = isReplica;
+            server.OnRoleChecked(); // the handshake read the role; the heartbeat's re-read starts counting from here
 
             // The SLOTS view first, and this ordering is load-bearing: SetClusterConfiguration below reads
             // ServerEndPoint.ClusterTopology to decide which reply drives the selector's slot map, and falls
@@ -2255,7 +2265,7 @@ namespace StackExchange.Redis
         /// </remarks>
         internal bool TryRefreshRole(EndPoint endpoint, ILogger? log = null)
         {
-            if (!_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.ROLE)
+            if (!_multiplexer.CommandMap.IsAvailable(RedisCommand.ROLE)
                 || !_endpoints.TryGetValue(endpoint, out var executor)
                 || !executor.IsConnectedNow)
             {
@@ -2269,7 +2279,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    var context = new RespDatabaseContext(new RespContext(_multiplexer.RawConfig.CommandMap, database: -1).WithExecutor(executor));
+                    var context = new RespDatabaseContext(new RespContext(_multiplexer.CommandMap, database: -1).WithExecutor(executor));
                     var role = await context.SendAsync($"{RedisCommand.ROLE}", handler: RespHandshake.RoleHandler.Instance).ConfigureAwait(false);
                     _topology.OnRole(endpoint, role.Role);
                     if (role.Peers is not null)
@@ -2357,9 +2367,11 @@ namespace StackExchange.Redis
         /// </remarks>
         internal async Task RefreshTopologyAsync(ILogger? log = null)
         {
-            if (_topology.RoutesBySlot)
+            // NeedsSlots rather than RoutesBySlot: a cluster that has refused SLOTS so far routes as standalone
+            // (RoutesBySlot wants a map), and this sweep is exactly how it would ever get one
+            if (_topology.NeedsSlots)
             {
-                if (!_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.CLUSTER)) return;
+                if (!_multiplexer.CommandMap.IsAvailable(RedisCommand.CLUSTER)) return;
 
                 foreach (var pair in _endpoints)
                 {
@@ -2387,7 +2399,7 @@ namespace StackExchange.Redis
                 return;
             }
 
-            if (!_topology.WantsRoles || !_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.ROLE)) return;
+            if (!_topology.WantsRoles || !_multiplexer.CommandMap.IsAvailable(RedisCommand.ROLE)) return;
 
             foreach (var pair in _endpoints)
             {
@@ -2411,7 +2423,7 @@ namespace StackExchange.Redis
             }
 
             RespDatabaseContext Context(RespEndpointExecutor executor)
-                => new(new RespContext(_multiplexer.RawConfig.CommandMap, database: -1).WithExecutor(executor));
+                => new(new RespContext(_multiplexer.CommandMap, database: -1).WithExecutor(executor));
 
             // this core's map AND the selector's, for the same reason the handshake does both: the selector
             // still answers for IServer and for the routing fallbacks, and a refresh that corrected only one
@@ -2557,6 +2569,24 @@ namespace StackExchange.Redis
             var timeout = _multiplexer.AsyncTimeoutMilliseconds;
             foreach (var pair in _endpoints) pair.Value.OnHeartbeat(timeout);
             foreach (var pair in _subscriptions) pair.Value.OnHeartbeat(timeout);
+
+            // The periodic role re-read the shipped bridge made on its heartbeat (CheckInfoReplication, paced by
+            // ConfigCheckSeconds with the exponential ramp a suspected failover forces). A node demoted in place
+            // reports its new role only to somebody who asks, and nothing else here would: the sentinel recovery
+            // path (main #3281) acts on ServerEndPoint.IsReplica, which this is what keeps honest. Interactive
+            // endpoints only, as before, and never a sentinel, which has no role worth asking for.
+            foreach (var pair in _endpoints)
+            {
+                if (!pair.Value.IsConnectedNow) continue;
+                if (_multiplexer.TryResolveServerEndPoint(pair.Key) is not { } server
+                    || server.ServerType == ServerType.Sentinel
+                    || !server.RoleCheckDue)
+                {
+                    continue;
+                }
+
+                if (TryRefreshRole(pair.Key, _multiplexer.Logger)) server.OnRoleChecked();
+            }
         }
 
         /// <summary>Release a connection-local claim on this core's interactive connection to an endpoint.</summary>

@@ -1095,9 +1095,10 @@ namespace StackExchange.Redis
         /// default), or <c>0</c> to never do so.
         /// </summary>
         /// <remarks>
-        /// Sends an <c>INFO replication</c> on each *established* interactive connection. That is how a
-        /// primary/replica change is noticed on a deployment that does not announce one, and it doubles as the
-        /// keep-alive for those sockets, which is why the interval is short.
+        /// Re-reads the role of each *established* interactive connection's server (<c>ROLE</c>; the shipped core
+        /// sent <c>INFO replication</c>). That is how a primary/replica change is noticed on a deployment that
+        /// does not announce one - a primary demoted in place under sentinel, say - and it doubles as a keep-alive
+        /// for those sockets, which is why the interval is short.
         /// <para>
         /// Despite the name, this is not a topology re-read. It asks a server we are already talking to what it
         /// says about itself, so it reveals nothing about servers we cannot reach, about endpoints that have
@@ -1129,7 +1130,7 @@ namespace StackExchange.Redis
         /// </para>
         /// <para>
         /// Distinct from <see cref="ConfigCheckSeconds"/>, which despite its name does not re-read topology -
-        /// it sends an <c>INFO replication</c> on an established connection to check a server's role.
+        /// it asks an established connection's server for its role.
         /// </para>
         /// </remarks>
         public int TopologyRefreshSeconds
