@@ -87,7 +87,8 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         var key = Me();
         RedisValue token = Guid.NewGuid().ToString();
 
-        // these look at the server's features before building the message, which used to pick the replica
+        // these look at the server's features before building the message, which used to pick the replica;
+        // the fractional-second expiry forces the PEXPIRE path, which is the one that checks features
         db.StringSet(key, "abc");
         Assert.True(db.KeyExpire(key, TimeSpan.FromMilliseconds(100_500), CommandFlags.PreferReplica));
         Assert.True(db.KeyDelete(key, CommandFlags.PreferReplica));

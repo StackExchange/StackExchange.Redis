@@ -69,8 +69,9 @@ namespace StackExchange.Redis
         internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, RedisCommand command, out ServerEndPoint? server)
         {
             // the server picked here is the one the message is sent to, so a primary-only command has to pick the primary
-            // here as well, the same way Message does when it is created; otherwise PreferReplica picks a replica that then rejects it
-            if (command.IsPrimaryOnly() && Message.GetPrimaryReplicaFlags(flags) is CommandFlags.PreferMaster or CommandFlags.PreferReplica)
+            // here as well, the same way Message.SetPrimaryOnly does when the message is created; otherwise PreferReplica
+            // picks a replica that then rejects it (DemandReplica is left alone so that it still fails the same way)
+            if (command.IsPrimaryOnly() && Message.GetPrimaryReplicaFlags(flags) != CommandFlags.DemandReplica)
             {
                 flags = Message.SetPrimaryReplicaFlags(flags, CommandFlags.DemandMaster);
             }
