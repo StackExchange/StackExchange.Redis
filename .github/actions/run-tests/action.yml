@@ -71,15 +71,18 @@ runs:
 
     - name: StackExchange.Redis.Tests
       shell: bash
+      # Microsoft.Testing.Platform `dotnet test` (selected in global.json); the GitHub Actions reporter is a platform
+      # extension that is off by default, and the TRX report feeds dorny/test-reporter below
       run: >-
-        dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj
+        dotnet test --project tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj
         --no-build
         -c Release
         -f net10.0
-        --logger trx
-        --logger "GitHubActions;summary-include-passed=false;summary-include-skipped=false"
         --results-directory ./test-results/
-        /p:CI=true
+        --report-xunit-trx
+        --report-github
+        --report-github-summary-include-passed false
+        --report-github-summary-include-skipped false
 
     - uses: dorny/test-reporter@v3
       continue-on-error: true
