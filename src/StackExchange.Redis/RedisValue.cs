@@ -435,8 +435,8 @@ namespace StackExchange.Redis
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator ==(RedisValue x, RedisValue y)
         {
-            x = x.Simplify();
-            y = y.Simplify();
+            x = x.Simplify(forComparison: true);
+            y = y.Simplify(forComparison: true);
             StorageType xType = x.Type, yType = y.Type;
 
             if (xType == StorageType.Null) return yType == StorageType.Null;
@@ -653,7 +653,7 @@ namespace StackExchange.Redis
         public override int GetHashCode() => GetHashCode(this);
         private static int GetHashCode(RedisValue x)
         {
-            x = x.Simplify();
+            x = x.Simplify(forComparison: true);
             switch (x.Type)
             {
                 case StorageType.Null:
@@ -868,8 +868,8 @@ namespace StackExchange.Redis
         {
             try
             {
-                x = x.Simplify();
-                y = y.Simplify();
+                x = x.Simplify(forComparison: true);
+                y = y.Simplify(forComparison: true);
                 StorageType xType = x.Type, yType = y.Type;
 
                 if (xType == StorageType.Null) return yType == StorageType.Null ? 0 : -1;
@@ -1573,12 +1573,43 @@ namespace StackExchange.Redis
         /// a hash key or similar - we don't want to break it; RedisConnection uses
         /// the storage type, not the "does it look like a long?" - for this reason.
         /// </summary>
-        internal RedisValue Simplify()
+        internal RedisValue Simplify() => Simplify(forComparison: false);
+
+        // Conversion keeps its historical, permissive string parser. Comparisons must instead
+        // use the same numeric grammar for every storage form.
+        private RedisValue Simplify(bool forComparison)
         {
             long i64;
             ulong u64;
             switch (Type)
             {
+                case StorageType.String when forComparison:
+                    var text = RawString();
+                    if (text.Length == 0 || !CouldStartNumber(text[0])) break;
+                    // Reject impossible candidates before renting/copying their entire payload.
+                    // This is only an alphabet check; the byte parser still validates the syntax.
+                    foreach (char c in text)
+                    {
+                        if (!CouldBeNumberCharacter(c)) return this;
+                    }
+                    byte[]? rentedText = null;
+                    Span<byte> encoded = text.Length <= Format.MaxDoubleTextLen
+                        ? stackalloc byte[Format.MaxDoubleTextLen]
+                        : (rentedText = ArrayPool<byte>.Shared.Rent(text.Length));
+                    try
+                    {
+                        // The preflight alphabet is ASCII, so narrowing cannot truncate text.
+                        for (int i = 0; i < text.Length; i++)
+                        {
+                            encoded[i] = (byte)text[i];
+                        }
+                        if (TrySimplify(encoded.Slice(0, text.Length), out var parsedText)) return parsedText;
+                    }
+                    finally
+                    {
+                        if (rentedText is not null) ArrayPool<byte>.Shared.Return(rentedText);
+                    }
+                    break;
                 case StorageType.String:
                     string s = RawString();
                     if (Format.CouldBeInteger(s))
@@ -1593,15 +1624,41 @@ namespace StackExchange.Redis
                     if (TrySimplify(UnsafeRawSpan(out _), out var simplified)) return simplified;
                     break;
                 case StorageType.Sequence:
-                    // numeric forms are short, so we only need to consider plausibly-numeric lengths;
-                    // copy into a small stack buffer so we can reuse the exact same byte-based parsing
                     var seq = RawSequence();
-                    if (seq.Length <= Format.MaxDoubleTextLen)
+                    if (forComparison)
                     {
-                        Span<byte> tmp = stackalloc byte[Format.MaxDoubleTextLen];
-                        int len = (int)seq.Length;
-                        seq.CopyTo(tmp);
-                        if (TrySimplify(tmp.Slice(0, len), out simplified)) return simplified;
+                        // Formatting limits do not bound parsable input (e.g. leading zeroes).
+                        // Avoid linearizing long ordinary text, including empty leading segments.
+                        foreach (var segment in seq)
+                        {
+                            if (segment.IsEmpty) continue;
+                            if (!CouldStartNumber((char)segment.Span[0])) return this;
+                            break;
+                        }
+                        foreach (var segment in seq)
+                        {
+                            foreach (byte b in segment.Span)
+                            {
+                                if (!CouldBeNumberCharacter((char)b)) return this;
+                            }
+                        }
+                    }
+                    if (forComparison || seq.Length <= Format.MaxDoubleTextLen)
+                    {
+                        int len = checked((int)seq.Length);
+                        byte[]? rentedSequence = null;
+                        Span<byte> tmp = len <= Format.MaxDoubleTextLen
+                            ? stackalloc byte[Format.MaxDoubleTextLen]
+                            : (rentedSequence = ArrayPool<byte>.Shared.Rent(len));
+                        try
+                        {
+                            seq.CopyTo(tmp);
+                            if (TrySimplify(tmp.Slice(0, len), out simplified)) return simplified;
+                        }
+                        finally
+                        {
+                            if (rentedSequence is not null) ArrayPool<byte>.Shared.Return(rentedSequence);
+                        }
                     }
                     break;
                 case StorageType.Double:
@@ -1612,8 +1669,13 @@ namespace StackExchange.Redis
             }
             return this;
 
-            // shared by the ByteArray/MemoryManager and Sequence cases, so that identical bytes
-            // simplify identically regardless of how they happen to be stored
+            // Special doubles deliberately remain text, so only finite numeric prefixes matter.
+            static bool CouldStartNumber(char c) => c is >= '0' and <= '9' or '+' or '-' or '.';
+
+            static bool CouldBeNumberCharacter(char c) => CouldStartNumber(c) || c is 'e' or 'E';
+
+            // Shared by string comparison, ByteArray/MemoryManager, and Sequence cases so that
+            // identical numeric bytes simplify identically regardless of storage.
             static bool TrySimplify(ReadOnlySpan<byte> bytes, out RedisValue value)
             {
                 if (Format.CouldBeInteger(bytes))
