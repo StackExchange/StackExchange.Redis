@@ -44,8 +44,9 @@ namespace StackExchange.Redis
         /// <param name="resultType">The explicit data type.</param>
         /// <returns> new <see cref="RedisResult"/>.</returns>
         public static RedisResult Create(RedisValue[] values, ResultType resultType) =>
-            values == null ? NullArray : values.Length == 0 ? EmptyArray(resultType) :
-                new ArrayRedisResult(Array.ConvertAll(values, value => new SingleRedisResult(value, null)), resultType);
+            values == null ? NullArray :
+            values.Length == 0 ? EmptyArray(resultType) :
+            new ArrayRedisResult(Array.ConvertAll(values, value => new SingleRedisResult(value, null)), resultType);
 
         /// <summary>
         /// Create a new RedisResult representing an array of values.
@@ -426,10 +427,11 @@ namespace StackExchange.Redis
             }
 
             internal override byte[][]? AsByteArrayArray()
-                => IsNull ? null
-                : _value!.Length == 0
-                    ? Array.Empty<byte[]>()
-                    : Array.ConvertAll(_value, x => x.AsByteArray()!);
+                => IsNull
+                    ? null
+                    : _value!.Length == 0
+                        ? Array.Empty<byte[]>()
+                        : Array.ConvertAll(_value, x => x.AsByteArray()!);
 
             private bool IsSingleton => _value?.Length == 1;
             private bool IsEmpty => _value?.Length == 0;
@@ -440,9 +442,11 @@ namespace StackExchange.Redis
             }
 
             internal override double[]? AsDoubleArray()
-                => IsNull ? null
-                : IsEmpty ? Array.Empty<double>()
-                : Array.ConvertAll(_value!, x => x.AsDouble());
+                => IsNull
+                    ? null
+                    : IsEmpty
+                        ? Array.Empty<double>()
+                        : Array.ConvertAll(_value!, x => x.AsDouble());
 
             internal override int AsInt32()
             {
@@ -451,9 +455,11 @@ namespace StackExchange.Redis
             }
 
             internal override int[]? AsInt32Array()
-                => IsNull ? null
-                : IsEmpty ? Array.Empty<int>()
-                : Array.ConvertAll(_value!, x => x.AsInt32());
+                => IsNull
+                    ? null
+                    : IsEmpty
+                        ? Array.Empty<int>()
+                        : Array.ConvertAll(_value!, x => x.AsInt32());
 
             internal override long AsInt64()
             {
@@ -467,14 +473,18 @@ namespace StackExchange.Redis
             }
 
             internal override long[]? AsInt64Array()
-                => IsNull ? null
-                : IsEmpty ? Array.Empty<long>()
-                : Array.ConvertAll(_value!, x => x.AsInt64());
+                => IsNull
+                    ? null
+                    : IsEmpty
+                        ? Array.Empty<long>()
+                        : Array.ConvertAll(_value!, x => x.AsInt64());
 
             internal override ulong[]? AsUInt64Array()
-                => IsNull ? null
-                : IsEmpty ? Array.Empty<ulong>()
-                : Array.ConvertAll(_value!, x => x.AsUInt64());
+                => IsNull
+                    ? null
+                    : IsEmpty
+                        ? Array.Empty<ulong>()
+                        : Array.ConvertAll(_value!, x => x.AsUInt64());
 
             internal override bool? AsNullableBoolean()
             {
@@ -512,9 +522,11 @@ namespace StackExchange.Redis
             }
 
             internal override RedisKey[]? AsRedisKeyArray()
-                => IsNull ? null
-                : IsEmpty ? Array.Empty<RedisKey>()
-                : Array.ConvertAll(_value!, x => x.AsRedisKey());
+                => IsNull
+                    ? null
+                    : IsEmpty
+                        ? Array.Empty<RedisKey>()
+                        : Array.ConvertAll(_value!, x => x.AsRedisKey());
 
             internal override RedisResult[]? AsRedisResultArray() => _value;
 
@@ -525,9 +537,11 @@ namespace StackExchange.Redis
             }
 
             internal override RedisValue[]? AsRedisValueArray()
-                => IsNull ? null
-                : IsEmpty ? Array.Empty<RedisValue>()
-                : Array.ConvertAll(_value!, x => x.AsRedisValue());
+                => IsNull
+                    ? null
+                    : IsEmpty
+                        ? Array.Empty<RedisValue>()
+                        : Array.ConvertAll(_value!, x => x.AsRedisValue());
 
             internal override string? AsString()
             {
@@ -536,9 +550,11 @@ namespace StackExchange.Redis
             }
 
             internal override string?[]? AsStringArray()
-                => IsNull ? null
-                : IsEmpty ? Array.Empty<string>()
-                : Array.ConvertAll(_value!, x => x.AsString());
+                => IsNull
+                    ? null
+                    : IsEmpty
+                        ? Array.Empty<string>()
+                        : Array.ConvertAll(_value!, x => x.AsString());
         }
 
         /// <summary>

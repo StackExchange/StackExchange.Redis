@@ -254,8 +254,9 @@ public readonly ref partial struct KeyNotification
             if (end <= 0) return -1;
 
             span = span.Slice(0, end);
-            return Utf8Parser.TryParse(span, out int database, out var bytes)
-                && bytes == end ? database : -1;
+            return Utf8Parser.TryParse(span, out int database, out var bytes) && bytes == end
+                ? database
+                : -1;
         }
     }
 
@@ -276,7 +277,7 @@ public readonly ref partial struct KeyNotification
             case KeyNotificationKind.KeyEvent:
                 // Channel contains the event-type, payload contains the key
                 byte[]? blob = _value;
-                if (_keyOffset != 0 & blob is not null)
+                if ((_keyOffset != 0) & (blob is not null))
                 {
                     return blob.AsSpan(_keyOffset).ToArray();
                 }

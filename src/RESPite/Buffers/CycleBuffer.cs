@@ -105,7 +105,7 @@ public partial struct CycleBuffer
                 .CopyTo(full.Slice(targetOffset, count));
         }
     }
-    public bool CommittedIsEmpty => ReferenceEquals(startSegment, endSegment) & endSegmentCommitted == 0;
+    public bool CommittedIsEmpty => ReferenceEquals(startSegment, endSegment) & (endSegmentCommitted == 0);
 
     /// <summary>
     /// Marks committed data as fully consumed; it will no longer appear in later calls to <see cref="GetAllCommitted"/>.
@@ -117,8 +117,8 @@ public partial struct CycleBuffer
 
         // optimize for most common case, where we consume everything
         if (ReferenceEquals(startSegment, endSegment)
-            & count == endSegmentCommitted
-            & count > 0)
+            & (count == endSegmentCommitted)
+            & (count > 0))
         {
             /*
             we are consuming all the data in the single segment; we can
@@ -144,8 +144,8 @@ public partial struct CycleBuffer
 
         // optimize for most common case, where we consume everything
         if (ReferenceEquals(startSegment, endSegment)
-            & count == endSegmentCommitted
-            & count > 0) // checks sign *and* non-trimmed
+            & (count == endSegmentCommitted)
+            & (count > 0)) // checks sign *and* non-trimmed
         {
             // see <see cref="DiscardCommitted(int)"/> for logic
             endSegmentCommitted = 0;
@@ -339,7 +339,7 @@ public partial struct CycleBuffer
 
             // partial segment (and we know it isn't empty)
             memory = memory.Slice(start: 0, length: available);
-            return available >= minBytes & minBytes > 0; // last check here applies the -ve logic
+            return (available >= minBytes) & (minBytes > 0); // last check here applies the -ve logic
         }
 
         // multi-page; hand out the first page (which is, by definition: full)
@@ -611,7 +611,7 @@ public partial struct CycleBuffer
             {
                 _flags &= ~(Flags.StartTrim | Flags.EndTrim);
                 Memory = fullMemory;
-                if (expandBackwards & RunningIndex >= delta)
+                if (expandBackwards & (RunningIndex >= delta))
                 {
                     // push our origin earlier; only valid if
                     // we're the first segment, otherwise

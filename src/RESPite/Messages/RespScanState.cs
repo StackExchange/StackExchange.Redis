@@ -127,7 +127,7 @@ public struct RespScanState
 #if DEBUG
             _elementCount++;
 #endif
-            if (!reader.IsAttribute & _prefix == RespPrefix.None)
+            if (!reader.IsAttribute & (_prefix == RespPrefix.None))
             {
                 _prefix = reader.Prefix;
             }

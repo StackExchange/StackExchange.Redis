@@ -60,7 +60,10 @@ public class ArrayGrepRequest
     /// </summary>
     public RedisArrayIndex? Start
     {
-        get => GetFlag(LocalFlags.StartSpecified) ? _start : null;
+        get
+        {
+            return GetFlag(LocalFlags.StartSpecified) ? _start : null;
+        }
         set
         {
             if (value.HasValue)
@@ -85,7 +88,10 @@ public class ArrayGrepRequest
     /// </summary>
     public RedisArrayIndex? End
     {
-        get => GetFlag(LocalFlags.EndSpecified) ? _end : null;
+        get
+        {
+            return GetFlag(LocalFlags.EndSpecified) ? _end : null;
+        }
         set
         {
             if (value.HasValue)
@@ -111,7 +117,10 @@ public class ArrayGrepRequest
     /// <remarks>Corresponds to the <c>LIMIT</c> parameter.</remarks>
     public long? Limit
     {
-        get => GetFlag(LocalFlags.LimitSpecified) ? _limit : null;
+        get
+        {
+            return GetFlag(LocalFlags.LimitSpecified) ? _limit : null;
+        }
         set
         {
             if (value.HasValue)

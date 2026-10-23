@@ -451,7 +451,7 @@ public partial class ConnectionMultiplexer
                 ChannelMessageQueue.Remove(ref _queues, queue);
             }
 
-            return _handlers == null & _queues == null;
+            return (_handlers == null) & (_queues == null);
         }
 
         public ICompletable? ForInvoke(in RedisChannel channel, in RedisValue message, out ChannelMessageQueue? queues)
@@ -751,7 +751,7 @@ public partial class ConnectionMultiplexer
         {
             // exclude sentinel, and only use replicas if we're explicitly asking for them
             bool useReplica = (Flags & CommandFlags.DemandReplica) != 0;
-            bool shouldBeConnected = server.ServerType != ServerType.Sentinel & server.IsReplica == useReplica;
+            bool shouldBeConnected = (server.ServerType != ServerType.Sentinel) & (server.IsReplica == useReplica);
             if (shouldBeConnected == IsConnectedTo(server.EndPoint))
             {
                 return null;

@@ -53,7 +53,7 @@ public readonly struct FaultContext
 
         NotApplied = IsKnownNotApplied(kind, status);
 
-        if (kind is not RedisErrorKind.None & _connectionFailureType is ConnectionFailureType.None)
+        if ((kind is not RedisErrorKind.None) & (_connectionFailureType is ConnectionFailureType.None))
         {
             // fill in some blanks
             switch (kind)

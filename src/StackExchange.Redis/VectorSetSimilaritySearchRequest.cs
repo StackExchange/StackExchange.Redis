@@ -69,7 +69,10 @@ public abstract partial class VectorSetSimilaritySearchRequest
     /// </summary>
     public int? Count
     {
-        get => HasFlag(VsimFlags.Count) ? _count : null;
+        get
+        {
+            return HasFlag(VsimFlags.Count) ? _count : null;
+        }
         set
         {
             if (value.HasValue)
@@ -107,7 +110,10 @@ public abstract partial class VectorSetSimilaritySearchRequest
     /// </summary>
     public double? Epsilon
     {
-        get => HasFlag(VsimFlags.Epsilon) ? _epsilon : null;
+        get
+        {
+            return HasFlag(VsimFlags.Epsilon) ? _epsilon : null;
+        }
         set
         {
             if (value.HasValue)
@@ -127,7 +133,10 @@ public abstract partial class VectorSetSimilaritySearchRequest
     /// </summary>
     public int? SearchExplorationFactor
     {
-        get => HasFlag(VsimFlags.SearchExplorationFactor) ? _searchExplorationFactor : null;
+        get
+        {
+            return HasFlag(VsimFlags.SearchExplorationFactor) ? _searchExplorationFactor : null;
+        }
         set
         {
             if (value.HasValue)
@@ -147,7 +156,10 @@ public abstract partial class VectorSetSimilaritySearchRequest
     /// </summary>
     public int? MaxFilteringEffort
     {
-        get => HasFlag(VsimFlags.MaxFilteringEffort) ? _maxFilteringEffort : null;
+        get
+        {
+            return HasFlag(VsimFlags.MaxFilteringEffort) ? _maxFilteringEffort : null;
+        }
         set
         {
             if (value.HasValue)
@@ -169,7 +181,10 @@ public abstract partial class VectorSetSimilaritySearchRequest
     /// </summary>
     public string? FilterExpression
     {
-        get => _filterExpression;
+        get
+        {
+            return _filterExpression;
+        }
         set
         {
             _filterExpression = value;

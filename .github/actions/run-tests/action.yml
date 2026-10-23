@@ -71,42 +71,46 @@ runs:
 
     - name: StackExchange.Redis.Tests
       shell: bash
+      # Microsoft.Testing.Platform `dotnet test` (selected in global.json); the GitHub Actions reporter is a platform
+      # extension that is off by default, and the TRX report feeds dorny/test-reporter below (the platform's
+      # reporter, not xunit's --report-xunit-trx, which truncated the file in 4.0.2)
       run: >-
-        dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj
+        dotnet test --project tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj
         --no-build
         -c Release
         -f net10.0
-        --logger trx
-        --logger "GitHubActions;summary-include-passed=false;summary-include-skipped=false"
         --results-directory ./test-results/
-        --blame-hang-timeout 10m
-        --blame-hang-dump-type none
-        /p:CI=true
+        --report-trx
+        --report-github
+        --report-github-summary-include-passed false
+        --report-github-summary-include-skipped false
 
     # Neither of these needs a server, and between them they took about four seconds - but nothing ran
     # them until now, so a namespace rename silently broke all 18 SER309 tests and nobody found out.
     - name: RESPite.Tests
       shell: bash
       run: >-
-        dotnet test tests/RESPite.Tests/RESPite.Tests.csproj
+        dotnet test --project tests/RESPite.Tests/RESPite.Tests.csproj
         --no-build
         -c Release
         -f net10.0
-        --logger trx
-        --logger "GitHubActions;summary-include-passed=false;summary-include-skipped=false"
         --results-directory ./test-results/
-        /p:CI=true
+        --report-trx
+        --report-github
+        --report-github-summary-include-passed false
+        --report-github-summary-include-skipped false
 
     - name: StackExchange.Redis.Build.Tests
       shell: bash
       run: >-
-        dotnet test tests/StackExchange.Redis.Build.Tests/StackExchange.Redis.Build.Tests.csproj
+        dotnet test --project tests/StackExchange.Redis.Build.Tests/StackExchange.Redis.Build.Tests.csproj
         --no-build
         -c Release
-        --logger trx
-        --logger "GitHubActions;summary-include-passed=false;summary-include-skipped=false"
         --results-directory ./test-results/
-        /p:CI=true
+        --report-trx
+        --report-github
+        --report-github-summary-include-passed false
+        --report-github-summary-include-skipped false
 
     - uses: dorny/test-reporter@v3
       continue-on-error: true

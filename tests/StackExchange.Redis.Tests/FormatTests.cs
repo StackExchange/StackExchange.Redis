@@ -8,6 +8,76 @@ namespace StackExchange.Redis.Tests;
 
 public class FormatTests(ITestOutputHelper output) : TestBase(output)
 {
+    // System.Version is awkward: unspecified parts are -1, so "7.4" is (7, 4, -1, -1) and "7.4.0" is (7, 4, 0, -1),
+    // and the inbuilt operators order them differently; the UTF-8 overload (what the HELLO handler uses) must
+    // produce exactly the same raw parts as the char/string overloads, and the version gates must then treat the
+    // unspecified parts as zero (see VersionExtensions.IsAtLeast).
+    [Theory]
+    [InlineData("7", 7, 0, -1, -1)] // major-only is our extension; System.Version rejects it
+    [InlineData("7.4", 7, 4, -1, -1)]
+    [InlineData("7.4.0", 7, 4, 0, -1)]
+    [InlineData("7.4.3", 7, 4, 3, -1)]
+    [InlineData("7.4.3.0", 7, 4, 3, 0)]
+    [InlineData("9.1.2", 9, 1, 2, -1)]
+    [InlineData("7.4.3.1", 7, 4, 3, 1)]
+    [InlineData("255.255.65535.65535", 255, 255, 65535, 65535)]
+    [InlineData("0.0", 0, 0, -1, -1)]
+    [InlineData("007.040", 7, 40, -1, -1)]
+    // System.Version uses int.TryParse per part, which tolerates whitespace and a sign; we inherit that, not fix it
+    [InlineData(" 7.4", 7, 4, -1, -1)]
+    [InlineData("7.4 ", 7, 4, -1, -1)]
+    [InlineData("7. 4", 7, 4, -1, -1)]
+    [InlineData("+7.4", 7, 4, -1, -1)]
+    [InlineData("7.+4", 7, 4, -1, -1)]
+    [InlineData(" 7 ", 7, 0, -1, -1)]
+    [InlineData("", null, null, null, null)]
+    [InlineData(".", null, null, null, null)]
+    [InlineData("7.", null, null, null, null)]
+    [InlineData(".7", null, null, null, null)]
+    [InlineData("7..4", null, null, null, null)]
+    [InlineData("1.2.3.4.5", null, null, null, null)]
+    [InlineData("9.1.2-rc1", null, null, null, null)]
+    [InlineData("-1.2", null, null, null, null)]
+    [InlineData("a.b", null, null, null, null)]
+    [InlineData("1.2.3-preview4", null, null, null, null)]
+    public void TryParseVersionUtf8MatchesChars(string input, int? major, int? minor, int? build, int? revision)
+    {
+        bool success = Format.TryParseVersion(Encoding.UTF8.GetBytes(input), out var fromBytes);
+        Assert.Equal(major is not null, success);
+        Assert.Equal(success, Format.TryParseVersion(input.AsSpan(), out var fromChars));
+        Assert.Equal(success, Format.TryParseVersion(input, out var fromString));
+
+        if (success)
+        {
+            Assert.NotNull(fromBytes);
+            Assert.Equal((major, minor, build, revision), (fromBytes.Major, fromBytes.Minor, fromBytes.Build, fromBytes.Revision));
+            Assert.Equal(fromBytes, fromChars); // Version.Equals compares all four raw parts, -1 included
+            Assert.Equal(fromBytes, fromString);
+        }
+        else
+        {
+            Assert.Null(fromBytes);
+            Assert.Null(fromChars);
+            Assert.Null(fromString);
+        }
+    }
+
+    [Theory]
+    [InlineData("7.4", "7.4.0", true, true)] // the unspecified parts count as zero for the gates
+    [InlineData("7.4.0", "7.4", true, true)]
+    [InlineData("7.4", "7.4.0.0", true, true)]
+    [InlineData("7.4.3", "7.4", true, false)]
+    [InlineData("7.4", "7.4.3", false, false)]
+    [InlineData("8", "7.4.3", true, false)]
+    [InlineData("7.4.3", "8", false, false)]
+    public void ParsedVersionGatesIgnoreUnspecifiedParts(string server, string required, bool atLeast, bool equal)
+    {
+        Assert.True(Format.TryParseVersion(Encoding.UTF8.GetBytes(server), out var x));
+        Assert.True(Format.TryParseVersion(Encoding.UTF8.GetBytes(required), out var y));
+        Assert.Equal(atLeast, x.IsAtLeast(y));
+        Assert.Equal(equal, x.IsEqual(y));
+    }
+
     public static IEnumerable<object?[]> EndpointData()
     {
         // note: the 3rd arg is for formatting; null means "expect the original string"

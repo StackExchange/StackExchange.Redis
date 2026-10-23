@@ -282,6 +282,12 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        EventId = 133,
+        Message = "{ClusterCount} server(s) identify as a cluster but no slot map is available; routing as standalone")]
+    internal static partial void LogInformationClusterWithoutSlotMap(this ILogger logger, int clusterCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         EventId = 35,
         Message = "No subscription changes necessary")]
     internal static partial void LogInformationNoSubscriptionChanges(this ILogger logger);
@@ -327,6 +333,18 @@ internal static partial class LoggerExtensions
         EventId = 42,
         Message = "Encountered error while updating cluster config: {ErrorMessage}")]
     internal static partial void LogErrorEncounteredErrorWhileUpdatingClusterConfig(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 128,
+        Message = "{Server}: CLUSTER SLOTS was refused ({ErrorMessage}); continuing with CLUSTER NODES alone")]
+    internal static partial void LogInformationClusterSlotsRefused(this ILogger logger, ServerEndPointLogValue server, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 129,
+        Message = "{Server}: CLUSTER NODES was refused ({ErrorMessage}); no cluster topology is available")]
+    internal static partial void LogInformationClusterNodesRefused(this ILogger logger, ServerEndPointLogValue server, string errorMessage);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -630,6 +648,18 @@ internal static partial class LoggerExtensions
         Message = "{Server}: Auto-configured (HELLO) role: {Role}")]
     internal static partial void LogInformationAutoConfiguredHelloRole(this ILogger logger, ServerEndPointLogValue server, string role);
 
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 131,
+        Message = "{Server}: Auto-configured (HELLO) product: {Variant} {Version}")]
+    internal static partial void LogInformationAutoConfiguredHelloProductVariant(this ILogger logger, ServerEndPointLogValue server, ProductVariant variant, string version);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 132,
+        Message = "{Server}: Auto-configured (HELLO) unrecognized server '{ServerName}'; ignoring its version")]
+    internal static partial void LogInformationAutoConfiguredHelloUnknownServer(this ILogger logger, ServerEndPointLogValue server, string serverName);
+
     // PhysicalBridge logging methods
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -830,19 +860,21 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 128,
+        // 134-137 rather than 128-131: main took those while this core was being built (merged 2026-10-23), and
+        // event ids are the one thing a merge cannot renumber for us. Main's ids are kept exactly as main has them.
+        EventId = 134,
         Message = "Refreshed the slot map from {EndPoint}: {RangeCount} range(s)")]
     internal static partial void LogInformationSlotMapRefreshed(this ILogger logger, EndPointLogValue endPoint, int rangeCount);
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 129,
+        EventId = 135,
         Message = "{EndPoint} could not refresh the slot map: {ErrorMessage}")]
     internal static partial void LogInformationSlotMapRefreshFailed(this ILogger logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 130,
+        EventId = 136,
         Message = "{EndPoint} could not refresh its role: {ErrorMessage}")]
     internal static partial void LogInformationRoleRefreshFailed(this ILogger logger, Exception exception, EndPointLogValue endPoint, string errorMessage);
 
@@ -850,7 +882,13 @@ internal static partial class LoggerExtensions
     // case that is not - a subscription the server is delivering to that the registry cannot match.
     [LoggerMessage(
         Level = LogLevel.Debug,
-        EventId = 131,
+        EventId = 137,
         Message = "A pub/sub delivery for {Channel} (subscription {Subscription}) matched no subscription and was dropped")]
     internal static partial void LogDebugDeliveryUnmatched(this ILogger logger, string? channel, string? subscription);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 130,
+        Message = "Lag-aware health check could not ask {RestEndpoint}: {Reason}")]
+    internal static partial void LogWarningLagAwareInconclusive(this ILogger logger, string restEndpoint, string reason);
 }

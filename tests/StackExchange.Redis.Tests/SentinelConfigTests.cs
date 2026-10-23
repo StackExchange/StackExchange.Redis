@@ -93,6 +93,27 @@ public class SentinelConfigTests
         Assert.Throws<RedisConnectionException>(() => ConnectionMultiplexer.Connect(options));
     }
 
+    [Fact]
+    public void GetSentinelMasterConnection_NothingToSeedWith_AbortDisabled_ThrowsTheDiscoveryFailure()
+    {
+        // the direct API: a long-lived SentinelConnect, then a per-service config that carries only the service name
+        // (the data endpoints are sentinel's to supply). With nothing discovered and nothing to seed a multiplexer
+        // with, the caller should see the discovery failure as a RedisConnectionException - not the
+        // InvalidOperationException("No nodes to consider") that connecting an empty endpoint list produces.
+        using var sentinel = ConnectionMultiplexer.SentinelConnect(GetUnreachableSentinelOptions(abortOnConnectFail: false));
+        var config = new ConfigurationOptions
+        {
+            AbortOnConnectFail = false,
+            ConnectRetry = 0,
+            ConnectTimeout = 100,
+            ServiceName = "unreachable-primary",
+        };
+
+        var exception = Assert.Throws<RedisConnectionException>(() => sentinel.GetSentinelMasterConnection(config));
+        Assert.Equal(ConnectionFailureType.UnableToConnect, exception.FailureType);
+        Assert.Equal("Sentinel: Failed connecting to configured primary for service: unreachable-primary", exception.Message);
+    }
+
     private static ConfigurationOptions GetUnreachableSentinelOptions(bool abortOnConnectFail)
     {
         var options = new ConfigurationOptions

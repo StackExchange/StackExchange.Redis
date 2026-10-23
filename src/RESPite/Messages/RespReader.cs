@@ -240,7 +240,8 @@ public ref partial struct RespReader
     /// the <see cref="AggregateChildren"/> API, using the <see cref="RespReader.AggregateEnumerator.MovePast(out RespReader)"/> API to update the outer reader.</remarks>
     public readonly int AggregateLength() =>
         (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming)) == RespFlags.IsAggregate
-            ? _length : AggregateLengthSlow();
+            ? _length
+            : AggregateLengthSlow();
 
     /// <summary>
     /// Indicates whether the number of child elements associated with an aggregate is exactly the specified <paramref name="count"/> value.
@@ -250,7 +251,8 @@ public ref partial struct RespReader
     /// i.e. a map of the form <c>%2\r\n...</c> will report <c>4</c> as the length.</remarks>
     public readonly bool AggregateLengthIs(int count)
         => (_flags & (RespFlags.IsAggregate | RespFlags.IsStreaming)) == RespFlags.IsAggregate
-            ? _length == count : AggregateLengthIsSlow(count);
+            ? _length == count
+            : AggregateLengthIsSlow(count);
 
     /// <summary>
     /// Indicates whether every child of the current aggregate is itself an aggregate of exactly two
@@ -439,7 +441,7 @@ public ref partial struct RespReader
     internal int Delta() =>
         (_flags & (RespFlags.IsScalar | RespFlags.IsAggregate | RespFlags.IsStreaming | RespFlags.IsAttribute)) switch
         {
-            RespFlags.IsScalar | RespFlags.IsAggregate=> -1, // null has this
+            RespFlags.IsScalar | RespFlags.IsAggregate => -1, // null has this
             RespFlags.IsScalar => -1,
             RespFlags.IsAggregate => _length - 1,
             RespFlags.IsAggregate | RespFlags.IsAttribute => _length,
@@ -477,7 +479,7 @@ public ref partial struct RespReader
             {
                 SkipChildren();
             }
-            else if (skipStreamTerminator & Prefix is RespPrefix.StreamTerminator)
+            else if (skipStreamTerminator & (Prefix is RespPrefix.StreamTerminator))
             {
                 // skip terminator
             }
@@ -500,7 +502,7 @@ public ref partial struct RespReader
             {
                 respAttributeReader.Read(ref this, ref attributes);
             }
-            else if (skipStreamTerminator & Prefix is RespPrefix.StreamTerminator)
+            else if (skipStreamTerminator & (Prefix is RespPrefix.StreamTerminator))
             {
                 // skip terminator
             }
@@ -1740,7 +1742,7 @@ public ref partial struct RespReader
         if (TryGetSpan(out var span) && span.Length == 2)
         {
             var u16 = Unsafe.ReadUnaligned<ushort>(ref UnsafeCurrent);
-            return u16 == RespConstants.OKUInt16 | u16 == RespConstants.OKUInt16_LC;
+            return (u16 == RespConstants.OKUInt16) | (u16 == RespConstants.OKUInt16_LC);
         }
 
         return IsSlow(RespConstants.OKBytes, RespConstants.OKBytes_LC);
@@ -2143,7 +2145,7 @@ public ref partial struct RespReader
         var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesInt64 + 1]);
         if (span.Length <= RespConstants.MaxRawBytesInt64)
         {
-            return Utf8Parser.TryParse(span, out value, out int bytes) & bytes == span.Length;
+            return Utf8Parser.TryParse(span, out value, out int bytes) & (bytes == span.Length);
         }
 
         value = 0;
@@ -2177,7 +2179,7 @@ public ref partial struct RespReader
         var span = Buffer(stackalloc byte[RespConstants.MaxRawBytesInt32 + 1]);
         if (span.Length <= RespConstants.MaxRawBytesInt32)
         {
-            return Utf8Parser.TryParse(span, out value, out int bytes) & bytes == span.Length;
+            return Utf8Parser.TryParse(span, out value, out int bytes) & (bytes == span.Length);
         }
 
         value = 0;
@@ -2265,7 +2267,7 @@ public ref partial struct RespReader
             foreach (var b in span)
             {
                 // allow [SPACE]-thru-[DEL], plus CR/LF
-                if (!(b < 127 & (b >= 32 | (b is 12 or 13))))
+                if (!((b < 127) & ((b >= 32) | (b is 12 or 13))))
                 {
                     return false;
                 }

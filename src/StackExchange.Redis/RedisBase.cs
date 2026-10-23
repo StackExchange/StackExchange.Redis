@@ -75,6 +75,14 @@ namespace StackExchange.Redis
 
         internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, RedisCommand command, out ServerEndPoint? server)
         {
+            // the server picked here is the one the command is sent to, so a primary-only command has to pick the primary
+            // here as well, the same way the send path does (CommandFlagsInternal.DemandPrimary); otherwise PreferReplica
+            // picks a replica that then rejects it (DemandReplica is left alone so that it still fails the same way).
+            // Main #3291, ported: the rule lives in CommandFlagsInternal here, Message having gone with the old core.
+            if (command.IsPrimaryOnly() && CommandFlagsInternal.GetPrimaryReplicaFlags(flags) != CommandFlags.DemandReplica)
+            {
+                flags = CommandFlagsInternal.SetPrimaryReplicaFlags(flags, CommandFlags.DemandMaster);
+            }
             server = multiplexer.SelectServer(command, flags, key);
             var version = server == null ? multiplexer.RawConfig.DefaultVersion : server.Version;
             return new RedisFeatures(version);

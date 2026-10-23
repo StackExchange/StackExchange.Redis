@@ -59,7 +59,7 @@ namespace StackExchange.Redis.Configuration
         }
 
         /// <inheritdoc/>
-        public override Task AfterConnectAsync(ConnectionMultiplexer muxer, Action<string> log)
+        public override Task AfterConnectAsync(ConnectionMultiplexer multiplexer, Action<string> log)
             => Task.CompletedTask;
 
         /// <inheritdoc/>

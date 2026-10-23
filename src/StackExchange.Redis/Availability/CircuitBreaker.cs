@@ -78,11 +78,11 @@ public abstract class CircuitBreaker
             if (MetricsWindowSize <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(MetricsWindowSize), MetricsWindowSize, "A positive window is required.");
             if (MetricsWindowSize.TotalSeconds > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(MetricsWindowSize), MetricsWindowSize, "The window is too large.");
 
-            if ((FailureRateThreshold is DefaultFailureRateThreshold
+            if (((FailureRateThreshold is DefaultFailureRateThreshold)
 #if NET8_0_OR_GREATER
-                 & TimeProvider is null
+                 & (TimeProvider is null)
 #endif
-                 & MinimumNumberOfFailures is DefaultMinimumNumberOfFailures)
+                 & (MinimumNumberOfFailures is DefaultMinimumNumberOfFailures))
                 && MetricsWindowSize == DefaultMetricsWindowSize)
                 return DefaultInstance;
 
@@ -182,7 +182,7 @@ public abstract class CircuitBreaker
         {
             public static readonly NulAccumulator AccumulatorInstance = new();
             private NulAccumulator() { }
-            public override void ObserveResult(in FaultContext context) { }
+            public override void ObserveResult(in FaultContext fault) { }
             public override bool IsHealthy() => true;
             public override void Reset() { }
         }
@@ -299,7 +299,7 @@ public abstract class CircuitBreaker
                 }
             }
 
-            public override void ObserveResult(in FaultContext result)
+            public override void ObserveResult(in FaultContext fault)
             {
                 // which time-slice are we in, and where does it live in the ring?
                 long epoch = breaker.GetEpoch();
@@ -312,7 +312,7 @@ public abstract class CircuitBreaker
                 // only getting results one at a time, so we shouldn't be over-stomping much *anyway*
                 Span<Bucket> buckets = _buckets; // *not* a payload copy; this is in-place over the data
                 ref Bucket bucket = ref buckets[index];
-                bucket.Count(epoch, success: !result.IsFault);
+                bucket.Count(epoch, success: !fault.IsFault);
             }
 
             public override bool IsHealthy() => Evaluate(breaker.GetEpoch());
@@ -337,7 +337,7 @@ public abstract class CircuitBreaker
                 }
 
                 // don't act until we've seen enough failures to be statistically meaningful
-                if (total is 0 | failures < breaker._minimumNumberOfFailures)
+                if ((total is 0) | (failures < breaker._minimumNumberOfFailures))
                 {
                     return true;
                 }

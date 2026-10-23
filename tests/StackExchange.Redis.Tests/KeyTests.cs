@@ -81,6 +81,37 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
+    public async Task PrimaryOnlyCommandsWithPreferReplicaRunOnThePrimary() // see #2821
+    {
+        await using var conn = Create(configuration: TestConfig.Current.PrimaryServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort);
+        Assert.SkipUnless(
+            conn.GetEndPoints().Any(ep => conn.GetServer(ep).IsReplica),
+            "No replica in this configuration");
+
+        var db = conn.GetDatabase();
+        var key = Me();
+        RedisValue token = Guid.NewGuid().ToString();
+
+        // these look at the server's features before building the message, which used to pick the replica;
+        // the fractional-second expiry forces the PEXPIRE path, which is the one that checks features
+        db.StringSet(key, "abc");
+        Assert.True(db.KeyExpire(key, TimeSpan.FromMilliseconds(100_500), CommandFlags.PreferReplica));
+        Assert.True(db.KeyDelete(key, CommandFlags.PreferReplica));
+
+        db.StringSet(key, "abc");
+        Assert.True(await db.KeyExpireAsync(key, TimeSpan.FromMilliseconds(100_500), CommandFlags.PreferReplica));
+        Assert.True(await db.KeyDeleteAsync(key, CommandFlags.PreferReplica));
+
+        Assert.True(db.LockTake(key, token, TimeSpan.FromMinutes(1)));
+        Assert.True(db.LockExtend(key, token, TimeSpan.FromMinutes(1), CommandFlags.PreferReplica));
+        Assert.True(await db.LockExtendAsync(key, token, TimeSpan.FromMinutes(1), CommandFlags.PreferReplica));
+        Assert.True(db.LockRelease(key, token, CommandFlags.PreferReplica));
+
+        Assert.True(db.LockTake(key, token, TimeSpan.FromMinutes(1)));
+        Assert.True(await db.LockReleaseAsync(key, token, CommandFlags.PreferReplica));
+    }
+
+    [Fact]
     public async Task Zeros()
     {
         await using var conn = Create();

@@ -407,7 +407,10 @@ namespace StackExchange.Redis
         /// </summary>
         public DefaultOptionsProvider Defaults
         {
-            get => defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
+            get
+            {
+                return defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
+            }
             set
             {
                 defaultOptions = value;
@@ -564,23 +567,30 @@ namespace StackExchange.Redis
 #if NET
         internal static LocalCertificateSelectionCallback CreatePemUserCertificateCallback(string userCertificatePath, string? userKeyPath)
         {
+            var pfx = LoadPemUserCertificate(userCertificatePath, userKeyPath);
+            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
+        }
+
+        internal static X509Certificate2 LoadPemUserCertificate(string userCertificatePath, string? userKeyPath)
+        {
             // PEM handshakes not universally supported and causes a runtime error about ephemeral certificates; to avoid, export as PFX
             using var pem = X509Certificate2.CreateFromPemFile(userCertificatePath, userKeyPath);
 #pragma warning disable SYSLIB0057 // X509 loading
-            var pfx = new X509Certificate2(pem.Export(X509ContentType.Pfx));
+            return new X509Certificate2(pem.Export(X509ContentType.Pfx));
 #pragma warning restore SYSLIB0057 // X509 loading
-
-            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
 #endif
 
         internal static LocalCertificateSelectionCallback CreatePfxUserCertificateCallback(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
         {
-#pragma warning disable SYSLIB0057 // X509 loading
-            var pfx = new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
-#pragma warning restore SYSLIB0057 // X509 loading
+            var pfx = LoadPfxUserCertificate(userCertificatePath, password, storageFlags);
             return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
+
+        internal static X509Certificate2 LoadPfxUserCertificate(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
+#pragma warning disable SYSLIB0057 // X509 loading
+            => new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
+#pragma warning restore SYSLIB0057 // X509 loading
 
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even when not known by the machine.
@@ -593,7 +603,7 @@ namespace StackExchange.Redis
             => TrustIssuerCallback(new X509Certificate2(issuerCertificatePath));
 #pragma warning restore SYSLIB0057 // X509 loading
 
-        private static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
+        internal static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
 
@@ -705,7 +715,10 @@ namespace StackExchange.Redis
                 Proxy.Envoyproxy => CommandMap.Envoyproxy,
                 _ => CommandMap.Default,
             };
-            set => commandMap = value ?? throw new ArgumentNullException(nameof(value));
+            set
+            {
+                commandMap = value ?? throw new ArgumentNullException(nameof(value));
+            }
         }
 
         /// <summary>
@@ -741,7 +754,10 @@ namespace StackExchange.Redis
                 var defaultTimeout = Defaults.ConnectTimeout;
                 return defaultTimeout.HasValue ? (int)defaultTimeout.GetValueOrDefault().TotalMilliseconds : Math.Max(5000, SyncTimeout);
             }
-            set => SetWithValue(OptionFlags.ConnectTimeoutHasValue, ref connectTimeout, value);
+            set
+            {
+                SetWithValue(OptionFlags.ConnectTimeoutHasValue, ref connectTimeout, value);
+            }
         }
 
         /// <summary>
@@ -1304,7 +1320,8 @@ namespace StackExchange.Redis
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
 
-            static string FormatProtocol(RedisProtocol protocol) => protocol switch {
+            static string FormatProtocol(RedisProtocol protocol) => protocol switch
+            {
                 RedisProtocol.Resp2 => "resp2",
                 RedisProtocol.Resp3 => "resp3",
                 _ => protocol.ToString(),
@@ -1701,7 +1718,10 @@ namespace StackExchange.Redis
             get => HasValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue)
                 ? _maintenanceMovingEndpointType
                 : Defaults.MaintenanceMovingEndpointType;
-            set => SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, value);
+            set
+            {
+                SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, value);
+            }
         }
 
         /// <summary>
@@ -1735,7 +1755,10 @@ namespace StackExchange.Redis
             get => HasValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue)
                 ? _maintenanceRelaxedWindowMax
                 : Defaults.MaintenanceRelaxedWindowMax ?? Multiply(MaintenanceRelaxedTimeout, 3);
-            set => SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, value);
+            set
+            {
+                SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, value);
+            }
         }
 
         /// <summary>
@@ -1754,7 +1777,10 @@ namespace StackExchange.Redis
             get => HasValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue)
                 ? _maintenancePostEventRelaxedDuration
                 : Defaults.MaintenancePostEventRelaxedDuration ?? Multiply(MaintenanceRelaxedTimeout, 2);
-            set => SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, value);
+            set
+            {
+                SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, value);
+            }
         }
 
         // TimeSpan * int is netstandard2.1+, so this is ticks arithmetic to keep the down-level TFMs building

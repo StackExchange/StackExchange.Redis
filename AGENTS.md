@@ -15,7 +15,7 @@ StackExchange.Redis — a high-performance .NET client for RESP servers (Redis, 
 - `toys/` — runnable samples and an in-process RESP server (`StackExchange.Redis.Server`, used by tests as a managed fake server), Kestrel-hosted server, console tools.
 - `docs/` — published documentation site source (markdown). `docs/ReleaseNotes.md` is the changelog (frozen at 3.0 — from v3 onward release notes live in GitHub Releases).
 
-`Build.csproj` is a `Microsoft.Build.Traversal` project that references everything under `eng/src/tests/toys` — build/test/pack it to act on the whole repo. `StackExchange.Redis.slnx` is the IDE solution (XML SLNX format, not classic `.sln`).
+`Build.csproj` is a `Microsoft.Build.Traversal` project that references everything under `eng/src/tests/toys` — build/pack it to act on the whole repo. `StackExchange.Redis.slnx` is the IDE solution (XML SLNX format, not classic `.sln`); it is also what `dotnet test --solution` runs, because tests use the Microsoft.Testing.Platform runner (selected in `global.json`), which cannot see a traversal project on the .NET 10 SDK.
 
 ## Build, test, pack
 
@@ -30,10 +30,14 @@ pwsh ./build.ps1 -StartServers
 docker compose --file tests/RedisConfigs/docker-compose.yml up -d --wait
 
 # Run the main test suite against one target framework (fastest inner loop)
-dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release -f net10.0
+dotnet test --project tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release -f net10.0
 
-# Run a single test class / method (xUnit v3 + Microsoft.Testing.Platform)
-dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -f net10.0 --filter "FullyQualifiedName~ClassName.MethodName"
+# Run a single test class / method (xUnit v3 on Microsoft.Testing.Platform; names are fully qualified, '*' allowed at either end)
+dotnet test --project tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -f net10.0 --filter-class StackExchange.Redis.Tests.ClassName
+dotnet test --project tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -f net10.0 --filter-method StackExchange.Redis.Tests.ClassName.MethodName
+
+# Every test project at once (what build.ps1 does)
+dotnet test --solution StackExchange.Redis.slnx -c Release --no-build
 
 # Pack the library
 dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true

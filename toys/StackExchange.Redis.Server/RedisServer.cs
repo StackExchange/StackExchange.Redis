@@ -149,6 +149,39 @@ namespace StackExchange.Redis.Server
             Log($"failover: {Format.ToString(replica)} promoted, {demoted.Host}:{demoted.Port} demoted");
         }
 
+        /// <summary>
+        /// Makes <paramref name="node"/> replicate <paramref name="primary"/> - or a primary again, when <paramref name="primary"/>
+        /// is <c>null</c> - as <c>REPLICAOF</c> does on a standalone server. Nothing is announced and no connection is dropped;
+        /// a client finds out from <c>ROLE</c> or <c>INFO replication</c>, or not at all. Both nodes are left serving
+        /// the whole keyspace, as every standalone node does - including one added by <see cref="AddEmptyNode(EndPoint, NodeFlags)"/>,
+        /// which otherwise owns no slots and would redirect every key.
+        /// </summary>
+        public void SetReplicaOf(EndPoint node, EndPoint primary)
+        {
+            if (ServerType == ServerType.Cluster) throw new InvalidOperationException($"Server mode is {ServerType}; use {nameof(Failover)}");
+            if (!TryGetNode(node ?? throw new ArgumentNullException(nameof(node)), out var target)) throw new KeyNotFoundException($"Node not found: {Format.ToString(node)}");
+            Node primaryNode = null;
+            if (primary is not null)
+            {
+                if (!TryGetNode(primary, out primaryNode)) throw new KeyNotFoundException($"Node not found: {Format.ToString(primary)}");
+                if (ReferenceEquals(primaryNode, target)) throw new ArgumentException("A node cannot replicate itself", nameof(primary));
+            }
+
+            target.UpdateSlots(null);
+            if (primaryNode is null)
+            {
+                target.PrimaryId = null;
+                target.Flags &= ~NodeFlags.Replica;
+            }
+            else
+            {
+                primaryNode.UpdateSlots(null);
+                target.PrimaryId = primaryNode.Id;
+                target.Flags |= NodeFlags.Replica;
+            }
+            Log($"replicaof: {Format.ToString(node)} now replicates {(primary is null ? "no one" : Format.ToString(primary))}");
+        }
+
         public bool Migrate(Span<byte> key, EndPoint to) => Migrate(ServerSelectionStrategy.GetClusterSlot(key), to);
         public bool Migrate(in RedisKey key, EndPoint to) => Migrate(GetHashSlot(key), to);
 
@@ -637,23 +670,52 @@ namespace StackExchange.Redis.Server
             client.IsAuthenticated = isAuthed;
             client.Name = name;
 
-            var reply = TypedRedisValue.Rent(14, out var span, RespPrefix.Map);
+            var extras = HelloExtraFields;
+            var reply = TypedRedisValue.Rent(14 + (2 * extras.Count), out var span, RespPrefix.Map);
             span[0] = TypedRedisValue.BulkString("server");
-            span[1] = TypedRedisValue.BulkString("redis");
+            span[1] = TypedRedisValue.BulkString(HelloServerName);
             span[2] = TypedRedisValue.BulkString("version");
-            span[3] = TypedRedisValue.BulkString(VersionString);
-            span[4] = TypedRedisValue.BulkString("proto");
-            span[5] = TypedRedisValue.Integer(proto32);
-            span[6] = TypedRedisValue.BulkString("id");
-            span[7] = TypedRedisValue.Integer(client.Id);
-            span[8] = TypedRedisValue.BulkString("mode");
-            span[9] = TypedRedisValue.BulkString(ServerModeValue);
-            span[10] = TypedRedisValue.BulkString("role");
-            span[11] = TypedRedisValue.BulkString(GetPrimaryOf(client?.Node) is null ? "master" : "replica");
-            span[12] = TypedRedisValue.BulkString("modules");
-            span[13] = TypedRedisValue.EmptyArray(RespPrefix.Array);
+            span[3] = TypedRedisValue.BulkString(HelloVersionString);
+            int index = 4;
+            foreach (var pair in extras)
+            {
+                span[index++] = TypedRedisValue.BulkString(pair.Key);
+                span[index++] = TypedRedisValue.BulkString(pair.Value);
+            }
+            span[index++] = TypedRedisValue.BulkString("proto");
+            span[index++] = TypedRedisValue.Integer(proto32);
+            span[index++] = TypedRedisValue.BulkString("id");
+            span[index++] = TypedRedisValue.Integer(client.Id);
+            span[index++] = TypedRedisValue.BulkString("mode");
+            span[index++] = TypedRedisValue.BulkString(HelloModeValue);
+            span[index++] = TypedRedisValue.BulkString("role");
+            span[index++] = TypedRedisValue.BulkString(GetPrimaryOf(client?.Node) is null ? "master" : "replica");
+            span[index++] = TypedRedisValue.BulkString("modules");
+            span[index] = TypedRedisValue.EmptyArray(RespPrefix.Array);
             return reply;
         }
+
+        /// <summary>
+        /// The <c>server</c> reported by <c>HELLO</c>; Redis (and Garnet) report <c>redis</c>, Valkey reports <c>valkey</c>.
+        /// </summary>
+        protected virtual string HelloServerName => "redis";
+
+        /// <summary>
+        /// The <c>version</c> reported by <c>HELLO</c>; this is the Redis API version when <see cref="HelloServerName"/>
+        /// is <c>redis</c>, but Valkey reports its own version here.
+        /// </summary>
+        protected virtual string HelloVersionString => VersionString;
+
+        /// <summary>
+        /// Additional fields reported by <c>HELLO</c> (Garnet adds <c>garnet_version</c>, for example).
+        /// </summary>
+        protected virtual IReadOnlyList<KeyValuePair<string, string>> HelloExtraFields => [];
+
+        /// <summary>
+        /// The <c>mode</c> reported by <c>HELLO</c>; by default the same as <c>INFO</c>'s <c>redis_mode</c>, but a
+        /// proxy can disagree with itself (see #3284), so tests can override this independently.
+        /// </summary>
+        protected virtual string HelloModeValue => ServerModeValue;
 
         [RedisCommand(-3)]
         protected virtual TypedRedisValue Sadd(RedisClient client, in RedisRequest request)

@@ -2,6 +2,9 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Exe</OutputType>
+    <!-- xunit.v3 4.x runs on Microsoft.Testing.Platform; global.json selects that runner for `dotnet test`, so the
+         VSTest adapter packages (Microsoft.NET.Test.Sdk, xunit.runner.visualstudio) are no longer referenced -->
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     <Nullable>enable</Nullable>
     <!-- the analyzer test harness needs a newer Roslyn than the shipped analyzer targets; see
          Directory.Packages.props. Testing at the shipped floor is not achievable, and is accepted. -->
@@ -24,10 +27,9 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
-    <PackageReference Include="GitHubActionsTestLogger" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" /> <!-- audit: see Directory.Packages.props -->
     <PackageReference Include="xunit.v3" />
-    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
     <PackageReference Include="Microsoft.Testing.Platform" />
   </ItemGroup>
 </Project>

@@ -2236,6 +2236,54 @@ namespace StackExchange.Redis
         internal void OnRole(EndPoint endpoint, bool isReplica)
             => _topology.OnRole(endpoint, isReplica ? RespEndpointRole.Replica : RespEndpointRole.Primary);
 
+        /// <summary>
+        /// Re-read one endpoint's role in the background, so a possibly stale view of it is corrected without
+        /// reconfiguring anything; returns whether the read could be sent at all.
+        /// </summary>
+        /// <param name="endpoint">The server whose role is in doubt.</param>
+        /// <param name="log">Where a failed read is noted; it is not an error.</param>
+        /// <remarks>
+        /// The sentinel recovery path's question (<c>RecoverDemotedPrimary</c>): sentinel still names a node this
+        /// core holds as a replica, which is either sentinel lagging or our role for it being stale, and re-reading
+        /// the role settles both where a switch would reconfigure every node once per heartbeat. The shipped core
+        /// sent <c>INFO replication</c> fire-and-forget through its auto-configure processor
+        /// (<c>ServerEndPoint.CheckInfoReplication</c>, main #3281); here it is the same <c>ROLE</c> read the
+        /// topology sweep uses, applied through <see cref="RespTopology.OnRole"/> so it reaches
+        /// <c>ServerEndPoint.IsReplica</c> by the one route every learned role takes. False when <c>ROLE</c> is
+        /// unavailable or the endpoint is not connected, which the caller reads as "cannot settle it this way"
+        /// and falls through to the switch.
+        /// </remarks>
+        internal bool TryRefreshRole(EndPoint endpoint, ILogger? log = null)
+        {
+            if (!_multiplexer.RawConfig.CommandMap.IsAvailable(RedisCommand.ROLE)
+                || !_endpoints.TryGetValue(endpoint, out var executor)
+                || !executor.IsConnectedNow)
+            {
+                return false;
+            }
+
+            _ = RefreshAsync();
+            return true;
+
+            async Task RefreshAsync()
+            {
+                try
+                {
+                    var context = new RespDatabaseContext(new RespContext(_multiplexer.RawConfig.CommandMap, database: -1).WithExecutor(executor));
+                    var role = await context.SendAsync($"{RedisCommand.ROLE}", handler: RespHandshake.RoleHandler.Instance).ConfigureAwait(false);
+                    _topology.OnRole(endpoint, role.Role);
+                    if (role.Peers is not null)
+                    {
+                        foreach (var peer in role.Peers) _topology.OnRole(peer, role.PeerRole);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    log?.LogInformationRoleRefreshFailed(ex, new(endpoint), ex.Message);
+                }
+            }
+        }
+
         /// <summary>Tell the selector a role this core discovered, which is the reverse of <see cref="OnRole"/>.</summary>
         /// <param name="endpoint">The endpoint whose role changed.</param>
         /// <param name="isReplica">What it turned out to be.</param>
