@@ -234,8 +234,8 @@ present (write "none" rather than omitting one):
    malformed), the `RoundTripUnitTests` cases (exact bytes), the live tests written-not-run with
    `Create(require: RedisFeatures.vX_Y_Z)`, the HLD section 8 scenarios copied and marked
    `expected`, and the exact commands:
-   `dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -f net10.0 --filter "FullyQualifiedName~<Cmd>"`
-   and, when the analyzer changed, `dotnet test tests/StackExchange.Redis.Build.Tests/StackExchange.Redis.Build.Tests.csproj`.
+   `dotnet test --project tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -f net10.0 --filter-class "*<Cmd>*"`
+   and, when the analyzer changed, `dotnet test --project tests/StackExchange.Redis.Build.Tests/StackExchange.Redis.Build.Tests.csproj`.
 7. **Docs / changelog / public-API files** - `docs/<Feature>.md` + `docs/index.md` yes/no,
    `docs/exp/SERxxx.md` yes/no, the `PublicAPI` files, and the note that `docs/ReleaseNotes.md` is
    frozen.

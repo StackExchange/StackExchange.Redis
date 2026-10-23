@@ -29,9 +29,11 @@ if ($RunTests) {
         & .\RedisConfigs\start-all.cmd
         Write-Host "Servers Started." -ForegroundColor "Green"
     }
-    Write-Host "Running tests: Build.csproj traversal (all frameworks)" -ForegroundColor "Magenta"
+    Write-Host "Running tests: StackExchange.Redis.slnx (all test projects)" -ForegroundColor "Magenta"
     if ($NetCoreOnlyTests) {
-        dotnet test --solution ".\StackExchange.Redis.slnx" -c Release -f net8.0 --no-build --report-xunit-trx
+        # net10.0, not net8.0: the analyzer and fault-injector test projects only target net10.0, and the
+        # Microsoft.Testing.Platform runner fails a project that lacks the requested framework rather than skipping it
+        dotnet test --solution ".\StackExchange.Redis.slnx" -c Release -f net10.0 --no-build --report-xunit-trx
     } else {
         dotnet test --solution ".\StackExchange.Redis.slnx" -c Release --no-build --report-xunit-trx
     }

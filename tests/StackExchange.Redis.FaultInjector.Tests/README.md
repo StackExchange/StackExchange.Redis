@@ -12,7 +12,7 @@ docker compose up -d                    # 10-15 minutes for the cluster to come 
 
 export SER_FI_CONFIG_DIR=$PWD           # or FI_CONSOLE_CONFIG_DIR, which is also honoured
 export E2E_SCENARIO_TESTS=true          # explicit opt-in: these create and delete databases
-dotnet test tests/StackExchange.Redis.FaultInjector.Tests
+dotnet test --project tests/StackExchange.Redis.FaultInjector.Tests/StackExchange.Redis.FaultInjector.Tests.csproj
 ```
 
 **Point it at the *current* environment.** A stale directory passes every check we make: the credentials are
