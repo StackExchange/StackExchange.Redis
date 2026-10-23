@@ -1277,7 +1277,8 @@ namespace StackExchange.Redis
                         // a known non-Redis server: "version" is the vendor's own version, and the Redis API version
                         // (if the server reports one at all) comes from INFO's redis_version
                         var productVersion = vendorVariant == fromServer && !string.IsNullOrWhiteSpace(vendorVersion)
-                            ? vendorVersion! : helloVersion.IsScalar ? helloVersion.ReadString() : null;
+                            ? vendorVersion!
+                            : helloVersion.IsScalar ? helloVersion.ReadString() : null;
                         if (!string.IsNullOrWhiteSpace(productVersion))
                         {
                             server.SetProductVariant(fromServer, productVersion!);

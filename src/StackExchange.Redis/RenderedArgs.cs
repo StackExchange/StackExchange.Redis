@@ -124,7 +124,8 @@ namespace StackExchange.Redis
 
         private static RenderedArgs Rent(int count, int length, MemoryPool<byte>? pool) => new RenderedArgs
         {
-            _buffer = length == 0 ? Array.Empty<byte>()
+            _buffer = length == 0
+                ? Array.Empty<byte>()
                 : pool is null ? ArrayPool<byte>.Shared.Rent(length) : pool.Rent(length),
             _count = count,
             _length = length,

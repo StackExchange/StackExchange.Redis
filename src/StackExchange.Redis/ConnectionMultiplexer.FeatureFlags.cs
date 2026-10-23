@@ -84,12 +84,12 @@ public partial class ConnectionMultiplexer
     /// there is no separate subscription connection, so asking about <see cref="ConnectionType.Subscription"/> answers
     /// about the shared one.
     /// </remarks>
-    bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endpoint, ConnectionType connectionType)
-        => GetPhysical(endpoint, connectionType)?.IsSyncReader;
+    bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endPoint, ConnectionType type)
+        => GetPhysical(endPoint, type)?.IsSyncReader;
 
     /// <summary>As <c>IsSyncReader</c>, for the writer.</summary>
-    bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endpoint, ConnectionType connectionType)
-        => GetPhysical(endpoint, connectionType)?.IsSyncWriter;
+    bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endPoint, ConnectionType type)
+        => GetPhysical(endPoint, type)?.IsSyncWriter;
 
     private PhysicalConnection? GetPhysical(EndPoint endpoint, ConnectionType connectionType)
         => TryResolveServerEndPoint(endpoint)?.GetBridge(connectionType, create: false)?.Physical;

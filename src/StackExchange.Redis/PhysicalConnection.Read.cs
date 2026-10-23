@@ -291,7 +291,7 @@ internal sealed partial class PhysicalConnection
                     Debug.Assert(
                         state is
                         {
-                            IsComplete: true, TotalBytes: >= RespScanState.MinBytes, Prefix: not RespPrefix.None
+                            IsComplete: true, TotalBytes: >= RespScanState.MinBytes, Prefix: not RespPrefix.None,
                         },
                         "Invalid RESP read state");
 
@@ -340,7 +340,7 @@ internal sealed partial class PhysicalConnection
                     Debug.Assert(
                         state is
                         {
-                            IsComplete: true, TotalBytes: >= RespScanState.MinBytes, Prefix: not RespPrefix.None
+                            IsComplete: true, TotalBytes: >= RespScanState.MinBytes, Prefix: not RespPrefix.None,
                         },
                         "Invalid RESP read state");
 
@@ -442,7 +442,7 @@ internal sealed partial class PhysicalConnection
         switch (prefix)
         {
             case RespPrefix.Push: // explicit RESP3 push message
-            case RespPrefix.Array when (_protocol is RedisProtocol.Resp2 & connectionType is ConnectionType.Subscription)
+            case RespPrefix.Array when ((_protocol is RedisProtocol.Resp2) & (connectionType is ConnectionType.Subscription))
                                        && !IsArrayPong(frame): // could be a RESP2 pub/sub payload
                 // out-of-band; pub/sub etc
                 switch (OnOutOfBand(frame, ref memoryOwner))

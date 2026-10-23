@@ -113,7 +113,8 @@ namespace StackExchange.Redis
             ReadOnlySpan<byte> routingSpan = channel.RoutingSpan;
             byte[] prefix;
             return channel.IgnoreChannelPrefix || (prefix = ChannelPrefix).Length == 0
-                ? GetClusterSlot(routingSpan) : GetClusterSlotWithPrefix(prefix, routingSpan);
+                ? GetClusterSlot(routingSpan)
+                : GetClusterSlotWithPrefix(prefix, routingSpan);
 
             static int GetClusterSlotWithPrefix(byte[] prefixRaw, ReadOnlySpan<byte> routingSpan)
             {

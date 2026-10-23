@@ -98,7 +98,7 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
                 lo = ((uint)UnsafeCpuUInt16(data, 4)) << 16;
                 break;
             case 7:
-                lo = ((uint)UnsafeCpuUInt16(data, 4)) << 16 | ((uint)UnsafeCpuByte(data, 6)) << 8;
+                lo = (((uint)UnsafeCpuUInt16(data, 4)) << 16) | (((uint)UnsafeCpuByte(data, 6)) << 8);
                 break;
             default:
                 lo = UnsafeCpuUInt32(data, 4);
@@ -123,7 +123,7 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
     /// </summary>
     public OperationStatus TryRead(ref RespScanState state, in ReadOnlySequence<byte> data)
     {
-        if (!_pubsub & state.TotalBytes == 0 & data.IsSingleSegment)
+        if (!_pubsub & (state.TotalBytes == 0) & data.IsSingleSegment)
         {
             var status = TryFastRead(data.FirstSpan, ref state);
             if (status != UseReader) return status;
@@ -148,7 +148,7 @@ public sealed class RespFrameScanner // : IFrameSacanner<ScanState>, IFrameValid
     /// </summary>
     public OperationStatus TryRead(ref RespScanState state, ReadOnlySpan<byte> data)
     {
-        if (!_pubsub & state.TotalBytes == 0)
+        if (!_pubsub & (state.TotalBytes == 0))
         {
 #if NET
             var status = TryFastRead(data, ref state);

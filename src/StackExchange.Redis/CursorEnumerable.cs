@@ -108,7 +108,7 @@ namespace StackExchange.Redis
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 get
                 {
-                    Debug.Assert(_pageOffset >= 0 & _pageOffset < _pageCount & _pageOversized!.Length >= _pageCount);
+                    Debug.Assert((_pageOffset >= 0) & (_pageOffset < _pageCount) & (_pageOversized!.Length >= _pageCount));
                     return _pageOversized[_pageOffset];
                 }
             }

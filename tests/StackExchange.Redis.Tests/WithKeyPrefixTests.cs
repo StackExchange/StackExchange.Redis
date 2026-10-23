@@ -131,4 +131,27 @@ public class WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixtur
         i = (int)raw.StringGet(prefix + "i");
         Assert.Equal(1, i);
     }
+
+    [Fact]
+    public async Task SortedSetRangeAndStoreUsesTheRightKeys()
+    {
+        // the sync prefixed overload declared its first two parameters as (destination, source) against the
+        // interface's (source, destination) and then forwarded them by name, so it read from the destination
+        // and wrote into (and so wiped) the source
+        await using var conn = Create(require: RedisFeatures.v6_2_0);
+
+        var raw = conn.GetDatabase();
+        var prefix = Me() + ":";
+        var prefixed = raw.WithKeyPrefix(prefix);
+        raw.KeyDelete([prefix + "source", prefix + "destination"], CommandFlags.FireAndForget);
+        prefixed.SortedSetAdd("source", [new SortedSetEntry("a", 1), new SortedSetEntry("b", 2)], CommandFlags.FireAndForget);
+
+        Assert.Equal(2, prefixed.SortedSetRangeAndStore("source", "destination", 0, -1));
+        Assert.Equal(2, raw.SortedSetLength(prefix + "destination"));
+        Assert.Equal(2, raw.SortedSetLength(prefix + "source"));
+
+        raw.KeyDelete(prefix + "destination", CommandFlags.FireAndForget);
+        Assert.Equal(2, await prefixed.SortedSetRangeAndStoreAsync("source", "destination", 0, -1));
+        Assert.Equal(2, raw.SortedSetLength(prefix + "destination"));
+    }
 }

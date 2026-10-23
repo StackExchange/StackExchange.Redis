@@ -406,7 +406,10 @@ namespace StackExchange.Redis
         /// </summary>
         public DefaultOptionsProvider Defaults
         {
-            get => defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
+            get
+            {
+                return defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
+            }
             set
             {
                 defaultOptions = value;
@@ -710,7 +713,10 @@ namespace StackExchange.Redis
                 Proxy.Envoyproxy => CommandMap.Envoyproxy,
                 _ => CommandMap.Default,
             };
-            set => commandMap = value ?? throw new ArgumentNullException(nameof(value));
+            set
+            {
+                commandMap = value ?? throw new ArgumentNullException(nameof(value));
+            }
         }
 
         /// <summary>
@@ -746,7 +752,10 @@ namespace StackExchange.Redis
                 var defaultTimeout = Defaults.ConnectTimeout;
                 return defaultTimeout.HasValue ? (int)defaultTimeout.GetValueOrDefault().TotalMilliseconds : Math.Max(5000, SyncTimeout);
             }
-            set => SetWithValue(OptionFlags.ConnectTimeoutHasValue, ref connectTimeout, value);
+            set
+            {
+                SetWithValue(OptionFlags.ConnectTimeoutHasValue, ref connectTimeout, value);
+            }
         }
 
         /// <summary>
@@ -1306,7 +1315,8 @@ namespace StackExchange.Redis
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
 
-            static string FormatProtocol(RedisProtocol protocol) => protocol switch {
+            static string FormatProtocol(RedisProtocol protocol) => protocol switch
+            {
                 RedisProtocol.Resp2 => "resp2",
                 RedisProtocol.Resp3 => "resp3",
                 _ => protocol.ToString(),
@@ -1686,7 +1696,10 @@ namespace StackExchange.Redis
             get => HasValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue)
                 ? _maintenanceMovingEndpointType
                 : Defaults.MaintenanceMovingEndpointType;
-            set => SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, value);
+            set
+            {
+                SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, value);
+            }
         }
 
         /// <summary>
@@ -1720,7 +1733,10 @@ namespace StackExchange.Redis
             get => HasValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue)
                 ? _maintenanceRelaxedWindowMax
                 : Defaults.MaintenanceRelaxedWindowMax ?? Multiply(MaintenanceRelaxedTimeout, 3);
-            set => SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, value);
+            set
+            {
+                SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, value);
+            }
         }
 
         /// <summary>
@@ -1739,7 +1755,10 @@ namespace StackExchange.Redis
             get => HasValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue)
                 ? _maintenancePostEventRelaxedDuration
                 : Defaults.MaintenancePostEventRelaxedDuration ?? Multiply(MaintenanceRelaxedTimeout, 2);
-            set => SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, value);
+            set
+            {
+                SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, value);
+            }
         }
 
         // TimeSpan * int is netstandard2.1+, so this is ticks arithmetic to keep the down-level TFMs building

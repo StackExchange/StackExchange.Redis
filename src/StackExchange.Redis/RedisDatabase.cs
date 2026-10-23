@@ -36,7 +36,8 @@ namespace StackExchange.Redis
         // to fold in their own flag. Cluster is intrinsic to the underlying connection, so it lives here.
         private protected virtual DatabaseFeatureFlags GetDatabaseFeatures()
             => multiplexer.ServerSelectionStrategy.ServerType == ServerType.Cluster
-                ? DatabaseFeatureFlags.Cluster : DatabaseFeatureFlags.None;
+                ? DatabaseFeatureFlags.Cluster
+                : DatabaseFeatureFlags.None;
 
         public IBatch CreateBatch(object? asyncState)
         {
@@ -126,9 +127,9 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.NullableDouble);
         }
 
-        public Task<double?> GeoDistanceAsync(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
+        public Task<double?> GeoDistanceAsync(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.GEODIST, key, value0, value1, StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
+            var msg = Message.Create(Database, flags, RedisCommand.GEODIST, key, member1, member2, StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
             return ExecuteAsync(msg, ResultProcessor.NullableDouble);
         }
 
@@ -860,28 +861,32 @@ namespace StackExchange.Redis
         public long HashIncrement(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None)
         {
             var msg = value == 0 && (flags & CommandFlags.FireAndForget) != 0
-                ? null : Message.Create(Database, flags, RedisCommand.HINCRBY, key, hashField, value);
+                ? null
+                : Message.Create(Database, flags, RedisCommand.HINCRBY, key, hashField, value);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public double HashIncrement(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
         {
             var msg = value == 0 && (flags & CommandFlags.FireAndForget) != 0
-                ? null : Message.Create(Database, flags, RedisCommand.HINCRBYFLOAT, key, hashField, value);
+                ? null
+                : Message.Create(Database, flags, RedisCommand.HINCRBYFLOAT, key, hashField, value);
             return ExecuteSync(msg, ResultProcessor.Double);
         }
 
         public Task<long> HashIncrementAsync(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None)
         {
             var msg = value == 0 && (flags & CommandFlags.FireAndForget) != 0
-                ? null : Message.Create(Database, flags, RedisCommand.HINCRBY, key, hashField, value);
+                ? null
+                : Message.Create(Database, flags, RedisCommand.HINCRBY, key, hashField, value);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public Task<double> HashIncrementAsync(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
         {
             var msg = value == 0 && (flags & CommandFlags.FireAndForget) != 0
-                ? null : Message.Create(Database, flags, RedisCommand.HINCRBYFLOAT, key, hashField, value);
+                ? null
+                : Message.Create(Database, flags, RedisCommand.HINCRBYFLOAT, key, hashField, value);
             return ExecuteAsync(msg, ResultProcessor.Double);
         }
 
@@ -1323,9 +1328,9 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
-        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expire, ExpireWhen when, CommandFlags flags = CommandFlags.None)
+        public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, ExpireWhen when, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetExpiryMessage(key, flags, expire, when, out ServerEndPoint? server);
+            var msg = GetExpiryMessage(key, flags, expiry, when, out ServerEndPoint? server);
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
@@ -1953,39 +1958,39 @@ namespace StackExchange.Redis
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
         }
 
-        public string? StringLongestCommonSubsequence(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        public string? StringLongestCommonSubsequence(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2);
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, first, second);
             return ExecuteSync(msg, ResultProcessor.String);
         }
 
-        public Task<string?> StringLongestCommonSubsequenceAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        public Task<string?> StringLongestCommonSubsequenceAsync(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2);
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, first, second);
             return ExecuteAsync(msg, ResultProcessor.String);
         }
 
-        public long StringLongestCommonSubsequenceLength(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        public long StringLongestCommonSubsequenceLength(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.LEN);
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, first, second, RedisLiterals.LEN);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey key1, RedisKey key2, CommandFlags flags = CommandFlags.None)
+        public Task<long> StringLongestCommonSubsequenceLengthAsync(RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.LEN);
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, first, second, RedisLiterals.LEN);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
+        public LCSMatchResult StringLongestCommonSubsequenceWithMatches(RedisKey first, RedisKey second, long minLength = 0, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minSubMatchLength, RedisLiterals.WITHMATCHLEN);
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, first, second, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minLength, RedisLiterals.WITHMATCHLEN);
             return ExecuteSync(msg, ResultProcessor.LCSMatchResult);
         }
 
-        public Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey key1, RedisKey key2, long minSubMatchLength = 0, CommandFlags flags = CommandFlags.None)
+        public Task<LCSMatchResult> StringLongestCommonSubsequenceWithMatchesAsync(RedisKey first, RedisKey second, long minLength = 0, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.LCS, key1, key2, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minSubMatchLength, RedisLiterals.WITHMATCHLEN);
+            var msg = Message.Create(Database, flags, RedisCommand.LCS, first, second, RedisLiterals.IDX, RedisLiterals.MINMATCHLEN, minLength, RedisLiterals.WITHMATCHLEN);
             return ExecuteAsync(msg, ResultProcessor.LCSMatchResult);
         }
 
@@ -3015,16 +3020,16 @@ namespace StackExchange.Redis
         public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
             => StreamAdd(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
+            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode);
             var msg = GetStreamAddMessage(key, in options, new NameValueEntry(streamField, streamValue), flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
+            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode);
             var msg = GetStreamAddMessage(key, in options, new NameValueEntry(streamField, streamValue), flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
@@ -3039,16 +3044,16 @@ namespace StackExchange.Redis
         public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
                 => StreamAddAsync(key, streamField, streamValue, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
+            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode);
             var msg = GetStreamAddMessage(key, in options, new NameValueEntry(streamField, streamValue), flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
+            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode);
             var msg = GetStreamAddMessage(key, in options, new NameValueEntry(streamField, streamValue), flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
@@ -3063,16 +3068,16 @@ namespace StackExchange.Redis
         public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
             => StreamAdd(key, streamPairs, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
+            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode);
             var msg = GetStreamAddMessage(key, in options, streamPairs, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
+            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode);
             var msg = GetStreamAddMessage(key, in options, streamPairs, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
@@ -3087,16 +3092,16 @@ namespace StackExchange.Redis
         public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId, int? maxLength, bool useApproximateMaxLength, CommandFlags flags)
             => StreamAddAsync(key, streamPairs, messageId, maxLength, useApproximateMaxLength, null, StreamTrimMode.KeepReferences, flags);
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, mode);
+            var options = LegacyStreamAddOptions(messageId, StreamIdempotentId.Empty, maxLength, useApproximateMaxLength, limit, trimMode);
             var msg = GetStreamAddMessage(key, in options, streamPairs, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode mode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, StreamIdempotentId idempotentId, long? maxLength = null, bool useApproximateMaxLength = false, long? limit = null, StreamTrimMode trimMode = StreamTrimMode.KeepReferences, CommandFlags flags = CommandFlags.None)
         {
-            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, mode);
+            var options = LegacyStreamAddOptions(null, in idempotentId, maxLength, useApproximateMaxLength, limit, trimMode);
             var msg = GetStreamAddMessage(key, in options, streamPairs, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
@@ -4099,7 +4104,8 @@ namespace StackExchange.Redis
         public double StringIncrement(RedisKey key, double value, CommandFlags flags = CommandFlags.None)
         {
             var msg = value == 0 && (flags & CommandFlags.FireAndForget) != 0
-                ? null : Message.Create(Database, flags, RedisCommand.INCRBYFLOAT, key, value);
+                ? null
+                : Message.Create(Database, flags, RedisCommand.INCRBYFLOAT, key, value);
             return ExecuteSync(msg, ResultProcessor.Double);
         }
 
@@ -4112,7 +4118,8 @@ namespace StackExchange.Redis
         public Task<double> StringIncrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None)
         {
             var msg = value == 0 && (flags & CommandFlags.FireAndForget) != 0
-                ? null : Message.Create(Database, flags, RedisCommand.INCRBYFLOAT, key, value);
+                ? null
+                : Message.Create(Database, flags, RedisCommand.INCRBYFLOAT, key, value);
             return ExecuteAsync(msg, ResultProcessor.Double);
         }
 
@@ -4200,9 +4207,9 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> StringSetBitAsync(RedisKey key, long offset, bool value, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StringSetBitAsync(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.SETBIT, key, offset, value);
+            var msg = Message.Create(Database, flags, RedisCommand.SETBIT, key, offset, bit);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
@@ -4943,12 +4950,14 @@ namespace StackExchange.Redis
             RedisValue from = GetRange(start, exclude, true), to = GetRange(stop, exclude, false);
             if (withScores)
             {
-                return unlimited ? Message.Create(Database, flags, command, key, from, to, RedisLiterals.WITHSCORES)
+                return unlimited
+                    ? Message.Create(Database, flags, command, key, from, to, RedisLiterals.WITHSCORES)
                     : Message.Create(Database, flags, command, key, new[] { from, to, RedisLiterals.WITHSCORES, RedisLiterals.LIMIT, skip, take });
             }
             else
             {
-                return unlimited ? Message.Create(Database, flags, command, key, from, to)
+                return unlimited
+                    ? Message.Create(Database, flags, command, key, from, to)
                     : Message.Create(Database, flags, command, key, new[] { from, to, RedisLiterals.LIMIT, skip, take });
             }
         }
@@ -5728,7 +5737,7 @@ namespace StackExchange.Redis
 
             expiry.GetTokenCount(allowEnx: false);
 
-            if (when is When.Always & expiry.IsRelative)
+            if ((when is When.Always) & expiry.IsRelative)
             {
                 // special case to SETEX/PSETEX
                 return expiry.IsSeconds
@@ -6059,7 +6068,7 @@ namespace StackExchange.Redis
                 {
                     knownCommand = RedisCommand.UNKNOWN;
                 }
-                if ((knownCommand is not RedisCommand.UNKNOWN & suggestedDb >= 0) && !Message.RequiresDatabase(knownCommand))
+                if (((knownCommand is not RedisCommand.UNKNOWN) & (suggestedDb >= 0)) && !Message.RequiresDatabase(knownCommand))
                 {
                     // strip the DB; historically we didn't enforce this when IDatabase was
                     // used to issue known commands as strings, so: don't complain now
@@ -6153,7 +6162,7 @@ namespace StackExchange.Redis
                 {
                     knownCommand = RedisCommand.UNKNOWN;
                 }
-                if ((knownCommand is not RedisCommand.UNKNOWN & suggestedDb >= 0) && !Message.RequiresDatabase(knownCommand))
+                if (((knownCommand is not RedisCommand.UNKNOWN) & (suggestedDb >= 0)) && !Message.RequiresDatabase(knownCommand))
                 {
                     // strip the DB; historically we didn't enforce this when IDatabase was
                     // used to issue known commands as strings, so: don't complain now
