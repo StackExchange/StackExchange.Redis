@@ -46,7 +46,8 @@ public class BatchWriteFailureTests(ITestOutputHelper log)
         {
             Assert.Fail("hung: " + string.Join(", ", all.Select((t, i) => $"cmd{i}={t.Status}")));
         }
-        // individual faults are inspected below
+        // individual faults are inspected below; the combined task's own exception is never read, so mark it seen
+        _ = everything.Exception;
 
         for (int i = 0; i < all.Length; i++)
         {
