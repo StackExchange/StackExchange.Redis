@@ -590,6 +590,7 @@ namespace StackExchange.Redis
                 span.CopyTo(buffer);
                 _flags = request.Flags;
                 SetRequest(new ReadOnlyMemory<byte>(buffer, 0, span.Length), owner: null, cancellationToken);
+                Prefix = request.Prefix;
                 return;
             }
 
@@ -597,19 +598,26 @@ namespace StackExchange.Redis
             {
                 _flags = request.Flags;
                 SetRequest(memory, owner, cancellationToken);
+                Prefix = request.Prefix;
                 return;
             }
 
-            Attach(request.Span, request.Flags, cancellationToken);
+            Attach(request.Span, request.Flags, cancellationToken, request.Prefix);
         }
 
-        internal void Attach(ReadOnlySpan<byte> request, CommandFlags flags, CancellationToken cancellationToken)
+        /// <summary>Begin a life for a request given as raw bytes, which are copied.</summary>
+        /// <param name="request">The request bytes, copied.</param>
+        /// <param name="flags">The request's flags.</param>
+        /// <param name="cancellationToken">Cancels the request.</param>
+        /// <param name="prefix">A frame the connection writes ahead of the request, or null; see <see cref="RespRequest.Prefix"/>.</param>
+        internal void Attach(ReadOnlySpan<byte> request, CommandFlags flags, CancellationToken cancellationToken, byte[]? prefix = null)
         {
             _flags = flags;
             var pool = ArrayPool<byte>.Shared;
             var buffer = pool.Rent(request.Length);
             request.CopyTo(buffer);
             SetRequest(new ReadOnlyMemory<byte>(buffer, 0, request.Length), pool, cancellationToken);
+            Prefix = prefix;
         }
 
         /// <summary>Fault an operation the connection refused, naming how far it actually got.</summary>

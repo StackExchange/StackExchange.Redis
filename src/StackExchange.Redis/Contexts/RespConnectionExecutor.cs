@@ -99,7 +99,7 @@ namespace StackExchange.Redis
             // the request's bytes are the caller's until this call completes, so the operation takes its
             // own copy rather than a reference: the connection may still be writing after we return, and
             // fire-and-forget returns before the write at all
-            operation.Attach(request.Span, request.Flags, cancellationToken);
+            operation.Attach(request.Span, request.Flags, cancellationToken, request.Prefix);
             operation.Database = Database;
 
             if (!_connection.Send(operation))

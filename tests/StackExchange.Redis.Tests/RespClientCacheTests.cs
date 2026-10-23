@@ -566,13 +566,13 @@ public class RespClientCacheTests
     }
 
     [Fact]
-    public void NoClientCacheSuppressesStoring()
+    public void CacheOptOutSuppressesStoring()
     {
         using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var frame = Get("abc");
 
         Assert.False(cache.TryBeginFill(
-            ref frame, 0, CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache, out _));
+            ref frame, 0, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut, out _));
         frame.Dispose();
 
         Assert.Equal(0, cache.Count);
@@ -580,7 +580,7 @@ public class RespClientCacheTests
     }
 
     [Fact]
-    public void NoClientCacheAlsoSuppressesServingFromCache()
+    public void CacheOptOutAlsoSuppressesServingFromCache()
     {
         using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
@@ -592,7 +592,7 @@ public class RespClientCacheTests
         // opting out must mean the caller does not RECEIVE a cached answer either - not merely that this
         // reply is not kept. Otherwise "don't cache this" silently still serves stale data.
         var opted = Get("abc");
-        Via(executor, cache).Raw.Send(ref opted, CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache, TextHandler.Instance, default);
+        Via(executor, cache).Raw.Send(ref opted, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut, TextHandler.Instance, default);
         Assert.Equal(2, executor.Sent);
 
         // ... and the entry is untouched for callers who did not opt out
@@ -632,13 +632,13 @@ public class RespClientCacheTests
     }
 
     [Fact]
-    public void NoClientCacheIsUserSelectable()
+    public void CacheOptOutIsUserSelectable()
     {
         // an external surface has to be able to pass it through Execute, or the opt-out is unreachable
         // for exactly the callers who need it
         Assert.Equal(
-            CommandFlags.NoClientCache,
-            CommandFlagsInternal.UserSelectableFlags & CommandFlags.NoClientCache);
+            CommandFlags.CacheOptOut,
+            CommandFlagsInternal.UserSelectableFlags & CommandFlags.CacheOptOut);
     }
 
     [Fact]
@@ -752,10 +752,10 @@ public class RespClientCacheTests
         // the point of the widening: an executor decorator sees a RespRequest and nothing else, so the
         // request has to carry what routing, retry and caching each need to ask
         using var frame = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"a"}{(RedisKey)"b"}{(RedisKey)"c"}");
-        using var request = frame.Detach(CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache);
+        using var request = frame.Detach(CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut);
 
         Assert.Equal(4, request.ArgCount);
-        Assert.Equal(CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache, request.Flags);
+        Assert.Equal(CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut, request.Flags);
         Assert.Equal(3, request.KeyCount);
 
         var ranges = new KeyRange[request.KeyCount];
@@ -781,7 +781,7 @@ public class RespClientCacheTests
     public void MetadataDoesNotAffectRequestIdentity()
     {
         using var plain = Get("abc").Detach(CommandFlags.CommandRetryReadOnly);
-        using var different = Get("abc").Detach(CommandFlags.CommandRetryNever | CommandFlags.NoClientCache);
+        using var different = Get("abc").Detach(CommandFlags.CommandRetryNever | CommandFlags.CacheOptOut);
 
         // identity is the rendered bytes and only the rendered bytes: two callers issuing the same command
         // with different flags are asking the same question, so they must share a cache entry
@@ -1222,7 +1222,7 @@ public class RespClientCacheTests
     /// pass or fail on line ordering. The message names both halves, since either one could be the mistake.
     /// </remarks>
     [Fact]
-    public void PrefixesRequireBroadcastTracking()
+    public void PrefixesRequireAModeThatReadsThem()
     {
         var options = new CacheOptions
         {
@@ -1233,25 +1233,33 @@ public class RespClientCacheTests
 
         var ex = Assert.Throws<ArgumentException>(() => new RespClientCache(options));
         Assert.Contains("Broadcast", ex.Message);
+        Assert.Contains("TrackingByPrefix", ex.Message);
 
-        // ...and the same list is fine the other way round, whichever order it was written in
+        // ...and the same list is fine with either mode that reads it, whichever order it was written in
         using var ok = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:"], TrackingMode = CacheTrackingMode.Broadcast });
         using var alsoOk = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.Broadcast, Prefixes = ["app:"] });
+        using var byPrefix = new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.TrackingByPrefix, Prefixes = ["app:"] });
+
+        // the mode that is nothing but the list cannot do without it
+        var missing = Assert.Throws<ArgumentException>(() => new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.TrackingByPrefix }));
+        Assert.Contains("Prefixes", missing.Message);
     }
 
     /// <summary>
-    /// <see cref="CacheTrackingMode.Default"/> means tracking, unless prefixes are given - which only mean
-    /// anything under broadcast, so giving them selects it rather than failing.
+    /// <see cref="CacheTrackingMode.Default"/> means tracking, unless prefixes are given - then the mode that
+    /// reads them locally, <see cref="CacheTrackingMode.TrackingByPrefix"/>, rather than broadcast: its cost
+    /// is bounded by this client's own misses, where broadcast is billed by the server's write rate.
     /// </summary>
     [Fact]
     public void DefaultModeIsTrackingUnlessPrefixesAreGiven()
     {
         Assert.Equal(CacheTrackingMode.Tracking, new CacheOptions().ResolvedTrackingMode);
-        Assert.Equal(CacheTrackingMode.Broadcast, new CacheOptions { Prefixes = ["app:"] }.ResolvedTrackingMode);
+        Assert.Equal(CacheTrackingMode.TrackingByPrefix, new CacheOptions { Prefixes = ["app:"] }.ResolvedTrackingMode);
 
         // a named mode is never second-guessed
         Assert.Equal(CacheTrackingMode.Broadcast, new CacheOptions { TrackingMode = CacheTrackingMode.Broadcast }.ResolvedTrackingMode);
         Assert.Equal(CacheTrackingMode.Tracking, new CacheOptions { TrackingMode = CacheTrackingMode.Tracking }.ResolvedTrackingMode);
+        Assert.Equal(CacheTrackingMode.Broadcast, new CacheOptions { TrackingMode = CacheTrackingMode.Broadcast, Prefixes = ["app:"] }.ResolvedTrackingMode);
 
         // and prefixes with Default build a cache without complaint
         using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:"] });
@@ -1823,12 +1831,12 @@ public class RespClientCacheTests
     /// <summary>A read of ours does not invalidate anything.</summary>
     /// <remarks>
     /// The other half: if the mutation test were simply "anything that is not cacheable invalidates", a
-    /// fire-and-forget read or a NoClientCache read would evict the very entry it declined to use.
+    /// fire-and-forget read or a CacheOptOut read would evict the very entry it declined to use.
     /// </remarks>
     [Theory]
     [InlineData(CommandFlags.CommandRetryReadOnly)]
     [InlineData(CommandFlags.CommandRetryReadOnly | CommandFlags.FireAndForget)]
-    [InlineData(CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache)]
+    [InlineData(CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut)]
     public async Task ReadsDoNotInvalidate(CommandFlags readFlags)
     {
         using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
@@ -1950,4 +1958,291 @@ public class RespClientCacheTests
         Assert.False(cache.TryGet(probe.AsLookupKey(), 0, out _), "a key past the bitmap must still be invalidated");
     }
 
+    // ---- opt-in / opt-out: the three-valued cache field and its wire half ----
+
+    private const string CachingYes = "*3|$6|CLIENT|$7|CACHING|$3|YES|";
+    private const string CachingNo = "*3|$6|CLIENT|$7|CACHING|$2|NO|";
+
+    private static CacheOptions Mode(CacheTrackingMode mode, CacheAdmission admission = CacheAdmission.OnFirstMiss)
+        => new() { Admission = admission, TrackingMode = mode };
+
+    private static string? PrefixOf(in RespRequest request) => request.Prefix is { } prefix ? Text(prefix) : null;
+
+    [Fact]
+    public void OptInModeStoresOnlyAReadThatOptedIn()
+    {
+        // under OPTIN the server tracks nothing unless asked, so a default read must not be kept - nothing
+        // would ever invalidate it - and must not even probe; only CacheOptIn reads take part
+        using var cache = new RespClientCache(Mode(CacheTrackingMode.TrackingOptIn));
+        var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
+
+        var plain = Get("abc");
+        Via(executor, cache).Raw.Send(ref plain, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Assert.Equal(1, executor.Sent);
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(1, cache.RefusedByFlags);
+        Assert.Null(PrefixOf(executor.Parked[0])); // and nothing was said to the server
+
+        var opted = Get("abc");
+        Via(executor, cache).Raw.Send(ref opted, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, TextHandler.Instance, default);
+        Assert.Equal(2, executor.Sent);
+        Assert.Equal(1, cache.Count);
+        Assert.Equal(CachingYes, PrefixOf(executor.Parked[1])); // the read that fills says so
+
+        var again = Get("abc");
+        Via(executor, cache).Raw.Send(ref again, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, TextHandler.Instance, default);
+        Assert.Equal(2, executor.Sent); // a hit
+
+        // a default read does not get the opted-in entry either: it did not ask to take part
+        var plainAgain = Get("abc");
+        Via(executor, cache).Raw.Send(ref plainAgain, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Assert.Equal(3, executor.Sent);
+        Assert.Null(PrefixOf(executor.Parked[2]));
+    }
+
+    [Fact]
+    public void TrackingModeSaysNoForAnOptedOutReadAndNothingOtherwise()
+    {
+        using var cache = new RespClientCache(Mode(CacheTrackingMode.Tracking));
+        var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
+
+        var plain = Get("abc");
+        Via(executor, cache).Raw.Send(ref plain, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Assert.Null(PrefixOf(executor.Parked[0])); // OPTOUT tracks by default; nothing to add
+
+        var opted = Get("def");
+        Via(executor, cache).Raw.Send(ref opted, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut, TextHandler.Instance, default);
+        Assert.Equal(CachingNo, PrefixOf(executor.Parked[1])); // not kept here, so not tracked there
+        Assert.Equal(1, cache.Count);
+
+        // a write is never tracked, so the flag on a write buys nothing and says nothing
+        var write = Ctx.Render($"{RedisCommand.SET}{(RedisKey)"abc"}{(RedisValue)"x"}");
+        Via(executor, cache).Raw.Send(ref write, CommandFlags.CommandRetryNever | CommandFlags.CacheOptOut, TextHandler.Instance, default);
+        Assert.Null(PrefixOf(executor.Parked[2]));
+
+        // and CacheOptIn under OPTOUT has only its local meaning: stored, nothing said
+        var optedIn = Get("ghi");
+        Via(executor, cache).Raw.Send(ref optedIn, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, TextHandler.Instance, default);
+        Assert.Null(PrefixOf(executor.Parked[3]));
+        Assert.Equal(2, cache.Count);
+    }
+
+    [Fact]
+    public void BroadcastModeNeverSpeaksToTheServer()
+    {
+        // BCAST and OPTIN/OPTOUT are mutually exclusive on the server, so neither flag may put a CLIENT
+        // CACHING on the wire; both keep their local meaning
+        using var cache = new RespClientCache(Mode(CacheTrackingMode.Broadcast));
+        var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
+
+        var optedOut = Get("abc");
+        Via(executor, cache).Raw.Send(ref optedOut, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut, TextHandler.Instance, default);
+        Assert.Null(PrefixOf(executor.Parked[0]));
+        Assert.Equal(0, cache.Count);
+
+        var optedIn = Get("abc");
+        Via(executor, cache).Raw.Send(ref optedIn, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, TextHandler.Instance, default);
+        Assert.Null(PrefixOf(executor.Parked[1]));
+        Assert.Equal(1, cache.Count);
+    }
+
+    [Fact]
+    public void CacheOptInBypassesAdmission()
+    {
+        // the caller has made the admission decision; under OPTIN mode the first miss is also the one that
+        // pays for CLIENT CACHING YES, so refusing it would track a key and then not keep it
+        using var cache = new RespClientCache(Mode(CacheTrackingMode.Tracking, CacheAdmission.OnRepeatedMiss));
+
+        var first = Get("abc");
+        Assert.False(cache.TryBeginFill(ref first, 0, CommandFlags.CommandRetryReadOnly, out _));
+        first.Dispose();
+        Assert.Equal(1, cache.RefusedNotAdmitted);
+
+        var opted = Get("def");
+        Assert.True(cache.TryBeginFill(ref opted, 0, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, out var fill));
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+        Assert.Equal(1, cache.RefusedNotAdmitted);
+        Assert.Equal(1, cache.Count);
+    }
+
+    [Fact]
+    public void BothCacheBitsAreRejectedWithOrWithoutACache()
+    {
+        // two bits, three meanings; the fourth encoding is reserved, and a reserved value must fail the same
+        // way everywhere rather than quietly meaning something on a connection that happens to cache
+        var executor = new FakeExecutor("$5\r\nhello\r\n");
+        const CommandFlags both = CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn | CommandFlags.CacheOptOut;
+
+        var withCache = Get("abc");
+        using var cache = new RespClientCache(Mode(CacheTrackingMode.Tracking));
+        Assert.Throws<ArgumentException>(() => Via(executor, cache).Raw.Send(ref withCache, both, TextHandler.Instance, default));
+
+        var withoutCache = Get("abc");
+        Assert.Throws<ArgumentException>(() => Via(executor).Raw.Send(ref withoutCache, both, TextHandler.Instance, default));
+        Assert.Equal(0, executor.Sent);
+
+        // the gate itself errs towards a miss if the pair ever reaches it
+        Assert.False(RespClientCache.IsCacheable(both));
+        Assert.False(RespClientCache.IsCacheable(both, optIn: true));
+    }
+
+    [Fact]
+    public void IsCacheableHonoursTheModeAndTheMarkers()
+    {
+        Assert.True(RespClientCache.IsCacheable(CommandFlags.CommandRetryReadOnly));
+        Assert.False(RespClientCache.IsCacheable(CommandFlags.CommandRetryReadOnly, optIn: true));
+        Assert.True(RespClientCache.IsCacheable(CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, optIn: true));
+        Assert.True(RespClientCache.IsCacheable(CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn));
+        Assert.False(RespClientCache.IsCacheable(CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut));
+
+        // the command surface's marker is a CacheOptOut locally - and only locally; see NeverCached
+        Assert.False(RespClientCache.IsCacheable(CommandFlags.CommandRetryReadOnly.NeverCached()));
+        Assert.Equal(CommandFlags.None, CommandFlagsInternal.UserSelectableFlags & CommandFlagsInternal.NeverCachedFlag);
+        using var cache = new RespClientCache(Mode(CacheTrackingMode.Tracking));
+        Assert.Null(cache.OptOutPrefix(CommandFlags.CommandRetryReadOnly.NeverCached()));
+        Assert.NotNull(cache.OptOutPrefix(CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut));
+    }
+
+    [Fact]
+    public void CacheOptInIsUserSelectable()
+    {
+        Assert.Equal(
+            CommandFlags.CacheOptIn,
+            CommandFlagsInternal.UserSelectableFlags & CommandFlags.CacheOptIn);
+    }
+
+    [Fact]
+    public void ATransactionOptsOutOnlyWhenItReads()
+    {
+        // reads inside MULTI are never cached, so under OPTOUT the whole transaction is told not to track;
+        // a write-only transaction tracks nothing anyway, and the frame would be pure cost
+        using var tracking = new RespClientCache(Mode(CacheTrackingMode.Tracking));
+        using var optIn = new RespClientCache(Mode(CacheTrackingMode.TrackingOptIn));
+
+        var write = RespPayloadOperation.Rent();
+        write.Attach(Ctx.Render($"{RedisCommand.SET}{(RedisKey)"a"}{(RedisValue)"x"}").AsLookupKey().Span, CommandFlags.CommandRetryNever, default);
+        var read = RespPayloadOperation.Rent();
+        read.Attach(Get("a").AsLookupKey().Span, CommandFlags.CommandRetryReadOnly, default);
+
+        var writeOnly = new List<QueuedOperation> { QueuedOperation.Of(write) };
+        var mixed = new List<QueuedOperation> { QueuedOperation.Of(write), QueuedOperation.Of(read) };
+
+        Assert.Null(tracking.TransactionPrefix(writeOnly));
+        Assert.Equal(CachingNo, Text(tracking.TransactionPrefix(mixed)!));
+        Assert.Null(optIn.TransactionPrefix(mixed)); // nothing is tracked there unless asked
+
+        using var byPrefix = new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.TrackingByPrefix, Prefixes = ["a"] });
+        Assert.Null(byPrefix.TransactionPrefix(mixed)); // same wire mode, same answer, prefix match or not
+    }
+
+    [Fact]
+    public void ByPrefixModeOptsInTheReadsInsideItsPrefixes()
+    {
+        // the default admission on purpose: a read inside the prefixes is an opt-in, and an opt-in is stored
+        // on its FIRST miss, since that is the read that paid for CLIENT CACHING YES
+        using var cache = new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.TrackingByPrefix, Prefixes = ["app:"] });
+        var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
+
+        // inside, unflagged: YES, stored, then a hit
+        var inside = Get("app:1");
+        Via(executor, cache).Raw.Send(ref inside, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Assert.Equal(1, executor.Sent);
+        Assert.Equal(1, cache.Count);
+        Assert.Equal(CachingYes, PrefixOf(executor.Parked[0]));
+
+        var again = Get("app:1");
+        Via(executor, cache).Raw.Send(ref again, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Assert.Equal(1, executor.Sent);
+
+        // outside, unflagged: sent plain, kept nowhere, and counted as the prefix refusal it is
+        var outside = Get("other");
+        Via(executor, cache).Raw.Send(ref outside, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Assert.Equal(2, executor.Sent);
+        Assert.Equal(1, cache.Count);
+        Assert.Null(PrefixOf(executor.Parked[1]));
+        Assert.Equal(1, cache.RefusedNotTracked);
+
+        // straddling the boundary, unflagged: the entry would depend on a key outside, so it is out
+        var straddle = Ctx.Render($"{RedisCommand.MGET}{(RedisKey)"app:1"}{(RedisKey)"other"}");
+        Via(executor, cache).Raw.Send(ref straddle, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Assert.Equal(3, executor.Sent);
+        Assert.Equal(1, cache.Count);
+        Assert.Null(PrefixOf(executor.Parked[2]));
+        Assert.Equal(2, cache.RefusedNotTracked);
+    }
+
+    [Fact]
+    public void ByPrefixModeLetsTheFlagsOverrideTheList()
+    {
+        // the list is the policy for reads that did not state one; a flag is a statement. Unlike Broadcast,
+        // where the list went to the server and nothing can cross it, here the server tracks whatever we
+        // send behind YES
+        using var cache = new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.TrackingByPrefix, Prefixes = ["app:"] });
+        var executor = new FakeExecutor("$5\r\nhello\r\n") { ParkRequests = true };
+
+        // outside, CacheOptIn: YES, stored, then a hit (for the unflagged read too - the entry exists)
+        var optedIn = Get("other");
+        Via(executor, cache).Raw.Send(ref optedIn, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, TextHandler.Instance, default);
+        Assert.Equal(1, executor.Sent);
+        Assert.Equal(1, cache.Count);
+        Assert.Equal(CachingYes, PrefixOf(executor.Parked[0]));
+        Assert.Equal(0, cache.RefusedNotTracked);
+
+        var plain = Get("other");
+        Via(executor, cache).Raw.Send(ref plain, CommandFlags.CommandRetryReadOnly, TextHandler.Instance, default);
+        Assert.Equal(1, executor.Sent);
+
+        // inside, CacheOptOut: sent plain - OPTIN tracks nothing without a YES, so there is no NO to say -
+        // and kept nowhere
+        var optedOut = Get("app:1");
+        Via(executor, cache).Raw.Send(ref optedOut, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut, TextHandler.Instance, default);
+        Assert.Equal(2, executor.Sent);
+        Assert.Equal(1, cache.Count);
+        Assert.Null(PrefixOf(executor.Parked[1]));
+
+        // and a write is a write: no prefix in either direction
+        var write = Ctx.Render($"{RedisCommand.SET}{(RedisKey)"app:1"}{(RedisValue)"x"}");
+        Via(executor, cache).Raw.Send(ref write, CommandFlags.CommandRetryNever, TextHandler.Instance, default);
+        Assert.Null(PrefixOf(executor.Parked[2]));
+    }
+
+    [Fact]
+    public void ThePrefixHonoursARenamedClientCommand()
+    {
+        // the handshake's CLIENT TRACKING goes through the command map; a prefix that did not would send a
+        // command the server has never heard of, and under OPTIN nothing would ever be tracked
+        var map = CommandMap.Create(new Dictionary<string, string?> { ["client"] = "cli" });
+        using var cache = new RespClientCache(Mode(CacheTrackingMode.TrackingOptIn), commandMap: map);
+
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, out var fill));
+        Assert.Equal("*3|$3|CLI|$7|CACHING|$3|YES|", PrefixOf(fill.Key)); // the map upper-cases, as it does for every command
+        fill.Abandon();
+    }
+
+    [Fact]
+    public void OptInModeRejectsPrefixes()
+    {
+        // PREFIX needs BCAST, and OPTIN cannot be combined with BCAST - the same refusal Tracking gets
+        var ex = Assert.Throws<ArgumentException>(() => new RespClientCache(
+            new CacheOptions { TrackingMode = CacheTrackingMode.TrackingOptIn, Prefixes = ["app:"] }));
+        Assert.Contains("Broadcast", ex.Message);
+    }
+
+    [Fact]
+    public void ThePrefixIsNotPartOfTheKey()
+    {
+        // a prefixed request and its unprefixed twin name the same entry: the prefix says how the server
+        // should treat the read, not what was read
+        using var cache = new RespClientCache(Mode(CacheTrackingMode.TrackingOptIn));
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, out var fill));
+        Assert.NotNull(fill.Key.Prefix);
+        Assert.True(Complete(cache, fill, "$1\r\nx\r\n"));
+
+        using var plain = Get("abc").Detach(CommandFlags.CommandRetryReadOnly);
+        Assert.Null(plain.Prefix);
+        Assert.True(cache.TryGet(plain, 0, out var hit));
+        hit.Release();
+    }
 }

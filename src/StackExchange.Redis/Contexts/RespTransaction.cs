@@ -352,7 +352,8 @@ namespace StackExchange.Redis
                         out var exec,
                         conditions is null ? null : OnAborted,
                         (run, count) => target.TryWriteRun(connection, run, count),
-                        flags))
+                        flags,
+                        _context.Cache?.TransactionPrefix(queue ?? EmptyBody)))
                 {
                     Fail(queue, "The connection was lost before the transaction could be sent.");
                     return false;
@@ -607,19 +608,26 @@ namespace StackExchange.Redis
         /// carrying its retry category; without them a refused <c>EXEC</c> is classified as never
         /// retryable and a caller's retry policy does nothing.
         /// </param>
+        /// <param name="multiPrefix">
+        /// A frame to write ahead of <c>MULTI</c>, or null: the cache's <c>CLIENT CACHING NO</c> for a
+        /// transaction that contains reads (see <see cref="Caching.RespClientCache.TransactionPrefix"/>).
+        /// </param>
         internal static bool TrySendOver(
             RespConnection? connection,
             List<QueuedOperation> operations,
             out ValueTask<bool> exec,
             Action? onAborted = null,
             Func<RespRunEntry[], int, bool>? send = null,
-            CommandFlags flags = CommandFlags.None)
+            CommandFlags flags = CommandFlags.None,
+            byte[]? multiPrefix = null)
         {
             exec = default;
             if (connection is null || connection.IsClosed) return false;
 
+            // the MULTI carries the transaction's CLIENT CACHING NO, if the cache wants one: inside the
+            // transaction it would be queued and counted in EXEC's array; ahead of MULTI it governs all of it
             var multi = RespPayloadOperation.Rent();
-            multi.Attach(MultiFrame, CommandFlags.None, default);
+            multi.Attach(MultiFrame, CommandFlags.None, default, multiPrefix);
 
             var execOperation = new RespExecOperation();
             execOperation.Attach(ExecFrame, operations, onAborted, flags);

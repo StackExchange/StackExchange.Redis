@@ -81,7 +81,7 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
    frame (`WithDefaultCategory`) - the one place it happens, and before the cache reads the flags. A write
    then stamps its keys in the cache *before* it is sent (read-your-own-writes). A read probes the
    context's `RespClientCache` if there is one, unless the executor is transactional or the flags forbid
-   it (`NoClientCache` suppresses the probe as well as the store). A hit returns without routing or
+   it (`CacheOptOut` suppresses the probe as well as the store). A hit returns without routing or
    sending; an identical request already in flight is awaited rather than duplicated (asynchronous callers
    only); otherwise a fill is opened - if admission lets it (by default only on a repeated miss) - so the
    reply populates the cache on the way back. See `client-side-cache.md`.

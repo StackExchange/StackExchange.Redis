@@ -94,6 +94,16 @@ public class FormatTests(ITestOutputHelper output) : TestBase(output)
     [InlineData(CommandFlags.PreferReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, PreferReplica")] // 2-bit flag is hit-and-miss
     [InlineData(CommandFlags.DemandReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, DemandReplica")] // 2-bit flag is hit-and-miss
 #endif
+#if NETFRAMEWORK
+    // netfx appends the second zero-valued name (PreferMaster) to every non-zero value; see the note on CommandFlags
+    [InlineData(CommandFlags.CacheOptOut, "PreferMaster, CacheOptOut")]
+    [InlineData(CommandFlags.CacheOptIn, "PreferMaster, CacheOptIn")]
+    [InlineData(CommandFlags.FireAndForget | CommandFlags.CacheOptIn, "PreferMaster, FireAndForget, CacheOptIn")]
+#else
+    [InlineData(CommandFlags.CacheOptOut, "CacheOptOut")]
+    [InlineData(CommandFlags.CacheOptIn, "CacheOptIn")]
+    [InlineData(CommandFlags.FireAndForget | CommandFlags.CacheOptIn, "FireAndForget, CacheOptIn")]
+#endif
     public void CommandFlagsFormatting(CommandFlags value, string expected)
     {
         Assert.SkipWhen(Runtime.IsMono, "Mono has different enum flag behavior");

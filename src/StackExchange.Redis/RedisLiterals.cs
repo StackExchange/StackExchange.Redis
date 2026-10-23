@@ -124,6 +124,8 @@ namespace StackExchange.Redis
             TRACKING = RedisValue.FromRaw("TRACKING"u8),
             // ON is declared once, up with OFF; CLIENT TRACKING and CLIENT MAINT_NOTIFICATIONS share it
             BCAST = RedisValue.FromRaw("BCAST"u8),
+            OPTIN = RedisValue.FromRaw("OPTIN"u8),
+            OPTOUT = RedisValue.FromRaw("OPTOUT"u8),
             PREFIX = RedisValue.FromRaw("PREFIX"u8),
             SETINFO = RedisValue.FromRaw("SETINFO"u8),
             SETNAME = RedisValue.FromRaw("SETNAME"u8),

@@ -92,16 +92,30 @@ namespace StackExchange.Redis.Caching
         /// <summary>Create a cache.</summary>
         /// <param name="options">How the cache is built; <see cref="CacheOptions.Default"/> when null.</param>
         /// <param name="keyCapacity">Initial size hint for the tracked-key table.</param>
+        /// <param name="commandMap">
+        /// How commands are spelled on this connection, so the <c>CLIENT CACHING</c> frames honour a renamed
+        /// <c>CLIENT</c> exactly as the handshake's <c>CLIENT TRACKING</c> does; the default map when null.
+        /// </param>
         /// <remarks>
         /// One constructor rather than an overload pair: two constructors both carrying optional parameters
         /// is ambiguous for callers, and the analyzers say so (RS0026). Named arguments cover the cases an
         /// overload would have.
         /// </remarks>
-        public RespClientCache(CacheOptions? options = null, int keyCapacity = 256)
+        public RespClientCache(CacheOptions? options = null, int keyCapacity = 256, CommandMap? commandMap = null)
         {
             Options = options ?? CacheOptions.Default;
             Options.Validate(); // settings that constrain one another; see CacheOptions.Validate
             _keys = new RespKeyTable(keyCapacity);
+
+            // the two CLIENT CACHING frames, rendered once through the command map (CLIENT can be renamed like
+            // anything else, and the handshake's CLIENT TRACKING honours the same map) and shared by every
+            // request that needs one: a prefix is a fixed buffer, never pooled, so sharing is free
+            var mode = Options.ResolvedTrackingMode;
+            _optIn = mode == CacheTrackingMode.TrackingOptIn;
+            _byPrefix = mode == CacheTrackingMode.TrackingByPrefix;
+            _optOut = mode == CacheTrackingMode.Tracking;
+            if (_optIn || _byPrefix) _cachingYes = RenderClientCaching(commandMap ?? CommandMap.Default, "YES"u8); // both negotiate OPTIN
+            if (_optOut) _cachingNo = RenderClientCaching(commandMap ?? CommandMap.Default, "NO"u8);
             _slabSize = ChooseSlabSize(Options.MaxBytes);
             if (Options.ResolvedAdmission == CacheAdmission.OnRepeatedMiss)
             {
@@ -119,6 +133,91 @@ namespace StackExchange.Redis.Caching
 
         /// <summary>This cache as callers see it; one instance, created with the cache. See <see cref="ClientCache"/>.</summary>
         internal ClientCache View { get; }
+
+        // _optIn: TrackingOptIn, where only a CacheOptIn read may be kept. _byPrefix: TrackingByPrefix, the same
+        // wire mode with Prefixes deciding for unflagged reads. _optOut: Tracking, where CacheOptOut has a wire half.
+        private readonly bool _optIn, _byPrefix, _optOut;
+        private readonly byte[]? _cachingYes, _cachingNo;
+
+        /// <summary><c>CLIENT CACHING {verb}</c> as one RESP frame, with the command spelled as the map says.</summary>
+        private static byte[] RenderClientCaching(CommandMap map, ReadOnlySpan<byte> verb)
+        {
+            var client = map.GetResp(RedisCommand.CLIENT); // "$6\r\nCLIENT\r\n", or the renamed equivalent
+            if (client.IsEmpty) throw ExceptionFactory.CommandDisabled(RedisCommand.CLIENT);
+            ReadOnlySpan<byte> head = "*3\r\n"u8, caching = "$7\r\nCACHING\r\n$"u8, crlf = "\r\n"u8;
+            var frame = new byte[head.Length + client.Length + caching.Length + 1 + crlf.Length + verb.Length + crlf.Length];
+            var span = frame.AsSpan();
+            head.CopyTo(span);
+            span = span.Slice(head.Length);
+            client.CopyTo(span);
+            span = span.Slice(client.Length);
+            caching.CopyTo(span);
+            span = span.Slice(caching.Length);
+            span[0] = (byte)('0' + verb.Length); // 2 or 3
+            span = span.Slice(1);
+            crlf.CopyTo(span);
+            span = span.Slice(crlf.Length);
+            verb.CopyTo(span);
+            span = span.Slice(verb.Length);
+            crlf.CopyTo(span);
+            Debug.Assert(span.Length == crlf.Length, "frame sized wrongly");
+            return frame;
+        }
+
+        /// <summary>
+        /// The frame to write ahead of a request whose reply this cache is about to store, or null.
+        /// </summary>
+        /// <remarks>
+        /// <c>CLIENT CACHING YES</c> under <see cref="CacheTrackingMode.TrackingOptIn"/> and
+        /// <see cref="CacheTrackingMode.TrackingByPrefix"/>: the server tracks nothing there unless told, and
+        /// a fill only begins under those modes for a read that opted in - by flag, or by falling inside the
+        /// prefixes - so "about to store" and "needs the prefix" coincide. Elsewhere the server already tracks
+        /// (or broadcasts) everything, and nothing is said.
+        /// </remarks>
+        internal byte[]? FillPrefix => _cachingYes;
+
+        /// <summary>
+        /// The frame to write ahead of a request this cache will <b>not</b> store, or null.
+        /// </summary>
+        /// <remarks>
+        /// <c>CLIENT CACHING NO</c> under <see cref="CacheTrackingMode.Tracking"/> (which the handshake
+        /// negotiates as <c>OPTOUT</c> precisely so this is legal), for a read the caller opted out with
+        /// <see cref="CommandFlags.CacheOptOut"/>: the server would otherwise add the key to its table and
+        /// push an invalidation nobody here holds anything for. Only for reads - the server tracks the keys
+        /// of read-only commands, so on a write the frame would buy nothing - and only for the caller's
+        /// flag, not the command surface's <c>NeverCached</c> marker (see <c>CommandFlagsInternal.NeverCachedFlag</c>
+        /// for why that one stays local).
+        /// </remarks>
+        internal byte[]? OptOutPrefix(CommandFlags flags)
+            => _optOut && (flags & CommandFlags.CacheOptOut) != 0 && IsReadOnly(flags) ? _cachingNo : null;
+
+        /// <summary>
+        /// The frame to write ahead of a transaction's <c>MULTI</c>, or null.
+        /// </summary>
+        /// <remarks>
+        /// Reads inside <c>MULTI</c>/<c>EXEC</c> are never cached (their answers come from <c>EXEC</c>,
+        /// atomically with the transaction's own writes), so under <see cref="CacheTrackingMode.Tracking"/>
+        /// every key they read is a server-side tracking entry and a later invalidation push for nothing.
+        /// <c>CLIENT CACHING NO</c> before <c>MULTI</c> applies to the whole transaction - measured against
+        /// Redis 8.9, as the documentation says of <c>YES</c>. Only when the transaction contains a read: a
+        /// write-only transaction tracks nothing, and the frame would be pure cost.
+        /// </remarks>
+        internal byte[]? TransactionPrefix(List<QueuedOperation> operations)
+        {
+            if (!_optOut) return null;
+            foreach (var queued in operations)
+            {
+                if (IsReadOnly(queued.Operation.Flags)) return _cachingNo;
+            }
+
+            return null;
+        }
+
+        private static bool IsReadOnly(CommandFlags flags)
+        {
+            var category = flags & CommandFlagsInternal.MaskRetryCategory;
+            return category != 0 && category <= CommandFlags.CommandRetryReadOnly;
+        }
 
         /// <summary>How entries in this cache behave, unless a caller overrides it.</summary>
         public CachePolicy Policy => Options.DefaultPolicy;
@@ -754,7 +853,10 @@ namespace StackExchange.Redis.Caching
             // EVERY key, not any: the entry depends on all of them, so one key the server was never asked
             // to watch is enough to make the whole reply uninvalidatable. MGET tracked untracked is not
             // "mostly fine".
-            if (Options.HasPrefixes)
+            // ...except under TrackingByPrefix with CacheOptIn said outright: there the list is the policy for
+            // reads that did not state one, the flag is a statement, and the server can track any key we
+            // send behind YES. Under Broadcast the list went to the server, and nothing can cross it.
+            if (Options.HasPrefixes && !(_byPrefix && (flags & CommandFlags.CacheOptIn) != 0))
             {
                 for (var i = 0; i < count; i++)
                 {
@@ -769,7 +871,14 @@ namespace StackExchange.Redis.Caching
 
             // last of the refusals and before anything is allocated: a request seen for the first time is remembered,
             // not stored - see CacheAdmission.OnRepeatedMiss. The database is folded in, as it is in EntryKey.
-            if (_doorkeeper is not null && !_doorkeeper.SeenBefore((frame.AsLookupKey().GetHashCode() * 397) ^ database))
+            // ...unless the caller said "cache this" (CacheOptIn): they have already made the admission
+            // decision, and under OPTIN mode the first miss is the one that pays for CLIENT CACHING YES. The
+            // same under TrackingByPrefix for every read that gets this far: inside the prefixes it IS an
+            // opt-in, and a YES that tracks a key we then decline to store would be the worst of both.
+            if (_doorkeeper is not null
+                && (flags & CommandFlags.CacheOptIn) == 0
+                && !_byPrefix
+                && !_doorkeeper.SeenBefore((frame.AsLookupKey().GetHashCode() * 397) ^ database))
             {
                 Interlocked.Increment(ref _refusedNotAdmitted);
                 fill = default;
@@ -783,7 +892,9 @@ namespace StackExchange.Redis.Caching
                 deps[i] = new Dependency(node, generation);
             }
 
-            var key = frame.Detach(flags);
+            // the prefix travels with the request that fills: under OPTIN mode this is the read that must
+            // say CLIENT CACHING YES, or the server will never announce its keys
+            var key = frame.Detach(flags, FillPrefix);
 
             // Register as the leader for this request, so concurrent misses can wait on us instead of each
             // sending their own copy. Losing the race is not a failure: we simply lead without a slot, which
@@ -1323,7 +1434,7 @@ namespace StackExchange.Redis.Caching
         }
 
         /// <summary>
-        /// As <see cref="IsCacheable"/>, but <b>observed</b>: a refusal is counted.
+        /// As <see cref="IsCacheable(CommandFlags)"/>, but <b>observed</b>: a refusal is counted.
         /// </summary>
         /// <remarks>
         /// The orchestration skips the cache entirely for a command whose flags forbid it - it does not
@@ -1363,12 +1474,24 @@ namespace StackExchange.Redis.Caching
         /// it cannot work for exactly that reason.
         /// </para>
         /// </remarks>
-        internal static bool IsCacheable(CommandFlags flags)
-        {
-            if ((flags & (CommandFlags.NoClientCache | CommandFlags.FireAndForget)) != 0) return false;
+        internal bool IsCacheable(CommandFlags flags) => IsCacheable(flags, _optIn);
 
-            var category = flags & CommandFlagsInternal.MaskRetryCategory;
-            return category != 0 && category <= CommandFlags.CommandRetryReadOnly;
+        /// <summary>Whether <paramref name="flags"/> permit a reply to be served from or stored in a cache.</summary>
+        /// <param name="flags">The command's flags, with its retry category applied.</param>
+        /// <param name="optIn">
+        /// Whether the cache is in <see cref="CacheTrackingMode.TrackingOptIn"/>, where only a read flagged
+        /// <see cref="CommandFlags.CacheOptIn"/> is tracked by the server and so only that read may be kept.
+        /// </param>
+        internal static bool IsCacheable(CommandFlags flags, bool optIn = false)
+        {
+            // CacheOptOut and the command surface's NeverCached marker both mean "not this one"; fire-and-forget
+            // promises default, which a hit would contradict
+            if ((flags & (CommandFlags.CacheOptOut | CommandFlagsInternal.NeverCachedFlag | CommandFlags.FireAndForget)) != 0) return false;
+
+            // under OPTIN mode only an opted-in read is tracked by the server, so only that read may be kept
+            if (optIn && (flags & CommandFlags.CacheOptIn) == 0) return false;
+
+            return IsReadOnly(flags);
         }
 
         /// <summary>One key a cached entry depends on, and the generation it had when the request was sent.</summary>

@@ -215,7 +215,7 @@ namespace StackExchange.Redis
         /// <returns>False if the command is fire-and-forget, and so already answered.</returns>
         private bool Enqueue(RespPayloadOperation operation, in RespRequest request, CancellationToken cancellationToken)
         {
-            operation.Attach(request.Span, request.Flags, cancellationToken);
+            operation.Attach(request.Span, request.Flags, cancellationToken, request.Prefix);
             operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
             operation.Slot = request.Slot;
             operation.Database = Database; // read if it is ever re-sent on its own, after a redirect
@@ -279,7 +279,7 @@ namespace StackExchange.Redis
             head.Database = Database;
 
             var body = RespPayloadOperation.Rent();
-            body.Attach(request.Span, request.Flags, cancellationToken);
+            body.Attach(request.Span, request.Flags, cancellationToken, request.Prefix);
             body.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
             body.Slot = request.Slot;
             body.Database = Database;

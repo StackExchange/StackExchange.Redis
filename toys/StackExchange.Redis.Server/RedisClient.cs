@@ -190,6 +190,48 @@ namespace StackExchange.Redis.Server
         /// <summary>Whether tracking is in BCAST mode; the alternative is per-key.</summary>
         public bool TrackingBroadcast { get; private set; }
 
+        /// <summary>CLIENT TRACKING ON OPTIN: a read is tracked only if CLIENT CACHING YES preceded it.</summary>
+        public bool TrackingOptIn { get; private set; }
+
+        /// <summary>CLIENT TRACKING ON OPTOUT: every read is tracked unless CLIENT CACHING NO preceded it.</summary>
+        public bool TrackingOptOut { get; private set; }
+
+        /// <summary>
+        /// What the last <c>CLIENT CACHING</c> said, until the next command consumes it: true for YES, false
+        /// for NO, null for nothing pending.
+        /// </summary>
+        /// <remarks>
+        /// As the real server does it: the flag applies to the <b>next command on the connection</b>,
+        /// whatever that is - a PING consumes it as surely as a GET - and a MULTI carries it across the
+        /// whole transaction (measured against Redis 8.9, and documented for YES).
+        /// </remarks>
+        public bool? CachingOverride { get; set; }
+
+        /// <summary>How many <c>CLIENT CACHING YES</c> this connection has received.</summary>
+        public int CachingYesCount { get; private set; }
+
+        /// <summary>How many <c>CLIENT CACHING NO</c> this connection has received.</summary>
+        public int CachingNoCount { get; private set; }
+
+        /// <summary>Record a <c>CLIENT CACHING</c>, for the next command.</summary>
+        public void SetCachingOverride(bool yes)
+        {
+            CachingOverride = yes;
+            if (yes) CachingYesCount++;
+            else CachingNoCount++;
+        }
+
+        /// <summary>Whether the server is executing this client's EXEC right now; the override survives it.</summary>
+        internal bool InExec { get; set; }
+
+        /// <summary>Whether this client is inside MULTI, queueing; the override survives that too.</summary>
+        internal bool InMulti => _transactionState is TransactionState.MultiHopeful
+            or TransactionState.MultiDoomedByTouch or TransactionState.MultiAbortByError;
+
+        /// <summary>Whether a per-key tracking server currently holds <paramref name="key"/> for this client.</summary>
+        public bool IsTrackingKey(int database, string key)
+            => _trackedReads is not null && _trackedReads.Contains((database, key));
+
         private List<string> _trackingPrefixes;
         private HashSet<(int Database, string Key)> _trackedReads;
 
@@ -205,18 +247,26 @@ namespace StackExchange.Redis.Server
         /// Prefixes are broadcast-only, as on a real server: there is nothing to filter when the server is
         /// announcing what this client read.
         /// </remarks>
-        public void SetTracking(bool enabled, bool broadcast, List<string> prefixes)
+        public void SetTracking(bool enabled, bool broadcast, List<string> prefixes, bool optIn = false, bool optOut = false)
         {
             TrackingEnabled = enabled;
             TrackingBroadcast = enabled && broadcast;
+            TrackingOptIn = enabled && optIn;
+            TrackingOptOut = enabled && optOut;
             _trackingPrefixes = enabled ? prefixes : null;
             _trackedReads = enabled && !broadcast ? new() : null;
+            CachingOverride = null;
         }
 
         /// <summary>In per-key mode, note that this client has read a key, so a change to it is announced.</summary>
         public void NoteTrackedRead(int database, in RedisKey key)
         {
             if (!TrackingEnabled || TrackingBroadcast) return;
+
+            // OPTIN tracks only what was asked for; OPTOUT tracks everything that was not declined; the
+            // default mode has no escape hatch at all (CLIENT CACHING is an error there, see ClientCaching)
+            if (TrackingOptIn && CachingOverride != true) return;
+            if (TrackingOptOut && CachingOverride == false) return;
             _trackedReads?.Add((database, (string)key));
         }
 

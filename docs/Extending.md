@@ -243,7 +243,7 @@ This one is easy to miss and has no visible symptom. The client keeps a retry ca
 **Declaring a command read-only also makes it [client-side cacheable](ClientSideCaching)**, for callers who have enabled the cache: its reply may be served from memory until a change to one of its keys invalidates it. That is right for an ordinary read - and for a module's, since Redis signals a key as modified when a module closes a key it opened for writing. It is wrong for a read whose answer changes **without a write** to the keys it names: one that reports idle or elapsed time, returns something random, or reads keys it does not name as `RedisKey`. For those, declare the category and opt out of the cache too:
 
 ```csharp
-flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly) | CommandFlags.NoClientCache
+flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly) | CommandFlags.CacheOptOut
 ```
 
 ### Synchronous forms

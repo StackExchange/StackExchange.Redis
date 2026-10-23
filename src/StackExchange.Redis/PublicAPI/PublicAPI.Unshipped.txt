@@ -73,6 +73,8 @@ StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Broadcast = 1 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Default = 0 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Tracking = 2 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.TrackingOptIn = 3 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.TrackingByPrefix = 4 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.ClientCache
 StackExchange.Redis.Caching.ClientCache.Bytes.get -> long
 StackExchange.Redis.Caching.ClientCache.Count.get -> int
@@ -87,7 +89,8 @@ StackExchange.Redis.Caching.ClientCache.Refreshes.get -> long
 StackExchange.Redis.Caching.ClientCache.ServedStale.get -> long
 StackExchange.Redis.Caching.ClientCache.Stored.get -> long
 StackExchange.Redis.Caching.ClientCache.TrackedKeys.get -> int
-StackExchange.Redis.CommandFlags.NoClientCache = 524288 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CacheOptIn = 2097152 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CacheOptOut = 1048576 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlagsExtensions
 static StackExchange.Redis.CommandFlagsExtensions.WithRetryCategory(this StackExchange.Redis.CommandFlags flags, StackExchange.Redis.CommandFlags category) -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.Config

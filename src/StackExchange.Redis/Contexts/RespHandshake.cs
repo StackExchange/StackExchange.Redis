@@ -1347,7 +1347,16 @@ namespace StackExchange.Redis
             }
             else
             {
-                await context.SendAsync($"{command}{RedisLiterals.TRACKING}{RedisLiterals.ON}").ConfigureAwait(false);
+                // OPTOUT for Tracking: measured identical to plain ON against Redis 8.9 (design notes 6.13),
+                // and it is what makes CLIENT CACHING NO - the wire half of CommandFlags.CacheOptOut - legal on
+                // this connection. OPTIN for TrackingOptIn and TrackingByPrefix: nothing is tracked unless a
+                // read is written behind CLIENT CACHING YES, which is what CommandFlags.CacheOptIn does - and
+                // what TrackingByPrefix does for an unflagged read inside its prefixes. The prefixes themselves
+                // stay client-side there: PREFIX is refused without BCAST.
+                var refinement = options.ResolvedTrackingMode is Caching.CacheTrackingMode.TrackingOptIn or Caching.CacheTrackingMode.TrackingByPrefix
+                    ? RedisLiterals.OPTIN
+                    : RedisLiterals.OPTOUT;
+                await context.SendAsync($"{command}{RedisLiterals.TRACKING}{RedisLiterals.ON}{refinement}").ConfigureAwait(false);
             }
         }
 

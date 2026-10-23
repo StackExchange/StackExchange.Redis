@@ -741,8 +741,9 @@ namespace StackExchange.Redis
             // still hold the buffer, and disposing it would return an array that is still being written -
             // which shows up as somebody else's reply arriving for your command. Taking them by ref means
             // the caller's frames really are emptied, and their Dispose is the no-op it looks like.
+            DemandCacheFlags(flags, ref request);
             var head = preamble.Detach(CommandFlags.CommandRetryAlways);
-            var body = request.Detach(flags);
+            var body = request.Detach(flags, UncachedPrefix(executor, context.Cache, flags));
             return Blocks(context)
                 ? SendPairBlocking(executor, head, body, gate, handler)
                 : AwaitPair(executor, head, body, gate, handler, cancellationToken);
@@ -777,7 +778,8 @@ namespace StackExchange.Redis
             flags = flags.WithDefaultCategory(request.Command); // see the note in SendAsync
             var executor = context.Executor ?? throw new InvalidOperationException("No executor is configured for this context.");
 
-            var body = request.Detach(flags);
+            DemandCacheFlags(flags, ref request);
+            var body = request.Detach(flags, UncachedPrefix(executor, context.Cache, flags));
             return Blocks(context)
                 ? SendPairBlocking(executor, preamble, body, gate, handler)
                 : AwaitPair(executor, preamble, body, gate, handler, cancellationToken);
@@ -1106,12 +1108,13 @@ namespace StackExchange.Redis
             // the category has to be settled before PermitsCaching sees it. At the call site that was
             // convention; here it is the order of the statements.
             flags = flags.WithDefaultCategory(request.Command);
+            DemandCacheFlags(flags, ref request);
 
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
             NoteLocalWrite(cache, in request, flags);
 
-            // NoClientCache suppresses the PROBE as well as the store: opting out must mean the caller does
+            // CacheOptOut suppresses the PROBE as well as the store: opting out must mean the caller does
             // not get a cached answer either, not merely that this reply is not kept
             if (cache is not null && UsesCache(executor, cache, flags))
             {
@@ -1160,8 +1163,9 @@ namespace StackExchange.Redis
                 // not cacheable, which is precisely the uncached case - fall through to it
             }
 
-            // the executor may need the bytes past this call, so hand it something it can retain
-            var owned = request.Detach(flags);
+            // the executor may need the bytes past this call, so hand it something it can retain - with
+            // CLIENT CACHING NO ahead of it where the caller opted this read out of a tracking server
+            var owned = request.Detach(flags, UncachedPrefix(executor, cache, flags));
             try
             {
                 var response = executor.Send(owned);
@@ -1218,6 +1222,7 @@ namespace StackExchange.Redis
             // the category has to be settled before PermitsCaching sees it. At the call site that was
             // convention; here it is the order of the statements.
             flags = flags.WithDefaultCategory(request.Command);
+            DemandCacheFlags(flags, ref request);
 
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
@@ -1246,11 +1251,12 @@ namespace StackExchange.Redis
             // An executor that copies the bytes during the call is handed a view of the frame, and the frame's
             // array goes back to the pool here, on the thread that rented it: no lease, and nothing of the
             // caller's kept for the round trip. Everything else gets the lease, as before.
+            var prefix = UncachedPrefix(executor, cache, flags);
             if (executor.CopiesRequestOnSend && typeof(TResult) != typeof(RespPayload))
             {
                 try
                 {
-                    return executor.SendTypedAsync(request.AsLookupKey(flags), handler, cancellationToken);
+                    return executor.SendTypedAsync(request.AsLookupKey(flags, prefix), handler, cancellationToken);
                 }
                 finally
                 {
@@ -1258,7 +1264,43 @@ namespace StackExchange.Redis
                 }
             }
 
-            return executor.SendTypedAsync(request.Detach(flags), handler, cancellationToken);
+            return executor.SendTypedAsync(request.Detach(flags, prefix), handler, cancellationToken);
+        }
+
+        /// <summary>
+        /// The frame to write ahead of a request that is going to the server <b>uncached</b>, or null.
+        /// </summary>
+        /// <remarks>
+        /// <c>CLIENT CACHING NO</c>, when the caller opted a read out under a tracking server - see
+        /// <see cref="RespClientCache.OptOutPrefix"/>. Never inside a transaction: the frame would be queued
+        /// behind <c>MULTI</c> and add a slot to <c>EXEC</c>'s array, which is the same reason
+        /// <c>SELECT</c> is not injected there; the transaction's own <c>MULTI</c> carries the opt-out for
+        /// the whole run instead (<see cref="RespClientCache.TransactionPrefix"/>).
+        /// </remarks>
+        private static byte[]? UncachedPrefix(RespExecutorBase executor, RespClientCache? cache, CommandFlags flags)
+            => cache is not null && !executor.Transactional ? cache.OptOutPrefix(flags) : null;
+
+        /// <summary>
+        /// Refuse the reserved encoding of the client-cache field: both bits set.
+        /// </summary>
+        /// <remarks>
+        /// Two bits, three meanings - default, <see cref="CommandFlags.CacheOptIn"/>,
+        /// <see cref="CommandFlags.CacheOptOut"/> - and the fourth is kept free rather than given a meaning
+        /// chosen for symmetry. Checked here, at the one place every command's flags pass, whether or not a
+        /// cache is configured: a reserved value should fail the same way everywhere. One mask and compare.
+        /// </remarks>
+        private static void DemandCacheFlags(CommandFlags flags, ref RespRequestFrame request)
+        {
+            if ((flags & CommandFlagsInternal.MaskClientCache) == CommandFlagsInternal.MaskClientCache)
+            {
+                request.Dispose();
+                ThrowBothCacheFlags();
+            }
+
+            [DoesNotReturn]
+            static void ThrowBothCacheFlags() => throw new ArgumentException(
+                $"{nameof(CommandFlags.CacheOptIn)} and {nameof(CommandFlags.CacheOptOut)} cannot be combined; the pair is reserved.",
+                "flags");
         }
 
         /// <summary>
@@ -1503,7 +1545,9 @@ namespace StackExchange.Redis
             {
                 // this caller claimed the refresh, so the request cannot simply be dropped: it IS the thing
                 // that needs re-sending. Detach hands ownership to the background send, which disposes it.
-                StartRefresh(executor, request.Detach(flags), cache);
+                // The refreshing read re-registers the keys, so under OPTIN mode it carries CLIENT CACHING
+                // YES exactly as the original fill did.
+                StartRefresh(executor, request.Detach(flags, cache.FillPrefix), cache);
             }
             else
             {

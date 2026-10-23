@@ -85,6 +85,44 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// </remarks>
     private readonly object _writeLock = new();
 
+    /// <summary>Where the reply to every prefix goes; see <see cref="IRespMessage.Prefix"/>.</summary>
+    private readonly RespPrefixReplySink _prefixReplies = new();
+
+    /// <summary>How many prefix replies were errors; see <see cref="IRespMessage.Prefix"/>.</summary>
+    public long PrefixErrors => _prefixReplies.Errors;
+
+    /// <summary>The most recent prefix error reply, as text, or null.</summary>
+    public string? LastPrefixError => _prefixReplies.LastError;
+
+    /// <summary>Stamp, enqueue and stage one reserved request - and its prefix in front of it, if it has one.</summary>
+    /// <param name="message">The message being written.</param>
+    /// <param name="token">The life of <paramref name="message"/> that was reserved.</param>
+    /// <param name="payload">Its request bytes.</param>
+    /// <param name="received">The receive counter, snapshotted by the caller.</param>
+    /// <remarks>
+    /// <b>The one place a request's bytes meet the pending queue</b>, so that a prefix is handled identically
+    /// on every write path - single, pair, run, inbox drain. A prefix is one frame and earns one entry naming
+    /// the sink, enqueued ahead of the message's own: the server answers in order, so the sink takes the
+    /// prefix's reply and the message still gets the next one. The counters are snapshotted BEFORE this
+    /// request's own bytes, prefix included: what a timeout wants to know is whether the connection moved at
+    /// all while this operation waited, and including our own write in the baseline would make every
+    /// command look like progress.
+    /// </remarks>
+    private void Stage(IRespMessage message, short token, ReadOnlySpan<byte> payload, long received)
+    {
+        message.OnEnqueued(this, _bytesSent, received);
+        if (message.Prefix is { } prefix)
+        {
+            _pending.Enqueue(new(_prefixReplies, 0));
+            Write(prefix);
+            Volatile.Write(ref _bytesSent, _bytesSent + prefix.Length);
+        }
+
+        _pending.Enqueue(new(message, token));
+        Write(payload);
+        Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
+    }
+
     /// <summary>
     /// Sends that found the write lock busy, waiting for the holder to write them; only used when
     /// <see cref="CombineWrites"/> is on.
@@ -163,10 +201,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
             try
             {
-                message.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                _pending.Enqueue(entry);
-                Write(payload.Span);
-                Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
+                Stage(message, entry.Token, payload.Span, Volatile.Read(ref _bytesReceived));
             }
             finally
             {
@@ -406,15 +441,8 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
             try
             {
-                // the counters are snapshotted BEFORE this request's own bytes: what a timeout wants to
-                // know is whether the connection moved at all while this operation waited, and including
-                // our own write in the baseline would make every command look like progress
-                message.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-
                 alone = _pending.IsEmpty; // nothing else in flight: the sequential shape; see FlushAlone
-                _pending.Enqueue(new(message, message.Token));
-                Write(payload.Span);
-                Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
+                Stage(message, message.Token, payload.Span, Volatile.Read(ref _bytesReceived));
             }
             finally
             {
@@ -491,10 +519,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 if (!message.TryReserveRequest(message.Token, out var only)) return false;
                 try
                 {
-                    message.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                    _pending.Enqueue(new(message, message.Token));
-                    Write(only.Span);
-                    Volatile.Write(ref _bytesSent, _bytesSent + only.Length);
+                    Stage(message, message.Token, only.Span, Volatile.Read(ref _bytesReceived));
                 }
                 finally
                 {
@@ -509,15 +534,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                     if (!message.TryReserveRequest(message.Token, out var bodyPayload)) return false;
                     try
                     {
-                        var bytes = headPayload.Length + bodyPayload.Length;
-                        head.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                        message.OnEnqueued(this, _bytesSent + headPayload.Length, Volatile.Read(ref _bytesReceived));
-
-                        _pending.Enqueue(new(head, head.Token));
-                        _pending.Enqueue(new(message, message.Token));
-                        Write(headPayload.Span);
-                        Write(bodyPayload.Span);
-                        Volatile.Write(ref _bytesSent, _bytesSent + bytes);
+                        var received = Volatile.Read(ref _bytesReceived);
+                        Stage(head, head.Token, headPayload.Span, received);
+                        Stage(message, message.Token, bodyPayload.Span, received);
                     }
                     finally
                     {
@@ -596,10 +615,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 if (!second.TryReserveRequest(second.Token, out var only)) return false;
                 try
                 {
-                    second.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                    _pending.Enqueue(new(second, second.Token));
-                    Write(only.Span);
-                    Volatile.Write(ref _bytesSent, _bytesSent + only.Length);
+                    Stage(second, second.Token, only.Span, Volatile.Read(ref _bytesReceived));
                 }
                 finally
                 {
@@ -614,15 +630,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                     if (!second.TryReserveRequest(second.Token, out var secondPayload)) return false;
                     try
                     {
-                        var bytes = firstPayload.Length + secondPayload.Length;
-                        first.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                        second.OnEnqueued(this, _bytesSent + firstPayload.Length, Volatile.Read(ref _bytesReceived));
-
-                        _pending.Enqueue(new(first, first.Token));
-                        _pending.Enqueue(new(second, second.Token));
-                        Write(firstPayload.Span);
-                        Write(secondPayload.Span);
-                        Volatile.Write(ref _bytesSent, _bytesSent + bytes);
+                        var received = Volatile.Read(ref _bytesReceived);
+                        Stage(first, first.Token, firstPayload.Span, received);
+                        Stage(second, second.Token, secondPayload.Span, received);
                         wroteFirst = true;
                     }
                     finally
@@ -695,10 +705,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 {
                     try
                     {
-                        head.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                        _pending.Enqueue(new(head, head.Token));
-                        Write(headPayload.Span);
-                        Volatile.Write(ref _bytesSent, _bytesSent + headPayload.Length);
+                        Stage(head, head.Token, headPayload.Span, Volatile.Read(ref _bytesReceived));
                     }
                     finally
                     {
@@ -713,10 +720,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 if (!first.TryReserveRequest(first.Token, out var firstPayload)) return false;
                 try
                 {
-                    first.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                    _pending.Enqueue(new(first, first.Token));
-                    Write(firstPayload.Span);
-                    Volatile.Write(ref _bytesSent, _bytesSent + firstPayload.Length);
+                    Stage(first, first.Token, firstPayload.Span, Volatile.Read(ref _bytesReceived));
                     wroteFirst = true;
                 }
                 finally
@@ -728,10 +732,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             if (!second.TryReserveRequest(second.Token, out var secondPayload)) return false;
             try
             {
-                second.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                _pending.Enqueue(new(second, second.Token));
-                Write(secondPayload.Span);
-                Volatile.Write(ref _bytesSent, _bytesSent + secondPayload.Length);
+                Stage(second, second.Token, secondPayload.Span, Volatile.Read(ref _bytesReceived));
             }
             finally
             {
@@ -774,15 +775,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 if (!second.TryReserveRequest(second.Token, out var secondPayload)) return false;
                 try
                 {
-                    var bytes = firstPayload.Length + secondPayload.Length;
-                    first.OnEnqueued(this, _bytesSent, Volatile.Read(ref _bytesReceived));
-                    second.OnEnqueued(this, _bytesSent + firstPayload.Length, Volatile.Read(ref _bytesReceived));
-
-                    _pending.Enqueue(new(first, first.Token));
-                    _pending.Enqueue(new(second, second.Token));
-                    Write(firstPayload.Span);
-                    Write(secondPayload.Span);
-                    Volatile.Write(ref _bytesSent, _bytesSent + bytes);
+                    var received = Volatile.Read(ref _bytesReceived);
+                    Stage(first, first.Token, firstPayload.Span, received);
+                    Stage(second, second.Token, secondPayload.Span, received);
                 }
                 finally
                 {
@@ -848,10 +843,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 {
                     try
                     {
-                        head.OnEnqueued(this, _bytesSent, received);
-                        _pending.Enqueue(new(head, head.Token));
-                        Write(headPayload.Span);
-                        Volatile.Write(ref _bytesSent, _bytesSent + headPayload.Length);
+                        Stage(head, head.Token, headPayload.Span, received);
                     }
                     finally
                     {
@@ -867,10 +859,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
                 try
                 {
-                    message.OnEnqueued(this, _bytesSent, received);
-                    _pending.Enqueue(new(message, token));
-                    Write(payload.Span);
-                    Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
+                    Stage(message, token, payload.Span, received);
                 }
                 finally
                 {
@@ -932,10 +921,7 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                     // enqueued before IT is written, which is all the ordering this needs: a reply to an
                     // earlier element can arrive while a later one is still being copied, but no reply can
                     // arrive for something not yet written
-                    message.OnEnqueued(this, _bytesSent, received);
-                    _pending.Enqueue(new(message, token));
-                    Write(payload.Span);
-                    Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
+                    Stage(message, token, payload.Span, received);
                 }
                 finally
                 {

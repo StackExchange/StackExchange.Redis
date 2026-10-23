@@ -48,11 +48,22 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
     /// the first read is not guaranteed to stick; reading until one does costs nothing when it sticks first
     /// time, and is the difference between a test that passes alone and one that passes under load.
     /// </remarks>
-    private static async Task PrimeAsync(IDatabase db, RespClientCache cache, string key, string expected, int expectedCount = 1)
+    private static async Task PrimeAsync(IDatabase db, RespClientCache cache, string key, string expected, int expectedCount = 1, CommandFlags flags = CommandFlags.None)
     {
         Assert.True(
-            await WaitFor(async () => (string?)await db.Strings.GetAsync(key) == expected && cache.Count == expectedCount),
+            await WaitFor(async () => (string?)await db.Strings.GetAsync(key, flags) == expected && cache.Count == expectedCount),
             $"'{key}' never stayed in the cache (stored: {cache.Stored}, raced: {cache.RefusedRaced}, count: {cache.Count})");
+    }
+
+    /// <summary>The one client on <paramref name="server"/> that negotiated tracking.</summary>
+    private static RedisClient TrackedClient(InProcessTestServer server)
+    {
+        var tracked = new List<RedisClient>();
+        server.ForAllClients(client =>
+        {
+            if (client.TrackingEnabled) tracked.Add(client);
+        });
+        return Assert.Single(tracked);
     }
 
     private async Task<(InProcessTestServer Server, ConnectionMultiplexer Muxer, RespClientCache Cache)> ConnectAsync(
@@ -105,7 +116,9 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
     [Fact]
     public async Task PrefixesAreSentAndHonoured()
     {
-        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = ["app:"] });
+        // Broadcast by name: it is the mode that sends the list to the server, and no longer what prefixes
+        // alone select (that is TrackingByPrefix, which keeps them here)
+        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.Broadcast, Prefixes = ["app:"] });
         using var _ = server;
         await using var __ = muxer;
 
@@ -247,5 +260,234 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
         var reported = ex.ToString() + Environment.NewLine + connectLog;
         log.WriteLine(reported);
         Assert.Contains("RESP3", reported);
+    }
+
+    // ---- opt-in / opt-out, against the server's own record of what it was told ----
+
+    [Fact]
+    public async Task TrackingModeNegotiatesOptOut()
+    {
+        // OPTOUT is identical to plain ON except that it makes CLIENT CACHING NO legal, which is what the
+        // CacheOptOut flag's wire half needs; so that is what the handshake asks for
+        var (server, muxer, cache) = await ConnectAsync();
+        using var _ = server;
+        await using var __ = muxer;
+
+        var db = muxer.GetDatabase();
+        await db.StringSetAsync("k", "v1");
+        await PrimeAsync(db, cache, "k", "v1");
+
+        var client = TrackedClient(server);
+        Assert.True(client.TrackingOptOut, "Tracking must negotiate OPTOUT");
+        Assert.False(client.TrackingOptIn);
+        Assert.False(client.TrackingBroadcast);
+        Assert.True(client.IsTrackingKey(0, "k"));
+    }
+
+    [Fact]
+    public async Task OptInModeCachesAndTracksOnlyWhatOptedIn()
+    {
+        // default admission on purpose: CacheOptIn has to be stored on its FIRST miss, since that is the
+        // read that paid for CLIENT CACHING YES
+        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { TrackingMode = CacheTrackingMode.TrackingOptIn });
+        using var _ = server;
+        await using var __ = muxer;
+
+        var db = muxer.GetDatabase();
+        await db.StringSetAsync("k", "v1");
+
+        // a default read: answered by the server, kept nowhere, tracked nowhere
+        Assert.Equal("v1", await db.Strings.GetAsync("k"));
+        Assert.Equal("v1", await db.Strings.GetAsync("k"));
+        Assert.Equal(0, cache.Count);
+        var client = TrackedClient(server);
+        Assert.True(client.TrackingOptIn, "TrackingOptIn must negotiate OPTIN");
+        Assert.Equal(0, client.CachingYesCount);
+        Assert.False(client.IsTrackingKey(0, "k"));
+
+        // an opted-in read: CLIENT CACHING YES went out ahead of it, the server tracks it, the cache keeps it
+        await PrimeAsync(db, cache, "k", "v1", flags: CommandFlags.CacheOptIn);
+        Assert.True(client.CachingYesCount >= 1, "the server never saw CLIENT CACHING YES");
+        Assert.True(client.IsTrackingKey(0, "k"), "the server is not tracking the opted-in key");
+
+        var yes = client.CachingYesCount;
+        var stored = cache.Stored;
+        Assert.Equal("v1", await db.Strings.GetAsync("k", CommandFlags.CacheOptIn)); // a hit: nothing sent
+        Assert.Equal(yes, client.CachingYesCount);
+        Assert.Equal(stored, cache.Stored);
+
+        // and the invalidation loop closes as it does in any tracking mode
+        await using var other = await ConnectionMultiplexer.ConnectAsync(server.GetClientConfig());
+        await other.GetDatabase().StringSetAsync("k", "v2");
+        Assert.True(
+            await WaitFor(async () => (string?)await db.Strings.GetAsync("k", CommandFlags.CacheOptIn) == "v2"),
+            "the invalidation for an opted-in key never arrived");
+    }
+
+    [Fact]
+    public async Task ByPrefixModeNegotiatesOptInAndTheListStaysHere()
+    {
+        // prefixes alone select this mode; default admission on purpose, since a read inside the prefixes is
+        // an opt-in and must be stored on the miss that paid for CLIENT CACHING YES
+        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { Prefixes = ["app:"] });
+        using var _ = server;
+        await using var __ = muxer;
+
+        var db = muxer.GetDatabase();
+        await db.StringSetAsync("app:k", "v1");
+        await db.StringSetAsync("other", "o");
+
+        // outside the prefixes, unflagged: answered by the server, kept nowhere, tracked nowhere
+        Assert.Equal("o", await db.Strings.GetAsync("other"));
+        Assert.Equal("o", await db.Strings.GetAsync("other"));
+        Assert.Equal(0, cache.Count);
+        var client = TrackedClient(server);
+        Assert.True(client.TrackingOptIn, "TrackingByPrefix must negotiate OPTIN");
+        Assert.False(client.TrackingBroadcast, "PREFIX would be refused without BCAST; the list must stay client-side");
+        Assert.Empty(client.TrackingPrefixes);
+        Assert.Equal(0, client.CachingYesCount);
+        Assert.False(client.IsTrackingKey(0, "other"));
+
+        // inside, unflagged: YES went out ahead of it, the server tracks it, the cache keeps it on first miss
+        await PrimeAsync(db, cache, "app:k", "v1");
+        Assert.True(client.CachingYesCount >= 1, "the server never saw CLIENT CACHING YES");
+        Assert.True(client.IsTrackingKey(0, "app:k"), "the server is not tracking the key inside the prefixes");
+
+        var yes = client.CachingYesCount;
+        var stored = cache.Stored;
+        Assert.Equal("v1", await db.Strings.GetAsync("app:k")); // a hit: nothing sent
+        Assert.Equal(yes, client.CachingYesCount);
+        Assert.Equal(stored, cache.Stored);
+
+        // the flags win over the list: outside with CacheOptIn is tracked and kept...
+        await PrimeAsync(db, cache, "other", "o", expectedCount: 2, flags: CommandFlags.CacheOptIn);
+        Assert.True(client.IsTrackingKey(0, "other"), "an opted-in key outside the prefixes must still be tracked");
+
+        // ...and inside with CacheOptOut is neither, with nothing extra on the wire (OPTIN has no NO to say)
+        await db.StringSetAsync("app:j", "j");
+        Assert.Equal("j", await db.Strings.GetAsync("app:j", CommandFlags.CacheOptOut));
+        Assert.Equal(2, cache.Count);
+        Assert.Equal(0, client.CachingNoCount);
+        Assert.False(client.IsTrackingKey(0, "app:j"));
+
+        // and the invalidation loop closes for a key opted in by prefix
+        await using var other = await ConnectionMultiplexer.ConnectAsync(server.GetClientConfig());
+        await other.GetDatabase().StringSetAsync("app:k", "v2");
+        Assert.True(
+            await WaitFor(async () => (string?)await db.Strings.GetAsync("app:k") == "v2"),
+            "the invalidation for a key opted in by prefix never arrived");
+    }
+
+    [Fact]
+    public async Task OptOutFlagTellsATrackingServerNotToTrack()
+    {
+        var (server, muxer, cache) = await ConnectAsync();
+        using var _ = server;
+        await using var __ = muxer;
+
+        var db = muxer.GetDatabase();
+        await db.StringSetAsync("k", "v1");
+
+        Assert.Equal("v1", await db.Strings.GetAsync("k", CommandFlags.CacheOptOut));
+        Assert.Equal(0, cache.Count);
+        var client = TrackedClient(server);
+        Assert.Equal(1, client.CachingNoCount);
+        Assert.False(client.IsTrackingKey(0, "k"), "an opted-out read must not leave a tracking entry behind");
+
+        // the same key read normally is tracked and kept, with nothing extra on the wire
+        await PrimeAsync(db, cache, "k", "v1");
+        Assert.True(client.IsTrackingKey(0, "k"));
+        Assert.Equal(1, client.CachingNoCount);
+    }
+
+    [Theory]
+    [InlineData(CacheTrackingMode.Broadcast)]
+    [InlineData(CacheTrackingMode.TrackingOptIn)]
+    public async Task OptOutFlagSaysNothingWhereTheServerWouldRefuseIt(CacheTrackingMode mode)
+    {
+        // BCAST has no per-client table to opt out of, and OPTIN tracks nothing unless asked; CLIENT CACHING
+        // NO would be an error on both, so the flag keeps only its local meaning
+        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { TrackingMode = mode });
+        using var _ = server;
+        await using var __ = muxer;
+
+        var db = muxer.GetDatabase();
+        await db.StringSetAsync("k", "v1");
+        Assert.Equal("v1", await db.Strings.GetAsync("k", CommandFlags.CacheOptOut));
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(0, TrackedClient(server).CachingNoCount);
+    }
+
+    [Fact]
+    public async Task ATransactionThatReadsOptsTheWholeTransactionOut()
+    {
+        // reads inside MULTI are never cached, so under OPTOUT the MULTI goes out behind CLIENT CACHING NO
+        // and the server tracks none of the transaction's keys; a write-only transaction gets nothing
+        var (server, muxer, cache) = await ConnectAsync();
+        using var _ = server;
+        await using var __ = muxer;
+
+        var db = muxer.GetDatabase();
+        await db.StringSetAsync("k", "v1");
+        var client = TrackedClient(server);
+
+        var tran = db.CreateTransaction();
+        var read = tran.StringGetAsync("k");
+        var write = tran.StringSetAsync("w", "x");
+        Assert.True(await tran.ExecuteAsync());
+        Assert.Equal("v1", await read);
+        await write;
+        Assert.Equal(1, client.CachingNoCount);
+        Assert.False(client.IsTrackingKey(0, "k"), "a read inside MULTI must not leave a tracking entry behind");
+        Assert.Equal(0, cache.Count);
+
+        var writeOnly = db.CreateTransaction();
+        var only = writeOnly.StringSetAsync("w", "y");
+        Assert.True(await writeOnly.ExecuteAsync());
+        await only;
+        Assert.Equal(1, client.CachingNoCount); // nothing to opt out of
+
+        // the key is still perfectly cacheable outside a transaction
+        await PrimeAsync(db, cache, "k", "v1");
+        Assert.True(client.IsTrackingKey(0, "k"));
+    }
+
+    [Fact]
+    public async Task AnInvalidationBetweenThePrefixReplyAndTheReadReplyIsRoutedNotMatched()
+    {
+        // the server may push an invalidation at any point, including between the +OK for CLIENT CACHING
+        // YES and the reply to the GET behind it. A push is routed before anything is dequeued, so neither
+        // the prefix's discard nor the read's own entry may be consumed by it - and every reply after it
+        // must still land on its own command. Forced here, because a real server cannot be timed.
+        var (server, muxer, cache) = await ConnectAsync(new CacheOptions { TrackingMode = CacheTrackingMode.TrackingOptIn });
+        using var _ = server;
+        await using var __ = muxer;
+
+        var db = muxer.GetDatabase();
+        await db.StringSetAsync("k", "v1");
+        await db.StringSetAsync("other", "o");
+
+        var pushes = 0;
+        server.AfterReply = (client, command, subcommand) =>
+        {
+            if (command == RedisCommand.CLIENT && string.Equals(subcommand, "CACHING", StringComparison.OrdinalIgnoreCase))
+            {
+                pushes++;
+                // the key being read, so the fill is refused as raced - the correct answer - and the result
+                // still has to be the GET's reply, not the push and not the +OK
+                server.SendInvalidation(client, [(RedisKey)"k"]);
+            }
+        };
+
+        Assert.Equal("v1", await db.Strings.GetAsync("k", CommandFlags.CacheOptIn));
+        Assert.True(pushes >= 1, "the hook never fired; the prefix was not sent");
+        Assert.Equal(0, cache.Count);
+        Assert.True(cache.RefusedRaced >= 1, "the invalidation should have refused the fill");
+
+        // the connection is still in step: an unrelated read, then the opted-in read again with no push
+        Assert.Equal("o", await db.Strings.GetAsync("other"));
+        server.AfterReply = null;
+        await PrimeAsync(db, cache, "k", "v1", flags: CommandFlags.CacheOptIn);
+        Assert.Equal("v1", await db.Strings.GetAsync("k", CommandFlags.CacheOptIn));
     }
 }

@@ -23,12 +23,12 @@ options.ClientCache = new CacheOptions
 using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 var db = conn.GetDatabase();
 
-await db.Strings.GetAsync("app:user:42");   // a round trip; remembered, not yet cached
-await db.Strings.GetAsync("app:user:42");   // a round trip; read again, so now the reply is cached
+await db.Strings.GetAsync("app:user:42");   // a round trip; the key is inside the prefixes, so the reply is cached
 await db.Strings.GetAsync("app:user:42");   // answered from memory
+await db.Strings.GetAsync("other");         // a round trip, every time: outside the prefixes, so never cached
 ```
 
-A reply is cached the second time it is read, not the first: a request read only once never costs the cache anything. That is the default admission rule, and it can be changed - see [Admission](#admission-caching-what-is-read-again).
+With `Prefixes` set, the prefixes decide what is cached: a read inside them is cached on its first miss, a read outside them is not cached at all (unless the call says `CommandFlags.CacheOptIn`). Without `Prefixes`, every read is cacheable, and a reply is cached the second time it is read rather than the first, so a request read only once never costs the cache anything - see [Tracking modes](#tracking-modes-and-prefixes) and [Admission](#admission-caching-what-is-read-again).
 
 Requirements:
 
@@ -67,11 +67,12 @@ A multi-key read such as `MGET a b c` is one entry; a change to any of its keys 
 - **reads that report time or access** - `TTL`, `PTTL`, the hash-field TTL reads, `TOUCH`, `OBJECT FREQ` / `IDLETIME` / `REFCOUNT`, `XINFO CONSUMERS`, and the per-entry form of `XPENDING` - whose answers change without any write;
 - **`SORT` with a `BY` or `GET` pattern** (`BY weight_*`, `GET object_*->name`) - it reads keys it never names, so their changes could not invalidate it. A plain `SORT`, `BY nosort` and `GET #` are cached;
 - **error replies**;
-- **reads inside a transaction** (`MULTI`/`EXEC`): those are answered by `EXEC`, atomically with the transaction. Reads inside a *batch* do use the cache - a batch is pipelining, not atomicity;
+- **reads inside a transaction** (`MULTI`/`EXEC`): those are answered by `EXEC`, atomically with the transaction. Reads inside a *batch* do use the cache - a batch is pipelining, not atomicity. In `Tracking` mode a transaction that contains a read is sent behind `CLIENT CACHING NO`, so the server does not track keys nobody here will keep;
 - **fire-and-forget** commands (`CommandFlags.FireAndForget`) - there is no reply to keep;
 - **replies larger than `MaxPayloadBytes`** (1 MiB by default);
-- **keys outside `Prefixes`**, when prefixes are configured - the server would never announce their changes;
-- anything sent with `CommandFlags.NoClientCache`, or through a context made with `WithoutCache()`.
+- **keys outside `Prefixes`**, when prefixes are configured - in `Broadcast` mode the server would never announce their changes; in `TrackingByPrefix` mode (what prefixes select by default) a call can still opt such a read in with `CommandFlags.CacheOptIn`;
+- anything sent with `CommandFlags.CacheOptOut`, or through a context made with `WithoutCache()`;
+- in `TrackingOptIn` mode, anything sent **without** `CommandFlags.CacheOptIn` - see [Tracking modes](#tracking-modes-and-prefixes).
 
 Commands the client does not know - a module's, say - are not cached unless you declare them read-only with `flags.WithRetryCategory(CommandFlags.CommandRetryReadOnly)` (see [Extending the client](Extending)). Only do that if the server announces changes to the keys the command reads. For module commands it usually does: Redis signals a key as modified - which is what drives invalidation - automatically when a module closes a key it opened for writing, unless the module has opted out (`REDISMODULE_OPTION_NO_IMPLICIT_SIGNAL_MODIFIED`) and signals by hand. To confirm for a particular module, cache a read (by default, read it twice), change the key with the module's own write command from a second connection, and check that the next read sees the change.
 
@@ -87,7 +88,7 @@ What you can rely on:
 
 What it does **not** cover:
 
-- **Key expiry is not announced.** When a key reaches its TTL, Redis sends no invalidation, so a cached copy outlives it until `TimeToLive` retires the entry. If you rely on keys disappearing on time, keep `TimeToLive` short or pass `CommandFlags.NoClientCache` for those reads.
+- **Key expiry is not announced.** When a key reaches its TTL, Redis sends no invalidation, so a cached copy outlives it until `TimeToLive` retires the entry. If you rely on keys disappearing on time, keep `TimeToLive` short or pass `CommandFlags.CacheOptOut` for those reads.
 - **A dead connection nobody has noticed** is not detected by the cache; it relies on the multiplexer's own failure detection, with `TimeToLive` as the backstop. That is why `TimeToLive` is always finite.
 - **Undeclared keys in scripts** - see [Scripts](#scripts).
 
@@ -104,8 +105,8 @@ Controlling it
 | option | default | what it does |
 |---|---|---|
 | `Enabled` | `true` | Whether the cache exists. Setting `ClientCache` at all is what turns caching on; this lets you keep the options and switch it off. |
-| `TrackingMode` | `Default` (= `Tracking` today, or `Broadcast` when `Prefixes` are set) | How the server decides which changes to announce - see below. |
-| `Prefixes` | none (all keys) | Which keys to track and cache, in `Broadcast` mode; setting any selects that mode. |
+| `TrackingMode` | `Default` (= `Tracking` today, or `TrackingByPrefix` when `Prefixes` are set) | How the server decides which changes to announce, and whether reads are cached by default (`Tracking`, `Broadcast`), only inside `Prefixes` (`TrackingByPrefix`), or only when a call asks (`TrackingOptIn`) - see below. |
+| `Prefixes` | none (all keys) | Which keys to cache. Setting any selects `TrackingByPrefix`, where the list decides for calls that pass no flag; under `Broadcast` it is also sent to the server to filter what is announced. |
 | `MaxBytes` | unbounded | A memory budget for cached replies. Entries that have not been read since they were stored are evicted, oldest first, to get back under it - see [Eviction](#eviction). |
 | `MaxEntries` | unbounded | A limit on the number of entries - use it alongside `MaxBytes` when replies are small and numerous. |
 | `MaxPayloadBytes` | 1 MiB | The largest single reply that may be cached. |
@@ -165,6 +166,8 @@ options.ClientCache = new CacheOptions
 
 A reply that misses is not stored straight away. The first miss for a request is **remembered** - in a small, fixed-size filter - and only a request that misses again soon afterwards is cached. So a request read once never touches the cache, and a request read often is cached after its second read rather than its first. This is TinyLFU's "doorkeeper", a well-established technique.
 
+It applies to reads that are cacheable by default - every read in `Tracking` and `Broadcast` mode. A read that **opted in** is stored on its first miss regardless: one flagged `CommandFlags.CacheOptIn`, or any read inside `Prefixes` in `TrackingByPrefix` mode (the default when prefixes are set). Those reads have already paid for `CLIENT CACHING YES`, and a tracked key whose reply is then not stored would be the worst of both.
+
 Why it is the default: storing a reply costs something - it is copied, and an entry is kept until it is evicted - and one-off reads that are stored push out the entries that are read again. Measured on a skewed workload (a few hot keys and a long tail, Zipf s = 0.99), caching on the second miss held a **higher** hit rate than caching on the first (76.6% against 72.4%) at about 50% more throughput; on a workload that never repeats, it removed the cache's overhead entirely.
 
 What it costs: one extra round trip for each key before it is cached - and again whenever it re-enters the cache after being evicted or invalidated. That only loses on a workload where every request is read exactly twice and never again.
@@ -189,10 +192,22 @@ Under `MaxBytes`, replies are stored in large slabs in the order they arrive and
 
 ### Tracking modes and prefixes
 
-- **`Tracking`** (the default): the server remembers which keys this client read and announces only those. Precise - invalidation traffic scales with what this client holds, not with how busy the server is - but the server holds a table per client, and evicts from it (announcing what it drops) under pressure, which costs a refill here. `Prefixes` cannot be combined with it.
-- **`Broadcast`** (the default when `Prefixes` are set): the server announces every change to every key matching your `Prefixes`, whoever made it, and keeps no record of what you read. Cheap for the server; the cost is on the client, which hears about keys it never cached. **Set `Prefixes` to the parts of the keyspace you actually want cached**: with none, this connection hears about every write to every key in the instance, which on a busy server is a lot of traffic. Keys outside the prefixes are simply not cached. Prefixes must not overlap one another (`"app:"` and `"app:user:"` together are rejected), and they are compared with the key as sent - so if you use `WithKeyPrefix`, include that prefix.
+- **`Tracking`** (the default without `Prefixes`): the server remembers which keys this client read and announces only those. Precise - invalidation traffic scales with what this client holds, not with how busy the server is - but the server holds a table per client, and evicts from it (announcing what it drops) under pressure, which costs a refill here. `Prefixes` cannot be combined with it. Negotiated as `CLIENT TRACKING ON OPTOUT`: every read is tracked and cacheable unless a call says otherwise with `CommandFlags.CacheOptOut`, which also tells the server not to track that read (a `CLIENT CACHING NO` goes out as one unit with it).
+- **`TrackingByPrefix`** (the default when `Prefixes` are set): `Prefixes` decide for the calls that pass no flag. A read whose keys all fall under a prefix is treated as if it had said `CommandFlags.CacheOptIn`: it goes out behind `CLIENT CACHING YES`, the server tracks it, and it is stored on its first miss. Any other read goes to the server as it would without a cache. The flags still win: `CacheOptIn` on a read outside the prefixes caches it, `CacheOptOut` on a read inside them does not. Negotiated as `CLIENT TRACKING ON OPTIN`; the list is **not** sent to the server (the server only accepts `PREFIX` with `BCAST`), so the server tracks exactly the keys this client holds. The price is an extra frame and reply per miss inside the prefixes, which is the traffic the cache exists to shrink. Prefixes must not overlap one another (`"app:"` and `"app:user:"` together are rejected), and they are compared with the key as sent - so if you use `WithKeyPrefix`, include that prefix.
+- **`TrackingOptIn`**: opt-in by flag alone. Negotiated as `CLIENT TRACKING ON OPTIN`: the server tracks nothing, and nothing is cached, unless a call says so with `CommandFlags.CacheOptIn` - that read goes out behind `CLIENT CACHING YES`, is tracked, and is stored on its first miss. Every other read goes to the server as it would without a cache. For "cache these few hot keys and leave everything else alone" when the keys are not a prefix; the price is an extra frame and an extra reply per opted-in miss. `Prefixes` cannot be combined with it - that is `TrackingByPrefix`.
+- **`Broadcast`**: the server announces every change to every key matching your `Prefixes`, whoever made it, and keeps no record of what you read. Cheap for the server; the cost is on the client, which hears about keys it never cached, and that cost is set by how busy the server is rather than by anything this client does - which is why prefixes no longer select this mode by default. **Set `Prefixes`** if you choose it: with none, this connection hears about every write to every key in the instance. Keys outside the prefixes are simply not cached, and here the list is a hard boundary: the server was never asked about those keys, so no flag can opt one in. The per-call flags keep only their local meaning: the server has no per-client table to opt in to or out of.
 
 `CacheTrackingMode.Default` (the value you get by not setting it) means "the library's choice", resolved as above today; name a mode explicitly if you depend on it.
+
+What the two flags do, by mode:
+
+| | `Tracking` | `TrackingByPrefix` | `TrackingOptIn` | `Broadcast` |
+|---|---|---|---|---|
+| no flag | cached; tracked | inside `Prefixes`: cached, stored on first miss, `CLIENT CACHING YES` sent; outside: not cached, not tracked | not cached; not tracked | cached if inside `Prefixes` |
+| `CacheOptIn` | cached, stored on first miss | cached, stored on first miss; `CLIENT CACHING YES` sent - inside or outside `Prefixes` | cached, stored on first miss; `CLIENT CACHING YES` sent | cached if inside `Prefixes`, stored on first miss |
+| `CacheOptOut` | not cached; `CLIENT CACHING NO` sent | not cached | not cached | not cached |
+
+Passing both flags is rejected. Neither flag can make an uncacheable command cacheable (a write, a keyless read, a random or time-based read). In `Broadcast` mode `CacheOptIn` does not bypass `Prefixes`; in `TrackingByPrefix` mode it does, because there the list is only the policy for calls that passed no flag.
 
 ### Invalidating by hand
 
@@ -210,10 +225,16 @@ The same object carries the cache's counters - `Count`, `Bytes`, `Stored`, `Evic
 
 ### Per call, and per context
 
-- **`CommandFlags.NoClientCache`** - this call neither reads from nor writes to the cache:
+- **`CommandFlags.CacheOptOut`** - this call neither reads from nor writes to the cache, and in `Tracking` mode the server is told not to track it:
 
   ```csharp
-  var exact = await db.Strings.GetAsync(key, CommandFlags.NoClientCache);
+  var exact = await db.Strings.GetAsync(key, CommandFlags.CacheOptOut);
+  ```
+
+- **`CommandFlags.CacheOptIn`** - this call's reply is stored on its first miss, skipping [admission](#admission-caching-what-is-read-again); in `TrackingOptIn` mode it is also the only way a reply is cached at all, and in `TrackingByPrefix` mode it caches a read outside the prefixes:
+
+  ```csharp
+  var hot = await db.Strings.GetAsync(key, CommandFlags.CacheOptIn);
   ```
 
 - **`WithMaxCacheAge(TimeSpan)`** - a context that accepts cached answers only up to a given age. It can only tighten `TimeToLive`, never extend it:
@@ -234,7 +255,7 @@ Contexts are cheap to make and immutable; create them where you need them, or ke
 Scripts
 ---
 
-`EVAL_RO` / `EVALSHA_RO` (the read-only script commands, via `ScriptEvaluateReadOnly` or `Scripts.EvaluateReadOnlyAsync`) are cached, and invalidated by changes to the keys in `KEYS[]`. **A script that reads a key it did not declare** - building a key name inside Lua, say - will not be invalidated when that key changes, so its cached result can go stale until `TimeToLive`. Declare every key a script reads, or pass `CommandFlags.NoClientCache` for that script. Ordinary `EVAL` / `EVALSHA` are treated as writes and never cached.
+`EVAL_RO` / `EVALSHA_RO` (the read-only script commands, via `ScriptEvaluateReadOnly` or `Scripts.EvaluateReadOnlyAsync`) are cached, and invalidated by changes to the keys in `KEYS[]`. **A script that reads a key it did not declare** - building a key name inside Lua, say - will not be invalidated when that key changes, so its cached result can go stale until `TimeToLive`. Declare every key a script reads, or pass `CommandFlags.CacheOptOut` for that script. Ordinary `EVAL` / `EVALSHA` are treated as writes and never cached.
 
 Results from the cache
 ---

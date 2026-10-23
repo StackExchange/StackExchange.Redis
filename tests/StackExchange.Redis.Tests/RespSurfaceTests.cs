@@ -330,14 +330,14 @@ public class RespSurfaceTests
     }
 
     [Fact]
-    public async Task NoClientCacheOptsASingleCallOut()
+    public async Task CacheOptOutOptsASingleCallOut()
     {
         using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
         var executor = new FakeExecutor("$5\r\nhello\r\n");
         var target = Target(executor, cache);
 
         await target.Strings.GetAsync("mykey");
-        await target.Strings.GetAsync("mykey", CommandFlags.CommandRetryReadOnly | CommandFlags.NoClientCache);
+        await target.Strings.GetAsync("mykey", CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptOut);
 
         Assert.Equal(2, executor.Sent.Count); // the opted-out call did not read the cached entry
     }
