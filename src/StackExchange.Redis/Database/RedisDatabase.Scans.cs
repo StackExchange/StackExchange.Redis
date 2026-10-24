@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// The cursor scans, over the context surface.
-/// </summary>
+/// </content>
 /// <remarks>
 /// <para>
 /// <b>These are hand-written because <c>[AutoDatabase]</c> skips them</b>, and it skips them for a real

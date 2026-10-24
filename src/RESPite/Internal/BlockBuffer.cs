@@ -114,8 +114,8 @@ internal abstract partial class BlockBufferSerializer
         private int AvailableWithResetIfUseful()
         {
             if (_finalizedOffset != 0 // at least some chunks have been finalized
-                && Volatile.Read(ref _refCount) == 1 // all finalized chunks returned
-                & _writeOffset == _finalizedOffset) // we're not in the middle of serializing something new
+                && (Volatile.Read(ref _refCount) == 1) // all finalized chunks returned
+                & (_writeOffset == _finalizedOffset)) // we're not in the middle of serializing something new
             {
                 _writeOffset = _finalizedOffset = 0; // swipe left
             }
@@ -207,8 +207,8 @@ internal abstract partial class BlockBufferSerializer
 
         private bool TryResizeFor(int extraBytes)
         {
-            if (_finalizedOffset == 0 & // we can only do this if there are no other messages in the buffer
-                Volatile.Read(ref _refCount) == 1) // and no-one else is looking (we already tried reset)
+            if ((_finalizedOffset == 0) & // we can only do this if there are no other messages in the buffer
+                (Volatile.Read(ref _refCount) == 1)) // and no-one else is looking (we already tried reset)
             {
                 // we're already on the boundary - don't scrimp; just do the math from the end of the buffer
                 byte[] newArray = _arrayPool.Rent(_array.Length + extraBytes);

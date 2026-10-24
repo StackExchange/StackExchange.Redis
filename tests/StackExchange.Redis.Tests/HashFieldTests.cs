@@ -11,6 +11,11 @@ namespace StackExchange.Redis.Tests;
 [RunPerProtocol]
 public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
+    // absolute expiries (the DateTime overloads) are computed against the client clock and read back against the
+    // server's; on the Windows CI runner the server lives in WSL, whose clock can sit a few ms off the host's, and
+    // the TTL then lands just above the nominal 2h (seen: 7200001ms). Relative (TimeSpan) expiries use one clock only
+    private const double ClockSkewToleranceMs = 1000;
+
     private readonly DateTime nextCentury = new DateTime(2101, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private readonly TimeSpan oneYearInMs = TimeSpan.FromMilliseconds(31536000000);
 
@@ -319,7 +324,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
         fieldResult = db.HashFieldGetAndSetExpiry(hashKey, "f1", DateTime.Now.AddMinutes(120));
         Assert.Equal(1, fieldResult);
         fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
-        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing persist
         fieldResult = db.HashFieldGetAndSetExpiry(hashKey, "f1", persist: true);
@@ -340,8 +345,8 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
         fieldResults = db.HashFieldGetAndSetExpiry(hashKey, fields, DateTime.Now.AddMinutes(120));
         Assert.Equal(values, fieldResults);
         fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
-        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
-        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing multiple fields with persist
         fieldResults = db.HashFieldGetAndSetExpiry(hashKey, fields, persist: true);
@@ -369,7 +374,7 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
         fieldResult = await db.HashFieldGetAndSetExpiryAsync(hashKey, "f1", DateTime.Now.AddMinutes(120));
         Assert.Equal(1, fieldResult);
         fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
-        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing persist
         fieldResult = await db.HashFieldGetAndSetExpiryAsync(hashKey, "f1", persist: true);
@@ -390,8 +395,8 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
         fieldResults = await db.HashFieldGetAndSetExpiryAsync(hashKey, fields, DateTime.Now.AddMinutes(120));
         Assert.Equal(values, fieldResults);
         fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
-        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
-        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing multiple fields with persist
         fieldResults = await db.HashFieldGetAndSetExpiryAsync(hashKey, fields, persist: true);
@@ -417,13 +422,13 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
         result = db.HashFieldSetAndSetExpiry(hashKey, "f1", 1, DateTime.Now.AddMinutes(120));
         Assert.Equal(1, result);
         fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
-        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing with keepttl
         result = db.HashFieldSetAndSetExpiry(hashKey, "f1", 1, keepTtl: true);
         Assert.Equal(1, result);
         fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
-        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing multiple fields with timespan
         result = db.HashFieldSetAndSetExpiry(hashKey, entries, TimeSpan.FromHours(1));
@@ -436,15 +441,15 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
         result = db.HashFieldSetAndSetExpiry(hashKey, entries, DateTime.Now.AddMinutes(120));
         Assert.Equal(1, result);
         fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
-        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
-        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing multiple fields with keepttl
         result = db.HashFieldSetAndSetExpiry(hashKey, entries, keepTtl: true);
         Assert.Equal(1, result);
         fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
-        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
-        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing with ExpireWhen.Exists
         db.KeyDelete(hashKey);
@@ -481,13 +486,13 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
         result = await db.HashFieldSetAndSetExpiryAsync(hashKey, "f1", 1, DateTime.Now.AddMinutes(120));
         Assert.Equal(1, result);
         fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
-        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing with keepttl
         result = await db.HashFieldSetAndSetExpiryAsync(hashKey, "f1", 1, keepTtl: true);
         Assert.Equal(1, result);
         fieldTtl = db.HashFieldGetTimeToLive(hashKey, new RedisValue[] { "f1" })[0];
-        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtl, TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing multiple fields with timespan
         result = await db.HashFieldSetAndSetExpiryAsync(hashKey, entries, TimeSpan.FromHours(1));
@@ -500,15 +505,15 @@ public class HashFieldTests(ITestOutputHelper output, SharedConnectionFixture fi
         result = await db.HashFieldSetAndSetExpiryAsync(hashKey, entries, DateTime.Now.AddMinutes(120));
         Assert.Equal(1, result);
         fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
-        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
-        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing multiple fields with keepttl
         result = await db.HashFieldSetAndSetExpiryAsync(hashKey, entries, keepTtl: true);
         Assert.Equal(1, result);
         fieldTtls = db.HashFieldGetTimeToLive(hashKey, fields);
-        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
-        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds);
+        Assert.InRange(fieldTtls[0], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
+        Assert.InRange(fieldTtls[1], TimeSpan.FromMinutes(119).TotalMilliseconds, TimeSpan.FromHours(2).TotalMilliseconds + ClockSkewToleranceMs);
 
         // testing with ExpireWhen.Exists
         db.KeyDelete(hashKey);

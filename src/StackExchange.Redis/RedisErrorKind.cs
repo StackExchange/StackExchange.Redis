@@ -201,7 +201,7 @@ internal static partial class RedisErrorKindMetadata
         if (TryParseFirstTokenCI(firstToken, out kind))
         {
             // check for more specific "ERR ..." scenarios
-            if (kind is RedisErrorKind.UnknownError & space > 0)
+            if ((kind is RedisErrorKind.UnknownError) & (space > 0))
             {
                 // get the message text after "ERR "
                 value = value.Slice(space + 1);

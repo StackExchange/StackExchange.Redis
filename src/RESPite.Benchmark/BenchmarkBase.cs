@@ -437,19 +437,13 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
     {
         string name = underlyingAction.Method.Name;
 
-        if (underlyingAction.Method.GetCustomAttribute(typeof(DisplayNameAttribute)) is DisplayNameAttribute
-            {
-                DisplayName: { Length: > 0 }
-            } dna)
+        if (underlyingAction.Method.GetCustomAttribute(typeof(DisplayNameAttribute)) is DisplayNameAttribute { DisplayName: { Length: > 0 } } dna)
         {
             name = dna.DisplayName;
         }
 
         description = "";
-        if (underlyingAction.Method.GetCustomAttribute(typeof(DescriptionAttribute)) is DescriptionAttribute
-            {
-                Description: { Length: > 0 }
-            } da)
+        if (underlyingAction.Method.GetCustomAttribute(typeof(DescriptionAttribute)) is DescriptionAttribute { Description: { Length: > 0 } } da)
         {
             description = da.Description;
         }
@@ -565,7 +559,7 @@ public abstract class BenchmarkBase<TClient>(string[] args) : BenchmarkBase(args
                     $"{TotalOperations(divisor):###,###,##0} requests completed in {seconds:0.00} seconds, {rate:###,###,##0} ops/sec");
             }
 
-            if (!Quiet & typeof(T) != typeof(DBNull))
+            if (!Quiet & (typeof(T) != typeof(DBNull)))
             {
                 const string format = "Typical result: {0}";
 

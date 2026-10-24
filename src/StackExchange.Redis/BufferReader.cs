@@ -78,7 +78,8 @@ namespace StackExchange.Redis
                 default:
                     var offset = OffsetThisSpan;
                     var result = _current[offset++] == (byte)'\r' && _current[offset] == (byte)'\n'
-                        ? ConsumeResult.Success : ConsumeResult.Failure;
+                        ? ConsumeResult.Success
+                        : ConsumeResult.Failure;
                     Consume(2);
                     return result;
             }

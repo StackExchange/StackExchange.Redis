@@ -104,8 +104,8 @@ namespace StackExchange.Redis
         private RedisServer? _defaultServer;
         public RedisServer GetRedisServer(object? asyncState)
             => asyncState is null
-            ? (_defaultServer ??= new RedisServer(this, null)) // reuse and memoize
-            : new RedisServer(this, asyncState);
+                ? (_defaultServer ??= new RedisServer(this, null)) // reuse and memoize
+                : new RedisServer(this, asyncState);
 
         public EndPoint EndPoint { get; }
 
@@ -219,7 +219,11 @@ namespace StackExchange.Redis
 
         public bool IsReplica
         {
-            get => isReplica;
+            get
+            {
+                return isReplica;
+            }
+
             set
             {
                 var changed = isReplica != value;
@@ -241,7 +245,10 @@ namespace StackExchange.Redis
 
         public bool AllowReplicaWrites
         {
-            get => allowReplicaWrites;
+            get
+            {
+                return allowReplicaWrites;
+            }
             set
             {
                 allowReplicaWrites = value;
@@ -607,7 +614,10 @@ namespace StackExchange.Redis
         private string? runId;
         internal string? RunId
         {
-            get => runId;
+            get
+            {
+                return runId;
+            }
             set
             {
                 // We only care about changes
@@ -805,6 +815,31 @@ namespace StackExchange.Redis
         internal volatile int ConfigCheckSeconds;
         [ThreadStatic]
         private static Random? r;
+
+        private int lastRoleCheckTicks;
+
+        /// <summary>Seconds since this server's role was last read, by the handshake or by the heartbeat.</summary>
+        internal int LastRoleCheckSecondsAgo => unchecked(Environment.TickCount - Volatile.Read(ref lastRoleCheckTicks)) / 1000;
+
+        /// <summary>
+        /// Whether the heartbeat should re-read this server's role now: <see cref="ConfigCheckSeconds"/> have passed
+        /// since the last read. Zero disables the check, as it did for the shipped core's <c>INFO replication</c>.
+        /// </summary>
+        internal bool RoleCheckDue => ConfigCheckSeconds > 0 && LastRoleCheckSecondsAgo >= ConfigCheckSeconds;
+
+        /// <summary>
+        /// Note that the role was just read, and ease the pacing back towards the configured interval.
+        /// </summary>
+        /// <remarks>
+        /// What <c>CheckInfoReplication</c> recorded in the shipped core before sending its <c>INFO replication</c>;
+        /// here the read itself is <c>RespConnectionManager.TryRefreshRole</c>, driven from the core's heartbeat,
+        /// and the handshake counts as a read too, since it learns the role as it connects.
+        /// </remarks>
+        internal void OnRoleChecked()
+        {
+            Volatile.Write(ref lastRoleCheckTicks, Environment.TickCount);
+            ResetExponentiallyReplicationCheck();
+        }
 
         /// <summary>
         /// Forces frequent replication check starting from 1 second up to max ConfigCheckSeconds with an exponential increment.

@@ -8,9 +8,9 @@ using RESPite.Messages;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// The hyperloglog commands.
-/// </summary>
+/// </content>
 /// <remarks>
 /// Here rather than in a single surface-wide class, so that a group is one place. The extension methods
 /// bind by namespace, and the namespace is <c>StackExchange.Redis</c>, so this costs a caller nothing.
@@ -85,9 +85,8 @@ public static partial class HyperLogLog
         // only a KNOWN version demotes this. The old surface has the same rule for the same reason -
         // it demotes only when a server was actually selected - so a context that cannot ask keeps the
         // caller's routing, and the worst case is the one the caller asked for.
-        return context.TryGetFeatures(RedisCommand.PFCOUNT, in key, flags, out var features)
-            && !features.HyperLogLogCountReplicaSafe
-            ? CommandFlagsInternal.DemandPrimary(flags, RedisCommand.PFCOUNT)
-            : flags;
+        var replicaUnsafe = context.TryGetFeatures(RedisCommand.PFCOUNT, in key, flags, out var features)
+            && !features.HyperLogLogCountReplicaSafe;
+        return replicaUnsafe ? CommandFlagsInternal.DemandPrimary(flags, RedisCommand.PFCOUNT) : flags;
     }
 }

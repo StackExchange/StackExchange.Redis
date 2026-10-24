@@ -176,10 +176,10 @@ public partial class ConnectionMultiplexer
     /// there is no separate subscription connection, so asking about <see cref="ConnectionType.Subscription"/> answers
     /// about the shared one.
     /// </remarks>
-    bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endpoint, ConnectionType connectionType)
-        => ConnectionsIfCreated?.IsDedicatedThread(endpoint, connectionType, writer: false);
+    bool? IInternalConnectionMultiplexer.IsSyncReader(EndPoint endPoint, ConnectionType type)
+        => ConnectionsIfCreated?.IsDedicatedThread(endPoint, type, writer: false);
 
     /// <summary>As <c>IsSyncReader</c>, for the writer.</summary>
-    bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endpoint, ConnectionType connectionType)
-        => ConnectionsIfCreated?.IsDedicatedThread(endpoint, connectionType, writer: true);
+    bool? IInternalConnectionMultiplexer.IsSyncWriter(EndPoint endPoint, ConnectionType type)
+        => ConnectionsIfCreated?.IsDedicatedThread(endPoint, type, writer: true);
 }

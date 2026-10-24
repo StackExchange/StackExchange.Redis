@@ -274,14 +274,17 @@ jobs:
             exit 1
           }
       - name: StackExchange.Redis.Tests
-        # A hung test otherwise holds the job until GitHub's six-hour limit, and says nothing about which
-        # test it was. --blame-hang names it (in the run's Sequence file and the log) and kills it, so the
-        # rest still report; the step timeout is the backstop if even that does not return.
+        # A hung test otherwise holds the job until GitHub's six-hour limit; the step timeout is the backstop.
+        # (VSTest's --blame-hang named the hung test and killed it; the Microsoft.Testing.Platform runner has
+        # no equivalent without its HangDump extension, so for now the timeout is all there is.)
         timeout-minutes: 30
         run: |
           $exitCode = 0
           foreach ($tfm in @("net10.0", "net481")) {
-            dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj --no-build -c Release -f $tfm --logger trx --logger GitHubActions --results-directory ./test-results/ --blame-hang-timeout 10m --blame-hang-dump-type none /p:CI=true
+            # Microsoft.Testing.Platform `dotnet test` (selected in global.json); the GitHub Actions reporter is a platform
+            # extension that is off by default, and the TRX report feeds dorny/test-reporter below (the platform's
+            # reporter, not xunit's --report-xunit-trx, which truncated the file in 4.0.2)
+            dotnet test --project tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj --no-build -c Release -f $tfm --results-directory ./test-results/ --report-trx --report-github --report-github-summary-include-passed false --report-github-summary-include-skipped false
             if ($LASTEXITCODE -ne 0) {
               $exitCode = $LASTEXITCODE
             }

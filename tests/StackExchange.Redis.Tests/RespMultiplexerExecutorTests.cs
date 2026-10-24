@@ -49,10 +49,26 @@ public class RespMultiplexerExecutorTests
         }
     }
 
+    /// <summary>
+    /// What discovery tells the topology when it finds a cluster: the server type <i>and</i> a slot map.
+    /// </summary>
+    /// <remarks>
+    /// Routing by slot needs both (<see cref="RespTopology.RoutesBySlot"/>, main #3285): a server that merely
+    /// says "cluster" while giving no map is routed as standalone, so these tests, whose <see cref="Router"/>
+    /// answers the slot question itself, give the topology a map covering every slot to stand for "SLOTS was
+    /// answered". The owner recorded there is never consulted - the router is.
+    /// </remarks>
+    private static void LearnCluster(RespTopology topology)
+    {
+        topology.OnServerType(ServerType.Cluster);
+        topology.SetSlotRange(0, ServerSelectionStrategy.TotalSlots - 1, new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 6379));
+    }
+
     private static (RespDatabaseContext Context, RespTopology Topology, Router Router) Build(
         RespClusterState known = RespClusterState.No)
     {
         var topology = new RespTopology(known);
+        if (known == RespClusterState.Yes) LearnCluster(topology); // a known cluster comes with its map
         var router = new Router { Default = new Endpoint("default", "$2\r\nok\r\n") };
         var executor = new RespMultiplexerExecutor(topology, router.ForSlot, router.Any);
         var raw = new RespContext(serverType: ServerType.Standalone).WithTopology(topology).WithExecutor(executor);
@@ -102,7 +118,7 @@ public class RespMultiplexerExecutorTests
         Assert.True(router.Default!.HasSent);   // went to the only endpoint we knew about
         Assert.False(owner.HasSent);
 
-        topology.OnServerType(ServerType.Cluster);   // the discovery
+        LearnCluster(topology);                      // the discovery
 
         Assert.Equal("mine", (string?)await context.Strings.GetAsync("user:1"));
         Assert.True(owner.HasSent);                 // and now it is routed by slot
@@ -140,7 +156,7 @@ public class RespMultiplexerExecutorTests
         using var request = context.Raw.Render($"{RedisCommand.GET}{(RedisKey)"user:1"}").Detach();
         Assert.Equal(slot, request.Slot);           // rendered while nobody knew, and carries its slot
 
-        topology.OnServerType(ServerType.Cluster);  // ...and now we know
+        LearnCluster(topology);                     // ...and now we know
 
         var executor = context.Raw.Executor!;
         using var payload = await executor.SendAsync(request);
@@ -217,7 +233,7 @@ public class RespMultiplexerExecutorTests
         Assert.True(db.IsConnected("user:1"));
         Assert.Equal(0, router.SlotLookups); // standalone: no hashing even for the routing question
 
-        topology.OnServerType(ServerType.Cluster);
+        LearnCluster(topology);
         Assert.True(db.IsConnected("user:1"));
         Assert.Equal(1, router.SlotLookups); // cluster: now it asks who owns the slot
     }

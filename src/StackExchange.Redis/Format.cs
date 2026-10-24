@@ -233,10 +233,10 @@ namespace StackExchange.Redis
             ulong.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
 
         internal static bool TryParseUInt64(ReadOnlySpan<byte> s, out ulong value) =>
-            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
+            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & (bytes == s.Length);
 
         internal static bool TryParseInt64(ReadOnlySpan<byte> s, out long value) =>
-            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
+            Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & (bytes == s.Length);
 
         internal static bool CouldBeInteger(string s)
         {
@@ -245,18 +245,18 @@ namespace StackExchange.Redis
             for (int i = isSigned ? 1 : 0; i < s.Length; i++)
             {
                 char c = s[i];
-                if (c < '0' | c > '9') return false;
+                if ((c < '0') | (c > '9')) return false;
             }
             return true;
         }
         internal static bool CouldBeInteger(ReadOnlySpan<byte> s)
         {
-            if (s.IsEmpty | s.Length > Format.MaxInt64TextLen) return false;
+            if (s.IsEmpty | (s.Length > Format.MaxInt64TextLen)) return false;
             bool isSigned = s[0] == '-';
             for (int i = isSigned ? 1 : 0; i < s.Length; i++)
             {
                 byte c = s[i];
-                if (c < (byte)'0' | c > (byte)'9') return false;
+                if ((c < (byte)'0') | (c > (byte)'9')) return false;
             }
             return true;
         }
@@ -281,7 +281,7 @@ namespace StackExchange.Redis
                 case 4 when s[0] == '-' && TryParseInfNaN(s.Slice(1), false, out value):
                     return true;
             }
-            return Utf8Parser.TryParse(s, out value, out int bytes) & bytes == s.Length;
+            return Utf8Parser.TryParse(s, out value, out int bytes) & (bytes == s.Length);
 
             static bool TryParseInfNaN(ReadOnlySpan<byte> s, bool positive, out double value)
             {
@@ -621,6 +621,51 @@ namespace StackExchange.Redis
             string s = input.ToString();
             return TryParseVersion(s, out version);
 #endif
+        }
+
+        /// <summary>
+        /// Parses a UTF-8 version (<c>7.4.3</c>, say) directly from the wire. This must give exactly the same result as
+        /// the <c>char</c> overload for the same text (including <see cref="Version"/>'s -1 for unspecified parts, and
+        /// its tolerance of whitespace and signs), because callers used to go via that overload: <c>net10.0</c> fast-paths
+        /// the built-in UTF-8 <c>Version.TryParse</c>; everything else transcodes and defers to the <c>char</c> overload
+        /// (which, on .NET Framework, allocates a string: that's fine).
+        /// </summary>
+        internal static bool TryParseVersion(ReadOnlySpan<byte> input, [NotNullWhen(true)] out Version? version)
+        {
+#if NET10_0_OR_GREATER
+            if (Version.TryParse(input, out version)) return true;
+            // anything else (including our major-only extension) defers to the char overload, so the edge cases
+            // (whitespace, signs, etc) resolve identically
+#endif
+            if (input.IsEmpty)
+            {
+                version = null;
+                return false;
+            }
+            char[]? lease = null;
+            int maxChars = Encoding.UTF8.GetMaxCharCount(input.Length);
+            Span<char> chars = maxChars <= 64 ? stackalloc char[64] : (lease = ArrayPool<char>.Shared.Rent(maxChars));
+            try
+            {
+                int len;
+#if NET
+                len = Encoding.UTF8.GetChars(input, chars);
+#else
+                unsafe
+                {
+                    fixed (byte* bPtr = &MemoryMarshal.GetReference(input))
+                    fixed (char* cPtr = &MemoryMarshal.GetReference(chars))
+                    {
+                        len = Encoding.UTF8.GetChars(bPtr, input.Length, cPtr, chars.Length);
+                    }
+                }
+#endif
+                return TryParseVersion(chars.Slice(0, len), out version);
+            }
+            finally
+            {
+                if (lease is not null) ArrayPool<char>.Shared.Return(lease);
+            }
         }
 
         internal static bool TryParseVersion(string? input, [NotNullWhen(true)] out Version? version)

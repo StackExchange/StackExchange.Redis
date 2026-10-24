@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+    /// <content>
     /// The set commands, where they have moved to the RESP context surface.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// The group where the old surface's fixed-arity twins disappear entirely: <c>SetCombine</c> and
     /// <c>SetCombineAndStore</c> each have a <c>(first, second)</c> overload that existed only because

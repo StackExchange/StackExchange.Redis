@@ -61,8 +61,8 @@ namespace StackExchange.Redis.Configuration
         }
 
         /// <inheritdoc/>
-        public override Task AfterConnectAsync(ConnectionMultiplexer muxer, Action<string> log)
-            => AzureMaintenanceEvent.AddListenerAsync(muxer, log);
+        public override Task AfterConnectAsync(ConnectionMultiplexer multiplexer, Action<string> log)
+            => AzureMaintenanceEvent.AddListenerAsync(multiplexer, log);
 
         /// <inheritdoc/>
         public override bool GetDefaultSsl(EndPointCollection endPoints)

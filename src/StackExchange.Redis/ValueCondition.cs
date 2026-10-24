@@ -233,9 +233,9 @@ public readonly struct ValueCondition : IRespArgument
 
     private static byte ParseNibble(int b)
     {
-        if (b >= '0' & b <= '9') return (byte)(b - '0');
-        if (b >= 'a' & b <= 'f') return (byte)(b - 'a' + 10);
-        if (b >= 'A' & b <= 'F') return (byte)(b - 'A' + 10);
+        if ((b >= '0') & (b <= '9')) return (byte)(b - '0');
+        if ((b >= 'a') & (b <= 'f')) return (byte)(b - 'a' + 10);
+        if ((b >= 'A') & (b <= 'F')) return (byte)(b - 'A' + 10);
         return ThrowInvalidBytes();
 
         static byte ThrowInvalidBytes() => throw new ArgumentException("Invalid digest bytes");
@@ -266,9 +266,9 @@ public readonly struct ValueCondition : IRespArgument
 
         static byte ToNibble(int b)
         {
-            if (b >= '0' & b <= '9') return (byte)(b - '0');
-            if (b >= 'a' & b <= 'f') return (byte)(b - 'a' + 10);
-            if (b >= 'A' & b <= 'F') return (byte)(b - 'A' + 10);
+            if ((b >= '0') & (b <= '9')) return (byte)(b - '0');
+            if ((b >= 'a') & (b <= 'f')) return (byte)(b - 'a' + 10);
+            if ((b >= 'A') & (b <= 'F')) return (byte)(b - 'A' + 10);
             return ThrowInvalidBytes();
         }
 

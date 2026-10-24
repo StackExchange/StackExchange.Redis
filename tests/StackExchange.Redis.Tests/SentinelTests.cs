@@ -565,6 +565,18 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
             () => !conn.GetServerSnapshot().ToArray().Any(x => Equals(x.EndPoint, seedEndPoint)));
         Assert.DoesNotContain(seedEndPoint, conn.GetEndPoints());
 
+        // the sentinel connection behind it soft-failed too, so the connect path never wired up its handlers; it
+        // must do that itself on reaching a sentinel, or this connection would never hear +switch-master
+        var sentinelConn = conn.sentinelConnection!;
+        var switchMaster = RedisChannel.Literal("+switch-master");
+        await UntilConditionAsync(
+            TimeSpan.FromSeconds(10),
+            () => sentinelConn.GetSubscriber().SubscribedEndpoint(switchMaster) is not null && conn.LastException is null);
+        Assert.NotNull(sentinelConn.GetSubscriber().SubscribedEndpoint(switchMaster));
+
+        // and the discovery failure recorded at connect time is no longer reported now that we have a primary
+        Assert.Null(conn.LastException);
+
         static bool TryPing(IDatabase db)
         {
             try

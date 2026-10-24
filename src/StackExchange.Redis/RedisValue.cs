@@ -270,7 +270,7 @@ namespace StackExchange.Redis
             {
                 // primitives are never null; a short-blob is by construction always 1..8 bytes (and its
                 // _length field is unusable anyway, as it overlaps the inline bytes)
-                if (_obj == Sentinel_Double | _obj == Sentinel_SignedInteger | _obj == Sentinel_UnsignedInteger | _obj is ShortBlob) return false;
+                if ((_obj == Sentinel_Double) | (_obj == Sentinel_SignedInteger) | (_obj == Sentinel_UnsignedInteger) | (_obj is ShortBlob)) return false;
                 // everything else either null or a buffer or some kind; can use length
                 return _length == 0;
             }
@@ -1090,7 +1090,8 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{bool}"/>.
         /// </summary>
         /// <param name="value">The <see cref="T:Nullable{bool}"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(bool? value) => value == null ? Null
+        public static implicit operator RedisValue(bool? value) => value == null
+            ? Null
             : new(value.GetValueOrDefault() ? 1 : 0);
 
         /// <summary>

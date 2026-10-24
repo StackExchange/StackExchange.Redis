@@ -478,7 +478,7 @@ namespace StackExchange.Redis
         private static RedisChannel BuildKeySpaceChannel(in RedisKey key, int? database, RedisChannelOptions options, ReadOnlySpan<byte> suffix, bool appendStar, bool allowKeyPatterns, bool subkey)
         {
             int fullKeyLength = key.TotalLength() + suffix.Length + (appendStar ? 1 : 0);
-            if (appendStar & (options & RedisChannelOptions.Pattern) == 0) throw new ArgumentNullException(nameof(key));
+            if (appendStar & ((options & RedisChannelOptions.Pattern) == 0)) throw new ArgumentNullException(nameof(key));
             if (fullKeyLength == 0) throw new ArgumentOutOfRangeException(nameof(key));
 
             var db = AppendDatabase(stackalloc byte[DatabaseScratchBufferSize], database, options);

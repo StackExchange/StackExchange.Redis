@@ -36,6 +36,18 @@ pointing to that primary server that will automatically be updated if the primar
 var conn = ConnectionMultiplexer.Connect("localhost,serviceName=myprimary");
 ```
 
+`abortConnect` applies to sentinel connections the same way it applies to everything else. With `abortConnect=true` (the default), `Connect`
+throws if the sentinels cannot be reached or do not know the service. With `abortConnect=false`, `Connect` returns a multiplexer even then:
+it is not connected, operations fail with a connection exception that names the problem, and it connects itself to the primary once the
+sentinels become reachable and name one. If you want startup to fail when the sentinels are unavailable, keep `abortConnect=true`.
+
+A sentinel-managed connection tracks failovers through several signals: the `+switch-master` announcement, a reconnect poll whenever the
+connection to the primary is lost, and - because the announcement is delivered over pub/sub and can be missed - a periodic check that
+notices when the node last named as primary is still connected but now reports itself as a replica (a failover where nothing disconnected,
+such as a primary demoted in place). In that last case the client re-asks sentinel for the current primary and follows its answer, even to
+a node at an address it has never seen; while sentinel still names the demoted node (sentinel itself has not yet failed over), the client
+keeps asking without tearing down or reconfiguring the healthy connections.
+
 An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
 
 ```csharp
@@ -412,6 +424,8 @@ The library determines whether to use RESP3 by:
 - Otherwise: RESP3 is attempted if `defaultVersion` (6.0 unless overridden) is v6 or above
 
 Note that `HELLO` is issued either way: `HELLO 2` when staying on RESP2. The reply tells us the server version, replication role, mode (standalone/sentinel/cluster) and connection
-identifier, none of which we would otherwise know without `INFO` or `CONFIG GET` - both of which are in the `@dangerous` ACL category, and are commonly restricted. `HELLO` itself is
+identifier, none of which we would otherwise know without `INFO` or `CONFIG GET` - both of which are in the `@dangerous` ACL category, and are commonly restricted. The role and mode
+are only taken from the interactive connection (the subscription connection does no discovery), and a reported mode of `cluster` only leads to cluster *routing* once a slot map has
+been obtained from `CLUSTER SLOTS`/`CLUSTER NODES`; a proxy that announces a cluster but refuses those commands is routed as a single standalone server. `HELLO` itself is
 in the `@connection` category. If you need to prevent it (for example when talking to a proxy that does not understand it), disable it at the command-map level with `$hello=` in the
 configuration string - or specify a `defaultVersion` below 6.0, since `HELLO` did not exist before then.

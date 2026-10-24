@@ -9,9 +9,9 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// The commands that ask a server about itself.
-/// </summary>
+/// </content>
 /// <remarks><inheritdoc cref="HyperLogLog" path="/remarks"/></remarks>
 public static partial class Diagnostics
 {
@@ -616,7 +616,8 @@ public static partial class Diagnostics
             if (!reader.IsAggregate) throw new RespException("Unexpected LATENCY HISTORY reply.");
             return reader.ReadPastArray(
                 static (ref RespReader r) => LatencyHistoryEntry.TryParseEntry(ref r, out var parsed)
-                    ? parsed : throw new RespException("Unexpected LATENCY HISTORY element."),
+                    ? parsed
+                    : throw new RespException("Unexpected LATENCY HISTORY element."),
                 scalar: false) ?? [];
         }
 
@@ -625,7 +626,8 @@ public static partial class Diagnostics
             if (!reader.IsAggregate) throw new RespException("Unexpected LATENCY LATEST reply.");
             return reader.ReadPastArray(
                 static (ref RespReader r) => LatencyLatestEntry.TryParseEntry(ref r, out var parsed)
-                    ? parsed : throw new RespException("Unexpected LATENCY LATEST element."),
+                    ? parsed
+                    : throw new RespException("Unexpected LATENCY LATEST element."),
                 scalar: false) ?? [];
         }
     }

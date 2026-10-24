@@ -9,9 +9,9 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// The arrays commands.
-/// </summary>
+/// </content>
 /// <remarks>
 /// Here rather than in a single surface-wide class, so that a group is one place. The extension methods
 /// bind by namespace, and the namespace is <c>StackExchange.Redis</c>, so this costs a caller nothing.

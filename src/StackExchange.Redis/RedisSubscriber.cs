@@ -348,7 +348,7 @@ namespace StackExchange.Redis
                 // cores, handing back null sent the ping down the v3 path, which built a bridge (and dialled
                 // it) just to answer. The round trip that remains meaningful is the one on the ordinary
                 // connection to that server.
-                var direct = new RespContext(multiplexer.RawConfig.CommandMap, database: -1)
+                var direct = new RespContext(multiplexer.CommandMap, database: -1)
                     .WithExecutor(multiplexer.Connections.ServerExecutor(server.EndPoint));
                 return Measured(new RespDatabaseContext(direct).PingMeasureAsync(flags));
             }
@@ -574,7 +574,7 @@ namespace StackExchange.Redis
             ThrowIfNull(channel);
             if (multiplexer.TryGetSubscription(channel, out sub))
             {
-                if (handler == null & queue == null)
+                if ((handler == null) & (queue == null))
                 {
                     // This was a blanket wipe, so clear it completely
                     sub.MarkCompleted();

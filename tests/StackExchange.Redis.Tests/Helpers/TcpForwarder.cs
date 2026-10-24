@@ -69,9 +69,11 @@ public sealed class TcpForwarder : IDisposable
                 // the buffer size is spelled out because the two-argument (stream, token) overload does not
                 // exist on .NET Framework, which the test project still targets
                 const int BufferSize = 4096;
-                await Task.WhenAny(
-                    near.CopyToAsync(far, BufferSize, _cts.Token),
-                    far.CopyToAsync(near, BufferSize, _cts.Token)).ForAwait();
+                var inbound = near.CopyToAsync(far, BufferSize, _cts.Token);
+                var outbound = far.CopyToAsync(near, BufferSize, _cts.Token);
+                await Task.WhenAny(inbound, outbound).ForAwait();
+                // the other direction fails when the sockets go away below; nobody awaits it, so observe it here
+                _ = Task.WhenAll(inbound, outbound).ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
             }
             catch
             {

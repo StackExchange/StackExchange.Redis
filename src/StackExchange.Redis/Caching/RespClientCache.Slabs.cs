@@ -6,9 +6,9 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis.Caching
 {
-    /// <summary>
+    /// <content>
     /// Where cached replies live: carved, in fill order, out of large arrays ("slabs") that the GC owns.
-    /// </summary>
+    /// </content>
     /// <remarks>
     /// <para>
     /// <b>Why not one array per reply.</b> That made a hit free of shared writes - the GC is the reference count, so

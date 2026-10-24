@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// The scripting commands, over the context surface.
-/// </summary>
+/// </content>
 /// <remarks>
 /// <para>
 /// <b>These keep the shipped wire behaviour, which means they DO pair.</b> This paragraph previously said

@@ -1337,6 +1337,45 @@ namespace StackExchange.Redis
         /// <summary>Strictly healthy -> tripped -> actuated, then healthy again with fresh counters.</summary>
         private int _circuitBreakerState;
 
+        /// <summary>Whether the current LOADING episode has been reported; cleared by a success, and per connection.</summary>
+        private int _loadingReported;
+
+        /// <summary>The LOADING reply being reported, for <see cref="s_LoadingObserved"/>.</summary>
+        private RedisServerException? _loadingFault;
+
+        private static readonly WaitCallback s_LoadingObserved = static state =>
+        {
+            var executor = (RespEndpointExecutor)state!;
+            try
+            {
+                if (Volatile.Read(ref executor._loadingFault) is { } loading) executor.ActuateLoading(loading);
+            }
+            catch
+            {
+                // a report that cannot be made is not a reason to bring the process down with it
+            }
+        };
+
+        /// <summary>Report a LOADING reply through <c>ConnectionFailed</c>, as a breaker trip is reported.</summary>
+        /// <remarks>
+        /// From the pool rather than the completion path, as <see cref="ActuateTrip"/> is, so that the thread that
+        /// just finished somebody's command does not run the group's handlers. <c>reconfigure: false</c>: a
+        /// loading server has not changed the topology, and a group's failover is driven by the event itself.
+        /// </remarks>
+        private void ActuateLoading(RedisServerException loading)
+        {
+            if (_endpoint is { } reportAt && Server is { } server && !server.Multiplexer.IsDisposed)
+            {
+                server.Multiplexer.OnConnectionFailed(
+                    reportAt,
+                    IsSubscriptionEndpoint ? ConnectionType.Subscription : ConnectionType.Interactive,
+                    ConnectionFailureType.Loading,
+                    loading,
+                    reconfigure: false,
+                    physicalName: null);
+            }
+        }
+
         private const int CircuitHealthy = 0, CircuitTripped = 1, CircuitActuated = 2;
 
         /// <inheritdoc/>
@@ -1349,6 +1388,30 @@ namespace StackExchange.Redis
         /// </remarks>
         void IRespOutcomeObserver.ObserveOutcome(Exception? fault)
         {
+            // A server that is loading its dataset is a server that cannot serve. The shipped core treated the
+            // first LOADING reply as a connection failure (RecordConnectionFailed(ConnectionFailureType.Loading),
+            // main #3289): ConnectionFailed is the event a connection group listens for to steer away, and the
+            // breaker cannot be what moves it, since a loading server answers everything - its handshake included
+            // - with the same error. The event is kept; the drop is not. The shipped core tore the connection down
+            // and dialled again into a handshake that failed the same way, and a retrying caller then found the
+            // member mid-dial and was moved off it (RetryEndToEndTests.WithRetry_WhenFailoverNeverArrives...).
+            // A LOADING reply is prompt, and a prompt refusal is a better answer than a reconnect loop. Said once
+            // per episode: the burst that follows the first reply is the same fact repeated, and a success in
+            // between re-arms it, since a replica re-syncing with replica-serve-stale-data off can go LOADING
+            // again on the same long-lived connection.
+            if (fault is RedisServerException { Kind: RedisErrorKind.Loading } loading)
+            {
+                if (Interlocked.CompareExchange(ref _loadingReported, 1, 0) == 0)
+                {
+                    Volatile.Write(ref _loadingFault, loading); // carried in a field: the library does not reference ValueTuple
+                    ThreadPool.QueueUserWorkItem(s_LoadingObserved, this);
+                }
+            }
+            else if (fault is null && Volatile.Read(ref _loadingReported) != 0)
+            {
+                Volatile.Write(ref _loadingReported, 0);
+            }
+
             var accumulator = Volatile.Read(ref _circuitBreaker);
             if (accumulator is null || !accumulator.Trip(fault)) return;
 
@@ -1399,6 +1462,7 @@ namespace StackExchange.Redis
 
             Volatile.Write(ref _circuitBreaker, _circuitBreakerFactory?.Invoke());
             Volatile.Write(ref _circuitBreakerState, CircuitHealthy);
+            Volatile.Write(ref _loadingReported, 0);
         }
 
         /// <summary>Bring this endpoint up now, and wait for it.</summary>
@@ -1753,7 +1817,7 @@ namespace StackExchange.Redis
             {
                 var started = DateTime.UtcNow;
                 await new RespDatabaseContext(
-                        new RespContext(Server!.Multiplexer.RawConfig.CommandMap, database: -1).WithExecutor(this))
+                        new RespContext(Server!.Multiplexer.CommandMap, database: -1).WithExecutor(this))
                     .PingAsync(CommandFlags.NoRedirect)
                     .ConfigureAwait(false);
 
@@ -1900,7 +1964,7 @@ namespace StackExchange.Redis
             // core that renders its own frames has to make it somewhere; found by porting SUBSCRIBE, which
             // is what ConfigTests.ConnectWithSubscribeDisabled asks about.
             if (request.Command is not (RedisCommand.NONE or RedisCommand.UNKNOWN)
-                && !config.CommandMap.IsAvailable(request.Command))
+                && !server.Multiplexer.CommandMap.IsAvailable(request.Command))
             {
                 throw ExceptionFactory.CommandDisabled(request.Command);
             }

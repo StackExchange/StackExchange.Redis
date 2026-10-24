@@ -9,9 +9,9 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// SORT and SORT_RO, which hang off the key group rather than one of their own.
-/// </summary>
+/// </content>
 /// <remarks>
 /// <b>A group file without a group type</b>, and the reason the layout is per <i>group</i> rather than
 /// per file: <c>SORT</c> takes a key and belongs to <see cref="Keys"/>, so it lives in that partial. It

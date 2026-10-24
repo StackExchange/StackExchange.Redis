@@ -126,8 +126,7 @@ public static class RespReaderExtensions
             // discontiguous payload.
             if (length <= RedisValue.MaxInlineBytes)
             {
-                return RedisValue.FromRaw(reader.TryGetSpan(out var buffer) ?
-                    buffer : reader.Buffer(stackalloc byte[RedisValue.MaxInlineBytes]));
+                return RedisValue.FromRaw(reader.TryGetSpan(out var buffer) ? buffer : reader.Buffer(stackalloc byte[RedisValue.MaxInlineBytes]));
             }
 
             // Longer payloads: prefer a compact numeric storage kind when the text is the *canonical*
@@ -228,7 +227,7 @@ public static class RespReaderExtensions
         }
         // integer: canonical exactly when the round-trip text length matches (rules out leading zeros, a
         // leading '+', "-0", trailing junk, etc.) - so no need to re-emit and compare bytes
-        if (span.IsEmpty | span.Length > MaxCanonicalLength) return Failure(out value);
+        if (span.IsEmpty | (span.Length > MaxCanonicalLength)) return Failure(out value);
 
         // restrict to *just* basic number tokens, tracking the two facts that let us pick a single parse:
         // whether a '-' appeared (so we know whether the integer is signed), and whether a '.'/'e'/'E'

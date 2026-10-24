@@ -7,9 +7,9 @@ using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// The publish/subscribe commands.
-/// </summary>
+/// </content>
 /// <remarks><inheritdoc cref="HyperLogLog" path="/remarks"/></remarks>
 public static partial class PubSub
 {

@@ -153,7 +153,7 @@ internal static class RespWire
 
     internal static void WriteMultiBulkHeader(IBufferWriter<byte> writer, long count, RespPrefix prefix)
     {
-        if ((prefix is RespPrefix.Map or RespPrefix.Attribute) & count > 0)
+        if ((prefix is RespPrefix.Map or RespPrefix.Attribute) & (count > 0))
         {
             if ((count & 1) != 0) Throw(prefix, count);
             count >>= 1;

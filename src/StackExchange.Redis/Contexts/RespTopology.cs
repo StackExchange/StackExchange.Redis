@@ -162,7 +162,18 @@ namespace StackExchange.Redis
 
         /// <summary>Whether the slot decides which endpoint serves the command.</summary>
         /// <remarks>False while unknown: routing on a guess is wrong, not merely wasteful.</remarks>
-        internal bool RoutesBySlot => (RespClusterState)Volatile.Read(ref _state) == RespClusterState.Yes;
+        /// <summary>Whether commands are routed by slot: a cluster, <b>with a slot map</b>.</summary>
+        /// <remarks>
+        /// A server <i>saying</i> it is a cluster is not enough (main #3285, #3284): proxied deployments announce
+        /// "cluster" in <c>HELLO</c> while refusing every <c>CLUSTER</c> subcommand, and with no map the only
+        /// thing cluster routing would add is refusing cross-slot commands client-side that the proxy would have
+        /// accepted. So until a map exists - from the handshake, a refresh, or a <c>-MOVED</c> - routing falls to
+        /// the selector as it does for a standalone server; the map is never cleared once populated, so an
+        /// established cluster whose refresh is refused keeps routing as one. <see cref="NeedsSlots"/> is the
+        /// other question - "might this be a cluster?" - and stays true here so slots are still computed and
+        /// asked for.
+        /// </remarks>
+        internal bool RoutesBySlot => (RespClusterState)Volatile.Read(ref _state) == RespClusterState.Yes && Volatile.Read(ref _slots) is not null;
 
         /// <summary>The server type, as far as anyone knows.</summary>
         internal ServerType ServerType => RoutesBySlot ? ServerType.Cluster : ServerType.Standalone;
