@@ -535,6 +535,32 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
     }
 
     [Fact]
+    public async Task SentinelDiscoveryKeepsConfiguredNamesAndPreviouslyKnownRoutes()
+    {
+        var options = ServiceOptions.Clone();
+        var seed = new DnsEndPoint("localhost", TestConfig.Current.SentinelPortA);
+        options.EndPoints.Add(seed);
+        await using var connection = await ConnectionMultiplexer.SentinelConnectAsync(options);
+        var missing = new IPEndPoint(IPAddress.Loopback, TcpForwarder.GetFreePort());
+        connection.EndPoints.TryAdd(missing);
+        connection.GetServerEndPoint(missing, ServerProvenance.Sentinel, activate: false);
+
+        await connection.UpdateSentinelAddressListAsync(ServiceName);
+        Assert.Contains(seed, connection.EndPoints);
+        Assert.Contains(seed, connection.GetEndPoints());
+        Assert.Contains(missing, connection.EndPoints);
+        Assert.Contains(missing, connection.GetEndPoints());
+        // Repeated replies can omit a route (including the responding sentinel itself); discovery only appends.
+        // Which sentinel answers first is a race, and a reply from another one can still add the first
+        // responder's own address - so a later refresh may grow the list, but must not shrink it.
+        await connection.UpdateSentinelAddressListAsync(ServiceName);
+        var endpoints = new HashSet<EndPoint>(connection.EndPoints);
+        await connection.UpdateSentinelAddressListAsync(ServiceName);
+        Assert.Superset(endpoints, new HashSet<EndPoint>(connection.EndPoints));
+        Assert.True(connection.IsConnected);
+    }
+
+    [Fact]
     public async Task AbortOnConnectFailFalseRecoversOnceSentinelsAppear()
     {
         SkipOnWindowsRelease();

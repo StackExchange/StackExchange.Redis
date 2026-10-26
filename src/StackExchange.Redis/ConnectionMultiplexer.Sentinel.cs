@@ -20,7 +20,10 @@ public partial class ConnectionMultiplexer
     private int _sentinelInitialized;
     private int _demotedPrimaryRecoveryActive;
     private int _sentinelSwitchActive;
+    private int _sentinelAddressUpdateActive;
+    private readonly HashSet<string> _sentinelAddressUpdatesPending = new(StringComparer.Ordinal);
     private int _sentinelSwitchPending;
+    private HashSet<EndPoint> _sentinelDownRoutes = new();
 
     /// <summary>
     /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
@@ -94,7 +97,10 @@ public partial class ConnectionMultiplexer
                 (_, message) =>
                 {
                     string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    UpdateSentinelAddressListAsync(messageParts[0]).RedisFireAndForget();
+                    // "<type> <name> <ip> <port> @ <master-name> <master-ip> <master-port>": the service follows the "@"
+                    int separator = Array.IndexOf(messageParts, "@");
+                    if (separator >= 0 && separator + 1 < messageParts.Length)
+                        UpdateSentinelAddressListAsync(messageParts[separator + 1]).RedisFireAndForget();
                 },
                 CommandFlags.FireAndForget);
         }
@@ -735,8 +741,21 @@ public partial class ConnectionMultiplexer
         }
     }
 
+    // sentinel-clients Step 1 tries the sentinels one by one, moving the one that answered to the front. Every route
+    // is asked at once instead - the requests are asynchronous and hold no worker, and a Service address and the
+    // advertised pod address of the same sentinel need not be told apart - connected routes first and routes
+    // sentinel itself reports down last, so a dead route can delay nothing and the first valid answer wins.
     private ServerEndPoint[] GetSentinelsForQuery()
-        => _serverSnapshot.Where(static s => s.ServerType == ServerType.Sentinel && !s.IsDisposed).ToArray();
+    {
+        var down = Volatile.Read(ref _sentinelDownRoutes);
+        return OrderSentinelQueryTargets(
+            _serverSnapshot.Where(static s => s.ServerType == ServerType.Sentinel && !s.IsDisposed).ToArray(),
+            static s => s.IsConnected,
+            s => down.Contains(s.EndPoint));
+    }
+
+    internal static T[] OrderSentinelQueryTargets<T>(T[] targets, Func<T, bool> connected, Func<T, bool> reportedDown)
+        => targets.OrderBy(t => connected(t) ? 0 : reportedDown(t) ? 2 : 1).ToArray(); // OrderBy is stable
 
     internal static bool IsSentinelNodeDown(string? flags) => flags is not null
         && flags.Split(',').Any(static f => f is "s_down" or "o_down" or "disconnected");
@@ -1023,24 +1042,63 @@ public partial class ConnectionMultiplexer
 
     internal async Task UpdateSentinelAddressListAsync(string serviceName)
     {
-        var firstCompleteRequest = await QuerySentinelsAsync(async server =>
-            (EndPoint[]?)await server.SentinelGetSentinelAddressesAsync(serviceName).ForAwait()).ForAwait();
-
-        // Ignore errors, as having an updated sentinel list is not essential
-        if (firstCompleteRequest == null)
-            return;
-
-        bool hasNew = false;
-        foreach (EndPoint newSentinel in firstCompleteRequest.Where(x => !EndPoints.Contains(x)))
+        lock (_sentinelAddressUpdatesPending)
         {
-            hasNew = true;
-            EndPoints.TryAdd(newSentinel);
+            if (IsDisposed) return;
+            _sentinelAddressUpdatesPending.Add(serviceName);
+            if (_sentinelAddressUpdateActive != 0) return;
+            _sentinelAddressUpdateActive = 1;
         }
-
-        if (hasNew)
+        try
         {
-            // Reconfigure the sentinel multiplexer if we added new endpoints
-            await ReconfigureAsync(first: false, reconfigureAll: true, Logger, EndPoints[0], "Updating Sentinel List", false).ForAwait();
+            while (!IsDisposed)
+            {
+                lock (_sentinelAddressUpdatesPending)
+                {
+                    if (_sentinelAddressUpdatesPending.Count == 0) break;
+                    serviceName = _sentinelAddressUpdatesPending.First();
+                    _sentinelAddressUpdatesPending.Remove(serviceName);
+                }
+                var peers = await QuerySentinelsAsync(async server =>
+                    (KeyValuePair<string, string>[][]?)await server.SentinelSentinelsAsync(serviceName).ForAwait()).ForAwait();
+                if (peers is null) continue;
+
+                var down = new HashSet<EndPoint>();
+                bool hasNew = false;
+                // https://valkey.io/topics/sentinel-clients/: append unknown ip:port pairs, retaining all old routes.
+                // Add before claiming reconfigure, so a busy claim cannot lose the discovery result.
+                foreach (var peer in peers)
+                {
+                    if (ParseSentinelAddress(peer, out var isDown) is not EndPoint address) continue;
+                    hasNew |= EndPoints.TryAdd(address);
+                    if (isDown) down.Add(address);
+                }
+                Volatile.Write(ref _sentinelDownRoutes, down);
+                if (!hasNew) continue;
+
+                const string cause = "Updating Sentinel List";
+                while (!IsDisposed)
+                {
+                    if (TryClaimReconfigure(cause))
+                    {
+                        await ReconfigureAsync(first: false, reconfigureAll: true, Logger, EndPoints[0], cause, false, claimed: true).ForAwait();
+                        break;
+                    }
+                    // Coalesce later announcements while waiting for the owner of the claim; no worker is held.
+                    await Task.Delay(1000).ForAwait();
+                }
+            }
+        }
+        finally
+        {
+            string? pending;
+            lock (_sentinelAddressUpdatesPending)
+            {
+                _sentinelAddressUpdateActive = 0;
+                pending = !IsDisposed ? _sentinelAddressUpdatesPending.FirstOrDefault() : null;
+                if (IsDisposed) _sentinelAddressUpdatesPending.Clear();
+            }
+            if (pending is not null) UpdateSentinelAddressListAsync(pending).RedisFireAndForget();
         }
     }
 }

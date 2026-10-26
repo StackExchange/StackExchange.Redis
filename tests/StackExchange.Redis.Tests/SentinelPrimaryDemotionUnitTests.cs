@@ -209,6 +209,39 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task SentinelRoutesAreOnlyAddedAndDoNotNeedIdentity()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        var seed = new DnsEndPoint("sentinel-service", 26379);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, seed, log);
+        sentinel.AddEmptyNode(SentinelEndPoint);
+        sentinel.PeerFlags[SentinelEndPoint] = "s_down,disconnected";
+        var config = CreateConfig(data, sentinel);
+        config.EndPoints.Clear();
+        config.EndPoints.Add(seed);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        var owner = conn.sentinelConnection!;
+        await UntilAsync(() => owner.GetEndPoints().Contains(SentinelEndPoint) && owner.GetServer(SentinelEndPoint).IsConnected, "down peer route was not added");
+        Assert.Contains(seed, owner.GetEndPoints());
+
+        // A later response no longer names the advertised IP. Both that route and the DNS seed must remain,
+        // with one server per address.
+        sentinel.PeerFlags.Clear();
+        int baseline = sentinel.PeerQueries;
+        var elapsed = Stopwatch.StartNew();
+        while (sentinel.PeerQueries == baseline && elapsed.Elapsed < TimeSpan.FromSeconds(10))
+        {
+            await owner.UpdateSentinelAddressListAsync(ServiceName);
+            await Task.Delay(50);
+        }
+        Assert.True(sentinel.PeerQueries > baseline, "empty peer response was not queried");
+        Assert.Equal(2, owner.GetEndPoints().Length);
+        Assert.Contains(seed, owner.GetEndPoints());
+        Assert.Contains(SentinelEndPoint, owner.GetEndPoints());
+        Assert.Single(owner.GetServerSnapshot().ToArray(), x => Equals(x.EndPoint, SentinelEndPoint));
+    }
+
+    [Fact]
     public async Task DemotionRecoveryUsesTheManagedServiceName()
     {
         using var data = new InProcessTestServer(log, PrimaryA);
@@ -394,6 +427,71 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         Assert.Equal(queries, sentinel.PrimaryQueries);
         Assert.Null(conn.sentinelPrimaryReconnectTimer);
         await conn.GetDatabase().StringSetAsync("primary-still-works", "yes");
+    }
+
+    [Fact]
+    public async Task SentinelAnnouncementUsesTheServiceAfterTheSeparator()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        sentinel.AddEmptyNode(SecondSentinelEndPoint);
+        sentinel.PeerFlags[SecondSentinelEndPoint] = "";
+        Assert.True(sentinel.ForAllClients(client => client.Publish(RedisChannel.Literal("+sentinel"),
+            "sentinel peer 192.0.2.11 26379 @ mymaster 192.0.2.1 6379")) > 0);
+        var owner = conn.sentinelConnection!;
+        await UntilAsync(() => owner.GetEndPoints().Contains(SecondSentinelEndPoint), "announcement did not discover the peer");
+    }
+
+    [Fact]
+    public async Task SentinelAddressRequestDuringAnOlderReplyIsReplayed()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        var owner = conn.sentinelConnection!;
+        var captured = NewSignal();
+        var release = NewSignal();
+        int replies = 0;
+        sentinel.BeforePeerReplyAsync = () =>
+        {
+            if (Interlocked.Increment(ref replies) != 1) return Task.CompletedTask;
+            captured.TrySetResult(true);
+            return release.Task;
+        };
+        var update = owner.UpdateSentinelAddressListAsync(ServiceName);
+        try
+        {
+            await AwaitSignalAsync(captured.Task);
+            sentinel.AddEmptyNode(SecondSentinelEndPoint);
+            sentinel.PeerFlags[SecondSentinelEndPoint] = "";
+            await owner.UpdateSentinelAddressListAsync(ServiceName);
+        }
+        finally { release.TrySetResult(true); }
+        await update;
+        await UntilAsync(() => owner.GetEndPoints().Contains(SecondSentinelEndPoint), "pending peer refresh was lost");
+        Assert.True(Volatile.Read(ref replies) >= 2);
+    }
+
+    [Fact]
+    public async Task SentinelAddressIsRetainedWhileReconfigureIsBusy()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        var owner = conn.sentinelConnection!;
+        sentinel.AddEmptyNode(SecondSentinelEndPoint);
+        sentinel.PeerFlags[SecondSentinelEndPoint] = "";
+        await UntilAsync(() => owner.TryClaimReconfigure("unit holds the claim"), "could not claim reconfigure");
+        Task update;
+        try
+        {
+            update = owner.UpdateSentinelAddressListAsync(ServiceName);
+            await UntilAsync(() => owner.EndPoints.Contains(SecondSentinelEndPoint), "busy claim lost the address");
+        }
+        finally { owner.ReleaseReconfigureClaim(); }
+        await update;
+        await UntilAsync(() => owner.GetServer(SecondSentinelEndPoint).IsConnected, "pending reconfigure did not connect the peer");
     }
 
     [Fact]
