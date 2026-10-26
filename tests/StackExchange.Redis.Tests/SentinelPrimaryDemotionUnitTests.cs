@@ -270,6 +270,49 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task ReadOnlyReplyMarksTheNodeAsReplicaAndRecoveryFollowsSentinel()
+    {
+        using var data = new ReadOnlyReplicaTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        var config = CreateConfig(data, sentinel);
+        config.ConfigCheckSeconds = 3600; // role polling must not be what notices the demotion
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "connect left a timer");
+        var db = conn.GetDatabase();
+        await db.StringSetAsync("readonly-key", "before");
+
+        // Demoted in place: nothing announced or disconnected, and role polling is an hour away.
+        FailOverToNewNode(data);
+        sentinel.Primary = NewNodeC;
+        Assert.False(conn.GetServer(PrimaryA).IsReplica);
+
+        var ex = await Assert.ThrowsAsync<RedisServerException>(() => db.StringSetAsync("readonly-key", "after"));
+        Assert.StartsWith("READONLY", ex.Message);
+        Assert.True(conn.GetServer(PrimaryA).IsReplica, "READONLY did not mark the node as a replica");
+
+        // the heartbeat sees a connected primary that reports replica, asks sentinel and switches
+        await AssertPrimaryBecomesAsync(conn, NewNodeC);
+        await db.StringSetAsync("readonly-key", "after");
+    }
+
+    /// <summary>
+    /// The in-process server accepts writes on any node; a real replica answers <c>READONLY</c>, which is the signal under test.
+    /// </summary>
+    private sealed class ReadOnlyReplicaTestServer(ITestOutputHelper log, EndPoint endpoint) : InProcessTestServer(log, endpoint)
+    {
+        public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
+        {
+            if (request.Count > 0 && string.Equals(request.GetString(0), "SET", StringComparison.OrdinalIgnoreCase)
+                && client.Node is { PrimaryId: { Length: > 0 } })
+            {
+                return TypedRedisValue.Error("READONLY You can't write against a read only replica.");
+            }
+            return base.Execute(client, in request);
+        }
+    }
+
+    [Fact]
     public async Task SwitchRequestedDuringDiscoveryIsReplayed()
     {
         using var data = new InProcessTestServer(log, PrimaryA);
@@ -555,6 +598,23 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
             Assert.True(conn.IsDisposed);
             Assert.Null(conn.sentinelPrimaryReconnectTimer);
         }
+    }
+
+    [Theory]
+    [InlineData(ServerType.Standalone)]
+    [InlineData(ServerType.Cluster)]
+    public async Task ReadOnlyDoesNotChangeNonSentinelTopologies(ServerType topology)
+    {
+        using var data = new ReadOnlyReplicaTestServer(log, PrimaryA) { ServerType = topology };
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        var config = data.GetClientConfig();
+        config.ConfigCheckSeconds = 3600;
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        if (topology == ServerType.Cluster) data.Failover(ReplicaB);
+        else FailOverToNewNode(data);
+        Assert.False(conn.GetServer(PrimaryA).IsReplica);
+        await Assert.ThrowsAsync<RedisServerException>(() => conn.GetServer(PrimaryA).ExecuteAsync("SET", "key", "value"));
+        Assert.False(conn.GetServer(PrimaryA).IsReplica);
     }
 
     [Fact]

@@ -24,6 +24,7 @@ public partial class ConnectionMultiplexer
     private readonly HashSet<string> _sentinelAddressUpdatesPending = new(StringComparer.Ordinal);
     private int _sentinelSwitchPending;
     private HashSet<EndPoint> _sentinelDownRoutes = new();
+    internal bool IsSentinelManaged { get; private set; }
 
     /// <summary>
     /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
@@ -361,6 +362,8 @@ public partial class ConnectionMultiplexer
                 connection.LastException = failure;
                 connection.Logger?.LogErrorSyncConnectTimeout(failure, failure.Message);
             }
+
+            connection.IsSentinelManaged = true;
 
             // Attach to reconnect event to ensure proper connection to the new primary
             connection.ConnectionRestored += OnManagedConnectionRestored;

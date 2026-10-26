@@ -241,6 +241,12 @@ namespace StackExchange.Redis
             set => SetConfig(ref isReplica, value);
         }
 
+        internal void MarkAsReplicaWithoutReconfigure()
+        {
+            Volatile.Write(ref isReplica, true);
+            ClearMemoized();
+        }
+
         public bool ReplicaReadOnly
         {
             get => replicaReadOnly;
