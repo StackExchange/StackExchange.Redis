@@ -1174,6 +1174,20 @@ namespace StackExchange.Redis
             return false;
         }
 
+        internal async ValueTask<bool> CheckInfoReplicationAsync()
+        {
+            if (!version.IsAtLeast(RedisFeatures.v2_8_0) || !Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
+                || GetBridge(ConnectionType.Interactive, false) is not PhysicalBridge bridge) return false;
+
+            var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
+            msg.SetInternalCall();
+            msg.SetSource(ResultProcessor.AutoConfigure, null);
+            if (await bridge.TryWriteAsync(msg, isReplica, bypassBacklog: true).ForAwait() != WriteResult.Success) return false;
+            lastInfoReplicationCheckTicks = Environment.TickCount;
+            ResetExponentiallyReplicationCheck();
+            return true;
+        }
+
         private int lastInfoReplicationCheckTicks;
         internal volatile int ConfigCheckSeconds;
         [ThreadStatic]

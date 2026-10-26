@@ -1,9 +1,14 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using RESPite.Messages;
+using StackExchange.Redis.Server;
+using StackExchange.Redis.Configuration;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -22,6 +27,7 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
     private static readonly EndPoint ReplicaB = new IPEndPoint(IPAddress.Parse("192.0.2.2"), 6379);
     private static readonly EndPoint NewNodeC = new IPEndPoint(IPAddress.Parse("192.0.2.3"), 6379);
     private static readonly EndPoint SentinelEndPoint = new IPEndPoint(IPAddress.Parse("192.0.2.10"), 26379);
+    private static readonly EndPoint SecondSentinelEndPoint = new IPEndPoint(IPAddress.Parse("192.0.2.11"), 26379);
 
     [Fact]
     public async Task DemotedPrimaryFollowsSentinelToPrimaryAtUnknownAddress()
@@ -83,13 +89,309 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         await AssertPrimaryBecomesAsync(conn, NewNodeC);
     }
 
-    private static ConfigurationOptions CreateConfig(InProcessTestServer data, InProcessSentinelServer sentinel)
+    [Fact]
+    public async Task RestoredBeforeFailedStillStopsTheReconnectTimer()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        var owner = conn.sentinelConnection!;
+        var args = new ConnectionFailedEventArgs(null, conn, PrimaryA, ConnectionType.Interactive, ConnectionFailureType.SocketFailure, null, null);
+
+        owner.OnManagedConnectionRestored(conn, args);
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "restore did not settle");
+        int baseline = sentinel.PrimaryQueries;
+        owner.OnManagedConnectionFailed(conn, args); // delayed worker delivery, socket is already healthy
+        await UntilAsync(() => sentinel.PrimaryQueries > baseline && conn.sentinelPrimaryReconnectTimer is null, "late failure left a timer");
+        Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
+    }
+
+    [Fact]
+    public async Task DemotionRecoveryUsesTheManagedServiceName()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        var otherPrimary = new IPEndPoint(IPAddress.Parse("192.0.2.4"), 6379);
+        var otherNewPrimary = new IPEndPoint(IPAddress.Parse("192.0.2.5"), 6379);
+        using var otherData = new InProcessTestServer(log, otherPrimary);
+        using var otherSentinel = new InProcessSentinelServer(otherData, "othermaster", otherPrimary, SecondSentinelEndPoint, log);
+        var config = CreateConfig(data, sentinel, otherData, otherSentinel);
+        config.EndPoints.Add(SecondSentinelEndPoint);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        var owner = conn.sentinelConnection!;
+        var otherConfig = config.Clone();
+        otherConfig.ServiceName = "othermaster";
+        await using var otherConn = owner.GetSentinelMasterConnection(otherConfig);
+        Assert.Equal([otherPrimary], ConnectedPrimaries(otherConn));
+
+        // The first sentinel does not know this service. Its null answer must not hide the second service's
+        // recovery, and the healthy first service must stay on its own primary.
+        otherData.AddEmptyNode(otherNewPrimary);
+        otherData.SetReplicaOf(otherPrimary, otherNewPrimary);
+        otherSentinel.Primary = otherNewPrimary;
+        await AssertPrimaryBecomesAsync(otherConn, otherNewPrimary);
+        Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
+        await UntilAsync(() => otherConn.sentinelPrimaryReconnectTimer is null, "service recovery did not settle");
+    }
+
+    [Fact]
+    public async Task SwitchRequestedDuringDiscoveryIsReplayed()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        var config = CreateConfig(data, sentinel);
+        config.ConfigCheckSeconds = 3600; // role polling must not rescue a lost announcement
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        var owner = conn.sentinelConnection!;
+        var captured = NewSignal();
+        var release = NewSignal();
+        int replies = 0;
+        sentinel.BeforePrimaryReplyAsync = () =>
+        {
+            if (Interlocked.Increment(ref replies) != 1) return Task.CompletedTask;
+            captured.TrySetResult(true);
+            return release.Task;
+        };
+        var oldView = owner.SwitchPrimaryAsync(null, conn);
+        try
+        {
+            await AwaitSignalAsync(captured.Task);
+            FailOverToNewNode(data);
+            sentinel.Primary = NewNodeC;
+            Assert.False(await owner.SwitchPrimaryAsync(PrimaryA, conn));
+        }
+        finally { release.TrySetResult(true); }
+        await oldView;
+        await AssertPrimaryBecomesAsync(conn, NewNodeC);
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "replayed switch did not settle");
+        Assert.True(Volatile.Read(ref replies) >= 2);
+    }
+
+    [Fact]
+    public async Task ReconnectWaitsOneSecondAfterTheAsyncAttemptCompletes()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        sentinel.Primary = ReplicaB; // still a replica, so recovery must retry
+        var first = NewSignal();
+        var release = NewSignal();
+        var second = NewSignal();
+        long secondAt = 0;
+        int replies = 0;
+        sentinel.BeforePrimaryReplyAsync = () =>
+        {
+            int number = Interlocked.Increment(ref replies);
+            if (number == 1)
+            {
+                first.TrySetResult(true);
+                return release.Task;
+            }
+            if (number == 2)
+            {
+                Interlocked.Exchange(ref secondAt, Stopwatch.GetTimestamp());
+                second.TrySetResult(true);
+            }
+            return Task.CompletedTask;
+        };
+        var owner = conn.sentinelConnection!;
+        owner.OnManagedConnectionFailed(conn, Failure(PrimaryA, conn));
+        long releasedAt;
+        try
+        {
+            await AwaitSignalAsync(first.Task);
+            await Task.Delay(1200);
+            Assert.Equal(1, Volatile.Read(ref replies)); // no second callback while the first attempt is blocked
+            releasedAt = Stopwatch.GetTimestamp();
+        }
+        finally { release.TrySetResult(true); }
+        await AwaitSignalAsync(second.Task);
+        // Allow scheduling/clock granularity margin instead of adding nominal Task.Delay durations exactly.
+        Assert.True((Interlocked.Read(ref secondAt) - releasedAt) / (double)Stopwatch.Frequency >= 0.8);
+        sentinel.Primary = PrimaryA;
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "healthy primary did not stop recovery");
+    }
+
+    [Fact]
+    public async Task MissingServiceNameDoesNotRearmAnEmptyTimer()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        var config = CreateConfig(data, sentinel);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        config.ServiceName = null;
+        var owner = conn.sentinelConnection!;
+        int queries = sentinel.PrimaryQueries;
+        owner.OnManagedConnectionFailed(conn, Failure(PrimaryA, conn));
+        Assert.False(await owner.SwitchPrimaryAsync(null, conn));
+        Assert.Null(conn.sentinelPrimaryReconnectTimer);
+        Assert.Equal(queries, sentinel.PrimaryQueries);
+    }
+
+    [Fact]
+    public async Task AllSentinelsUnavailableKeepRecoveryUntilOneReturns()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        var config = CreateConfig(data, sentinel);
+        config.AsyncTimeout = 250;
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        var owner = conn.sentinelConnection!;
+        RemoveAndDisconnect(sentinel, SentinelEndPoint);
+        owner.OnManagedConnectionFailed(conn, Failure(PrimaryA, conn));
+        await Task.Delay(2500);
+        Assert.NotNull(conn.sentinelPrimaryReconnectTimer);
+        sentinel.AddEmptyNode(SentinelEndPoint);
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null && owner.IsConnected, "sentinel return did not end recovery");
+    }
+
+    [Fact]
+    public async Task DisposeDuringATimerAttemptDoesNotRestartRecovery()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        await using (conn)
+        {
+            var captured = NewSignal();
+            var release = NewSignal();
+            sentinel.BeforePrimaryReplyAsync = () =>
+            {
+                captured.TrySetResult(true);
+                return release.Task;
+            };
+            conn.sentinelConnection!.OnManagedConnectionFailed(conn, Failure(PrimaryA, conn));
+            Task dispose;
+            try
+            {
+                await AwaitSignalAsync(captured.Task);
+                dispose = conn.DisposeAsync().AsTask();
+            }
+            finally { release.TrySetResult(true); }
+            await dispose;
+            await Task.Delay(1200);
+            Assert.True(conn.IsDisposed);
+            Assert.Null(conn.sentinelPrimaryReconnectTimer);
+        }
+    }
+
+    [Fact]
+    public async Task FailedInfoWriteDoesNotCountAsAReplicationCheck()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        var config = data.GetClientConfig();
+        config.Tunnel = InProcessSentinelServer.CreateTunnel(data);
+        config.BacklogPolicy = BacklogPolicy.FailFast;
+        config.ConfigCheckSeconds = 1;
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        var server = conn.TryResolveServerEndPoint(PrimaryA)!;
+        RemoveAndDisconnect(data, PrimaryA);
+        await UntilAsync(() => !server.IsConnected, "server did not disconnect");
+        Assert.False(await server.CheckInfoReplicationAsync());
+    }
+
+    [Fact]
+    public async Task ConcurrentManagedConnectReturnsOneChildAndDisposesTheOther()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        var ready = NewSignal();
+        var release = NewSignal();
+        var config = CreateConfig(data, sentinel);
+        config.Protocol = RedisProtocol.Resp2;
+        int connecting = 0;
+        config.Tunnel = new BlockedDataTunnel(config.Tunnel!, PrimaryA, release.Task, () =>
+        {
+            if (Interlocked.Increment(ref connecting) == 2) ready.TrySetResult(true);
+        });
+        await using var owner = await ConnectionMultiplexer.SentinelConnectAsync(config);
+        Task<ConnectionMultiplexer> Start() => Task.Factory.StartNew(() => owner.GetSentinelMasterConnection(config),
+            CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        var first = Start();
+        var second = Start();
+        try { await AwaitSignalAsync(ready.Task); }
+        finally { release.TrySetResult(true); }
+        await using var child = await first;
+        Assert.Same(child, await second);
+        Assert.Single(owner.sentinelConnectionChildren);
+        await UntilAsync(() => data.ClientCount == 2, "losing managed connection was not disposed");
+    }
+
+    [Fact]
+    public async Task SynchronousSoftConnectReturnsBeforeAsyncRoleTimeoutAndRecovers()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        var release = NewSignal();
+        var config = CreateConfig(data, sentinel);
+        config.AbortOnConnectFail = false;
+        config.ConnectTimeout = 200;
+        config.ConnectRetry = 1;
+        config.SyncTimeout = 500;
+        config.AsyncTimeout = 5000;
+        config.Tunnel = new BlockedDataTunnel(config.Tunnel!, PrimaryA, release.Task);
+        var connecting = Task.Factory.StartNew(() => ConnectionMultiplexer.Connect(config), CancellationToken.None,
+            TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        ConnectionMultiplexer conn;
+        try
+        {
+            Assert.Same(connecting, await Task.WhenAny(connecting, Task.Delay(2500)));
+            conn = await connecting;
+            Assert.False(conn.IsConnected);
+        }
+        finally { release.TrySetResult(true); }
+        await using (conn)
+        {
+            await AssertPrimaryBecomesAsync(conn, PrimaryA);
+            await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "soft connect recovery did not settle");
+        }
+    }
+
+    private sealed class BlockedDataTunnel(Tunnel inner, EndPoint endpoint, Task release, Action? connecting = null) : Tunnel
+    {
+        public override ValueTask<EndPoint?> GetSocketConnectEndpointAsync(EndPoint target, CancellationToken cancellationToken)
+            => inner.GetSocketConnectEndpointAsync(target, cancellationToken);
+
+        public override ValueTask<Stream?> BeforeAuthenticateAsync(EndPoint target, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken)
+            => Equals(target, endpoint) ? new(AcceptAsync(target, connectionType, socket, cancellationToken))
+                : inner.BeforeAuthenticateAsync(target, connectionType, socket, cancellationToken);
+
+        private async Task<Stream?> AcceptAsync(EndPoint target, ConnectionType connectionType, Socket? socket, CancellationToken cancellationToken)
+        {
+            if (connectionType == ConnectionType.Interactive) connecting?.Invoke();
+            await release;
+            return await inner.BeforeAuthenticateAsync(target, connectionType, socket, cancellationToken);
+        }
+    }
+
+    private static void RemoveAndDisconnect(InProcessTestServer server, EndPoint endpoint)
+    {
+        Assert.True(server.TryGetNode(endpoint, out var node));
+        node.UpdateSlots([]);
+        Assert.True(server.RemoveNode(endpoint));
+        server.ForAllClients(client =>
+        {
+            if (ReferenceEquals(client.Node, node)) client.Dispose();
+        });
+    }
+
+    private static TaskCompletionSource<bool> NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private static async Task AwaitSignalAsync(Task signal)
+        => Assert.Same(signal, await Task.WhenAny(signal, Task.Delay(10000)));
+
+    private static ConnectionFailedEventArgs Failure(EndPoint endpoint, ConnectionMultiplexer conn)
+        => new(null, conn, endpoint, ConnectionType.Interactive, ConnectionFailureType.SocketFailure, null, null);
+
+    private static ConfigurationOptions CreateConfig(InProcessTestServer data, InProcessSentinelServer sentinel, params InProcessTestServer[] more)
     {
         var config = data.GetClientConfig();
         config.EndPoints.Clear();
         config.EndPoints.Add(SentinelEndPoint);
         config.ServiceName = ServiceName;
-        config.Tunnel = InProcessSentinelServer.CreateTunnel(data, sentinel);
+        config.Tunnel = InProcessSentinelServer.CreateTunnel([data, sentinel, .. more]);
         config.ConfigCheckSeconds = 1; // how soon the demoted node's role is re-read
         return config;
     }

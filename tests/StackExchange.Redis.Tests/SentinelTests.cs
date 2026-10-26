@@ -510,7 +510,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         var strayEndPoint = managed.GetEndPoints().Single();
         Assert.Contains(strayEndPoint, managed.GetServerSnapshot().ToArray().Select(x => x.EndPoint));
 
-        Conn.SwitchPrimary(null, managed, Writer);
+        await Conn.SwitchPrimaryAsync(null, managed, Writer);
         await UntilConditionAsync(
             TimeSpan.FromSeconds(10),
             () => !managed.GetServerSnapshot().ToArray().Any(x => Equals(x.EndPoint, strayEndPoint)));
