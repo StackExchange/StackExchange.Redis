@@ -107,6 +107,108 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task KnownHealthyPrimaryRetiresAReplicaNoLongerAdvertisedAndStopsRecovery()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        Assert.Contains(ReplicaB, conn.GetEndPoints());
+
+        data.AddReplicaNode(NewNodeC, PrimaryA);
+        RemoveAndDisconnect(data, ReplicaB);
+        await UntilAsync(() => !conn.GetServer(ReplicaB).IsConnected, "removed replica stayed connected");
+        var owner = conn.sentinelConnection!;
+        var args = new ConnectionFailedEventArgs(null, conn, ReplicaB, ConnectionType.Interactive, ConnectionFailureType.SocketFailure, null, null);
+        owner.OnManagedConnectionFailed(conn, args);
+        await UntilAsync(() => !conn.GetEndPoints().Contains(ReplicaB) && conn.sentinelPrimaryReconnectTimer is null, "dead replica kept recovery alive");
+        Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
+        Assert.DoesNotContain(ReplicaB, conn.GetServerSnapshot().ToArray().Select(x => x.EndPoint));
+    }
+
+    [Fact]
+    public async Task HeldReplicaReportedDownIsNotRetired()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        Assert.Contains(ReplicaB, conn.GetEndPoints());
+
+        // sentinel's momentary view (it is reconnecting to the node) against our live connection: the connection wins
+        sentinel.ReplicaFlags[ReplicaB] = "s_down,disconnected";
+        var owner = conn.sentinelConnection!;
+        int changes = 0;
+        conn.ConfigurationChanged += (_, _) => Interlocked.Increment(ref changes);
+        Assert.False(await owner.SwitchPrimaryAsync(ReplicaB, conn));
+        Assert.Contains(ReplicaB, conn.GetEndPoints());
+        Assert.Contains(ReplicaB, conn.GetServerSnapshot().ToArray().Select(x => x.EndPoint));
+        Assert.True(conn.GetServer(ReplicaB).IsConnected);
+        Assert.Equal(0, Volatile.Read(ref changes));
+        Assert.Null(conn.sentinelPrimaryReconnectTimer);
+        Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
+    }
+
+    [Fact]
+    public async Task ReplicaReportedDownJoinsOnRecoveryOnceItsFlagsClear()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        var owner = conn.sentinelConnection!;
+        Assert.Equal([PrimaryA], conn.GetEndPoints());
+
+        // a replica appears, but sentinel still holds it down: not a node to connect to yet
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        sentinel.ReplicaFlags[ReplicaB] = "s_down";
+        Assert.False(await owner.SwitchPrimaryAsync(null, conn));
+        Assert.Equal([PrimaryA], conn.GetEndPoints());
+        Assert.Null(conn.sentinelPrimaryReconnectTimer);
+
+        // The flags clear; the next recovery refresh adds the replica without retiring a held node.
+        Assert.True(sentinel.ReplicaFlags.TryRemove(ReplicaB, out _));
+        Assert.True(await owner.SwitchPrimaryAsync(null, conn));
+        await UntilAsync(() => conn.GetEndPoints().Contains(ReplicaB) && conn.GetServer(ReplicaB).IsConnected, "cleared replica did not join");
+        Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
+        Assert.Contains(PrimaryA, conn.GetServerSnapshot().ToArray().Select(x => x.EndPoint));
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "recovery left a timer");
+    }
+
+    [Fact]
+    public async Task StaleSentinelNamingADownPrimaryIsPassedOver()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        FailOverToNewNode(data);
+        // the stale sentinel still names A, but holds it down; the other already knows C
+        using var stale = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log) { PrimaryFlags = "master,s_down" };
+        using var current = new InProcessSentinelServer(data, ServiceName, NewNodeC, SecondSentinelEndPoint, log);
+        var config = CreateConfig(data, stale, current);
+        config.EndPoints.Add(SecondSentinelEndPoint);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+
+        Assert.Equal([NewNodeC], ConnectedPrimaries(conn));
+        Assert.DoesNotContain(PrimaryA, conn.GetServerSnapshot().ToArray().Where(x => x.IsConnected && !x.IsReplica).Select(x => x.EndPoint));
+        Assert.True(stale.PrimaryQueries > 0, "the stale sentinel was never asked");
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "connect left a timer");
+    }
+
+    [Fact]
+    public async Task LegacySentinelWithoutSentinelMasterStillResolvesThePrimary()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log) { SupportsSentinelMaster = false };
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
+        Assert.Contains(ReplicaB, conn.GetEndPoints());
+
+        FailOverToNewNode(data);
+        sentinel.Primary = NewNodeC;
+        await AssertPrimaryBecomesAsync(conn, NewNodeC);
+    }
+
+    [Fact]
     public async Task DemotionRecoveryUsesTheManagedServiceName()
     {
         using var data = new InProcessTestServer(log, PrimaryA);
@@ -212,6 +314,86 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         Assert.True((Interlocked.Read(ref secondAt) - releasedAt) / (double)Stopwatch.Frequency >= 0.8);
         sentinel.Primary = PrimaryA;
         await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "healthy primary did not stop recovery");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task IncompleteReplicaViewDoesNotRetireConnectedNodes(bool empty)
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        data.AddReplicaNode(NewNodeC, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        var held = conn.TryResolveServerEndPoint(ReplicaB);
+        sentinel.ReplicaAddressesOverride = empty ? [] : [NewNodeC];
+        await conn.sentinelConnection!.SwitchPrimaryAsync(null, conn);
+        Assert.Contains(ReplicaB, conn.GetEndPoints());
+        Assert.Same(held, conn.TryResolveServerEndPoint(ReplicaB));
+        Assert.True(conn.GetServer(ReplicaB).IsConnected);
+        Assert.Null(conn.sentinelPrimaryReconnectTimer);
+    }
+
+    [Fact]
+    public async Task ReplicasComeFromTheSentinelWhosePrimaryWasAccepted()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        using var accepted = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        using var other = new InProcessSentinelServer(data, ServiceName, PrimaryA, SecondSentinelEndPoint, log)
+        {
+            PrimaryError = "ERR No such master with that name",
+            ReplicaAddressesOverride = [],
+        };
+        var config = CreateConfig(data, accepted, other);
+        config.EndPoints.Add(SecondSentinelEndPoint);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        Assert.Contains(ReplicaB, conn.GetEndPoints());
+        Assert.True(accepted.ReplicaQueries > 0);
+        Assert.Equal(0, other.ReplicaQueries);
+        Assert.Equal(0, other.LegacyQueries);
+    }
+
+    [Theory]
+    [InlineData("LOADING Redis is loading the dataset in memory")]
+    [InlineData("ERR No such master with that name")]
+    public async Task SentinelErrorsDoNotUseTheFlaglessFallback(string error)
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        FailOverToNewNode(data);
+        using var invalid = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log) { PrimaryError = error };
+        using var current = new InProcessSentinelServer(data, ServiceName, NewNodeC, SecondSentinelEndPoint, log);
+        var config = CreateConfig(data, invalid, current);
+        config.EndPoints.Add(SecondSentinelEndPoint);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        Assert.Equal([NewNodeC], ConnectedPrimaries(conn));
+        Assert.Equal(0, invalid.LegacyQueries);
+    }
+
+    [Fact]
+    public async Task DisconnectedHeldReplicaDoesNotKeepPrimaryRecoveryAlive()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        var held = conn.TryResolveServerEndPoint(ReplicaB);
+        sentinel.ReplicaFlags[ReplicaB] = "s_down,disconnected";
+        RemoveAndDisconnect(data, ReplicaB);
+        await UntilAsync(() => !conn.GetServer(ReplicaB).IsConnected, "replica did not disconnect");
+        var owner = conn.sentinelConnection!;
+        owner.OnManagedConnectionFailed(conn, Failure(ReplicaB, conn));
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "dead held replica kept the timer");
+        Assert.Contains(ReplicaB, conn.GetEndPoints());
+        Assert.Same(held, conn.TryResolveServerEndPoint(ReplicaB));
+        Assert.False(conn.GetServer(ReplicaB).IsConnected);
+        int queries = sentinel.PrimaryQueries;
+        await Task.Delay(2500);
+        Assert.Equal(queries, sentinel.PrimaryQueries);
+        Assert.Null(conn.sentinelPrimaryReconnectTimer);
+        await conn.GetDatabase().StringSetAsync("primary-still-works", "yes");
     }
 
     [Fact]
