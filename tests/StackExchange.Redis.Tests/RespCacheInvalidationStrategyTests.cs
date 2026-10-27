@@ -74,6 +74,15 @@ public class RespCacheInvalidationStrategyTests(ITestOutputHelper output) : Test
     }
 
     [Fact]
+    public void ZeroIsNoneButAnUnsetModeIsTheLibrarysChoice()
+    {
+        Assert.Equal(CacheTrackingMode.None, default(CacheTrackingMode));
+        Assert.Equal(CacheTrackingMode.Default, new CacheOptions().TrackingMode);
+        Assert.Equal(CacheTrackingMode.Default, CacheOptions.Default.TrackingMode);
+        Assert.True(new CacheOptions().UsesClientTracking);
+    }
+
+    [Fact]
     public void TrackingModesStillNegotiateClientTracking()
     {
         foreach (var mode in new[] { CacheTrackingMode.Default, CacheTrackingMode.Broadcast, CacheTrackingMode.Tracking, CacheTrackingMode.TrackingOptIn })

@@ -23,16 +23,44 @@ namespace StackExchange.Redis.Caching
     public enum CacheTrackingMode
     {
         /// <summary>
+        /// No server-assisted invalidation: an entry is retired by <see cref="CachePolicy.TimeToLive"/>, and by
+        /// writes made through this connection, and nothing else.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>A statement that staleness up to <see cref="CachePolicy.TimeToLive"/> is acceptable.</b> Nothing is
+        /// negotiated with the server - no <c>CLIENT TRACKING</c>, no subscription - so a write by any other client
+        /// is never heard about, and the entry it made wrong is served until it ages out. That is the whole bound,
+        /// so set the lifetime with that in mind rather than leaving it at the default because it was there.
+        /// </para>
+        /// <para>
+        /// What it buys: no server-side cost at all, and no requirement on the server or the protocol - it works
+        /// over RESP2, and against servers or proxies that do not implement <c>CLIENT TRACKING</c>. Writes made
+        /// through this multiplexer still invalidate what it holds, as they do in every mode.
+        /// </para>
+        /// <para>
+        /// <b>Zero, because it is the absence of something</b>: what a zeroed <see cref="CacheTrackingMode"/> ought to
+        /// mean. It is not what an unconfigured cache gets - <see cref="CacheOptions.TrackingMode"/> starts as
+        /// <see cref="Default"/> - so leaving the mode unset never quietly turns invalidation off.
+        /// </para>
+        /// <para>
+        /// <see cref="CacheOptions.Prefixes"/>, when given, say what may be cached: a read whose keys do not all fall
+        /// under one is sent and not stored. There is no server half to them here.
+        /// </para>
+        /// </remarks>
+        None = 0,
+
+        /// <summary>
         /// Let the library choose; today that is <see cref="Tracking"/>, or <see cref="TrackingByPrefix"/>
         /// when <see cref="CacheOptions.Prefixes"/> are given.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// <b>Zero means "no opinion", not a mode.</b> Which mode is cheaper depends on whose resource is
-        /// scarce - the remarks on this type say the library cannot know that - and wiring a real mode to
-        /// zero says the opposite: that an unset value is a considered choice. It also makes the two
-        /// indistinguishable, so the library can never tell a caller who asked for a mode from one who
-        /// never thought about it, and can never change its mind without silently overriding the first.
+        /// <b>"No opinion", not a mode</b>, and what <see cref="CacheOptions.TrackingMode"/> starts as. Which mode
+        /// is cheaper depends on whose resource is scarce - the remarks on this type say the library cannot know
+        /// that - and starting from a real mode says the opposite: that an unset value is a considered choice. It
+        /// also makes the two indistinguishable, so the library can never tell a caller who asked for a mode from
+        /// one who never thought about it, and can never change its mind without silently overriding the first.
         /// </para>
         /// <para>
         /// So the answer this resolves to may move - if server or client heuristics make one clearly
@@ -40,7 +68,7 @@ namespace StackExchange.Redis.Caching
         /// if you need it pinned.
         /// </para>
         /// </remarks>
-        Default = 0,
+        Default = 1,
 
         /// <summary>
         /// <c>BCAST</c>: the server announces every changed key matching
@@ -65,7 +93,7 @@ namespace StackExchange.Redis.Caching
         /// prefixes.
         /// </para>
         /// </remarks>
-        Broadcast = 1,
+        Broadcast = 2,
 
         /// <summary>
         /// <c>CLIENT TRACKING ON OPTOUT</c>: the server remembers which keys <i>we</i> read, and announces
@@ -96,7 +124,7 @@ namespace StackExchange.Redis.Caching
         /// why <c>NOLOOP</c> is not simply switched on (design notes 6.13).
         /// </para>
         /// </remarks>
-        Tracking = 2,
+        Tracking = 3,
 
         /// <summary>
         /// <c>CLIENT TRACKING ON OPTIN</c>: the server remembers only the keys we explicitly ask it to, and
@@ -120,7 +148,7 @@ namespace StackExchange.Redis.Caching
         /// server to opt out of.
         /// </para>
         /// </remarks>
-        TrackingOptIn = 3,
+        TrackingOptIn = 4,
 
         /// <summary>
         /// <see cref="TrackingOptIn"/> where <see cref="CacheOptions.Prefixes"/> decide for the reads that do
@@ -154,30 +182,7 @@ namespace StackExchange.Redis.Caching
         /// where broadcasting is billed by the server's write rate.
         /// </para>
         /// </remarks>
-        TrackingByPrefix = 4,
-
-        /// <summary>
-        /// No server-assisted invalidation: an entry is retired by <see cref="CachePolicy.TimeToLive"/>, and by
-        /// writes made through this connection, and nothing else.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// <b>A statement that staleness up to <see cref="CachePolicy.TimeToLive"/> is acceptable.</b> Nothing is
-        /// negotiated with the server - no <c>CLIENT TRACKING</c>, no subscription - so a write by any other client
-        /// is never heard about, and the entry it made wrong is served until it ages out. That is the whole bound,
-        /// so set the lifetime with that in mind rather than leaving it at the default because it was there.
-        /// </para>
-        /// <para>
-        /// What it buys: no server-side cost at all, and no requirement on the server or the protocol - it works
-        /// over RESP2, and against servers or proxies that do not implement <c>CLIENT TRACKING</c>. Writes made
-        /// through this multiplexer still invalidate what it holds, as they do in every mode.
-        /// </para>
-        /// <para>
-        /// <see cref="CacheOptions.Prefixes"/>, when given, say what may be cached: a read whose keys do not all fall
-        /// under one is sent and not stored. There is no server half to them here.
-        /// </para>
-        /// </remarks>
-        None = 5,
+        TrackingByPrefix = 5,
 
         /// <summary>
         /// Invalidation from keyspace notifications (<c>__keyspace@*__:</c> pub/sub) rather than

@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Caching
         /// instead: the prefixes say what to cache, and the server still hears only about that. Read <see cref="ResolvedTrackingMode"/>
         /// rather than this one when you need the mode that will actually be negotiated.
         /// </remarks>
-        public CacheTrackingMode TrackingMode { get; init; }
+        public CacheTrackingMode TrackingMode { get; init; } = CacheTrackingMode.Default;
 
         /// <summary>
         /// <see cref="TrackingMode"/> with <see cref="CacheTrackingMode.Default"/> resolved to the mode it

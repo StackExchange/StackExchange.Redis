@@ -26,7 +26,7 @@
         /// Let the library choose; today that is <see cref="OnRepeatedMiss"/>.
         /// </summary>
         /// <remarks>
-        /// Zero means "no opinion", as it does for <see cref="CacheTrackingMode.Default"/>: an unset value is not a
+        /// Zero means "no opinion", as <see cref="CacheTrackingMode.Default"/> does for the tracking mode: an unset value is not a
         /// considered choice, and keeping the two apart lets the library change what it resolves to without
         /// overriding anybody who named a mode. Name one explicitly if you depend on its behaviour.
         /// </remarks>
