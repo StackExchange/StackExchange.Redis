@@ -1,4 +1,4 @@
-# Client-side caching in v4: the design as built
+﻿# Client-side caching in v4: the design as built
 
 Status: current as of 2026-10-12 (`a22ba168`; shipped in `4.0.127-alpha`). This is the record of **why** the cache is
 the way it is - each mechanism with what was decided, what was rejected, and the evidence - gathered from the
@@ -186,6 +186,16 @@ invalidation, validating against a key that changed); the cross-index.
   The rule is that the cache is never staler than the member it answers for. Server invalidations and flushes stay
   per member. Rejected: flushing on every switch - with equal weights a group picks by latency, so the active
   member can change on any health pass, and a flush would throw away a healthy member's cache each time.
+- **In a group the cache is configured once, on `MultiGroupOptions.ClientCache` (2026-10-27), and a member's own
+  `ConfigurationOptions.ClientCache` is refused.** Members hold separate caches and the group answers from the
+  active one, so members that cached differently - or one that did not cache at all - would change what callers
+  get on every failover; inheriting one definition is how they agree, and allowing a per-member override would be
+  allowing them to disagree. Plumbed like the group's circuit breaker: alongside the configuration, never written
+  into it (a sentinel member gets a clone, since its cache is built with the connection). A sentinel connection
+  itself never builds a cache. `CacheOptions.Prefixes` is now `IReadOnlyList<RedisKey>` rather than strings -
+  keys are bytes, and a prefix that is not valid UTF-8 had no spelling - rendered to a private byte snapshot
+  once (a key's whole rendering, context prefix included), which both the matcher and the handshake's `PREFIX`
+  arguments read; nothing of the caller's list or arrays is kept, and the getter hands out copies.
 - **An inactive member is kept honest exactly as an active one is.** Group members always run
   `HeartbeatConsistencyChecks`, so each endpoint is pinged every heartbeat whether or not it is active; a half-open
   tracking connection trips the dead-socket rule (commands timing out, nothing received for 4x the timeout), and

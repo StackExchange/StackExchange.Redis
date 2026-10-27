@@ -54,7 +54,7 @@ StackExchange.Redis.Caching.CacheOptions.MaxEntries.get -> int?
 StackExchange.Redis.Caching.CacheOptions.MaxEntries.init -> void
 StackExchange.Redis.Caching.CacheOptions.MaxPayloadBytes.get -> int?
 StackExchange.Redis.Caching.CacheOptions.MaxPayloadBytes.init -> void
-StackExchange.Redis.Caching.CacheOptions.Prefixes.get -> System.Collections.Generic.IReadOnlyList<string!>!
+StackExchange.Redis.Caching.CacheOptions.Prefixes.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.RedisKey>!
 StackExchange.Redis.Caching.CacheOptions.Prefixes.init -> void
 StackExchange.Redis.Caching.CacheOptions.SweepInterval.get -> System.TimeSpan
 StackExchange.Redis.Caching.CacheOptions.SweepInterval.init -> void
@@ -815,6 +815,9 @@ StackExchange.Redis.Availability.HealthCheckProbeScope.Member = 1 -> StackExchan
 StackExchange.Redis.Availability.MultiGroupOptions.Builder.FailbackHealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
 StackExchange.Redis.Availability.MultiGroupOptions.Builder.FailbackHealthCheck.set -> void
 StackExchange.Redis.Availability.MultiGroupOptions.FailbackHealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
+StackExchange.Redis.Availability.MultiGroupOptions.ClientCache.get -> StackExchange.Redis.Caching.CacheOptions?
+StackExchange.Redis.Availability.MultiGroupOptions.Builder.ClientCache.get -> StackExchange.Redis.Caching.CacheOptions?
+StackExchange.Redis.Availability.MultiGroupOptions.Builder.ClientCache.set -> void
 virtual StackExchange.Redis.Availability.HealthCheckProbe.Scope.get -> StackExchange.Redis.Availability.HealthCheckProbeScope
 StackExchange.Redis.Availability.LagAwareOptions
 StackExchange.Redis.Availability.LagAwareOptions.CertificateValidation.get -> System.Net.Security.RemoteCertificateValidationCallback?

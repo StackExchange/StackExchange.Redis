@@ -195,7 +195,7 @@ namespace StackExchange.Redis
             SetAutodetectFeatureFlags();
         }
 
-        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null)
+        private ConnectionMultiplexer(ConfigurationOptions configuration, ServerType? serverType = null, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null, Caching.CacheOptions? groupClientCache = null)
         {
             Interlocked.Increment(ref s_MuxerCreateCount);
 
@@ -225,7 +225,12 @@ namespace StackExchange.Redis
             // honest arrive on a connection, and a connection belongs to the multiplexer. A cache per
             // database would have to be found from here anyway when a push lands, and a cache per context
             // would be handed the pushes of a connection it does not own.
-            if (RawConfig.ClientCache is { Enabled: true } cacheOptions)
+            //
+            // A group member's cache comes from the group (MultiGroupOptions.ClientCache), passed alongside the
+            // configuration rather than written into it, as the group's circuit breaker is; a member's own
+            // ConfigurationOptions.ClientCache is refused by the group. Never for a sentinel connection: it holds
+            // no data to cache, and CLIENT TRACKING is not something to negotiate with a sentinel.
+            if (!_isSentinel && (groupClientCache ?? RawConfig.ClientCache) is { Enabled: true } cacheOptions)
             {
                 ClientCache = new RespClientCache(cacheOptions, commandMap: map);
             }
@@ -238,9 +243,9 @@ namespace StackExchange.Redis
             lastHeartbeatTicks = Environment.TickCount;
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, ILogger? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, ILogger? log, ServerType? serverType, out EventHandler<ConnectionFailedEventArgs>? connectHandler, EndPointCollection? endpoints = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false, Caching.CacheOptions? groupClientCache = null)
         {
-            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints, groupCircuitBreaker) { IsGroupMember = isGroupMember };
+            var muxer = new ConnectionMultiplexer(configuration, serverType, endpoints, groupCircuitBreaker, groupClientCache) { IsGroupMember = isGroupMember };
             connectHandler = null;
             if (log is not null)
             {
@@ -633,10 +638,10 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Connect a multiplexer that is a member of a connection group, applying the group's resolved
-        /// circuit-breaker without writing it back into the caller's <see cref="ConfigurationOptions"/>
-        /// (which the caller may legitimately reuse for other connections).
+        /// circuit-breaker and client cache without writing them back into the caller's
+        /// <see cref="ConfigurationOptions"/> (which the caller may legitimately reuse for other connections).
         /// </summary>
-        internal static Task<ConnectionMultiplexer> ConnectGroupMemberAsync(ConfigurationOptions configuration, TextWriter? log, Availability.CircuitBreaker? groupCircuitBreaker)
+        internal static Task<ConnectionMultiplexer> ConnectGroupMemberAsync(ConfigurationOptions configuration, TextWriter? log, Availability.CircuitBreaker? groupCircuitBreaker, Caching.CacheOptions? groupClientCache = null)
         {
             Dependencies.Assert();
             Validate(configuration);
@@ -645,11 +650,19 @@ namespace StackExchange.Redis
             {
                 // the sentinel path builds the primary connection internally, so we cannot pass the breaker
                 // down into construction; apply it afterwards - it is picked up by subsequent physical
-                // connections, and an explicit ConfigurationOptions.CircuitBreaker still applies throughout
+                // connections, and an explicit ConfigurationOptions.CircuitBreaker still applies throughout.
+                // The cache cannot be applied afterwards (it is built with the connection), so it rides on a
+                // clone of the configuration; the sentinel connection itself never builds one (see the ctor)
+                if (groupClientCache is not null)
+                {
+                    configuration = configuration.Clone();
+                    configuration.ClientCache = groupClientCache;
+                }
+
                 return ApplyAfterConnectAsync(SentinelPrimaryConnectAsync(configuration, log), groupCircuitBreaker);
             }
 
-            return ConnectImplAsync(configuration, log, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: true);
+            return ConnectImplAsync(configuration, log, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: true, groupClientCache: groupClientCache);
 
             static async Task<ConnectionMultiplexer> ApplyAfterConnectAsync(Task<ConnectionMultiplexer> pending, Availability.CircuitBreaker? groupCircuitBreaker)
             {
@@ -660,7 +673,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false)
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false, Caching.CacheOptions? groupClientCache = null)
         {
             IDisposable? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
@@ -672,7 +685,7 @@ namespace StackExchange.Redis
                 var sw = ValueStopwatch.StartNew();
                 log?.LogInformationConnectingAsync(RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
 
-                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: isGroupMember);
+                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: isGroupMember, groupClientCache: groupClientCache);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
                 bool configured = await muxer.ReconfigureAsync(first: true, reconfigureAll: false, log, null, "connect").ObserveErrors().ForAwait();

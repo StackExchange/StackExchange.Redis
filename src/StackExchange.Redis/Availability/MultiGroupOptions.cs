@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
+using StackExchange.Redis.Caching;
 
 namespace StackExchange.Redis.Availability;
 
@@ -18,7 +19,7 @@ public sealed class MultiGroupOptions
     internal static readonly TimeSpan DefaultFailbackDelay = TimeSpan.Zero;
 
     private static readonly MultiGroupOptions DefaultInstance = new(
-        HealthCheck.Default, CircuitBreaker.Default, RetryPolicy.Default, DefaultHealthCheckInterval, DefaultFailbackDelay, null);
+        HealthCheck.Default, CircuitBreaker.Default, RetryPolicy.Default, DefaultHealthCheckInterval, DefaultFailbackDelay, null, null);
 
     /// <summary>
     /// Default shared options.
@@ -31,9 +32,11 @@ public sealed class MultiGroupOptions
         RetryPolicy retryPolicy,
         TimeSpan healthCheckInterval,
         TimeSpan failbackDelay,
-        HealthCheck? failbackHealthCheck)
+        HealthCheck? failbackHealthCheck,
+        CacheOptions? clientCache)
     {
         HealthCheck = healthCheck;
+        ClientCache = clientCache;
         CircuitBreaker = circuitBreaker;
         RetryPolicy = retryPolicy;
         HealthCheckInterval = healthCheckInterval;
@@ -83,6 +86,25 @@ public sealed class MultiGroupOptions
     public HealthCheck? FailbackHealthCheck { get; }
 
     /// <summary>
+    /// The client-side cache every member runs, or <see langword="null"/> for no cache.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Set here and nowhere else: a member whose own <see cref="ConfigurationOptions.ClientCache"/> is set is
+    /// refused when the group connects. Each member keeps a cache of its own - the invalidations that keep it
+    /// honest arrive on that member's connections - and the group serves reads from the active member's, so
+    /// members must agree on what may be cached and how, or a failover would silently change what callers get.
+    /// One definition, inherited by every member, is how that agreement is kept. See the caching documentation
+    /// for how a group's caches behave across a failover.
+    /// </para>
+    /// <para>
+    /// Requires <see cref="ConfigurationOptions.Protocol"/> to be <see cref="RedisProtocol.Resp3"/> on every
+    /// member, as a cache does on any connection.
+    /// </para>
+    /// </remarks>
+    public CacheOptions? ClientCache { get; }
+
+    /// <summary>
     /// Allows configuration of <see cref="MultiGroupOptions"/>.
     /// </summary>
     public sealed class Builder
@@ -105,6 +127,7 @@ public sealed class MultiGroupOptions
             HealthCheckInterval = options.HealthCheckInterval;
             FailbackDelay = options.FailbackDelay;
             FailbackHealthCheck = options.FailbackHealthCheck;
+            ClientCache = options.ClientCache;
         }
 
         /// <summary>
@@ -141,6 +164,9 @@ public sealed class MultiGroupOptions
         /// </summary>
         public HealthCheck? FailbackHealthCheck { get; set; }
 
+        /// <inheritdoc cref="MultiGroupOptions.ClientCache"/>
+        public CacheOptions? ClientCache { get; set; }
+
         /// <summary>
         /// Create a new options instance.
         /// </summary>
@@ -158,12 +184,13 @@ public sealed class MultiGroupOptions
                 && ReferenceEquals(RetryPolicy, RetryPolicy.Default)
                 && HealthCheckInterval == DefaultHealthCheckInterval
                 && FailbackDelay == DefaultFailbackDelay
-                && FailbackHealthCheck is null)
+                && FailbackHealthCheck is null
+                && ClientCache is null)
             {
                 return DefaultInstance;
             }
 
-            return new MultiGroupOptions(HealthCheck, CircuitBreaker, RetryPolicy, HealthCheckInterval, FailbackDelay, FailbackHealthCheck);
+            return new MultiGroupOptions(HealthCheck, CircuitBreaker, RetryPolicy, HealthCheckInterval, FailbackDelay, FailbackHealthCheck, ClientCache);
         }
 
         /// <summary>
