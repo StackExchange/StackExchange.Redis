@@ -67,6 +67,17 @@ namespace StackExchange.Redis.Caching
             var explicitMode => explicitMode,
         };
 
+        /// <summary>
+        /// Whether a <c>notify-keyspace-events</c> value raises keyspace events that can invalidate anything.
+        /// </summary>
+        /// <remarks>
+        /// <c>K</c> selects the keyspace channel, and on its own raises nothing: it needs at least one event class
+        /// with it. <c>A</c> is the alias for the classes that change a key. Not counted: <c>n</c> (a new key, which
+        /// has nothing cached) and <c>m</c> (a key miss, which is a read).
+        /// </remarks>
+        internal static bool KeyspaceEventsInvalidate(string events)
+            => events.IndexOf('K') >= 0 && events.IndexOfAny(['A', 'g', '$', 'l', 's', 'h', 'z', 'x', 'e', 't', 'd']) >= 0;
+
         /// <summary>Whether the resolved mode is negotiated with <c>CLIENT TRACKING</c> at the handshake.</summary>
         /// <remarks>
         /// False for <see cref="CacheTrackingMode.None"/>, which negotiates nothing, and for

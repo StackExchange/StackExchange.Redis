@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 using StackExchange.Redis.Caching;
+using StackExchange.Redis.Server;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -197,6 +199,122 @@ public class RespCacheInvalidationStrategyTests(ITestOutputHelper output) : Test
         Assert.Equal(1, cache.RefusedNotTracked);
     }
 
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("K", false)] // the channel, but no events on it
+    [InlineData("Kn", false)] // new keys have nothing cached
+    [InlineData("Km", false)] // misses are reads
+    [InlineData("AE", false)] // keyevent only
+    [InlineData("KA", true)]
+    [InlineData("AKE", true)]
+    [InlineData("K$", true)]
+    [InlineData("Kgx", true)]
+    public void KeyspaceEventsThatCanInvalidate(string events, bool expected)
+        => Assert.Equal(expected, CacheOptions.KeyspaceEventsInvalidate(events));
+
+    /// <summary>A disabled <c>CLIENT</c> is known before connecting: Default starts out on keyspace notifications.</summary>
+    [Fact]
+    public void DefaultFallsBackAtOnceWhenClientIsDisabled()
+    {
+        var map = CommandMap.Create(["CLIENT"], available: false);
+        using var fallen = new RespClientCache(new CacheOptions(), commandMap: map);
+        Assert.Equal(CacheTrackingMode.KeyspaceNotifications, fallen.EffectiveTrackingMode);
+        Assert.False(fallen.UsesClientTracking);
+
+        // a named mode is a requirement, and is not quietly changed
+        Assert.Throws<RedisCommandException>(() => new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.Tracking }, commandMap: map));
+    }
+
+    /// <summary>
+    /// The switch is whole: the <c>CLIENT CACHING</c> frames stop at once - a server that is not tracking rejects
+    /// them - and the prefixes become the hard boundary they are under keyspace notifications.
+    /// </summary>
+    [Fact]
+    public void FallingBackStopsTheClientCachingFramesAndHappensOnce()
+    {
+        using var optOut = new RespClientCache(new CacheOptions());
+        Assert.Equal(CacheTrackingMode.Tracking, optOut.EffectiveTrackingMode);
+        Assert.NotNull(optOut.OptOutPrefix(CommandFlags.CacheOptOut | CommandFlags.CommandRetryReadOnly));
+
+        Assert.True(optOut.TryFallBackToKeyspaceNotifications());
+        Assert.False(optOut.TryFallBackToKeyspaceNotifications());
+        Assert.Equal(CacheTrackingMode.KeyspaceNotifications, optOut.EffectiveTrackingMode);
+        Assert.Equal(CacheTrackingMode.KeyspaceNotifications, optOut.View.EffectiveTrackingMode);
+        Assert.Null(optOut.OptOutPrefix(CommandFlags.CacheOptOut | CommandFlags.CommandRetryReadOnly));
+
+        using var byPrefix = new RespClientCache(new CacheOptions { Prefixes = ["app:"] });
+        Assert.Equal(CacheTrackingMode.TrackingByPrefix, byPrefix.EffectiveTrackingMode);
+        Assert.NotNull(byPrefix.FillPrefix);
+        Assert.True(byPrefix.TryFallBackToKeyspaceNotifications());
+        Assert.Null(byPrefix.FillPrefix);
+
+        // only Default may fall back
+        using var named = new RespClientCache(new CacheOptions { TrackingMode = CacheTrackingMode.Tracking });
+        Assert.False(named.TryFallBackToKeyspaceNotifications());
+        Assert.Equal(CacheTrackingMode.Tracking, named.EffectiveTrackingMode);
+    }
+
+    /// <summary>
+    /// Default over RESP2 used to refuse to connect; it now connects on keyspace notifications, and they work.
+    /// </summary>
+    [Fact]
+    public async Task DefaultOverResp2FallsBackToKeyspaceNotifications()
+    {
+        var me = Me() + ":";
+        using var muxer = await ConnectAsync(TestConfig.Current.PrimaryServerAndPort, new CacheOptions { Admission = CacheAdmission.OnFirstMiss, Prefixes = [me] });
+        Assert.Equal(CacheTrackingMode.KeyspaceNotifications, muxer.GetClientCache()?.EffectiveTrackingMode);
+        await AssertInvalidatedAsync(muxer, TestConfig.Current.PrimaryServerAndPort, me, keyCount: 1);
+    }
+
+    /// <summary>...whereas a named tracking mode over RESP2 still refuses, as it always has.</summary>
+    [Fact]
+    public async Task ANamedTrackingModeOverResp2StillRefuses()
+    {
+        var options = ConfigurationOptions.Parse(TestConfig.Current.PrimaryServerAndPort);
+        options.Protocol = RedisProtocol.Resp2;
+        options.AbortOnConnectFail = true;
+        options.ClientCache = new CacheOptions { TrackingMode = CacheTrackingMode.Tracking };
+        await Assert.ThrowsAnyAsync<RedisConnectionException>(() => ConnectionMultiplexer.ConnectAsync(options, Writer));
+    }
+
+    /// <summary>
+    /// A server that refuses <c>CLIENT TRACKING</c> - an old server, a proxy, an ACL - makes Default fall back, and a
+    /// named mode fail. The fallback is logged, and so - when <c>CONFIG GET</c> can say - are notifications that are
+    /// off; a diagnostic, never a refusal.
+    /// </summary>
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("K", true)]
+    [InlineData("KA", false)]
+    [InlineData(null, false)] // the server does not say: nothing to warn about
+    public async Task AServerThatRefusesTrackingMakesDefaultFallBack(string? events, bool warnsEventsOff)
+    {
+        using var server = new NoTrackingServer(Output, events);
+        var config = server.GetClientConfig();
+        config.Protocol = RedisProtocol.Resp3;
+        config.ClientCache = new CacheOptions();
+        var logger = new CapturingLogger();
+        config.LoggerFactory = logger;
+        using (var muxer = await ConnectionMultiplexer.ConnectAsync(config, Writer))
+        {
+            var cache = muxer.GetClientCache();
+            Assert.NotNull(cache);
+            Assert.Equal(CacheTrackingMode.KeyspaceNotifications, cache.EffectiveTrackingMode);
+            Assert.True(muxer.IsConnected);
+            await muxer.GetDatabase().PingAsync();
+        }
+
+        Output.WriteLine(logger.All);
+        Assert.Single(logger.Matching("has switched to keyspace notifications"));
+        Assert.Equal(warnsEventsOff, logger.Matching("notify-keyspace-events is").Any());
+
+        config = server.GetClientConfig();
+        config.Protocol = RedisProtocol.Resp3;
+        config.AbortOnConnectFail = true;
+        config.ClientCache = new CacheOptions { TrackingMode = CacheTrackingMode.Tracking };
+        await Assert.ThrowsAnyAsync<Exception>(() => ConnectionMultiplexer.ConnectAsync(config, Writer));
+    }
+
     private async Task AssertInvalidatedAsync(ConnectionMultiplexer muxer, string configuration, string prefix, int keyCount)
     {
         var cache = muxer.ClientCache;
@@ -226,5 +344,21 @@ public class RespCacheInvalidationStrategyTests(ITestOutputHelper output) : Test
                 await WaitFor(async () => (string?)await db.Strings.GetAsync(key) == "v2"),
                 $"the keyspace notification for '{key}' never invalidated it");
         }
+    }
+
+    /// <summary>The toy server, answering <c>CLIENT TRACKING</c> as a server without it would.</summary>
+    private sealed class NoTrackingServer : InProcessTestServer
+    {
+        public NoTrackingServer(ITestOutputHelper log, string? keyspaceEvents = null) : base(log)
+        {
+            // a struct over the server's dictionary: the copy writes through
+            var configuration = ServerConfiguration;
+            if (keyspaceEvents is not null) configuration["notify-keyspace-events"] = keyspaceEvents;
+        }
+
+        public override TypedRedisValue Execute(RedisClient client, in RedisRequest request)
+            => request.Count >= 2 && request.IsString(0, "CLIENT"u8) && request.IsString(1, "TRACKING"u8)
+                ? TypedRedisValue.Error("ERR unknown subcommand 'TRACKING'")
+                : base.Execute(client, in request);
     }
 }

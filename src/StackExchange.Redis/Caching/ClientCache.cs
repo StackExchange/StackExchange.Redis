@@ -39,6 +39,15 @@ public sealed class ClientCache
     /// <summary>The options this cache was created with.</summary>
     public CacheOptions Options => _cache.Options;
 
+    /// <summary>The invalidation strategy actually in force.</summary>
+    /// <remarks>
+    /// <see cref="CacheOptions.TrackingMode"/> as resolved, unless it was <see cref="CacheTrackingMode.Default"/> and
+    /// server-assisted tracking turned out to be unavailable - no RESP3, <c>CLIENT</c> disabled, or the server
+    /// refusing <c>CLIENT TRACKING</c> - in which case it is <see cref="CacheTrackingMode.KeyspaceNotifications"/>.
+    /// It can change once, at any handshake, and never changes back.
+    /// </remarks>
+    public CacheTrackingMode EffectiveTrackingMode => _cache.EffectiveTrackingMode;
+
     /// <summary>Entries currently held, including ones invalidated or expired but not yet swept.</summary>
     public int Count => _cache.Count;
 

@@ -237,19 +237,21 @@ public class RespInProcTrackingTests(ITestOutputHelper log)
     }
 
     /// <summary>
-    /// Without RESP3 the connection fails rather than quietly caching without invalidation.
+    /// Without RESP3 a named tracking mode fails the connection rather than quietly caching without invalidation.
     /// </summary>
     /// <remarks>
     /// The one case where taking the connection down is the kinder outcome: a cache that fills and is never
-    /// invalidated is silently and durably wrong, bounded only by the entry lifetime.
+    /// invalidated is silently and durably wrong, bounded only by the entry lifetime. A mode left at
+    /// <see cref="CacheTrackingMode.Default"/> falls back to keyspace notifications instead - see
+    /// <c>RespCacheInvalidationStrategyTests.DefaultOverResp2FallsBackToKeyspaceNotifications</c>.
     /// </remarks>
     [Fact]
-    public async Task Resp2WithACacheRefusesLoudly()
+    public async Task Resp2WithANamedTrackingModeRefusesLoudly()
     {
         using var server = new InProcessTestServer(log);
         var config = server.GetClientConfig();
         config.Protocol = RedisProtocol.Resp2;
-        config.ClientCache = new CacheOptions { Admission = CacheAdmission.OnFirstMiss };
+        config.ClientCache = new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.Tracking };
         config.AbortOnConnectFail = true;
 
         var connectLog = new StringWriter();

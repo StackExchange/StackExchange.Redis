@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Caching;
 
@@ -6,11 +7,18 @@ namespace StackExchange.Redis;
 
 public partial class ConnectionMultiplexer
 {
+    private int _cacheSubscribed;
+
     /// <summary>
-    /// Under <see cref="CacheTrackingMode.KeyspaceNotifications"/>, subscribe the client-side cache to the keyspace
-    /// channels that invalidate it; nothing to do in any other mode.
+    /// When the client-side cache's mode in force is <see cref="CacheTrackingMode.KeyspaceNotifications"/>, subscribe it
+    /// to the keyspace channels that invalidate it; nothing to do otherwise, or if that has already been done.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Called after connecting, for a cache configured that way, and by the handshake that makes
+    /// <see cref="CacheTrackingMode.Default"/> fall back to it - which can happen at any later reconnect, so this is
+    /// not only a connect-time step. Once only: a second handler would invalidate every key twice.
+    /// </para>
     /// <para>
     /// One pattern per prefix (<c>__keyspace@*__:{prefix}*</c>), or a single wildcard without prefixes. Every
     /// database, because the cache keys its entries by database but invalidates by key alone - as a tracking push
@@ -29,7 +37,8 @@ public partial class ConnectionMultiplexer
     /// </remarks>
     internal async Task SubscribeCacheInvalidationAsync()
     {
-        if (ClientCache is not { Options.ResolvedTrackingMode: CacheTrackingMode.KeyspaceNotifications } cache) return;
+        if (ClientCache is not { EffectiveTrackingMode: CacheTrackingMode.KeyspaceNotifications } cache) return;
+        if (Interlocked.Exchange(ref _cacheSubscribed, 1) != 0) return;
 
         // the channel is __keyspace@{db}__:{key}, and the key is what the cache matches on, as the bytes it was sent as
         Action<RedisChannel, RedisValue> handler = (channel, _) => cache.OnInvalidate(RedisChannel.StripKeySpacePrefix(channel.Span));

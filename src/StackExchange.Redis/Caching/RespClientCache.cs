@@ -107,15 +107,12 @@ namespace StackExchange.Redis.Caching
             Options.Validate(); // settings that constrain one another; see CacheOptions.Validate
             _keys = new RespKeyTable(keyCapacity);
 
-            // the two CLIENT CACHING frames, rendered once through the command map (CLIENT can be renamed like
-            // anything else, and the handshake's CLIENT TRACKING honours the same map) and shared by every
-            // request that needs one: a prefix is a fixed buffer, never pooled, so sharing is free
+            // a disabled CLIENT is known before anything connects: under Default that is the first reason to fall
+            // back, and the only one that does not need a handshake to discover
+            var map = commandMap ?? CommandMap.Default;
             var mode = Options.ResolvedTrackingMode;
-            _optIn = mode == CacheTrackingMode.TrackingOptIn;
-            _byPrefix = mode == CacheTrackingMode.TrackingByPrefix;
-            _optOut = mode == CacheTrackingMode.Tracking;
-            if (_optIn || _byPrefix) _cachingYes = RenderClientCaching(commandMap ?? CommandMap.Default, "YES"u8); // both negotiate OPTIN
-            if (_optOut) _cachingNo = RenderClientCaching(commandMap ?? CommandMap.Default, "NO"u8);
+            if (CanFallBack && !map.IsAvailable(RedisCommand.CLIENT)) mode = CacheTrackingMode.KeyspaceNotifications;
+            _mode = new ModeState(mode, map);
             _slabSize = ChooseSlabSize(Options.MaxBytes);
             if (Options.ResolvedAdmission == CacheAdmission.OnRepeatedMiss)
             {
@@ -134,10 +131,92 @@ namespace StackExchange.Redis.Caching
         /// <summary>This cache as callers see it; one instance, created with the cache. See <see cref="ClientCache"/>.</summary>
         internal ClientCache View { get; }
 
-        // _optIn: TrackingOptIn, where only a CacheOptIn read may be kept. _byPrefix: TrackingByPrefix, the same
-        // wire mode with Prefixes deciding for unflagged reads. _optOut: Tracking, where CacheOptOut has a wire half.
-        private readonly bool _optIn, _byPrefix, _optOut;
-        private readonly byte[]? _cachingYes, _cachingNo;
+        /// <summary>The mode actually in force, and what follows from it; replaced whole, never changed in place.</summary>
+        private ModeState _mode;
+
+        /// <summary>
+        /// The invalidation strategy actually in force: <see cref="CacheOptions.ResolvedTrackingMode"/>, unless
+        /// <see cref="CacheTrackingMode.Default"/> fell back to <see cref="CacheTrackingMode.KeyspaceNotifications"/>.
+        /// </summary>
+        public CacheTrackingMode EffectiveTrackingMode => Mode.Mode;
+
+        /// <summary>Whether the mode in force is negotiated with <c>CLIENT TRACKING</c> at the handshake.</summary>
+        internal bool UsesClientTracking => Mode.UsesClientTracking;
+
+        private ModeState Mode => Volatile.Read(ref _mode);
+
+        /// <summary>
+        /// Whether a failure of server-assisted tracking may be answered by falling back, rather than by failing
+        /// the connection: only when the mode was left to the library.
+        /// </summary>
+        /// <remarks>
+        /// A mode named explicitly is a requirement, and a connection that cannot meet it refuses loudly; see
+        /// <c>RespHandshake.EnableClientTrackingAsync</c>. <see cref="CacheTrackingMode.Default"/> is "the library's
+        /// choice", and the library can choose again.
+        /// </remarks>
+        internal bool CanFallBack => Options.TrackingMode == CacheTrackingMode.Default;
+
+        /// <summary>
+        /// Abandon <c>CLIENT TRACKING</c> for <see cref="CacheTrackingMode.KeyspaceNotifications"/>, once and for good.
+        /// </summary>
+        /// <returns><see langword="true"/> for the one call that made the switch; it owns subscribing and logging.</returns>
+        /// <remarks>
+        /// <para>
+        /// <b>Flushes</b>, because what was filled until now relied on tracking, and nothing will announce those keys
+        /// until the subscription is live. Entries filled from here on are covered by the subscription, or failing
+        /// that by <see cref="CachePolicy.TimeToLive"/>, which is what the mode promises either way.
+        /// </para>
+        /// <para>
+        /// <b>Never switches back.</b> Connections that did negotiate tracking keep sending pushes, which only
+        /// invalidate more than needed; what must stop at once is the <c>CLIENT CACHING</c> frames, which a server
+        /// that is not tracking rejects - and those are read from the state replaced here.
+        /// </para>
+        /// </remarks>
+        internal bool TryFallBackToKeyspaceNotifications()
+        {
+            if (!CanFallBack) return false;
+            var current = Mode;
+            if (!current.UsesClientTracking) return false;
+            var next = new ModeState(CacheTrackingMode.KeyspaceNotifications, CommandMap.Default);
+            if (!ReferenceEquals(Interlocked.CompareExchange(ref _mode, next, current), current)) return false;
+            OnFlush();
+            return true;
+        }
+
+        /// <summary>Everything that follows from the mode in force, so that it changes as one.</summary>
+        private sealed class ModeState
+        {
+            internal ModeState(CacheTrackingMode mode, CommandMap map)
+            {
+                Mode = mode;
+                OptIn = mode == CacheTrackingMode.TrackingOptIn;
+                ByPrefix = mode == CacheTrackingMode.TrackingByPrefix;
+                OptOut = mode == CacheTrackingMode.Tracking;
+                UsesClientTracking = mode is not (CacheTrackingMode.None or CacheTrackingMode.KeyspaceNotifications);
+
+                // the two CLIENT CACHING frames, rendered once through the command map (CLIENT can be renamed like
+                // anything else, and the handshake's CLIENT TRACKING honours the same map) and shared by every
+                // request that needs one: a prefix is a fixed buffer, never pooled, so sharing is free
+                if (OptIn || ByPrefix) CachingYes = RenderClientCaching(map, "YES"u8); // both negotiate OPTIN
+                if (OptOut) CachingNo = RenderClientCaching(map, "NO"u8);
+            }
+
+            internal CacheTrackingMode Mode { get; }
+
+            // OptIn: TrackingOptIn, where only a CacheOptIn read may be kept. ByPrefix: TrackingByPrefix, the same
+            // wire mode with Prefixes deciding for unflagged reads. OptOut: Tracking, where CacheOptOut has a wire half.
+            internal bool OptIn { get; }
+
+            internal bool ByPrefix { get; }
+
+            internal bool OptOut { get; }
+
+            internal bool UsesClientTracking { get; }
+
+            internal byte[]? CachingYes { get; }
+
+            internal byte[]? CachingNo { get; }
+        }
 
         /// <summary><c>CLIENT CACHING {verb}</c> as one RESP frame, with the command spelled as the map says.</summary>
         private static byte[] RenderClientCaching(CommandMap map, ReadOnlySpan<byte> verb)
@@ -174,7 +253,7 @@ namespace StackExchange.Redis.Caching
         /// prefixes - so "about to store" and "needs the prefix" coincide. Elsewhere the server already tracks
         /// (or broadcasts) everything, and nothing is said.
         /// </remarks>
-        internal byte[]? FillPrefix => _cachingYes;
+        internal byte[]? FillPrefix => Mode.CachingYes;
 
         /// <summary>
         /// The frame to write ahead of a request this cache will <b>not</b> store, or null.
@@ -189,7 +268,7 @@ namespace StackExchange.Redis.Caching
         /// for why that one stays local).
         /// </remarks>
         internal byte[]? OptOutPrefix(CommandFlags flags)
-            => _optOut && (flags & CommandFlags.CacheOptOut) != 0 && IsReadOnly(flags) ? _cachingNo : null;
+            => Mode is { OptOut: true } mode && (flags & CommandFlags.CacheOptOut) != 0 && IsReadOnly(flags) ? mode.CachingNo : null;
 
         /// <summary>
         /// The frame to write ahead of a transaction's <c>MULTI</c>, or null.
@@ -204,10 +283,11 @@ namespace StackExchange.Redis.Caching
         /// </remarks>
         internal byte[]? TransactionPrefix(List<QueuedOperation> operations)
         {
-            if (!_optOut) return null;
+            var mode = Mode;
+            if (!mode.OptOut) return null;
             foreach (var queued in operations)
             {
-                if (IsReadOnly(queued.Operation.Flags)) return _cachingNo;
+                if (IsReadOnly(queued.Operation.Flags)) return mode.CachingNo;
             }
 
             return null;
@@ -856,7 +936,8 @@ namespace StackExchange.Redis.Caching
             // ...except under TrackingByPrefix with CacheOptIn said outright: there the list is the policy for
             // reads that did not state one, the flag is a statement, and the server can track any key we
             // send behind YES. Under Broadcast the list went to the server, and nothing can cross it.
-            if (Options.HasPrefixes && !(_byPrefix && (flags & CommandFlags.CacheOptIn) != 0))
+            var byPrefix = Mode.ByPrefix;
+            if (Options.HasPrefixes && !(byPrefix && (flags & CommandFlags.CacheOptIn) != 0))
             {
                 for (var i = 0; i < count; i++)
                 {
@@ -877,7 +958,7 @@ namespace StackExchange.Redis.Caching
             // opt-in, and a YES that tracks a key we then decline to store would be the worst of both.
             if (_doorkeeper is not null
                 && (flags & CommandFlags.CacheOptIn) == 0
-                && !_byPrefix
+                && !byPrefix
                 && !_doorkeeper.SeenBefore((frame.AsLookupKey().GetHashCode() * 397) ^ database))
             {
                 Interlocked.Increment(ref _refusedNotAdmitted);
@@ -1474,7 +1555,7 @@ namespace StackExchange.Redis.Caching
         /// it cannot work for exactly that reason.
         /// </para>
         /// </remarks>
-        internal bool IsCacheable(CommandFlags flags) => IsCacheable(flags, _optIn);
+        internal bool IsCacheable(CommandFlags flags) => IsCacheable(flags, Mode.OptIn);
 
         /// <summary>Whether <paramref name="flags"/> permit a reply to be served from or stored in a cache.</summary>
         /// <param name="flags">The command's flags, with its retry category applied.</param>

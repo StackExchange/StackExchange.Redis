@@ -32,7 +32,7 @@ With `Prefixes` set, the prefixes decide what is cached: a read inside them is c
 
 Requirements:
 
-- **RESP3.** Invalidations arrive as out-of-band pushes, which only RESP3 can deliver on the same connection. With a cache configured and RESP2, connecting **fails** with a message saying so, rather than quietly running without invalidation. See [Using RESP3](Resp3). The two modes that do not use `CLIENT TRACKING` - `KeyspaceNotifications` and `None`, below - do not need RESP3.
+- **RESP3.** Invalidations arrive as out-of-band pushes, which only RESP3 can deliver on the same connection. With a tracking mode **named** and RESP2, connecting **fails** with a message saying so, rather than quietly running without invalidation. See [Using RESP3](Resp3). With the mode left unset, the cache instead falls back to keyspace notifications - see "Falling back", below. The two modes that do not use `CLIENT TRACKING` - `KeyspaceNotifications` and `None` - do not need RESP3.
 - **A server that supports `CLIENT TRACKING`** (Redis 6.0 or later, or a compatible server). If the server refuses it - including a managed service that disables the command - the connection fails, for the same reason: a cache that is never invalidated is worse than no cache.
 
 The cache is configured in code only - it is not part of the connection string, because its settings are correctness choices that deserve to be read before they are set.
@@ -200,6 +200,18 @@ Under `MaxBytes`, replies are stored in large slabs in the order they arrive and
 - **`None`**: no server-assisted invalidation. Entries are retired by `TimeToLive` and by writes made through this multiplexer, and nothing else: a write by another client is served stale until the entry ages out, so choose the lifetime as the staleness you are prepared to accept. Nothing is negotiated, so it works over RESP2 and against any server. `Prefixes`, if set, only bound what is cached.
 
 `CacheTrackingMode.Default` (the value you get by not setting it) means "the library's choice", resolved as above today; name a mode explicitly if you depend on it.
+
+#### Falling back
+
+Under `Default` only, when server-assisted tracking turns out to be unavailable, the cache switches to `KeyspaceNotifications` instead of failing the connection. That happens when:
+
+- the connection is not RESP3;
+- `CLIENT` is disabled in the `CommandMap` (known before connecting);
+- the server answers `CLIENT TRACKING` with any error - an older server, a proxy, an ACL.
+
+The switch is for the whole cache, happens at most once, and never reverts. It flushes the cache, starts the keyspace subscription, and logs a warning. If `CONFIG GET notify-keyspace-events` is permitted and shows that notifications are off, a second warning says so: the cache then behaves as `None`, retired by `TimeToLive` alone. That is a diagnostic, not a failure. `ClientCache.EffectiveTrackingMode` (from `GetClientCache()`) reports the mode actually in force. A mode named explicitly never falls back: it fails the connection as before.
+
+Keyspace notifications match prefixes as patterns, so a prefix containing `*`, `?` or `[` cannot be subscribed to; after a fallback such a cache logs the failed subscription and is retired by `TimeToLive` alone.
 
 What the two flags do, by mode:
 

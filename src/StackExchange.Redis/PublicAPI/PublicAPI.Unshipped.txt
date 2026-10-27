@@ -81,6 +81,7 @@ StackExchange.Redis.Caching.ClientCache
 StackExchange.Redis.Caching.ClientCache.Bytes.get -> long
 StackExchange.Redis.Caching.ClientCache.Count.get -> int
 StackExchange.Redis.Caching.ClientCache.Evicted.get -> long
+StackExchange.Redis.Caching.ClientCache.EffectiveTrackingMode.get -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.ClientCache.Expired.get -> long
 StackExchange.Redis.Caching.ClientCache.Invalidate(StackExchange.Redis.RedisKey key) -> bool
 StackExchange.Redis.Caching.ClientCache.Invalidate(System.ReadOnlySpan<byte> key) -> bool

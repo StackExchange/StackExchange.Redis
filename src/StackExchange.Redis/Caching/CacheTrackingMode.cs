@@ -67,6 +67,13 @@ namespace StackExchange.Redis.Caching
         /// better, or if it starts depending on more of what else is configured. Name the mode explicitly
         /// if you need it pinned.
         /// </para>
+        /// <para>
+        /// <b>It also falls back.</b> When server-assisted tracking is unavailable - the connection is not RESP3,
+        /// <c>CLIENT</c> is disabled in the command map, or the server refuses <c>CLIENT TRACKING</c> - the cache
+        /// switches to <see cref="KeyspaceNotifications"/> rather than failing the connection, and logs that it has.
+        /// A mode named explicitly is a requirement, and fails instead. <see cref="ClientCache.EffectiveTrackingMode"/>
+        /// reports the mode actually in force.
+        /// </para>
         /// </remarks>
         Default = 1,
 
