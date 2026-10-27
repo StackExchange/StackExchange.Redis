@@ -86,10 +86,22 @@ Because the policies are immutable, there is no question of whether a change "ta
 | `FailbackHealthCheck` | `MultiGroupOptions.FailbackHealthCheck` | `ConnectionGroupMember.FailbackHealthCheck` |
 | `Weight` | *(none)* | `ConnectionGroupMember.Weight` |
 | `SkipInitialHealthCheck` | *(none)* | `ConnectionGroupMember.SkipInitialHealthCheck` |
+| `ClientCache` | `MultiGroupOptions.ClientCache` | *(none; a member's `ConfigurationOptions.ClientCache` must be left unset, or the group refuses it)* |
 
 Resolution is always "member override, else group default". Resolving a group default never writes back into your `ConfigurationOptions` - you can safely reuse one `ConfigurationOptions` for a group member and for an unrelated `Connect` without the group's policies leaking across.
 
 `ConfigurationOptions` carries only the two availability settings that are meaningful for a **single** connection - `CircuitBreaker` and `RetryPolicy`. `HealthCheck` is a group-only concept and lives on `ConnectionGroupMember`.
+
+[Client-side caching](ClientSideCaching) is the one setting that goes the other way: on a group it is set **only** at the group level, and every member inherits it. Each member keeps a cache of its own (the invalidations that keep it honest arrive on that member's connections), and the group serves reads from whichever member is active, so members must cache alike or a failover would change what callers get. A member whose own `ConfigurationOptions.ClientCache` is set is refused. Every member needs `Protocol = RedisProtocol.Resp3`, as any cached connection does.
+
+```csharp
+MultiGroupOptions options = new MultiGroupOptions.Builder
+{
+    ClientCache = new CacheOptions { Prefixes = ["app:"], MaxBytes = 64 * 1024 * 1024 },
+};
+```
+
+See [Connection groups](ClientSideCaching#connection-groups) in the caching documentation for what happens to the caches across a failover.
 The library automatically selects the best available endpoint based on:
 
 1. **Availability** - Connected endpoints are always preferred over disconnected ones

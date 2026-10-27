@@ -550,7 +550,7 @@ namespace StackExchange.Redis
 
                     // note the resolved circuit-breaker is passed *alongside* the configuration rather than
                     // written into it; see ConnectionMultiplexer.GroupCircuitBreaker
-                    pending[i] = ConnectionMultiplexer.ConnectGroupMemberAsync(config, log, members[i].ResolveCircuitBreaker(options));
+                    pending[i] = ConnectionMultiplexer.ConnectGroupMemberAsync(config, log, members[i].ResolveCircuitBreaker(options), options.ClientCache);
                 }
 
                 for (int i = 0; i < pending.Length; i++)
@@ -593,6 +593,8 @@ namespace StackExchange.Redis
             /// </remarks>
             private static void ValidateConsistentConfiguration(ConnectionGroupMember[] members)
             {
+                for (var i = 0; i < members.Length; i++) DemandNoMemberCache(members[i], i);
+
                 if (members.Length < 2) return;
 
                 var first = members[0].Configuration;
@@ -619,6 +621,27 @@ namespace StackExchange.Redis
                 }
 
                 static string Describe(int? database) => database is { } value ? value.ToString() : "unset";
+            }
+
+            /// <summary>
+            /// A member's cache comes from the group, never from the member: refuse a member that brings its own.
+            /// </summary>
+            /// <remarks>
+            /// Each member holds a cache of its own, and the group answers reads from the active member's, so a
+            /// member that cached differently from the others - or not at all - would change what callers get on
+            /// every failover. Inheriting one <see cref="MultiGroupOptions.ClientCache"/> is how members agree;
+            /// allowing a per-member override would be allowing them to disagree.
+            /// </remarks>
+            private static void DemandNoMemberCache(ConnectionGroupMember member, int index)
+            {
+                if (member.Configuration.ClientCache is not null)
+                {
+                    throw new ArgumentException(
+                        $"ConfigurationOptions.ClientCache must not be set on a connection group member (member {index}, "
+                        + $"'{member.Name}'); set MultiGroupOptions.ClientCache instead, which every member inherits. "
+                        + "The group serves reads from whichever member is active, so members must cache alike.",
+                        nameof(member));
+                }
             }
 
             private readonly MultiGroupOptions _options;
@@ -1550,11 +1573,12 @@ namespace StackExchange.Redis
             public async Task AddAsync(ConnectionGroupMember member, TextWriter? log = null)
             {
                 // connect
+                DemandNoMemberCache(member, _members.Length);
                 member.Init(_members.Length);
                 member.Configuration.AbortOnConnectFail = false; // members are gated by health-checks, not connect-fail
                 member.Configuration.HeartbeatConsistencyChecks = true;
                 var muxer = await ConnectionMultiplexer.ConnectGroupMemberAsync(
-                    member.Configuration, log, member.ResolveCircuitBreaker(_options)).ConfigureAwait(false);
+                    member.Configuration, log, member.ResolveCircuitBreaker(_options), _options.ClientCache).ConfigureAwait(false);
                 member.SetMultiplexer(muxer);
 
                 // unless told otherwise, run an initial health-check so a healthy member can be selected immediately;

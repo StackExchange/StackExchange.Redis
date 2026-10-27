@@ -63,7 +63,10 @@ namespace StackExchange.Redis
         /// write from this process does, and its counters are the member currently answering reads.
         /// </para>
         /// <para>
-        /// The same instance every time, for the life of the connection; there is nothing to dispose.
+        /// On a plain connection, the same instance every time, for the life of the connection. On a group it is
+        /// the active member's cache <i>at the time of the call</i>: a view held across a failover still names
+        /// the member that was active when it was obtained - its invalidations still reach every member, but its
+        /// counters describe that member, not the one now answering reads. There is nothing to dispose.
         /// </para>
         /// </remarks>
         public static ClientCache? GetClientCache(this IConnectionMultiplexer multiplexer)

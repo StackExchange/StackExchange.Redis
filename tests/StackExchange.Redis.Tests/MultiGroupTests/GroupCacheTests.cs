@@ -35,9 +35,14 @@ public class GroupCacheTests(ITestOutputHelper log)
     {
         var config = server.GetClientConfig();
         config.Protocol = RedisProtocol.Resp3;
-        config.ClientCache = new CacheOptions { Admission = CacheAdmission.OnFirstMiss };
         return config;
     }
+
+    // the cache is a group-level setting (MultiGroupOptions.ClientCache), inherited by every member
+    private static MultiGroupOptions.Builder Options() => new()
+    {
+        ClientCache = new CacheOptions { Admission = CacheAdmission.OnFirstMiss },
+    };
 
     public enum WritePath
     {
@@ -54,7 +59,8 @@ public class GroupCacheTests(ITestOutputHelper log)
         using var serverB = new InProcessTestServer(log);
 
         ConnectionGroupMember a = new(Config(serverA), "a") { Weight = 9 }, b = new(Config(serverB), "b") { Weight = 2 };
-        MultiGroupOptions options = new MultiGroupOptions.Builder { HealthCheck = new HealthCheck.Builder { Probe = HealthCheckProbe.Ping } };
+        var options = Options();
+        options.HealthCheck = new HealthCheck.Builder { Probe = HealthCheckProbe.Ping };
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync([a, b], options);
         await GroupWait.AssertConnectedAsync(conn);
         await WaitForAsync(() => Task.FromResult(a.IsConnected && b.IsConnected), "both members connected");
@@ -105,7 +111,7 @@ public class GroupCacheTests(ITestOutputHelper log)
         using var serverB = new InProcessTestServer(log);
 
         ConnectionGroupMember a = new(Config(serverA), "a") { Weight = 9 }, b = new(Config(serverB), "b") { Weight = 2 };
-        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync([a, b]);
+        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync([a, b], Options());
         await GroupWait.AssertConnectedAsync(conn);
 
         var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
@@ -118,5 +124,60 @@ public class GroupCacheTests(ITestOutputHelper log)
         Assert.True(conn.Remove(b));
         Assert.Empty(cacheA.Peers);
         Assert.Empty(cacheB.Peers);
+    }
+
+    [Fact]
+    public async Task TheGroupCacheReachesEveryMemberWithoutTouchingTheirOptions()
+    {
+        using var serverA = new InProcessTestServer(log);
+        using var serverB = new InProcessTestServer(log);
+        using var serverC = new InProcessTestServer(log);
+        ConnectionGroupMember a = new(Config(serverA), "a") { Weight = 9 }, b = new(Config(serverB), "b") { Weight = 2 };
+        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync([a, b], Options());
+        await GroupWait.AssertConnectedAsync(conn);
+        var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
+
+        // every member runs the group's cache, and the callers' options were not written into
+        var cacheA = typed.GetMembers()[0].Multiplexer.ClientCache;
+        var cacheB = typed.GetMembers()[1].Multiplexer.ClientCache;
+        Assert.NotNull(cacheA);
+        Assert.NotNull(cacheB);
+        Assert.Same(typed.Options.ClientCache, cacheA.Options);
+        Assert.Same(typed.Options.ClientCache, cacheB.Options);
+        Assert.Null(a.Configuration.ClientCache);
+        Assert.Null(b.Configuration.ClientCache);
+        Assert.NotNull(conn.GetClientCache());
+
+        // ...including one that joins later, which also becomes a peer
+        ConnectionGroupMember c = new(Config(serverC), "c") { Weight = 1 };
+        await typed.AddAsync(c);
+        var cacheC = c.Multiplexer.ClientCache;
+        Assert.NotNull(cacheC);
+        Assert.Contains(cacheC, cacheA.Peers);
+        Assert.Contains(cacheA, cacheC.Peers);
+    }
+
+    [Fact]
+    public async Task AMemberThatBringsItsOwnCacheIsRefused()
+    {
+        // the cache is the group's, so that members cannot disagree about what may be cached - a failover
+        // would otherwise change what callers get; refused up front, before anything connects
+        using var serverA = new InProcessTestServer(log);
+        using var serverB = new InProcessTestServer(log);
+        var own = Config(serverB);
+        own.ClientCache = new CacheOptions();
+        ConnectionGroupMember a = new(Config(serverA), "a") { Weight = 9 }, b = new(own, "b") { Weight = 2 };
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => ConnectionMultiplexer.ConnectGroupAsync([a, b], Options()));
+        Assert.Contains("MultiGroupOptions.ClientCache", ex.Message);
+        Assert.Contains("'b'", ex.Message);
+
+        // and the same for a member added later
+        ConnectionGroupMember solo = new(Config(serverA), "a") { Weight = 9 };
+        await using var conn = await ConnectionMultiplexer.ConnectGroupAsync([solo], Options());
+        var typed = Assert.IsType<MultiGroupMultiplexer>(conn);
+        var late = new ConnectionGroupMember(own, "late");
+        ex = await Assert.ThrowsAsync<ArgumentException>(() => typed.AddAsync(late));
+        Assert.Contains("MultiGroupOptions.ClientCache", ex.Message);
     }
 }

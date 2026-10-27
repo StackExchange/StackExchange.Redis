@@ -1343,13 +1343,13 @@ namespace StackExchange.Redis
             }
 
             var options = cache.Options;
-            var prefixes = options.Prefixes;
+            var prefixes = options.PrefixBytes; // the snapshot the cache matches on: the same bytes go to the server
             var command = RedisCommand.CLIENT;
 
             // CLIENT TRACKING ON [BCAST] [PREFIX p]...
             if (options.ResolvedTrackingMode == Caching.CacheTrackingMode.Broadcast)
             {
-                if (prefixes.Count == 0)
+                if (prefixes.Length == 0)
                 {
                     await context.SendAsync($"{command}{RedisLiterals.TRACKING}{RedisLiterals.ON}{RedisLiterals.BCAST}")
                         .ConfigureAwait(false);
@@ -1358,7 +1358,7 @@ namespace StackExchange.Redis
                 {
                     // built as values rather than composed in the interpolation, because the number of
                     // PREFIX pairs is not known until here
-                    var args = new RedisValue[3 + (prefixes.Count * 2)];
+                    var args = new RedisValue[3 + (prefixes.Length * 2)];
                     var index = 0;
                     args[index++] = RedisLiterals.TRACKING;
                     args[index++] = RedisLiterals.ON;
@@ -1366,7 +1366,7 @@ namespace StackExchange.Redis
                     foreach (var prefix in prefixes)
                     {
                         args[index++] = RedisLiterals.PREFIX;
-                        args[index++] = prefix.AsRedisValue();
+                        args[index++] = prefix; // bytes, verbatim: no re-encoding on the way out
                     }
 
                     await context.SendAsync($"{command}{args}").ConfigureAwait(false);

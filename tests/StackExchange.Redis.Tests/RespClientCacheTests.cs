@@ -924,6 +924,57 @@ public class RespClientCacheTests
         Assert.True(Complete(cache, fill, "*3\r\n$1\r\n1\r\n$1\r\n2\r\n$1\r\n3\r\n"));
     }
 
+    /// <summary>The prefix list is copied when set: a caller changing their list afterwards changes nothing here.</summary>
+    [Fact]
+    public void PrefixesAreSnapshottedWhenSet()
+    {
+        var list = new List<RedisKey> { "app:" };
+        var raw = new byte[] { (byte)'r', (byte)'a', (byte)'w', (byte)':' };
+        list.Add(raw);
+        var options = new CacheOptions { Prefixes = list };
+
+        // neither the list nor the array behind a byte key is ours any more
+        list[0] = "changed:";
+        list.Add("other:");
+        raw[0] = (byte)'X';
+
+        Assert.Equal<RedisKey>(["app:", "raw:"u8.ToArray()], options.Prefixes);
+        Assert.True(options.IsTracked("app:1"u8));
+        Assert.True(options.IsTracked("raw:1"u8));
+        Assert.False(options.IsTracked("Xaw:1"u8));
+        Assert.False(options.IsTracked("changed:1"u8));
+        Assert.False(options.IsTracked("other:1"u8));
+
+        // ...and what the getter hands out is a copy too
+        ((byte[])options.Prefixes[0]!)[0] = (byte)'Z';
+        Assert.True(options.IsTracked("app:1"u8));
+    }
+
+    /// <summary>A prefix is bytes: one that is not valid UTF-8 is matched and sent as given.</summary>
+    [Fact]
+    public void PrefixesMayBeArbitraryBytes()
+    {
+        byte[] prefix = [0xFF, 0x00, 0xC3, 0x28]; // not a valid UTF-8 sequence
+        var options = new CacheOptions { Prefixes = [prefix] };
+
+        Assert.Equal(prefix, options.PrefixBytes[0]);
+        Assert.NotSame(prefix, options.PrefixBytes[0]);
+        Assert.True(options.IsTracked([0xFF, 0x00, 0xC3, 0x28, (byte)'k']));
+        Assert.False(options.IsTracked([0xFF, 0x00, 0xC3, (byte)'k']));
+    }
+
+    /// <summary>A key carrying a context prefix is taken whole - prefix plus value - as the wire sees it.</summary>
+    [Fact]
+    public void APrefixedKeyIsTakenWithItsPrefix()
+    {
+        var key = new RedisKey("tenant1:"u8.ToArray(), "user:");
+        var options = new CacheOptions { Prefixes = [key] };
+
+        Assert.Equal("tenant1:user:"u8.ToArray(), options.PrefixBytes[0]);
+        Assert.True(options.IsTracked("tenant1:user:42"u8));
+        Assert.False(options.IsTracked("user:42"u8));
+    }
+
     /// <summary>An empty prefix list means "track everything", so nothing is refused for being outside it.</summary>
     [Fact]
     public void NoPrefixesMeansEverythingIsCacheable()

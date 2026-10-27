@@ -282,22 +282,37 @@ namespace StackExchange.Redis.Caching
         /// Either mistake is raised when the cache is built rather than at the handshake.
         /// </para>
         /// </remarks>
-        public IReadOnlyList<string> Prefixes
+        public IReadOnlyList<RedisKey> Prefixes
         {
             get
             {
-                return _prefixes;
+                // fresh keys over fresh copies, every time: a RedisKey over a byte[] hands that array back through
+                // its explicit conversion, and the bytes this cache matches on are nobody else's to change
+                var bytes = _prefixBytes;
+                if (bytes.Length == 0) return Array.Empty<RedisKey>();
+                var keys = new RedisKey[bytes.Length];
+                for (var i = 0; i < keys.Length; i++) keys[i] = (byte[])bytes[i].Clone();
+                return keys;
             }
 
             init
             {
-                _prefixes = value ?? throw new ArgumentNullException(nameof(value));
-                _prefixBytes = Encode(_prefixes);
+                if (value is null) throw new ArgumentNullException(nameof(value));
+
+                // Rendered to bytes ONCE, here, and nothing of the caller's is kept: not the list, and not the
+                // array behind a byte[] key. Matching and the handshake's PREFIX arguments both read this
+                // snapshot, so a list or an array the caller changes afterwards changes neither. RedisKey rather
+                // than string because keys are bytes: a prefix that is not valid UTF-8 has no string spelling,
+                // and a key made with WithKeyPrefix already carries its context prefix, which is what the wire
+                // sees and what is matched - so it can be given as it is, rather than concatenated by hand.
+                _prefixBytes = Encode(value);
             }
         }
 
-        private readonly IReadOnlyList<string> _prefixes = Array.Empty<string>();
         private readonly byte[][] _prefixBytes = [];
+
+        /// <summary>The prefixes as the bytes that are matched and sent; the snapshot itself, not to be changed.</summary>
+        internal byte[][] PrefixBytes => _prefixBytes;
 
         /// <summary>Whether <see cref="Prefixes"/> restricts what may be cached.</summary>
         /// <remarks>
@@ -364,22 +379,26 @@ namespace StackExchange.Redis.Caching
         /// refuses a prefix list where one entry is a prefix of another. Catching it here means the failure
         /// arrives where the mistake was made, rather than as a handshake error much later.
         /// </remarks>
-        private static byte[][] Encode(IReadOnlyList<string> prefixes)
+        private static byte[][] Encode(IReadOnlyList<RedisKey> prefixes)
         {
             if (prefixes.Count == 0) return [];
 
             var result = new byte[prefixes.Count][];
             for (var i = 0; i < prefixes.Count; i++)
             {
+                // the key's whole rendering - a context prefix included - exactly as the writer would send it
                 var prefix = prefixes[i];
-                if (string.IsNullOrEmpty(prefix))
+                var length = prefix.TotalLength();
+                if (length == 0)
                 {
                     throw new ArgumentException(
                         "An empty cache prefix matches every key; use an empty prefix list to track everything.",
                         nameof(Prefixes));
                 }
 
-                result[i] = Encoding.UTF8.GetBytes(prefix);
+                var bytes = new byte[length];
+                prefix.CopyTo(bytes);
+                result[i] = bytes;
             }
 
             for (var i = 0; i < result.Length; i++)
@@ -389,13 +408,16 @@ namespace StackExchange.Redis.Caching
                     if (i != j && result[i].AsSpan().StartsWith(result[j]))
                     {
                         throw new ArgumentException(
-                            $"Cache prefixes must not overlap, but '{prefixes[i]}' starts with '{prefixes[j]}'.",
+                            $"Cache prefixes must not overlap, but '{Describe(result[i])}' starts with '{Describe(result[j])}'.",
                             nameof(Prefixes));
                     }
                 }
             }
 
             return result;
+
+            // for the message only; a prefix that is not text shows as whatever the decoder makes of it
+            static string Describe(byte[] prefix) => Encoding.UTF8.GetString(prefix);
         }
     }
 }

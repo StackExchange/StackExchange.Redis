@@ -193,7 +193,7 @@ Under `MaxBytes`, replies are stored in large slabs in the order they arrive and
 ### Tracking modes and prefixes
 
 - **`Tracking`** (the default without `Prefixes`): the server remembers which keys this client read and announces only those. Precise - invalidation traffic scales with what this client holds, not with how busy the server is - but the server holds a table per client, and evicts from it (announcing what it drops) under pressure, which costs a refill here. `Prefixes` cannot be combined with it. Negotiated as `CLIENT TRACKING ON OPTOUT`: every read is tracked and cacheable unless a call says otherwise with `CommandFlags.CacheOptOut`, which also tells the server not to track that read (a `CLIENT CACHING NO` goes out as one unit with it).
-- **`TrackingByPrefix`** (the default when `Prefixes` are set): `Prefixes` decide for the calls that pass no flag. A read whose keys all fall under a prefix is treated as if it had said `CommandFlags.CacheOptIn`: it goes out behind `CLIENT CACHING YES`, the server tracks it, and it is stored on its first miss. Any other read goes to the server as it would without a cache. The flags still win: `CacheOptIn` on a read outside the prefixes caches it, `CacheOptOut` on a read inside them does not. Negotiated as `CLIENT TRACKING ON OPTIN`; the list is **not** sent to the server (the server only accepts `PREFIX` with `BCAST`), so the server tracks exactly the keys this client holds. The price is an extra frame and reply per miss inside the prefixes, which is the traffic the cache exists to shrink. Prefixes must not overlap one another (`"app:"` and `"app:user:"` together are rejected), and they are compared with the key as sent - so if you use `WithKeyPrefix`, include that prefix.
+- **`TrackingByPrefix`** (the default when `Prefixes` are set): `Prefixes` decide for the calls that pass no flag. A read whose keys all fall under a prefix is treated as if it had said `CommandFlags.CacheOptIn`: it goes out behind `CLIENT CACHING YES`, the server tracks it, and it is stored on its first miss. Any other read goes to the server as it would without a cache. The flags still win: `CacheOptIn` on a read outside the prefixes caches it, `CacheOptOut` on a read inside them does not. Negotiated as `CLIENT TRACKING ON OPTIN`; the list is **not** sent to the server (the server only accepts `PREFIX` with `BCAST`), so the server tracks exactly the keys this client holds. The price is an extra frame and reply per miss inside the prefixes, which is the traffic the cache exists to shrink. Prefixes are `RedisKey` values, so a byte prefix is as good as a string one, and a key made with `WithKeyPrefix` can be given as it is. They must not overlap one another (`"app:"` and `"app:user:"` together are rejected), and they are compared with the key as sent - so if you build keys with `WithKeyPrefix`, the prefix must include that.
 - **`TrackingOptIn`**: opt-in by flag alone. Negotiated as `CLIENT TRACKING ON OPTIN`: the server tracks nothing, and nothing is cached, unless a call says so with `CommandFlags.CacheOptIn` - that read goes out behind `CLIENT CACHING YES`, is tracked, and is stored on its first miss. Every other read goes to the server as it would without a cache. For "cache these few hot keys and leave everything else alone" when the keys are not a prefix; the price is an extra frame and an extra reply per opted-in miss. `Prefixes` cannot be combined with it - that is `TrackingByPrefix`.
 - **`Broadcast`**: the server announces every change to every key matching your `Prefixes`, whoever made it, and keeps no record of what you read. Cheap for the server; the cost is on the client, which hears about keys it never cached, and that cost is set by how busy the server is rather than by anything this client does - which is why prefixes no longer select this mode by default. **Set `Prefixes`** if you choose it: with none, this connection hears about every write to every key in the instance. Keys outside the prefixes are simply not cached, and here the list is a hard boundary: the server was never asked about those keys, so no flag can opt one in. The per-call flags keep only their local meaning: the server has no per-client table to opt in to or out of.
 
@@ -222,6 +222,26 @@ cache?.InvalidateAll();                      // everything
 These behave as a write from this process does: the entries are dropped at once, `InvalidationGracePeriod` does not apply, and on a connection group every member's cache is stamped. Nothing is sent to the server. `Invalidate` returns whether anything cached depended on the key.
 
 The same object carries the cache's counters - `Count`, `Bytes`, `Stored`, `Evicted`, `Promoted`, `Expired`, `Refreshes`, `ServedStale` - cumulative since the connection was made. There is no hit counter, because a hit deliberately records nothing; see [Is it working?](#is-it-working) for the measurement that cannot be fooled.
+
+### Connection groups
+
+With a [connection group](Failover) (geo-failover, Active-Active), the cache is configured once, on `MultiGroupOptions.ClientCache`, and every member inherits it; a member whose own `ConfigurationOptions.ClientCache` is set is refused when the group connects. Each member still needs `Protocol = RedisProtocol.Resp3`.
+
+```csharp
+MultiGroupOptions options = new MultiGroupOptions.Builder
+{
+    ClientCache = new CacheOptions { Prefixes = ["app:"], MaxBytes = 64 * 1024 * 1024 },
+};
+await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
+```
+
+What that gives you:
+
+- **One cache per member, not one for the group.** A cached entry is only as good as the invalidation stream behind it, and that stream belongs to one member's connections. So each member keeps its own cache, and a read is served from, and stored into, the cache of whichever member is active at that moment. Nothing is copied or flushed when the active member changes: the member you left keeps its cache, still invalidated by its own server, ready for when you come back.
+- **Your own writes reach every member.** A write made while member B is active reaches A's server only by replication, so without help A's cache could, after a failback, hand you the value you had just replaced. To prevent that, a write from this process invalidates the key in every member's cache. A then misses and asks its server, which may still be catching up; that is ordinary replication lag, and an uncached read would see the same. Server-sent invalidations, and the flush that follows a lost connection, stay with their own member.
+- **The members must agree.** That is why the setting lives on the group: a member that cached differently, or not at all, would change what callers get on every failover.
+
+`GetClientCache()` on a group returns the active member's cache at the time of the call. `Invalidate` and `InvalidateAll` through it reach every member, as a write does; its counters describe that member only.
 
 ### Per call, and per context
 
