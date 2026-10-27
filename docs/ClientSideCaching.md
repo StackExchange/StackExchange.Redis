@@ -37,7 +37,7 @@ Requirements:
 
 The cache is configured in code only - it is not part of the connection string, because its settings are correctness choices that deserve to be read before they are set.
 
-There is **one cache per multiplexer**, shared by every database, every `IDatabase`, and every context made from it.
+There is **one cache per multiplexer**, shared by every database, every `IDatabase`, and every context made from it. On a [connection group](Failover) each member has a cache of its own and the options are set once, on `MultiGroupOptions.ClientCache` rather than on the members - see [Connection groups](#connection-groups).
 
 What it covers
 ---
@@ -106,7 +106,7 @@ Controlling it
 |---|---|---|
 | `Enabled` | `true` | Whether the cache exists. Setting `ClientCache` at all is what turns caching on; this lets you keep the options and switch it off. |
 | `TrackingMode` | `Default` (= `Tracking` today, or `TrackingByPrefix` when `Prefixes` are set) | How the server decides which changes to announce, and whether reads are cached by default (`Tracking`, `Broadcast`), only inside `Prefixes` (`TrackingByPrefix`), or only when a call asks (`TrackingOptIn`) - see below. |
-| `Prefixes` | none (all keys) | Which keys to cache. Setting any selects `TrackingByPrefix`, where the list decides for calls that pass no flag; under `Broadcast` it is also sent to the server to filter what is announced. |
+| `Prefixes` | none (all keys) | Which keys to cache, as `RedisKey` values: strings, raw bytes, or a key made with `WithKeyPrefix` (taken whole). Copied when set; changing your list afterwards changes nothing. Setting any selects `TrackingByPrefix`, where the list decides for calls that pass no flag; under `Broadcast` it is also sent to the server to filter what is announced. |
 | `MaxBytes` | unbounded | A memory budget for cached replies. Entries that have not been read since they were stored are evicted, oldest first, to get back under it - see [Eviction](#eviction). |
 | `MaxEntries` | unbounded | A limit on the number of entries - use it alongside `MaxBytes` when replies are small and numerous. |
 | `MaxPayloadBytes` | 1 MiB | The largest single reply that may be cached. |

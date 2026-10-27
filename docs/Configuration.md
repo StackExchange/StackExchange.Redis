@@ -161,7 +161,7 @@ Additional code-only options:
 - HealthCheck (`HealthCheck`) - Default: `null`
   - **Client-side geographic failover.** An *active* health check used when the connection is a member of a connection group; when `null`, the group-level `MultiGroupOptions.HealthCheck` is used. See [Client-side geographic failover](Failover)
 - ClientCache (`CacheOptions`) - Default: `null`
-  - Enables client-side caching of reads, kept current by server-assisted invalidation; requires RESP3. `null` means no cache. See [Client-side caching](ClientSideCaching)
+  - Enables client-side caching of reads, kept current by server-assisted invalidation; requires RESP3. `null` means no cache. Not for a connection group member: there the cache is set once, on `MultiGroupOptions.ClientCache`, and a member that sets its own is refused. See [Client-side caching](ClientSideCaching)
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
