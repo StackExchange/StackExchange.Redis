@@ -67,6 +67,14 @@ namespace StackExchange.Redis.Caching
             var explicitMode => explicitMode,
         };
 
+        /// <summary>Whether the resolved mode is negotiated with <c>CLIENT TRACKING</c> at the handshake.</summary>
+        /// <remarks>
+        /// False for <see cref="CacheTrackingMode.None"/>, which negotiates nothing, and for
+        /// <see cref="CacheTrackingMode.KeyspaceNotifications"/>, which subscribes instead - and so for both, RESP3 is
+        /// not required.
+        /// </remarks>
+        internal bool UsesClientTracking => ResolvedTrackingMode is not (CacheTrackingMode.None or CacheTrackingMode.KeyspaceNotifications);
+
         /// <summary>How entries behave, unless a caller says otherwise.</summary>
         public CachePolicy DefaultPolicy { get; init; } = CachePolicy.Default;
 
@@ -269,7 +277,7 @@ namespace StackExchange.Redis.Caching
         /// total one.
         /// </para>
         /// <para>
-        /// <b>Two modes read it.</b> Under <see cref="CacheTrackingMode.Broadcast"/> it goes to the server as
+        /// <b>Four modes read it.</b> Under <see cref="CacheTrackingMode.Broadcast"/> it goes to the server as
         /// <c>PREFIX</c> arguments and filters what is announced, as well as what is cached. Under
         /// <see cref="CacheTrackingMode.TrackingByPrefix"/> it stays here and decides which unflagged reads
         /// are opted in (sent behind <c>CLIENT CACHING YES</c>, tracked, stored); the per-call flags override
@@ -280,6 +288,12 @@ namespace StackExchange.Redis.Caching
         /// otherwise. Giving prefixes with <see cref="TrackingMode"/> left at
         /// <see cref="CacheTrackingMode.Default"/> selects <see cref="CacheTrackingMode.TrackingByPrefix"/>.
         /// Either mistake is raised when the cache is built rather than at the handshake.
+        /// </para>
+        /// <para>
+        /// Under <see cref="CacheTrackingMode.KeyspaceNotifications"/> it is the set of keyspace channels subscribed
+        /// to, one pattern per prefix, and the same hard boundary on what is cached as under
+        /// <see cref="CacheTrackingMode.Broadcast"/>. Under <see cref="CacheTrackingMode.None"/> it only bounds what
+        /// is cached; nothing is sent.
         /// </para>
         /// </remarks>
         public IReadOnlyList<RedisKey> Prefixes
@@ -316,8 +330,8 @@ namespace StackExchange.Redis.Caching
 
         /// <summary>Whether <see cref="Prefixes"/> restricts what may be cached.</summary>
         /// <remarks>
-        /// Only ever true in <see cref="CacheTrackingMode.Broadcast"/> and
-        /// <see cref="CacheTrackingMode.TrackingByPrefix"/>, the two modes that accept a list: under
+        /// Never true in <see cref="CacheTrackingMode.Tracking"/> or <see cref="CacheTrackingMode.TrackingOptIn"/>,
+        /// the two modes that refuse a list: under
         /// <see cref="CacheTrackingMode.Tracking"/> the server announces exactly what we read, so there is no
         /// such thing as an untracked key and nothing for the gate to refuse.
         /// </remarks>
@@ -335,13 +349,31 @@ namespace StackExchange.Redis.Caching
         internal void Validate()
         {
             var mode = ResolvedTrackingMode;
-            if (HasPrefixes && mode is not (CacheTrackingMode.Broadcast or CacheTrackingMode.TrackingByPrefix))
+            if (HasPrefixes && mode is (CacheTrackingMode.Tracking or CacheTrackingMode.TrackingOptIn))
             {
                 throw new ArgumentException(
-                    $"Cache prefixes require {nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.Broadcast)}"
-                    + $" or {nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.TrackingByPrefix)};"
-                    + $" {TrackingMode} announces the keys that were read, so there is nothing to filter.",
+                    $"Cache prefixes require {nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.Broadcast)},"
+                    + $" {nameof(CacheTrackingMode.TrackingByPrefix)}, {nameof(CacheTrackingMode.KeyspaceNotifications)}"
+                    + $" or {nameof(CacheTrackingMode.None)}; {TrackingMode} announces the keys that were read, so there"
+                    + " is nothing to filter.",
                     nameof(Prefixes));
+            }
+
+            if (mode == CacheTrackingMode.KeyspaceNotifications)
+            {
+                // each prefix becomes the pattern __keyspace@*__:{prefix}*, and a glob character in it would match
+                // something other than the prefix - a wider set would be harmless, but a narrower one ("[ab]" is one
+                // byte, not four) leaves cached keys nobody announces
+                foreach (var prefix in _prefixBytes)
+                {
+                    if (prefix.AsSpan().IndexOfAny((byte)'*', (byte)'?', (byte)'[') >= 0)
+                    {
+                        throw new ArgumentException(
+                            $"{nameof(CacheTrackingMode)}.{nameof(CacheTrackingMode.KeyspaceNotifications)} subscribes to"
+                            + " a pattern per prefix, so a prefix must not contain '*', '?' or '['.",
+                            nameof(Prefixes));
+                    }
+                }
             }
 
             if (mode == CacheTrackingMode.TrackingByPrefix && !HasPrefixes)

@@ -155,5 +155,68 @@ namespace StackExchange.Redis.Caching
         /// </para>
         /// </remarks>
         TrackingByPrefix = 4,
+
+        /// <summary>
+        /// No server-assisted invalidation: an entry is retired by <see cref="CachePolicy.TimeToLive"/>, and by
+        /// writes made through this connection, and nothing else.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>A statement that staleness up to <see cref="CachePolicy.TimeToLive"/> is acceptable.</b> Nothing is
+        /// negotiated with the server - no <c>CLIENT TRACKING</c>, no subscription - so a write by any other client
+        /// is never heard about, and the entry it made wrong is served until it ages out. That is the whole bound,
+        /// so set the lifetime with that in mind rather than leaving it at the default because it was there.
+        /// </para>
+        /// <para>
+        /// What it buys: no server-side cost at all, and no requirement on the server or the protocol - it works
+        /// over RESP2, and against servers or proxies that do not implement <c>CLIENT TRACKING</c>. Writes made
+        /// through this multiplexer still invalidate what it holds, as they do in every mode.
+        /// </para>
+        /// <para>
+        /// <see cref="CacheOptions.Prefixes"/>, when given, say what may be cached: a read whose keys do not all fall
+        /// under one is sent and not stored. There is no server half to them here.
+        /// </para>
+        /// </remarks>
+        None = 5,
+
+        /// <summary>
+        /// Invalidation from keyspace notifications (<c>__keyspace@*__:</c> pub/sub) rather than
+        /// <c>CLIENT TRACKING</c>. If the server does not have keyspace notifications enabled, this operates as
+        /// <see cref="None"/>: entries are retired by <see cref="CachePolicy.TimeToLive"/> alone.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// For servers - or deployments - where <c>CLIENT TRACKING</c> is not available, but pub/sub is. It needs
+        /// no RESP3: notifications arrive on the subscription connection, which RESP2 already has. The cache
+        /// subscribes to <c>__keyspace@*__:{prefix}*</c> once per entry in <see cref="CacheOptions.Prefixes"/>, or
+        /// to <c>__keyspace@*__:*</c> when there are none, and invalidates the key named by any event on it.
+        /// </para>
+        /// <para>
+        /// <b>Enabling notifications is the server's business, and is not checked.</b> They are off by default
+        /// (<c>notify-keyspace-events ""</c>); the cache needs <c>K</c> plus the event classes that can change what
+        /// it holds - <c>KA</c> covers all of them, and includes expiry (<c>x</c>) and eviction (<c>e</c>). With them
+        /// off the subscription is simply silent, and nothing distinguishes that from a server where nothing is
+        /// being written; hence "operates as <see cref="None"/>", which is the honest description of the outcome.
+        /// </para>
+        /// <para>
+        /// <b>Weaker than tracking in three ways.</b> Like <see cref="Broadcast"/>, the server announces every
+        /// matching change by anyone, not just keys this client read - so scope it with
+        /// <see cref="CacheOptions.Prefixes"/> on a busy server. A flush (<c>FLUSHDB</c>/<c>FLUSHALL</c>) by another
+        /// client emits no per-key event, so it is not seen. And pub/sub is at-most-once: a notification lost with
+        /// the subscription connection is not replayed, which is why losing any connection flushes the cache, as it
+        /// does in every mode. <see cref="CachePolicy.TimeToLive"/> bounds what remains.
+        /// </para>
+        /// <para>
+        /// <b>Cluster</b>: keyspace notifications are raised by the node that owns the key and are not propagated
+        /// to other nodes, so the subscriptions are made on every node; the library's handling of keyspace
+        /// channels already does this. A prefix containing a glob character (<c>*</c>, <c>?</c>, <c>[</c>) is
+        /// rejected, because it would mean something different as a pattern than as a prefix.
+        /// </para>
+        /// <para>
+        /// <see cref="CacheOptions.Prefixes"/> are a hard boundary here, as under <see cref="Broadcast"/>: a key
+        /// outside them is never announced, so it is never cached.
+        /// </para>
+        /// </remarks>
+        KeyspaceNotifications = 6,
     }
 }

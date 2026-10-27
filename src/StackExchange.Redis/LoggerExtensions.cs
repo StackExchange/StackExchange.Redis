@@ -888,6 +888,12 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Warning,
+        EventId = 138,
+        Message = "The client-side cache could not subscribe to keyspace notifications; entries will be retired by their time-to-live alone until the subscription is restored: {ErrorMessage}")]
+    internal static partial void LogWarningCacheSubscriptionFailed(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
         EventId = 130,
         Message = "Lag-aware health check could not ask {RestEndpoint}: {Reason}")]
     internal static partial void LogWarningLagAwareInconclusive(this ILogger logger, string restEndpoint, string reason);

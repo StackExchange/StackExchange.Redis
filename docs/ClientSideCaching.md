@@ -32,7 +32,7 @@ With `Prefixes` set, the prefixes decide what is cached: a read inside them is c
 
 Requirements:
 
-- **RESP3.** Invalidations arrive as out-of-band pushes, which only RESP3 can deliver on the same connection. With a cache configured and RESP2, connecting **fails** with a message saying so, rather than quietly running without invalidation. See [Using RESP3](Resp3).
+- **RESP3.** Invalidations arrive as out-of-band pushes, which only RESP3 can deliver on the same connection. With a cache configured and RESP2, connecting **fails** with a message saying so, rather than quietly running without invalidation. See [Using RESP3](Resp3). The two modes that do not use `CLIENT TRACKING` - `KeyspaceNotifications` and `None`, below - do not need RESP3.
 - **A server that supports `CLIENT TRACKING`** (Redis 6.0 or later, or a compatible server). If the server refuses it - including a managed service that disables the command - the connection fails, for the same reason: a cache that is never invalidated is worse than no cache.
 
 The cache is configured in code only - it is not part of the connection string, because its settings are correctness choices that deserve to be read before they are set.
@@ -196,18 +196,20 @@ Under `MaxBytes`, replies are stored in large slabs in the order they arrive and
 - **`TrackingByPrefix`** (the default when `Prefixes` are set): `Prefixes` decide for the calls that pass no flag. A read whose keys all fall under a prefix is treated as if it had said `CommandFlags.CacheOptIn`: it goes out behind `CLIENT CACHING YES`, the server tracks it, and it is stored on its first miss. Any other read goes to the server as it would without a cache. The flags still win: `CacheOptIn` on a read outside the prefixes caches it, `CacheOptOut` on a read inside them does not. Negotiated as `CLIENT TRACKING ON OPTIN`; the list is **not** sent to the server (the server only accepts `PREFIX` with `BCAST`), so the server tracks exactly the keys this client holds. The price is an extra frame and reply per miss inside the prefixes, which is the traffic the cache exists to shrink. Prefixes are `RedisKey` values, so a byte prefix is as good as a string one, and a key made with `WithKeyPrefix` can be given as it is. They must not overlap one another (`"app:"` and `"app:user:"` together are rejected), and they are compared with the key as sent - so if you build keys with `WithKeyPrefix`, the prefix must include that.
 - **`TrackingOptIn`**: opt-in by flag alone. Negotiated as `CLIENT TRACKING ON OPTIN`: the server tracks nothing, and nothing is cached, unless a call says so with `CommandFlags.CacheOptIn` - that read goes out behind `CLIENT CACHING YES`, is tracked, and is stored on its first miss. Every other read goes to the server as it would without a cache. For "cache these few hot keys and leave everything else alone" when the keys are not a prefix; the price is an extra frame and an extra reply per opted-in miss. `Prefixes` cannot be combined with it - that is `TrackingByPrefix`.
 - **`Broadcast`**: the server announces every change to every key matching your `Prefixes`, whoever made it, and keeps no record of what you read. Cheap for the server; the cost is on the client, which hears about keys it never cached, and that cost is set by how busy the server is rather than by anything this client does - which is why prefixes no longer select this mode by default. **Set `Prefixes`** if you choose it: with none, this connection hears about every write to every key in the instance. Keys outside the prefixes are simply not cached, and here the list is a hard boundary: the server was never asked about those keys, so no flag can opt one in. The per-call flags keep only their local meaning: the server has no per-client table to opt in to or out of.
+- **`KeyspaceNotifications`**: no `CLIENT TRACKING` at all; the cache subscribes to [keyspace notifications](KeyspaceNotifications) instead - `__keyspace@*__:{prefix}*` once per entry in `Prefixes`, or `__keyspace@*__:*` without them - and invalidates the key named by any event. For servers or proxies that do not offer `CLIENT TRACKING` but do offer pub/sub, and it works over RESP2. **The server must have notifications enabled** (`notify-keyspace-events` including `K` and the event classes that can change what you cache; `KA` covers everything, expiry and eviction included). This is not checked: with notifications off the subscription is silent and the cache behaves as `None`. Like `Broadcast`, it hears about every matching change by anyone, so set `Prefixes` on a busy server; they are a hard boundary on what is cached, and must not contain glob characters (`*`, `?`, `[`). In a cluster each node raises notifications only for its own keys, so the subscriptions are made on every node. Weaker than tracking in two further ways: a `FLUSHDB`/`FLUSHALL` by another client raises no per-key event, and pub/sub does not replay what was missed while the subscription was down (losing a connection flushes the cache, as in every mode). `TimeToLive` bounds both.
+- **`None`**: no server-assisted invalidation. Entries are retired by `TimeToLive` and by writes made through this multiplexer, and nothing else: a write by another client is served stale until the entry ages out, so choose the lifetime as the staleness you are prepared to accept. Nothing is negotiated, so it works over RESP2 and against any server. `Prefixes`, if set, only bound what is cached.
 
 `CacheTrackingMode.Default` (the value you get by not setting it) means "the library's choice", resolved as above today; name a mode explicitly if you depend on it.
 
 What the two flags do, by mode:
 
-| | `Tracking` | `TrackingByPrefix` | `TrackingOptIn` | `Broadcast` |
+| | `Tracking` | `TrackingByPrefix` | `TrackingOptIn` | `Broadcast`, `KeyspaceNotifications`, `None` |
 |---|---|---|---|---|
 | no flag | cached; tracked | inside `Prefixes`: cached, stored on first miss, `CLIENT CACHING YES` sent; outside: not cached, not tracked | not cached; not tracked | cached if inside `Prefixes` |
 | `CacheOptIn` | cached, stored on first miss | cached, stored on first miss; `CLIENT CACHING YES` sent - inside or outside `Prefixes` | cached, stored on first miss; `CLIENT CACHING YES` sent | cached if inside `Prefixes`, stored on first miss |
 | `CacheOptOut` | not cached; `CLIENT CACHING NO` sent | not cached | not cached | not cached |
 
-Passing both flags is rejected. Neither flag can make an uncacheable command cacheable (a write, a keyless read, a random or time-based read). In `Broadcast` mode `CacheOptIn` does not bypass `Prefixes`; in `TrackingByPrefix` mode it does, because there the list is only the policy for calls that passed no flag.
+Passing both flags is rejected. Neither flag can make an uncacheable command cacheable (a write, a keyless read, a random or time-based read). In `Broadcast`, `KeyspaceNotifications` and `None` modes `CacheOptIn` does not bypass `Prefixes`; in `TrackingByPrefix` mode it does, because there the list is only the policy for calls that passed no flag.
 
 ### Invalidating by hand
 
@@ -225,7 +227,7 @@ The same object carries the cache's counters - `Count`, `Bytes`, `Stored`, `Evic
 
 ### Connection groups
 
-With a [connection group](Failover) (geo-failover, Active-Active), the cache is configured once, on `MultiGroupOptions.ClientCache`, and every member inherits it; a member whose own `ConfigurationOptions.ClientCache` is set is refused when the group connects. Each member still needs `Protocol = RedisProtocol.Resp3`.
+With a [connection group](Failover) (geo-failover, Active-Active), the cache is configured once, on `MultiGroupOptions.ClientCache`, and every member inherits it; a member whose own `ConfigurationOptions.ClientCache` is set is refused when the group connects. Each member still needs `Protocol = RedisProtocol.Resp3`, unless the mode is `KeyspaceNotifications` or `None`.
 
 ```csharp
 MultiGroupOptions options = new MultiGroupOptions.Builder

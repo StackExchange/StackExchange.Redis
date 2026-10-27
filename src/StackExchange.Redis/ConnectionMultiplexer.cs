@@ -697,6 +697,7 @@ namespace StackExchange.Redis
                 Interlocked.Increment(ref muxer._connectCompletedCount);
 
                 await muxer.ConnectEndpointsAsync().ForAwait();
+                await muxer.SubscribeCacheInvalidationAsync().ForAwait();
 
                 if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
                 {
@@ -824,6 +825,7 @@ namespace StackExchange.Redis
                 Interlocked.Increment(ref muxer._connectCompletedCount);
 
                 muxer.ConnectEndpointsAsync().Wait(muxer.SyncConnectTimeout(true));
+                muxer.SubscribeCacheInvalidationAsync().Wait(muxer.SyncConnectTimeout(true));
 
                 if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
                 {

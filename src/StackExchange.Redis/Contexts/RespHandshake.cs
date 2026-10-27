@@ -585,7 +585,9 @@ namespace StackExchange.Redis
                 }
             }
 
-            if (clientCache is not null)
+            // None negotiates nothing, and KeyspaceNotifications subscribes instead (see
+            // ConnectionMultiplexer.SubscribeCacheInvalidationAsync); neither needs RESP3
+            if (clientCache is { Options.UsesClientTracking: true })
             {
                 await EnableClientTrackingAsync(context, clientCache, protocol).ConfigureAwait(false);
             }
