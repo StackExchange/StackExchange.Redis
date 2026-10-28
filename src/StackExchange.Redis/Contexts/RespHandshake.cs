@@ -585,9 +585,12 @@ namespace StackExchange.Redis
                 }
             }
 
-            if (clientCache is not null)
+            // None negotiates nothing, and KeyspaceNotifications subscribes instead (see
+            // ConnectionMultiplexer.SubscribeCacheInvalidationAsync); neither needs RESP3
+            // ...and the mode actually in force, not the one configured: Default may already have fallen back
+            if (clientCache is { UsesClientTracking: true })
             {
-                await EnableClientTrackingAsync(context, clientCache, protocol).ConfigureAwait(false);
+                await EnableClientTrackingAsync(context, clientCache, protocol, server).ConfigureAwait(false);
             }
 
             if (database > 0)
@@ -1314,6 +1317,7 @@ namespace StackExchange.Redis
         /// <param name="context">The connection being brought up.</param>
         /// <param name="cache">The cache the invalidations are for.</param>
         /// <param name="protocol">What the handshake settled on; tracking needs RESP3.</param>
+        /// <param name="server">The modelled server, for logging and for reaching the multiplexer on a fallback.</param>
         /// <remarks>
         /// <para>
         /// <b>It has to be THIS connection, which is the whole reason this exists here.</b> Invalidations
@@ -1325,14 +1329,29 @@ namespace StackExchange.Redis
         /// difference made visible.
         /// </para>
         /// <para>
-        /// <b>It refuses loudly rather than degrading</b>, as <c>ServerEndPoint.EnableClientTrackingAsync</c>
-        /// does: a cache that is filled but never invalidated is silently, durably wrong, so a connection
-        /// that cannot establish tracking fails instead of serving stale data.
+        /// <b>A mode named explicitly refuses loudly rather than degrading</b>, as
+        /// <c>ServerEndPoint.EnableClientTrackingAsync</c> does: a cache that is filled but never invalidated is
+        /// silently, durably wrong, so a connection that cannot establish tracking fails instead of serving stale
+        /// data.
+        /// </para>
+        /// <para>
+        /// <b><see cref="Caching.CacheTrackingMode.Default"/> falls back instead</b>, to
+        /// <see cref="Caching.CacheTrackingMode.KeyspaceNotifications"/>: "the library's choice" can be made again,
+        /// and a cache that connects is what someone who never chose a mode expects. Without RESP3, or when the
+        /// server answers <c>CLIENT TRACKING</c> with any error - an old server, a proxy, an ACL - the whole cache
+        /// switches, for good (see <see cref="Caching.RespClientCache.TryFallBackToKeyspaceNotifications"/>). A
+        /// connection failure is not a refusal, and still fails the connection.
         /// </para>
         /// </remarks>
         private static async Task EnableClientTrackingAsync(
-            RespDatabaseContext context, Caching.RespClientCache cache, RedisProtocol protocol)
+            RespDatabaseContext context, Caching.RespClientCache cache, RedisProtocol protocol, ServerEndPoint? server)
         {
+            if (protocol != RedisProtocol.Resp3 && cache.CanFallBack)
+            {
+                await FallBackAsync(context, cache, server, "the connection is not RESP3").ConfigureAwait(false);
+                return;
+            }
+
             if (protocol != RedisProtocol.Resp3)
             {
                 const string Message =
@@ -1342,12 +1361,58 @@ namespace StackExchange.Redis
                 throw new RedisConnectionException(ConnectionFailureType.ProtocolFailure, CommandFlags.CommandRetryNever, Message);
             }
 
+            try
+            {
+                await SendClientTrackingAsync(context, cache).ConfigureAwait(false);
+            }
+            catch (RedisServerException ex) when (cache.CanFallBack)
+            {
+                await FallBackAsync(context, cache, server, ex.Message).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>Switch the cache to keyspace notifications, and say so.</summary>
+        /// <remarks>
+        /// <para>
+        /// Only the connection that makes the switch subscribes and logs; every later handshake sees a cache that no
+        /// longer uses tracking and skips all of this. The subscription is started, not awaited: it is made on
+        /// another connection, which may be waiting for this one, and the flush the switch performs covers the gap.
+        /// </para>
+        /// <para>
+        /// <b>A diagnostic, never a refusal.</b> Keyspace notifications are off by default, and with them off this
+        /// mode is retired by lifetime alone; when <c>CONFIG GET</c> is permitted it can say so, and that is worth a
+        /// warning. When it is not - plenty of managed services restrict it - there is nothing to say.
+        /// </para>
+        /// </remarks>
+        private static async Task FallBackAsync(
+            RespDatabaseContext context, Caching.RespClientCache cache, ServerEndPoint? server, string reason)
+        {
+            if (!cache.TryFallBackToKeyspaceNotifications()) return;
+
+            var multiplexer = server?.Multiplexer;
+            multiplexer?.Logger?.LogWarningCacheFellBack(new(server!), reason);
+            multiplexer?.SubscribeCacheInvalidationAsync().ObserveErrors();
+
+            if (multiplexer?.Logger is { } log && context.Raw.CommandMap.IsAvailable(RedisCommand.CONFIG))
+            {
+                var events = await ReadSettingAsync(context, "notify-keyspace-events").ConfigureAwait(false);
+                if (events is not null && !Caching.CacheOptions.KeyspaceEventsInvalidate(events))
+                {
+                    log.LogWarningCacheKeyspaceEventsDisabled(new(server!), events);
+                }
+            }
+        }
+
+        /// <summary>The <c>CLIENT TRACKING</c> command for the mode in force.</summary>
+        private static async Task SendClientTrackingAsync(RespDatabaseContext context, Caching.RespClientCache cache)
+        {
             var options = cache.Options;
+            var mode = cache.EffectiveTrackingMode;
             var prefixes = options.PrefixBytes; // the snapshot the cache matches on: the same bytes go to the server
             var command = RedisCommand.CLIENT;
 
             // CLIENT TRACKING ON [BCAST] [PREFIX p]...
-            if (options.ResolvedTrackingMode == Caching.CacheTrackingMode.Broadcast)
+            if (mode == Caching.CacheTrackingMode.Broadcast)
             {
                 if (prefixes.Length == 0)
                 {
@@ -1380,7 +1445,7 @@ namespace StackExchange.Redis
                 // read is written behind CLIENT CACHING YES, which is what CommandFlags.CacheOptIn does - and
                 // what TrackingByPrefix does for an unflagged read inside its prefixes. The prefixes themselves
                 // stay client-side there: PREFIX is refused without BCAST.
-                var refinement = options.ResolvedTrackingMode is Caching.CacheTrackingMode.TrackingOptIn or Caching.CacheTrackingMode.TrackingByPrefix
+                var refinement = mode is Caching.CacheTrackingMode.TrackingOptIn or Caching.CacheTrackingMode.TrackingByPrefix
                     ? RedisLiterals.OPTIN
                     : RedisLiterals.OPTOUT;
                 await context.SendAsync($"{command}{RedisLiterals.TRACKING}{RedisLiterals.ON}{refinement}").ConfigureAwait(false);

@@ -888,6 +888,24 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Warning,
+        EventId = 138,
+        Message = "The client-side cache could not subscribe to keyspace notifications; entries will be retired by their time-to-live alone until the subscription is restored: {ErrorMessage}")]
+    internal static partial void LogWarningCacheSubscriptionFailed(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 139,
+        Message = "{Server}: server-assisted client-side caching (CLIENT TRACKING) is unavailable ({Reason}); the cache has switched to keyspace notifications")]
+    internal static partial void LogWarningCacheFellBack(this ILogger logger, ServerEndPointLogValue server, string reason);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 140,
+        Message = "{Server}: notify-keyspace-events is '{Events}', which raises no keyspace events the client-side cache can use; entries will be retired by their time-to-live alone. Include K and the event classes to invalidate on (KA for all).")]
+    internal static partial void LogWarningCacheKeyspaceEventsDisabled(this ILogger logger, ServerEndPointLogValue server, string events);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
         EventId = 130,
         Message = "Lag-aware health check could not ask {RestEndpoint}: {Reason}")]
     internal static partial void LogWarningLagAwareInconclusive(this ILogger logger, string restEndpoint, string reason);

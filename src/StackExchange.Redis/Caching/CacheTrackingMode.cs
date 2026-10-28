@@ -23,24 +23,59 @@ namespace StackExchange.Redis.Caching
     public enum CacheTrackingMode
     {
         /// <summary>
+        /// No server-assisted invalidation: an entry is retired by <see cref="CachePolicy.TimeToLive"/>, and by
+        /// writes made through this connection, and nothing else.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>A statement that staleness up to <see cref="CachePolicy.TimeToLive"/> is acceptable.</b> Nothing is
+        /// negotiated with the server - no <c>CLIENT TRACKING</c>, no subscription - so a write by any other client
+        /// is never heard about, and the entry it made wrong is served until it ages out. That is the whole bound,
+        /// so set the lifetime with that in mind rather than leaving it at the default because it was there.
+        /// </para>
+        /// <para>
+        /// What it buys: no server-side cost at all, and no requirement on the server or the protocol - it works
+        /// over RESP2, and against servers or proxies that do not implement <c>CLIENT TRACKING</c>. Writes made
+        /// through this multiplexer still invalidate what it holds, as they do in every mode.
+        /// </para>
+        /// <para>
+        /// <b>Zero, because it is the absence of something</b>: what a zeroed <see cref="CacheTrackingMode"/> ought to
+        /// mean. It is not what an unconfigured cache gets - <see cref="CacheOptions.TrackingMode"/> starts as
+        /// <see cref="Default"/> - so leaving the mode unset never quietly turns invalidation off.
+        /// </para>
+        /// <para>
+        /// <see cref="CacheOptions.Prefixes"/>, when given, say what may be cached: a read whose keys do not all fall
+        /// under one is sent and not stored. There is no server half to them here.
+        /// </para>
+        /// </remarks>
+        None = 0,
+
+        /// <summary>
         /// Let the library choose; today that is <see cref="Tracking"/>, or <see cref="TrackingByPrefix"/>
         /// when <see cref="CacheOptions.Prefixes"/> are given.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// <b>Zero means "no opinion", not a mode.</b> Which mode is cheaper depends on whose resource is
-        /// scarce - the remarks on this type say the library cannot know that - and wiring a real mode to
-        /// zero says the opposite: that an unset value is a considered choice. It also makes the two
-        /// indistinguishable, so the library can never tell a caller who asked for a mode from one who
-        /// never thought about it, and can never change its mind without silently overriding the first.
+        /// <b>"No opinion", not a mode</b>, and what <see cref="CacheOptions.TrackingMode"/> starts as. Which mode
+        /// is cheaper depends on whose resource is scarce - the remarks on this type say the library cannot know
+        /// that - and starting from a real mode says the opposite: that an unset value is a considered choice. It
+        /// also makes the two indistinguishable, so the library can never tell a caller who asked for a mode from
+        /// one who never thought about it, and can never change its mind without silently overriding the first.
         /// </para>
         /// <para>
         /// So the answer this resolves to may move - if server or client heuristics make one clearly
         /// better, or if it starts depending on more of what else is configured. Name the mode explicitly
         /// if you need it pinned.
         /// </para>
+        /// <para>
+        /// <b>It also falls back.</b> When server-assisted tracking is unavailable - the connection is not RESP3,
+        /// <c>CLIENT</c> is disabled in the command map, or the server refuses <c>CLIENT TRACKING</c> - the cache
+        /// switches to <see cref="KeyspaceNotifications"/> rather than failing the connection, and logs that it has.
+        /// A mode named explicitly is a requirement, and fails instead. <see cref="ClientCache.EffectiveTrackingMode"/>
+        /// reports the mode actually in force.
+        /// </para>
         /// </remarks>
-        Default = 0,
+        Default = 1,
 
         /// <summary>
         /// <c>BCAST</c>: the server announces every changed key matching
@@ -65,7 +100,7 @@ namespace StackExchange.Redis.Caching
         /// prefixes.
         /// </para>
         /// </remarks>
-        Broadcast = 1,
+        Broadcast = 2,
 
         /// <summary>
         /// <c>CLIENT TRACKING ON OPTOUT</c>: the server remembers which keys <i>we</i> read, and announces
@@ -96,7 +131,7 @@ namespace StackExchange.Redis.Caching
         /// why <c>NOLOOP</c> is not simply switched on (design notes 6.13).
         /// </para>
         /// </remarks>
-        Tracking = 2,
+        Tracking = 3,
 
         /// <summary>
         /// <c>CLIENT TRACKING ON OPTIN</c>: the server remembers only the keys we explicitly ask it to, and
@@ -120,7 +155,7 @@ namespace StackExchange.Redis.Caching
         /// server to opt out of.
         /// </para>
         /// </remarks>
-        TrackingOptIn = 3,
+        TrackingOptIn = 4,
 
         /// <summary>
         /// <see cref="TrackingOptIn"/> where <see cref="CacheOptions.Prefixes"/> decide for the reads that do
@@ -154,6 +189,46 @@ namespace StackExchange.Redis.Caching
         /// where broadcasting is billed by the server's write rate.
         /// </para>
         /// </remarks>
-        TrackingByPrefix = 4,
+        TrackingByPrefix = 5,
+
+        /// <summary>
+        /// Invalidation from keyspace notifications (<c>__keyspace@*__:</c> pub/sub) rather than
+        /// <c>CLIENT TRACKING</c>. If the server does not have keyspace notifications enabled, this operates as
+        /// <see cref="None"/>: entries are retired by <see cref="CachePolicy.TimeToLive"/> alone.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// For servers - or deployments - where <c>CLIENT TRACKING</c> is not available, but pub/sub is. It needs
+        /// no RESP3: notifications arrive on the subscription connection, which RESP2 already has. The cache
+        /// subscribes to <c>__keyspace@*__:{prefix}*</c> once per entry in <see cref="CacheOptions.Prefixes"/>, or
+        /// to <c>__keyspace@*__:*</c> when there are none, and invalidates the key named by any event on it.
+        /// </para>
+        /// <para>
+        /// <b>Enabling notifications is the server's business, and is not checked.</b> They are off by default
+        /// (<c>notify-keyspace-events ""</c>); the cache needs <c>K</c> plus the event classes that can change what
+        /// it holds - <c>KA</c> covers all of them, and includes expiry (<c>x</c>) and eviction (<c>e</c>). With them
+        /// off the subscription is simply silent, and nothing distinguishes that from a server where nothing is
+        /// being written; hence "operates as <see cref="None"/>", which is the honest description of the outcome.
+        /// </para>
+        /// <para>
+        /// <b>Weaker than tracking in three ways.</b> Like <see cref="Broadcast"/>, the server announces every
+        /// matching change by anyone, not just keys this client read - so scope it with
+        /// <see cref="CacheOptions.Prefixes"/> on a busy server. A flush (<c>FLUSHDB</c>/<c>FLUSHALL</c>) by another
+        /// client emits no per-key event, so it is not seen. And pub/sub is at-most-once: a notification lost with
+        /// the subscription connection is not replayed, which is why losing any connection flushes the cache, as it
+        /// does in every mode. <see cref="CachePolicy.TimeToLive"/> bounds what remains.
+        /// </para>
+        /// <para>
+        /// <b>Cluster</b>: keyspace notifications are raised by the node that owns the key and are not propagated
+        /// to other nodes, so the subscriptions are made on every node; the library's handling of keyspace
+        /// channels already does this. A prefix containing a glob character (<c>*</c>, <c>?</c>, <c>[</c>) is
+        /// rejected, because it would mean something different as a pattern than as a prefix.
+        /// </para>
+        /// <para>
+        /// <see cref="CacheOptions.Prefixes"/> are a hard boundary here, as under <see cref="Broadcast"/>: a key
+        /// outside them is never announced, so it is never cached.
+        /// </para>
+        /// </remarks>
+        KeyspaceNotifications = 6,
     }
 }

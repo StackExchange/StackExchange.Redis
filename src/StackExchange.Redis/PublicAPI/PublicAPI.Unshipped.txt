@@ -70,15 +70,18 @@ StackExchange.Redis.Caching.CachePolicy.RefreshAfter.init -> void
 StackExchange.Redis.Caching.CachePolicy.TimeToLive.get -> System.TimeSpan
 StackExchange.Redis.Caching.CachePolicy.TimeToLive.init -> void
 StackExchange.Redis.Caching.CacheTrackingMode
-StackExchange.Redis.Caching.CacheTrackingMode.Broadcast = 1 -> StackExchange.Redis.Caching.CacheTrackingMode
-StackExchange.Redis.Caching.CacheTrackingMode.Default = 0 -> StackExchange.Redis.Caching.CacheTrackingMode
-StackExchange.Redis.Caching.CacheTrackingMode.Tracking = 2 -> StackExchange.Redis.Caching.CacheTrackingMode
-StackExchange.Redis.Caching.CacheTrackingMode.TrackingOptIn = 3 -> StackExchange.Redis.Caching.CacheTrackingMode
-StackExchange.Redis.Caching.CacheTrackingMode.TrackingByPrefix = 4 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.Broadcast = 2 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.Default = 1 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.KeyspaceNotifications = 6 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.None = 0 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.Tracking = 3 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.TrackingOptIn = 4 -> StackExchange.Redis.Caching.CacheTrackingMode
+StackExchange.Redis.Caching.CacheTrackingMode.TrackingByPrefix = 5 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.ClientCache
 StackExchange.Redis.Caching.ClientCache.Bytes.get -> long
 StackExchange.Redis.Caching.ClientCache.Count.get -> int
 StackExchange.Redis.Caching.ClientCache.Evicted.get -> long
+StackExchange.Redis.Caching.ClientCache.EffectiveTrackingMode.get -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.ClientCache.Expired.get -> long
 StackExchange.Redis.Caching.ClientCache.Invalidate(StackExchange.Redis.RedisKey key) -> bool
 StackExchange.Redis.Caching.ClientCache.Invalidate(System.ReadOnlySpan<byte> key) -> bool
