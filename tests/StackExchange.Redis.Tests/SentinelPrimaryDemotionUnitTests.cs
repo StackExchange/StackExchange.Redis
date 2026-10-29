@@ -193,19 +193,32 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "connect left a timer");
     }
 
-    [Fact]
-    public async Task LegacySentinelWithoutSentinelMasterStillResolvesThePrimary()
+    [Theory]
+    [InlineData("unsupported")]
+    [InlineData("noperm")]
+    [InlineData("flagless")]
+    public async Task SentinelWithoutAUsableSentinelMasterResolvesThePrimaryWithGetMasterAddrByName(string sentinelMaster)
     {
         using var data = new InProcessTestServer(log, PrimaryA);
         data.AddReplicaNode(ReplicaB, PrimaryA);
-        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log) { SupportsSentinelMaster = false };
+        // the only sentinel: there is no other answer to fall back on
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        switch (sentinelMaster)
+        {
+            case "unsupported": sentinel.SupportsSentinelMaster = false; break;
+            // an ACL user allowed what discovery needed before SENTINEL MASTER was used: get-master-addr-by-name, replicas, sentinels
+            case "noperm": sentinel.PrimaryError = "NOPERM User client has no permissions to run the 'sentinel|master' command"; break;
+            case "flagless": sentinel.OmitPrimaryFlags = true; break;
+        }
         await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
         Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
         Assert.Contains(ReplicaB, conn.GetEndPoints());
+        Assert.True(sentinel.LegacyQueries > 0);
 
         FailOverToNewNode(data);
         sentinel.Primary = NewNodeC;
         await AssertPrimaryBecomesAsync(conn, NewNodeC);
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "recovery did not settle");
     }
 
     [Fact]
@@ -419,7 +432,7 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         using var accepted = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
         using var other = new InProcessSentinelServer(data, ServiceName, PrimaryA, SecondSentinelEndPoint, log)
         {
-            PrimaryError = "ERR No such master with that name",
+            PrimaryFlags = "master,s_down",
             ReplicaAddressesOverride = [],
         };
         var config = CreateConfig(data, accepted, other);
@@ -431,21 +444,52 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         Assert.Equal(0, other.LegacyQueries);
     }
 
-    [Theory]
-    [InlineData("LOADING Redis is loading the dataset in memory")]
-    [InlineData("ERR No such master with that name")]
-    public async Task SentinelErrorsDoNotUseTheFlaglessFallback(string error)
+    [Fact]
+    public async Task StaleAnswerFromAnErroringSentinelIsCorrectedByTheRoleCheck()
     {
         using var data = new InProcessTestServer(log, PrimaryA);
         data.AddReplicaNode(ReplicaB, PrimaryA);
         FailOverToNewNode(data);
-        using var invalid = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log) { PrimaryError = error };
+        // get-master-addr-by-name at the sentinel that refuses SENTINEL MASTER still names A, now a replica of C
+        using var erroring = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log)
+        {
+            PrimaryError = "NOPERM User client has no permissions to run the 'sentinel|master' command",
+        };
         using var current = new InProcessSentinelServer(data, ServiceName, NewNodeC, SecondSentinelEndPoint, log);
-        var config = CreateConfig(data, invalid, current);
+        // hold back the current sentinel's first answer, so the stale one is taken first and the role check has to reject it
+        int replies = 0;
+        current.BeforePrimaryReplyAsync = () => Interlocked.Increment(ref replies) == 1 ? Task.Delay(500) : Task.CompletedTask;
+        var config = CreateConfig(data, erroring, current);
         config.EndPoints.Add(SecondSentinelEndPoint);
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        Assert.True(erroring.LegacyQueries > 0, "the erroring sentinel was not asked get-master-addr-by-name");
+        Assert.True(Volatile.Read(ref replies) > 1, "the current sentinel was asked only once: the stale answer was never rejected");
         Assert.Equal([NewNodeC], ConnectedPrimaries(conn));
-        Assert.Equal(0, invalid.LegacyQueries);
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "connect left a timer");
+        Assert.Equal([NewNodeC], ConnectedPrimaries(conn));
+    }
+
+    [Theory]
+    [InlineData("ERR No such master with that name")]
+    [InlineData("LOADING Redis is loading the dataset in memory")]
+    public async Task SentinelThatAnswersNeitherQueryIsPassedOver(string error)
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        FailOverToNewNode(data);
+        // a real sentinel answers both SENTINEL MASTER and get-master-addr-by-name the same way here
+        using var erroring = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log)
+        {
+            PrimaryError = error,
+            LegacyAnswersNothing = true,
+        };
+        using var current = new InProcessSentinelServer(data, ServiceName, NewNodeC, SecondSentinelEndPoint, log);
+        var config = CreateConfig(data, erroring, current);
+        config.EndPoints.Add(SecondSentinelEndPoint);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        await UntilAsync(() => erroring.LegacyQueries > 0, "the erroring sentinel was not asked get-master-addr-by-name");
+        Assert.Equal([NewNodeC], ConnectedPrimaries(conn));
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "connect left a timer");
     }
 
     [Fact]

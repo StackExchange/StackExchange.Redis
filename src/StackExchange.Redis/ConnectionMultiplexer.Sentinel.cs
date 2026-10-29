@@ -691,6 +691,12 @@ public partial class ConnectionMultiplexer
     /// <c>s_down</c>/<c>o_down</c>), which <c>SENTINEL MASTER</c> reports and <c>get-master-addr-by-name</c> does not -
     /// a sentinel still repeating a failed primary is passed over for one that already knows the new one. A stale
     /// but healthy-looking answer is still caught by the role check (Step 3) and asked again.
+    /// <para>
+    /// A sentinel that does not give a usable <c>SENTINEL MASTER</c> answer - any error (the subcommand unknown, or
+    /// denied by an ACL that allows only what discovery needed before), or a reply without the <c>master</c> flag or an
+    /// address - is asked <c>get-master-addr-by-name</c> instead, exactly as every sentinel was before. Only a sentinel
+    /// that explicitly holds the node down is passed over.
+    /// </para>
     /// </remarks>
     internal Task<SentinelPrimary?> GetConfiguredPrimaryForServiceAsync(string serviceName) =>
         QuerySentinelsAsync(async server =>
@@ -698,20 +704,16 @@ public partial class ConnectionMultiplexer
             EndPoint? primary;
             try
             {
-                primary = ParseValidPrimary(await server.SentinelMasterAsync(serviceName).ForAwait());
+                primary = ParseHealthyPrimary(await server.SentinelMasterAsync(serviceName).ForAwait(), out bool heldDown);
+                if (heldDown) return null;
             }
-            catch (RedisServerException ex) when (IsSentinelMasterUnsupported(ex))
+            catch (RedisServerException)
             {
-                primary = await server.SentinelGetMasterAddressByNameAsync(serviceName).ForAwait();
+                primary = null;
             }
+            primary ??= await server.SentinelGetMasterAddressByNameAsync(serviceName).ForAwait();
             return primary is null ? null : new SentinelPrimary(server, primary);
         });
-
-    internal static bool IsSentinelMasterUnsupported(RedisServerException ex) =>
-        ex.Message.IndexOf("unknown command", StringComparison.OrdinalIgnoreCase) >= 0
-        || ex.Message.IndexOf("unknown subcommand", StringComparison.OrdinalIgnoreCase) >= 0
-        || ex.Message.IndexOf("unknown sentinel subcommand", StringComparison.OrdinalIgnoreCase) >= 0
-        || ex.Message.IndexOf("unrecognized sentinel command", StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static async Task<SentinelReplica[]?> GetReplicasForServiceAsync(string serviceName, SentinelPrimary primary)
     {
@@ -777,10 +779,18 @@ public partial class ConnectionMultiplexer
         public bool Down { get; } = down;
     }
 
-    internal static EndPoint? ParseValidPrimary(KeyValuePair<string, string>[] row)
+    /// <summary>
+    /// The address a <c>SENTINEL MASTER</c> reply names, when it describes a healthy master; otherwise <c>null</c>.
+    /// </summary>
+    /// <param name="row">The reply.</param>
+    /// <param name="heldDown">Whether sentinel holds the node down (<c>s_down</c>/<c>o_down</c>): the one <c>null</c>
+    /// that is an answer. Any other <c>null</c> is a reply that cannot be judged.</param>
+    internal static EndPoint? ParseHealthyPrimary(KeyValuePair<string, string>[] row, out bool heldDown)
     {
         var fields = row.ToDictionary(static p => p.Key, static p => p.Value);
-        if (!fields.TryGetValue("flags", out var flags) || !flags.Split(',').Contains("master") || IsSentinelPrimaryDown(flags)) return null;
+        fields.TryGetValue("flags", out var flags);
+        heldDown = IsSentinelPrimaryDown(flags);
+        if (heldDown || flags is null || !flags.Split(',').Contains("master")) return null;
         return ParseSentinelAddress(fields);
     }
 

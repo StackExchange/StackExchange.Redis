@@ -43,14 +43,15 @@ public class SentinelDiscoveryUnitTests
     }
 
     [Theory]
-    [InlineData("master", true)]
-    [InlineData("master,disconnected", true)]
-    [InlineData("master,s_down", false)]
-    [InlineData("master,o_down,s_down", false)]
-    [InlineData("slave", false)]
-    [InlineData(null, false)]
-    public void OnlyAHealthyMasterIsAValidPrimaryAnswer(string? flags, bool valid)
+    [InlineData("master", true, false)]
+    [InlineData("master,disconnected", true, false)]
+    [InlineData("master,s_down", false, true)]
+    [InlineData("master,o_down,s_down", false, true)]
+    [InlineData("slave", false, false)]
+    [InlineData(null, false, false)]
+    public void OnlyAHealthyMasterIsAValidPrimaryAnswer(string? flags, bool valid, bool heldDown)
     {
+        // heldDown is the only null that passes the sentinel over; any other null asks get-master-addr-by-name
         var row = new List<KeyValuePair<string, string>>
         {
             new("name", "mymaster"),
@@ -58,16 +59,17 @@ public class SentinelDiscoveryUnitTests
             new("port", "6379"),
         };
         if (flags is not null) row.Add(new("flags", flags));
-        var primary = ConnectionMultiplexer.ParseValidPrimary(row.ToArray());
+        var primary = ConnectionMultiplexer.ParseHealthyPrimary(row.ToArray(), out var down);
         if (valid) Assert.Equal(new IPEndPoint(IPAddress.Parse("192.0.2.1"), 6379), primary);
         else Assert.Null(primary);
+        Assert.Equal(heldDown, down);
     }
 
     [Fact]
     public void IPv6PrimaryAddressIsParsed()
     {
         KeyValuePair<string, string>[] row = [new("name", "m"), new("ip", "2001:db8::1"), new("port", "6379"), new("flags", "master")];
-        Assert.Equal(new IPEndPoint(IPAddress.Parse("2001:db8::1"), 6379), ConnectionMultiplexer.ParseValidPrimary(row));
+        Assert.Equal(new IPEndPoint(IPAddress.Parse("2001:db8::1"), 6379), ConnectionMultiplexer.ParseHealthyPrimary(row, out _));
     }
 
     [Theory]
@@ -77,9 +79,10 @@ public class SentinelDiscoveryUnitTests
     [InlineData("", "6379")]
     public void MalformedAddressIsNotAValidPrimaryAnswer(string ip, string port)
     {
-        // a sentinel whose answer has no usable address is passed over, like one that does not know the service
+        // an answer with no usable address cannot be judged: the sentinel is asked get-master-addr-by-name instead
         KeyValuePair<string, string>[] row = [new("name", "mymaster"), new("ip", ip), new("port", port), new("flags", "master")];
-        Assert.Null(ConnectionMultiplexer.ParseValidPrimary(row));
+        Assert.Null(ConnectionMultiplexer.ParseHealthyPrimary(row, out var heldDown));
+        Assert.False(heldDown);
     }
 
     [Fact]
@@ -87,7 +90,7 @@ public class SentinelDiscoveryUnitTests
     {
         // "!path" is the configuration spelling of a Unix socket; an address sentinel reports is never one
         KeyValuePair<string, string>[] row = [new("name", "m"), new("ip", "!/tmp/redis.sock"), new("port", "6379"), new("flags", "master")];
-        var primary = Assert.IsType<DnsEndPoint>(ConnectionMultiplexer.ParseValidPrimary(row));
+        var primary = Assert.IsType<DnsEndPoint>(ConnectionMultiplexer.ParseHealthyPrimary(row, out _));
         Assert.Equal("!/tmp/redis.sock", primary.Host);
         Assert.Equal(6379, primary.Port);
     }

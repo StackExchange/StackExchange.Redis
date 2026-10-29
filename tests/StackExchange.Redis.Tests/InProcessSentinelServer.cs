@@ -61,6 +61,9 @@ public sealed class InProcessSentinelServer : InProcessTestServer
     public int ReplicaQueries => Volatile.Read(ref _replicaQueries);
     public int LegacyQueries => Volatile.Read(ref _legacyQueries);
     public string? PrimaryError { get; set; }
+
+    /// <summary>Answer <c>get-master-addr-by-name</c> with nil, as a sentinel that does not (yet) know the primary does.</summary>
+    public bool LegacyAnswersNothing { get; set; }
     public EndPoint[]? ReplicaAddressesOverride { get; set; }
     public Func<Task>? BeforePrimaryReplyAsync { get; set; }
     public Func<Task>? BeforePeerReplyAsync { get; set; }
@@ -99,6 +102,9 @@ public sealed class InProcessSentinelServer : InProcessTestServer
 
     public bool SupportsSentinelMaster { get; set; } = true;
 
+    /// <summary>Answer <c>SENTINEL MASTER</c> without its <c>flags</c> field, as some sentinel-compatible servers do.</summary>
+    public bool OmitPrimaryFlags { get; set; }
+
     private void CountPrimaryQuery()
     {
         Interlocked.Increment(ref _primaryQueries);
@@ -110,7 +116,7 @@ public sealed class InProcessSentinelServer : InProcessTestServer
     {
         if (!SupportsSentinelMaster) return TypedRedisValue.Error("ERR Unknown sentinel subcommand 'master'");
         var reply = PrimaryError is string error ? TypedRedisValue.Error(error)
-            : IsService(request) ? Describe(Primary, PrimaryFlags) : TypedRedisValue.Error("ERR No such master with that name");
+            : IsService(request) ? Describe(Primary, OmitPrimaryFlags ? null : PrimaryFlags) : TypedRedisValue.Error("ERR No such master with that name");
         CountPrimaryQuery();
         return reply;
     }
@@ -119,7 +125,7 @@ public sealed class InProcessSentinelServer : InProcessTestServer
     private TypedRedisValue SentinelGetMasterAddrByName(RedisClient client, in RedisRequest request)
     {
         Interlocked.Increment(ref _legacyQueries);
-        if (!IsService(request)) return TypedRedisValue.NullArray(RespPrefix.Array);
+        if (!IsService(request) || LegacyAnswersNothing) return TypedRedisValue.NullArray(RespPrefix.Array);
         var host = GetHost(Primary, out var port);
         var reply = TypedRedisValue.Rent(2, out var span, RespPrefix.Array);
         span[0] = TypedRedisValue.BulkString(host);
@@ -189,18 +195,21 @@ public sealed class InProcessSentinelServer : InProcessTestServer
         return reply;
     }
 
-    private TypedRedisValue Describe(EndPoint endpoint, string flags)
+    private TypedRedisValue Describe(EndPoint endpoint, string? flags)
     {
         var host = GetHost(endpoint, out var port);
-        var item = TypedRedisValue.Rent(8, out var span, RespPrefix.Array);
+        var item = TypedRedisValue.Rent(flags is null ? 6 : 8, out var span, RespPrefix.Array);
         span[0] = TypedRedisValue.BulkString("name");
-        span[1] = TypedRedisValue.BulkString(flags.StartsWith("master", StringComparison.Ordinal) ? ServiceName : $"{host}:{port}");
+        span[1] = TypedRedisValue.BulkString(flags is null || flags.StartsWith("master", StringComparison.Ordinal) ? ServiceName : $"{host}:{port}");
         span[2] = TypedRedisValue.BulkString("ip");
         span[3] = TypedRedisValue.BulkString(host);
         span[4] = TypedRedisValue.BulkString("port");
         span[5] = TypedRedisValue.BulkString(port.ToString());
-        span[6] = TypedRedisValue.BulkString("flags");
-        span[7] = TypedRedisValue.BulkString(flags);
+        if (flags is not null)
+        {
+            span[6] = TypedRedisValue.BulkString("flags");
+            span[7] = TypedRedisValue.BulkString(flags);
+        }
         return item;
     }
 

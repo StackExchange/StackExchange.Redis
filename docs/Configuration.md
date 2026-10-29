@@ -50,7 +50,8 @@ keeps asking without tearing down or reconfiguring the healthy connections. A co
 is marked as a replica at once, rather than at the next role check (`ConfigCheckSeconds`), and the client asks sentinel on its next heartbeat.
 Sentinel is queried asynchronously - waiting on a slow or unreachable sentinel holds no thread-pool thread - and the client only follows a
 sentinel that holds the node it names as a healthy master (`SENTINEL MASTER` flags without `s_down`/`o_down`; sentinels without
-`SENTINEL MASTER` are asked with `get-master-addr-by-name`).
+`SENTINEL MASTER` - or that refuse it, such as an ACL user allowed only `get-master-addr-by-name`, or that answer it without flags - are
+asked with `get-master-addr-by-name`, as every sentinel was before).
 
 An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
 
