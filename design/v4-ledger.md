@@ -369,6 +369,19 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
     usually already in the buffer when the reply is matched: **next step** is to look ahead for a complete check
     frame before parking, and reserve only when the check genuinely straddles a read. v3 had no hold (it
     deferred `Complete` on an already-parsed message), which is why its concurrent cost is a quarter of ours.
+  - *Mitigated (`v4-high-integrity-lookahead`, RespFest `hi-on-la` / `hi-on-la2`):* two changes. The look-ahead
+    (9106f4ce) alone bought ~10% CPU/op at 64 callers and nothing in RSS, which falsified the buffer-roll
+    diagnosis: allocation per op was +56 bytes with the mode on, identical before and after, and that was the
+    second `ConcurrentQueue` entry per command standing in for the check's reply. 91810686 moves the "checked"
+    bit into the request's own `PendingEntry` (its padding) and stages the check in one transport write instead
+    of head then tail. Result, mode on, same session: allocation per op now equal to mode off (104 / 189 / 1161
+    B/op), peak RSS back to baseline (76-97 MB against 138-333), and against the branch before the mitigation:
+    incr-pipe32 379k -> 415k ops/s (CPU/op 7.05 -> 6.89), incr-conc64 653k -> 701k (11.67 -> 9.83),
+    get-1k-conc64 590k -> 619k (12.66 -> 11.15); sequential unchanged. Cost of the mode after mitigation, on vs
+    off: incr-seq -5%, get-1k-seq -4%, incr-pipe32 -18% (+7-11% CPU/op), incr-conc64 -26% (+28% CPU/op),
+    get-1k-conc64 -18% (+18% CPU/op). What remains is the mode itself: twice the frames each way, and at 64
+    callers the single-threaded server is handling 1.4M commands/s for 700k operations, so part of the remaining
+    throughput gap is the server's, not the client's.
 
 - **2026-10-09: one group accessor instead of two (was a backlog item).** `RespDatabaseContext` is now an
   `IRespKeyspaceTarget` and `RespServerContext` an `IRespServerTarget` (each its own context), so the single
