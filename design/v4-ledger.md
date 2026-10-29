@@ -351,6 +351,24 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   held) and `HighIntegrityWireTests` (SE.Redis: EXEC-only checking in a transaction, every member in a batch, the
   failure type), plus `HighIntegrityMovedUnitTests` now asserts the checks happened. `design/command-flow.md`
   describes both framing extras and client-side caching end to end.
+  **Measured** (RespFest `hi-off` / `hi-on`, 2026-10-29, local Redis 8.2, 3 repeats, governor powersave; vendored
+  clients `dotnet-stackexchange-v4` @ 48e6e7aa, `-v4-base` @ 86a82688, `-v3-hi` = 3.3.0 with the switch):
+  - *Off path, branch vs base:* identical within spread on every cell - ops/s 52.3k/52.3k incr-seq, 506k/507k
+    incr-pipe32, 950k/961k incr-conc64, 50.3k/50.0k get-1k-seq, 758k/754k get-1k-conc64; CPU us/op 59.2/60.0,
+    6.21/6.44, 7.68/7.63, 61.3/61.8, 9.48/9.62. No regression.
+  - *Cost of the mode, v4 on vs off:* incr-seq -5% ops/s (+6% CPU/op), get-1k-seq -4%, incr-pipe32 -29% (+15% CPU),
+    incr-conc64 -31% (+48% CPU/op, p50 61 -> 89us), get-1k-conc64 -25% (+34% CPU/op). Peak RSS under concurrency
+    81 -> 224 MB and 95 -> 242 MB.
+  - *v3 3.3.0, on vs off:* incr-seq -4%, get-1k-seq -5%, incr-pipe32 -23%, incr-conc64 -8.5% (+7% CPU/op),
+    get-1k-conc64 0% (v3 is bottlenecked elsewhere there). Absolute, both on: v4 652k vs v3 540k incr-conc64, 570k
+    vs 274k get-1k-conc64, 358k vs 365k incr-pipe32, 49.8k vs 52.7k incr-seq.
+  - *Diagnosis of the concurrent gap (inferred, not yet profiled):* the hold is a reservation on the receive buffer,
+    and `EnsureSpace` rolls to a fresh buffer whenever a reservation is outstanding - so under load, where some
+    reply is nearly always held across a receive boundary, the inbound buffer rolls far more often than before
+    (the RSS doubling is the symptom). The server writes a reply and its ECHO contiguously, so the check is
+    usually already in the buffer when the reply is matched: **next step** is to look ahead for a complete check
+    frame before parking, and reserve only when the check genuinely straddles a read. v3 had no hold (it
+    deferred `Complete` on an already-parsed message), which is why its concurrent cost is a quarter of ours.
 
 - **2026-10-09: one group accessor instead of two (was a backlog item).** `RespDatabaseContext` is now an
   `IRespKeyspaceTarget` and `RespServerContext` an `IRespServerTarget` (each its own context), so the single
