@@ -1,9 +1,14 @@
+﻿using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class StreamInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // XINFO STREAM, as the command sends it
+    private static readonly IRespHandler<global::StackExchange.Redis.StreamInfo> Handler
+        = GroupHandlers.Get<global::StackExchange.Redis.StreamInfo>(typeof(global::StackExchange.Redis.Streams), "StreamTypesHandler", "Info");
+
     [Fact]
     public void BasicFormat_Success()
     {
@@ -51,7 +56,7 @@ public class StreamInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "$7\r\nmessage\r\n" +
                    "$6\r\nbanana\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamInfo);
+        var result = Execute(resp, Handler);
 
         Assert.Equal(2, result.Length);
         Assert.Equal(1, result.RadixTreeKeys);
@@ -95,7 +100,7 @@ public class StreamInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
                    "$17\r\nlast-generated-id\r\n" +
                    "$3\r\n0-0\r\n";
 
-        var result = Execute(resp, ResultProcessor.StreamInfo);
+        var result = Execute(resp, Handler);
 
         Assert.Equal(0, result.Length);
         Assert.Equal(1, result.RadixTreeKeys);
@@ -110,7 +115,7 @@ public class StreamInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         var resp = "$5\r\nhello\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamInfo);
+        ExecuteUnexpected(resp, Handler);
     }
 
     [Fact]
@@ -118,6 +123,6 @@ public class StreamInfo(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     {
         var resp = "$-1\r\n";
 
-        ExecuteUnexpected(resp, ResultProcessor.StreamInfo);
+        ExecuteUnexpected(resp, Handler);
     }
 }

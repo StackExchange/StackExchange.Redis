@@ -15,7 +15,8 @@ Features
 - High performance multiplexed design, allowing for efficient use of shared connections from multiple calling threads
 - Abstraction over redis node configuration: the client can silently negotiate multiple redis servers for robustness and availability
 - Convenient access to the full redis feature-set
-- Full dual programming model both synchronous and asynchronous usage, without requiring "sync over async" usage of the [TPL][1]
+- Commands grouped by data type (`db.Strings`, `db.Hashes`, ...), asynchronous throughout, and extensible by other libraries without waiting on us
+- The original flat `IDatabase` API, synchronous and asynchronous, still fully supported
 - Support for redis "cluster"
 
 Installation
@@ -33,6 +34,7 @@ Documentation
 - [Server](Server) - running a redis server
 - [Authentication](Authentication) - connecting to a Redis server with user authentication
 - [Basic Usage](Basics) - getting started and basic usage
+- [The original `IDatabase` API](LegacyApi) - what `db.StringGet` became, and why; the old spelling is still supported
 - [Async Timeouts](AsyncTimeouts) - async timeouts and cancellation
 - [Configuration](Configuration) - options available when connecting to redis
 - [Client-side geographic failover](Failover) (Active-Active / "multi-DB client") - connecting to multiple redundant Redis endpoints for high availability
@@ -45,6 +47,7 @@ Documentation
 - [Pub/Sub Key Notifications](KeyspaceNotifications) - how to use keyspace and keyevent notifications
 - [Hot Keys](HotKeys) - how to use `HOTKEYS` profiling
 - [Using RESP3](Resp3) - information on using RESP3
+- [Client-side caching](ClientSideCaching) - serving repeated reads from memory, kept current by server-assisted invalidation: enabling it, controlling it, and what it does and does not guarantee
 - [ServerMaintenanceEvent](ServerMaintenanceEvent) - how to listen and prepare for hosted server maintenance, including the server-native notifications sent by Redis Enterprise and Redis Cloud (known elsewhere as *smart client handoffs* or *hitless upgrades*)
 - [Streams](Streams) - how to use the Stream data type
 - [Arrays](Arrays) - how to use Redis Arrays as sparse arrays of values
@@ -54,7 +57,9 @@ Documentation
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts, including the low-allocation `ScriptEvalLease` API
-- [Ad-hoc commands](Execute) - running commands without a dedicated API, including the low-allocation `ExecLease` API
+- [Command groups](Groups) - `db.Strings`, `db.Hashes`, ...: where every command lives, and how they are called
+- [Ad-hoc commands](Execute) - running commands without a dedicated API, building them in pieces with `Compose`, and the low-allocation `ExecuteResp` API
+- [Extending the client](Extending) - for library authors: adding commands this client does not have, and migrating off `Execute(string, object[])`
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems

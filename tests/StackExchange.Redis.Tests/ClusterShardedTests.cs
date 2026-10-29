@@ -236,18 +236,23 @@ public class ClusterShardedTests(ITestOutputHelper output) : TestBase(output)
         var serverEndpoint = conn.GetServerEndPoint(server.EndPoint);
         Assert.Equal(server.EndPoint, serverEndpoint.EndPoint);
         var queue = await subscriber.SubscribeAsync(channel, server: serverEndpoint);
-        await Task.Delay(50);
-        var actual = subscriber.SubscribedEndpoint(channel);
 
         if (sharded)
         {
-            // we should end up at the correct node, following the -MOVED
-            Assert.Equal(shouldBeServer.EndPoint, actual);
+            // we should end up at the correct node, following the -MOVED - which takes a moment
+            await Task.Delay(50);
+            Assert.Equal(shouldBeServer.EndPoint, subscriber.SubscribedEndpoint(channel));
         }
         else
         {
-            // we should end up where we *actually sent the message* - there is no -MOVED
-            Assert.Equal(serverEndpoint.EndPoint, actual);
+            // we end up where we *actually sent the message* - there is no -MOVED - unless the re-ensure has
+            // already moved it: a key-routed channel on the wrong node IS moved to the slot owner, which is
+            // correct, and can land even before SubscribeAsync returns. What must NOT happen is that it is
+            // anywhere else, or nowhere.
+            var actual = subscriber.SubscribedEndpoint(channel);
+            Assert.True(
+                Equals(serverEndpoint.EndPoint, actual) || Equals(shouldBeServer.EndPoint, actual),
+                $"expected {Format.ToString(serverEndpoint.EndPoint)} (where it was sent) or {Format.ToString(shouldBeServer.EndPoint)} (the slot owner); was {Format.ToString(actual)}");
         }
 
         Log("Unsubscribing...");

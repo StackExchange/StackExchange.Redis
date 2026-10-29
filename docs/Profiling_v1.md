@@ -81,7 +81,7 @@ for (var i = 0; i < 16; i++)
 
                 for (var j = 0; j < 1000; j++)
                 {
-                    var task = db.StringSetAsync("" + j, "" + j);
+                    var task = db.Strings.SetAsync("" + j, "" + j).AsTask();
                     threadTasks.Add(task);
                 }
 
@@ -130,7 +130,7 @@ for (var i = 0; i < 16; i++)
 
                 for (var j = 0; j < 1000; j++)
                 {
-                    var task = db.StringSetAsync("" + j, "" + j);
+                    var task = db.Strings.SetAsync("" + j, "" + j).AsTask();
                     threadTasks.Add(task);
                 }
 

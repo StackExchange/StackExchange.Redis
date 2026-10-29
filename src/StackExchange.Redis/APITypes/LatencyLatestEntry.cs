@@ -8,27 +8,26 @@ namespace StackExchange.Redis;
 /// </summary>
 public readonly struct LatencyLatestEntry
 {
-    internal static readonly ResultProcessor<LatencyLatestEntry[]> ToArray = new Processor();
-
-    private sealed class Processor : ArrayResultProcessor<LatencyLatestEntry>
+    /// <summary>One <c>LATENCY LATEST</c> element: the event, its last spike, and its worst.</summary>
+    /// <param name="reader">Positioned on the element.</param>
+    /// <param name="parsed">The entry.</param>
+    /// <remarks><inheritdoc cref="LatencyHistoryEntry.TryParseEntry" path="/remarks"/></remarks>
+    internal static bool TryParseEntry(ref RespReader reader, out LatencyLatestEntry parsed)
     {
-        protected override bool TryParse(ref RespReader reader, out LatencyLatestEntry parsed)
+        if (reader.IsAggregate && reader.TryMoveNext() && reader.IsScalar)
         {
-            if (reader.IsAggregate && reader.TryMoveNext() && reader.IsScalar)
-            {
-                var eventName = reader.ReadString()!;
+            var eventName = reader.ReadString()!;
 
-                if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var timestamp)
-                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var duration)
-                    && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var maxDuration))
-                {
-                    parsed = new LatencyLatestEntry(eventName, timestamp, duration, maxDuration);
-                    return true;
-                }
+            if (reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var timestamp)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var duration)
+                && reader.TryMoveNext() && reader.IsScalar && reader.TryReadInt64(out var maxDuration))
+            {
+                parsed = new LatencyLatestEntry(eventName, timestamp, duration, maxDuration);
+                return true;
             }
-            parsed = default;
-            return false;
         }
+        parsed = default;
+        return false;
     }
 
     /// <summary>

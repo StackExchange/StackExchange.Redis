@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using RESPite;
 using RESPite.Messages;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -36,23 +37,14 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
     /// </summary>
     public byte[] Write(string command, params ICollection<object> args)
     {
-        var msg = new RedisDatabase.ExecuteMessage(CommandMap, -1, CommandFlags.None, command, Fixup(args));
-        var writer = new MessageWriter(ChannelPrefix, CommandMap, MessageWriter.BlockBuffer);
-        ReadOnlyMemory<byte> payload = default;
+        var frame = Render(command, args);
         try
         {
-            msg.WriteTo(writer);
-            payload = MessageWriter.FlushBlockBuffer();
-            return payload.Span.ToArray();
-        }
-        catch
-        {
-            MessageWriter.RevertBlockBuffer();
-            throw;
+            return frame.Span.ToArray();
         }
         finally
         {
-            MessageWriter.ReleaseBlockBuffer(payload);
+            frame.Dispose();
         }
     }
 
@@ -61,13 +53,21 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
     /// </summary>
     public void Write(IBufferWriter<byte> target, string command, params ICollection<object> args)
     {
-        // if we're using someone else's buffer writer, then we don't need to worry about our local
-        // memory-management rules
         if (target is null) throw new ArgumentNullException(nameof(target));
-        var msg = new RedisDatabase.ExecuteMessage(CommandMap, -1, CommandFlags.None, command, Fixup(args));
-        var writer = new MessageWriter(ChannelPrefix, CommandMap, target);
-        msg.WriteTo(writer);
+        var frame = Render(command, args);
+        try
+        {
+            target.Write(frame.Span);
+        }
+        finally
+        {
+            frame.Dispose();
+        }
     }
+
+    /// <summary>Renders exactly as the client sends: the ad-hoc path <c>IServer.Execute</c> takes.</summary>
+    private RespRequestFrame Render(string command, ICollection<object> args)
+        => RespAdHoc.Render(new RespContext(CommandMap).AppendChannelPrefix(ChannelPrefix), command, Fixup(args));
 
     /// <summary>
     /// Report a validation failure.
@@ -93,30 +93,22 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
     /// </summary>
     public void ValidateResp(ReadOnlySpan<byte> expected, string command, params ICollection<object> args)
     {
-        var msg = new RedisDatabase.ExecuteMessage(CommandMap, -1, CommandFlags.None, command, Fixup(args));
-        var writer = new MessageWriter(ChannelPrefix, CommandMap, MessageWriter.BlockBuffer);
-        ReadOnlyMemory<byte> actual = default;
+        var frame = Render(command, args);
         byte[]? lease = null;
         try
         {
-            msg.WriteTo(writer);
-            actual = MessageWriter.FlushBlockBuffer();
-            if (!expected.SequenceEqual(actual.Span))
+            var actual = frame.Span;
+            if (!expected.SequenceEqual(actual))
             {
                 lease = ArrayPool<byte>.Shared.Rent(expected.Length);
                 expected.CopyTo(lease);
-                OnValidateFail(lease.AsMemory(0, expected.Length), lease);
+                OnValidateFail(lease.AsMemory(0, expected.Length), actual.ToArray());
             }
-        }
-        catch
-        {
-            MessageWriter.RevertBlockBuffer();
-            throw;
         }
         finally
         {
             if (lease is not null) ArrayPool<byte>.Shared.Return(lease);
-            MessageWriter.ReleaseBlockBuffer(actual);
+            frame.Dispose();
         }
     }
 
@@ -150,31 +142,23 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
     /// </summary>
     public void ValidateResp(string expected, string command, params ICollection<object> args)
     {
-        var msg = new RedisDatabase.ExecuteMessage(CommandMap, 0, CommandFlags.None, command, Fixup(args));
-        var writer = new MessageWriter(ChannelPrefix, CommandMap, MessageWriter.BlockBuffer);
-        ReadOnlyMemory<byte> payload = default;
+        var frame = Render(command, args);
         char[]? lease = null;
         try
         {
-            msg.WriteTo(writer);
-            payload = MessageWriter.FlushBlockBuffer();
+            var payload = frame.Span;
             lease = ArrayPool<char>.Shared.Rent(Encoding.UTF8.GetMaxCharCount(payload.Length));
-            var chars = Encoding.UTF8.GetChars(payload.Span, lease.AsSpan());
+            var chars = Encoding.UTF8.GetChars(payload, lease.AsSpan());
             var actual = lease.AsSpan(0, chars);
             if (!actual.SequenceEqual(expected))
             {
                 OnValidateFail(expected, actual.ToString());
             }
         }
-        catch
-        {
-            MessageWriter.RevertBlockBuffer();
-            throw;
-        }
         finally
         {
             if (lease is not null) ArrayPool<char>.Shared.Return(lease);
-            MessageWriter.ReleaseBlockBuffer(payload);
+            frame.Dispose();
         }
     }
 
@@ -189,7 +173,7 @@ public class TestHarness(CommandMap? commandMap = null, RedisChannel channelPref
     public RedisResult Read(ReadOnlySpan<byte> value)
     {
         var reader = new RespReader(value);
-        if (!RedisResult.TryCreate(null, ref reader, out var result))
+        if (!RedisResult.TryCreate(ref reader, out var result))
         {
             throw new ArgumentException(nameof(value));
         }

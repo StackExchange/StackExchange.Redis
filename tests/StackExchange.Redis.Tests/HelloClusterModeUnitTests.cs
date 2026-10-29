@@ -46,6 +46,10 @@ public class HelloClusterModeUnitTests(ITestOutputHelper log)
         await db.StringGetAsync(crossSlot); // sanity: fine on a fresh connection
         Assert.Equal(ServerType.Standalone, conn.ServerSelectionStrategy.ServerType);
 
+        // the new core opens the subscription connection on first use rather than at connect, so give it a
+        // reason to exist: without one there is nothing to drop below, and the test would time out waiting
+        // for a reconnect that never has to happen
+        await conn.GetSubscriber().SubscribeAsync(RedisChannel.Literal("hello-mode"), static (_, _) => { });
         var endpoint = conn.GetServerSnapshot()[0];
         await WaitUntilAsync(() => endpoint.IsSubscriberConnected, "subscriber connected");
 

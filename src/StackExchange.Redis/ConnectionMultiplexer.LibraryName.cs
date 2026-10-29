@@ -31,27 +31,8 @@ public partial class ConnectionMultiplexer
         var libName = GetFullLibraryName(); // note this also checks SetClientLibrary
         if (string.IsNullOrWhiteSpace(libName) || !CommandMap.IsAvailable(RedisCommand.CLIENT)) return; // disabled on no lib name
 
-        // note that during initial handshake we use raw Message; this is low frequency - no
-        // concern over overhead of Execute here
-        var args = new object[] { RedisLiterals.SETINFO, RedisLiterals.lib_name, libName };
-        foreach (var server in GetServers())
-        {
-            try
-            {
-                // note we can only fixup the *interactive* channel; that's tolerable here
-                if (server.IsConnected)
-                {
-                    // best effort only
-                    server.Execute("CLIENT", args, CommandFlags.FireAndForget);
-                }
-            }
-            catch (Exception ex)
-            {
-                // if an individual server trips, that's fine - best effort; note we're using
-                // F+F here anyway, so we don't *expect* any failures
-                Debug.WriteLine(ex.Message);
-            }
-        }
+        // every connection there is; see RespConnectionManager.SetLibraryName
+        ConnectionsIfCreated?.SetLibraryName(libName);
     }
 
     internal string GetFullLibraryName()

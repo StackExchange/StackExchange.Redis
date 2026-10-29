@@ -567,7 +567,19 @@ namespace StackExchange.Redis.Server
                 return TypedRedisValue.Error(
                     $"ERR only [P|S][UN]SUBSCRIBE / PING / QUIT allowed in this context (got: '{request.Command}')");
             }
-            return base.Execute(client, request);
+
+            var result = base.Execute(client, request);
+
+            // CLIENT CACHING applies to the NEXT command and is consumed by it, whatever it is - except that a
+            // MULTI carries it across the transaction: the queued commands keep it while they are queued and
+            // while EXEC runs them, and EXEC (or DISCARD) is what consumes it
+            var command = request.KnownCommand;
+            if (command is not (RedisCommand.CLIENT or RedisCommand.MULTI) && !client.InMulti && !client.InExec)
+            {
+                client.CachingOverride = null;
+            }
+
+            return result;
 
             static bool IsAuthCommand(RedisCommand cmd) => cmd is RedisCommand.AUTH or RedisCommand.HELLO;
             static bool IsPubSubCommand(RedisCommand cmd)
@@ -850,6 +862,7 @@ namespace StackExchange.Redis.Server
             var results = TypedRedisValue.Rent(commands.Length, out var span, RespPrefix.Array);
             int index = 0;
             var lease = RedisRequest.GetLease();
+            client.InExec = true;
             try
             {
                 foreach (var cmd in commands)
@@ -861,6 +874,7 @@ namespace StackExchange.Redis.Server
             }
             finally
             {
+                client.InExec = false;
                 RedisRequest.ReleaseLease(ref lease);
             }
             return results;
@@ -872,6 +886,102 @@ namespace StackExchange.Redis.Server
             client.Name = request.GetString(2);
             return TypedRedisValue.OK;
         }
+
+        /// <summary>CLIENT TRACKING ON|OFF [BCAST] [PREFIX p ...] - server-assisted client-side caching.</summary>
+        /// <remarks>
+        /// Enough of the real command to exercise a client, not all of it: OPTIN, OPTOUT, NOLOOP and
+        /// REDIRECT are rejected rather than ignored, because a client that asked for them and silently did
+        /// not get them would be testing against a server that lies.
+        /// </remarks>
+        [RedisCommand(-3, nameof(RedisCommand.CLIENT), "tracking", LockFree = true)]
+        protected virtual TypedRedisValue ClientTracking(RedisClient client, in RedisRequest request)
+        {
+            bool on;
+            // real servers take these case-insensitively; matching one case only means the handshake
+            // fails on spelling rather than on meaning
+            if (request.IsString(2, "on"u8) || request.IsString(2, "ON"u8)) on = true;
+            else if (request.IsString(2, "off"u8) || request.IsString(2, "OFF"u8)) on = false;
+            else return TypedRedisValue.Error("ERR syntax error");
+
+            bool broadcast = false, optIn = false, optOut = false;
+            List<string> prefixes = null;
+            for (int i = 3; i < request.Count; i++)
+            {
+                if (request.IsString(i, "bcast"u8) || request.IsString(i, "BCAST"u8))
+                {
+                    broadcast = true;
+                }
+                else if (request.IsString(i, "optin"u8) || request.IsString(i, "OPTIN"u8))
+                {
+                    optIn = true;
+                }
+                else if (request.IsString(i, "optout"u8) || request.IsString(i, "OPTOUT"u8))
+                {
+                    optOut = true;
+                }
+                else if (request.IsString(i, "prefix"u8) || request.IsString(i, "PREFIX"u8))
+                {
+                    if (++i >= request.Count) return TypedRedisValue.Error("ERR syntax error");
+                    (prefixes ??= new()).Add(request.GetString(i));
+                }
+                else
+                {
+                    // NOLOOP/REDIRECT: not modelled, and saying so is the point
+                    return TypedRedisValue.Error("ERR " + request.GetString(i) + " is not supported by this server");
+                }
+            }
+
+            if (prefixes is not null && !broadcast)
+            {
+                return TypedRedisValue.Error("ERR PREFIX option requires BCAST mode to be enabled");
+            }
+
+            // the real server's spellings, so a client that reads the message learns the same thing
+            if (optIn && optOut) return TypedRedisValue.Error("ERR You can't specify both OPTIN mode and OPTOUT mode");
+            if ((optIn || optOut) && broadcast) return TypedRedisValue.Error("ERR OPTIN and OPTOUT are not compatible with BCAST");
+
+            if (on && client.Protocol < RedisProtocol.Resp3)
+            {
+                // RESP2 clients must redirect invalidation to a subscriber connection; we do not model that
+                return TypedRedisValue.Error("ERR Client tracking in RESP2 requires REDIRECT, which is not supported by this server");
+            }
+
+            client.SetTracking(on, broadcast, prefixes, optIn, optOut);
+            return TypedRedisValue.OK;
+        }
+
+        /// <summary>CLIENT CACHING YES|NO - track, or do not track, the keys of the next command.</summary>
+        [RedisCommand(3, nameof(RedisCommand.CLIENT), "caching", LockFree = true)]
+        protected virtual TypedRedisValue ClientCaching(RedisClient client, in RedisRequest request)
+        {
+            bool yes;
+            if (request.IsString(2, "yes"u8) || request.IsString(2, "YES"u8)) yes = true;
+            else if (request.IsString(2, "no"u8) || request.IsString(2, "NO"u8)) yes = false;
+            else return TypedRedisValue.Error("ERR syntax error");
+
+            // the real server's messages, verbatim: YES needs OPTIN, NO needs OPTOUT, and plain ON has neither
+            if (yes && !client.TrackingOptIn)
+            {
+                return TypedRedisValue.Error("ERR CLIENT CACHING YES is only valid when tracking is enabled in OPTIN mode.");
+            }
+
+            if (!yes && !client.TrackingOptOut)
+            {
+                return TypedRedisValue.Error("ERR CLIENT CACHING NO is only valid when tracking is enabled in OPTOUT mode.");
+            }
+
+            client.SetCachingOverride(yes);
+            return TypedRedisValue.OK;
+        }
+
+        /// <summary>
+        /// Called after each reply is queued; see <see cref="RespServer.OnReplyQueued"/>. The command is the
+        /// one just answered; for <c>CLIENT</c> the second argument is the subcommand, else null.
+        /// </summary>
+        internal Action<RedisClient, RedisCommand, string> AfterReply { get; set; }
+
+        private protected override void OnReplyQueued(RedisClient client, RedisCommand command, string subcommand)
+            => AfterReply?.Invoke(client, command, subcommand);
 
         [RedisCommand(2, nameof(RedisCommand.CLIENT), "getname", LockFree = true)]
         protected virtual TypedRedisValue ClientGetname(RedisClient client, in RedisRequest request)
@@ -1839,6 +1949,8 @@ namespace StackExchange.Redis.Server
             {
                 Flushdb(i);
             }
+
+            InvalidateEverything();
             return TypedRedisValue.OK;
         }
 
@@ -1846,6 +1958,10 @@ namespace StackExchange.Redis.Server
         protected virtual TypedRedisValue Flushdb(RedisClient client, in RedisRequest request)
         {
             Flushdb(client.Database);
+
+            // the one invalidation no PREFIX can filter: everything a tracking client holds is gone, and
+            // nothing enumerates what that was. Announced to every tracking client, not only this one.
+            InvalidateEverything();
             return TypedRedisValue.OK;
         }
         protected virtual void Flushdb(int database) => throw new NotSupportedException();

@@ -85,6 +85,33 @@ runs:
         --report-github-summary-include-passed false
         --report-github-summary-include-skipped false
 
+    # Neither of these needs a server, and between them they took about four seconds - but nothing ran
+    # them until now, so a namespace rename silently broke all 18 SER309 tests and nobody found out.
+    - name: RESPite.Tests
+      shell: bash
+      run: >-
+        dotnet test --project tests/RESPite.Tests/RESPite.Tests.csproj
+        --no-build
+        -c Release
+        -f net10.0
+        --results-directory ./test-results/
+        --report-trx
+        --report-github
+        --report-github-summary-include-passed false
+        --report-github-summary-include-skipped false
+
+    - name: StackExchange.Redis.Build.Tests
+      shell: bash
+      run: >-
+        dotnet test --project tests/StackExchange.Redis.Build.Tests/StackExchange.Redis.Build.Tests.csproj
+        --no-build
+        -c Release
+        --results-directory ./test-results/
+        --report-trx
+        --report-github
+        --report-github-summary-include-passed false
+        --report-github-summary-include-skipped false
+
     - uses: dorny/test-reporter@v3
       continue-on-error: true
       if: success() || failure()

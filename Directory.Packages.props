@@ -47,9 +47,8 @@
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.94" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageVersion Include="NSubstitute" Version="6.2.0" />
-    <!-- Deliberately the last 2.x release: the *Baseline projects compare the current build against the previous
-         major, so this is not a lagging pin to be bumped to 3.x/4.x when the others are refreshed -->
-    <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
+    <!-- the current shipped v3: what the *Baseline projects and RESPite.Benchmark (TargetVer=3) compare against -->
+    <PackageVersion Include="StackExchange.Redis" Version="3.3.1" />
     <PackageVersion Include="StackExchange.Redis.StrongName" Version="1.2.6" />
     <PackageVersion Include="StyleCop.Analyzers" Version="1.3.151-beta" />
     <PackageVersion Include="System.Collections.Immutable" Version="10.0.13" />

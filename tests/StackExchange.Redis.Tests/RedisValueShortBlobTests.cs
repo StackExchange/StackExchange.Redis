@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Text;
 using Xunit;
@@ -169,26 +169,12 @@ public class RedisValueShortBlobTests
         Assert.Equal(fromByteArray, fromShortBlob);
         Assert.True(fromShortBlob.AsSpan().SequenceEqual("$5\r\nhello\r\n"u8), "RESP bulk string mismatch");
 
-        // serialize a single bulk string via the shared block buffer and copy out the exact wire bytes before
-        // releasing it (we avoid ArrayBufferWriter<byte>, which isn't available on net48x)
+        // serialize a single bulk string through the shared RESP writer, and copy out the exact wire bytes
         static byte[] WriteBulkString(RedisValue value)
         {
-            ReadOnlyMemory<byte> payload = default;
-            try
-            {
-                MessageWriter.WriteBulkString(value, MessageWriter.BlockBuffer);
-                payload = MessageWriter.FlushBlockBuffer();
-                return payload.ToArray();
-            }
-            catch
-            {
-                MessageWriter.RevertBlockBuffer();
-                throw;
-            }
-            finally
-            {
-                MessageWriter.ReleaseBlockBuffer(payload);
-            }
+            var sink = new GrowingWriter();
+            RespWire.WriteBulkString(value, sink);
+            return sink.ToArray();
         }
     }
 
@@ -200,5 +186,34 @@ public class RedisValueShortBlobTests
         Assert.False(shortBlob.IsNull);
         Assert.False(shortBlob.IsNullOrEmpty);
         Assert.True(shortBlob.HasValue);
+    }
+
+    /// <summary>The smallest <see cref="System.Buffers.IBufferWriter{T}"/> that works on every target (no ArrayBufferWriter on net48x).</summary>
+    private sealed class GrowingWriter : System.Buffers.IBufferWriter<byte>
+    {
+        private byte[] _buffer = new byte[256];
+        private int _written;
+
+        public void Advance(int count) => _written += count;
+
+        public Memory<byte> GetMemory(int sizeHint = 0)
+        {
+            Ensure(sizeHint);
+            return _buffer.AsMemory(_written);
+        }
+
+        public Span<byte> GetSpan(int sizeHint = 0)
+        {
+            Ensure(sizeHint);
+            return _buffer.AsSpan(_written);
+        }
+
+        public byte[] ToArray() => _buffer.AsSpan(0, _written).ToArray();
+
+        private void Ensure(int sizeHint)
+        {
+            var needed = _written + Math.Max(sizeHint, 1);
+            if (needed > _buffer.Length) Array.Resize(ref _buffer, Math.Max(needed, _buffer.Length * 2));
+        }
     }
 }

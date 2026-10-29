@@ -34,7 +34,7 @@ internal static class RespReaderInternalExtensions
                     unsafe
                     {
                         if (clone.IsScalar &&
-                            clone.TryParseScalar(&PhysicalConnection.PushKindMetadata.TryParse, out PhysicalConnection.PushKind kind))
+                            clone.TryParseScalar(&PushKindMetadata.TryParse, out PushKind kind))
                         {
                             first = kind.ToString();
                             return true;

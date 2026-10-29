@@ -7,7 +7,7 @@ namespace StackExchange.Redis;
 /// <see cref="IncrementBy"/>.
 /// </summary>
 /// <remarks><seealso href="https://redis.io/commands/bitfield"/></remarks>
-public readonly struct BitFieldOperation : IEquatable<BitFieldOperation>
+public readonly partial struct BitFieldOperation : IEquatable<BitFieldOperation>
 {
     internal enum OperationKind : byte
     {

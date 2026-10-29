@@ -10,7 +10,7 @@ public class LexTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -61,7 +61,7 @@ public class LexTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         db.KeyDelete(key, CommandFlags.FireAndForget);
 

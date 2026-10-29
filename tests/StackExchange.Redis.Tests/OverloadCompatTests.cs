@@ -14,7 +14,7 @@ public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixtu
     public async Task KeyExpire()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var expiresIn = TimeSpan.FromSeconds(10);
         var expireTime = DateTime.UtcNow.AddHours(1);
@@ -60,7 +60,7 @@ public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixtu
     {
         await using var conn = Create(require: RedisFeatures.v2_6_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var flags = CommandFlags.None;
 
@@ -106,7 +106,7 @@ public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixtu
     {
         await using var conn = Create(require: RedisFeatures.v2_6_0);
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var flags = CommandFlags.None;
 
@@ -155,7 +155,7 @@ public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixtu
     public async Task SortedSetAdd()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         RedisKey key = Me();
         RedisValue val = "myval";
         var score = 1.0d;
@@ -209,7 +209,7 @@ public class OverloadCompatTests(ITestOutputHelper output, SharedConnectionFixtu
     public async Task StringSet()
     {
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
         var val = "myval";
         var expiresIn = TimeSpan.FromSeconds(10);

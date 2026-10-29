@@ -11,8 +11,6 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ClientInfo
     {
-        internal static readonly ResultProcessor<ClientInfo[]> Processor = new ClientInfoProcessor();
-
         /// <summary>
         /// Address (host and port) of the client.
         /// </summary>
@@ -286,23 +284,6 @@ namespace StackExchange.Redis
         private static void AddFlag(ref ClientFlags value, string raw, ClientFlags toAdd, char token)
         {
             if (raw.IndexOf(token) >= 0) value |= toAdd;
-        }
-
-        private sealed class ClientInfoProcessor : ResultProcessor<ClientInfo[]>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
-            {
-                if (reader.Prefix is RespPrefix.BulkString or RespPrefix.VerbatimString)
-                {
-                    var raw = reader.ReadString();
-                    if (TryParse(raw, out var clients))
-                    {
-                        SetResult(message, clients);
-                        return true;
-                    }
-                }
-                return false;
-            }
         }
     }
 }

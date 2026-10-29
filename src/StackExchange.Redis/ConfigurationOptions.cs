@@ -18,6 +18,7 @@ using RESPite;
 using RESPite.Buffers;
 using RESPite.Streams;
 using StackExchange.Redis.Availability;
+using StackExchange.Redis.Caching;
 using StackExchange.Redis.Configuration;
 
 namespace StackExchange.Redis
@@ -539,6 +540,7 @@ namespace StackExchange.Redis
         public void TrustIssuer(string issuerCertificatePath) => CertificateValidationCallback = TrustIssuerCallback(issuerCertificatePath);
 
 #if NET
+
         /// <summary>
         /// Supply a user certificate from a PEM file pair and enable TLS.
         /// </summary>
@@ -989,6 +991,7 @@ namespace StackExchange.Redis
         public SocketManager? SocketManager { get; set; }
 
 #if NET
+
         /// <summary>
         /// A <see cref="SslClientAuthenticationOptions"/> provider for a given host, for custom TLS connection options.
         /// Note: this overrides *all* other TLS and certificate settings, only for advanced use cases.
@@ -1092,9 +1095,10 @@ namespace StackExchange.Redis
         /// default), or <c>0</c> to never do so.
         /// </summary>
         /// <remarks>
-        /// Sends an <c>INFO replication</c> on each *established* interactive connection. That is how a
-        /// primary/replica change is noticed on a deployment that does not announce one, and it doubles as the
-        /// keep-alive for those sockets, which is why the interval is short.
+        /// Re-reads the role of each *established* interactive connection's server (<c>ROLE</c>; the shipped core
+        /// sent <c>INFO replication</c>). That is how a primary/replica change is noticed on a deployment that
+        /// does not announce one - a primary demoted in place under sentinel, say - and it doubles as a keep-alive
+        /// for those sockets, which is why the interval is short.
         /// <para>
         /// Despite the name, this is not a topology re-read. It asks a server we are already talking to what it
         /// says about itself, so it reveals nothing about servers we cannot reach, about endpoints that have
@@ -1126,7 +1130,7 @@ namespace StackExchange.Redis
         /// </para>
         /// <para>
         /// Distinct from <see cref="ConfigCheckSeconds"/>, which despite its name does not re-read topology -
-        /// it sends an <c>INFO replication</c> on an established connection to check a server's role.
+        /// it asks an established connection's server for its role.
         /// </para>
         /// </remarks>
         public int TopologyRefreshSeconds
@@ -1198,6 +1202,7 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = SslClientAuthenticationOptions,
 #endif
             Tunnel = Tunnel,
+            ClientCache = ClientCache,
             LibraryName = LibraryName,
             _protocol = _protocol,
             _maintenanceNotifications = _maintenanceNotifications,
@@ -1213,6 +1218,7 @@ namespace StackExchange.Redis
 #endif
             RequestBufferPool = RequestBufferPool,
             ResponseBufferPool = ResponseBufferPool,
+            ConnectMode = ConnectMode,
         };
 
         /// <summary>
@@ -1422,6 +1428,7 @@ namespace StackExchange.Redis
             SslClientAuthenticationOptions = null;
 #endif
             Tunnel = null;
+            ClientCache = null;
             _protocol = default;
             _maintenanceNotifications = default;
             _maintenanceRelaxedTimeout = _maintenanceRelaxedWindowMax = _maintenancePostEventRelaxedDuration = default;
@@ -1649,6 +1656,22 @@ namespace StackExchange.Redis
         public Tunnel? Tunnel { get; set; }
 
         /// <summary>
+        /// Enables a client-side cache on this connection, and says how it is built.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see langword="null"/> - the default - means no cache at all, which is the only safe default: a
+        /// cache changes what a read can return, and nobody should acquire that by upgrading.
+        /// </para>
+        /// <para>
+        /// Not part of the connection string. These are durations, prefixes and correctness choices rather
+        /// than a name, and round-tripping them through text would invite configuration by someone who had
+        /// not read what <see cref="CachePolicy.InvalidationGracePeriod"/> actually permits.
+        /// </para>
+        /// </remarks>
+        public CacheOptions? ClientCache { get; set; }
+
+        /// <summary>
         /// Specify the redis protocol type.
         /// </summary>
         public RedisProtocol? Protocol
@@ -1780,7 +1803,7 @@ namespace StackExchange.Redis
         public CircuitBreaker? CircuitBreaker { get; set; }
 
         /// <summary>
-        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry"/> for databases
+        /// The retry policy used by <see cref="DatabaseExtensions.WithRetry(IDatabaseAsync, RetryPolicy?)"/> for databases
         /// obtained from this connection; when <c>null</c>, <see cref="RetryPolicy.Default"/> is used.
         /// </summary>
         /// <remarks>
@@ -1859,6 +1882,23 @@ namespace StackExchange.Redis
         /// The buffer pool to use when buffering responses, and for allocating <see cref="Lease{Byte}"/> results.
         /// </summary>
         public MemoryPool<byte>? ResponseBufferPool { get; set; }
+
+        /// <summary>
+        /// How eagerly connections to the configured endpoints are opened.
+        /// </summary>
+        /// <remarks>
+        /// <b>Internal, for now.</b> It was kept internal while it was a promise the client could not keep:
+        /// it governs the core's connections, and the v3 core dialled every endpoint regardless, so a
+        /// caller asking for <see cref="ConnectMode.Lazy"/> still got every socket opened. With that core
+        /// gone the promise can be kept, and making it public is a separate decision; see design notes 9d.
+        /// </remarks>
+        internal ConnectMode ConnectMode { get; set; }
+            // Eager, not Discover - the v3 core activated EVERY endpoint at connect,
+            // and the move is meant to preserve behaviour rather than improve on it. Discover is a real
+            // mode worth offering, but as a default it silently changes what a caller sees: with one
+            // socket open, a non-routed pub/sub probe lands on the same endpoint ten times out of ten,
+            // which ClusterTests.ClusterPubSub reads as "the channel is being routed when it should not be".
+            = ConnectMode.Eager;
 
         /// <summary>
         /// The buffer pool to use when buffering requests.

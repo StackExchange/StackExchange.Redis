@@ -28,10 +28,29 @@ namespace StackExchange.Redis.Availability;
 [AutoDatabase(Replays = true)]
 internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 {
+    /// <inheritdoc/>
+    public RespDatabaseContext Context => new(GetContextCore());
     // Note: the *command* surface is async-only, exactly like RetryDatabase - retrying is inherently
     // delay-ish; only the terminal Execute is offered synchronously.
     private readonly IDatabaseAsync _source;
     private readonly RetryController _controller;
+
+    /// <summary>Refuse to build a context, saying why.</summary>
+    /// <remarks>
+    /// <b>Still refused, where <see cref="RetryDatabase"/>'s is not.</b> A retrying database replays one
+    /// operation, so decorating its executor gives the context surface exactly the same behaviour. A
+    /// retrying transaction replays <i>the whole recorded unit</i> - conditions, queued operations and
+    /// <c>EXEC</c> together - and a retry executor knows nothing of that: it would re-send individual
+    /// frames inside a transaction, which is not a retry of anything the caller asked for. Retry arrives
+    /// here when the context surface has transactions, and not before.
+    /// </remarks>
+    internal static RespContext GetContextCore()
+        => throw new NotImplementedException(
+            "The context surface does not support retrying transactions; a transaction is replayed as a "
+            + "unit, which a per-frame retry executor cannot express.");
+
+    /// <inheritdoc cref="GetContextCore"/>
+    RespContext IRespTarget.Context => GetContextCore();
 
     // not readonly, and null until something is recorded: ExecuteAsync takes it and clears it, so the
     // replay loop below runs over a list nothing else can still be adding to. A caller doing something
@@ -180,7 +199,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
             // inject the aggregate retry category onto the EXEC flags so the resulting fault carries it, and
             // the shared RetryPolicy/FaultContext logic gates the whole transaction exactly like one command
             var category = inner is IInternalTransaction it ? it.GetAggregateRetryCategory() : CommandFlags.CommandRetryNever;
-            var effectiveFlags = (flags & ~Message.MaskRetryCategory) | category;
+            var effectiveFlags = (flags & ~CommandFlagsInternal.MaskRetryCategory) | category;
 
             try
             {
@@ -208,7 +227,31 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
                 {
                     foreach (var c in conditions) c.ForwardSuccess();
                 }
-                foreach (var op in ops) op.ForwardSuccess();
+                List<Task>? settling = null;
+                foreach (var op in ops)
+                {
+                    if (op.ForwardSuccess() is { } pending) (settling ??= new()).Add(pending);
+                }
+
+                // SETTLED before we return, not merely scheduled - unless the caller declined the EXEC's own
+                // reply, in which case there is nothing to wait for and waiting would be the opposite of what
+                // they asked. Faults are swallowed here on purpose: they belong on the per-command proxy,
+                // where the caller reads them, and must not fail the transaction as a whole.
+                if (settling is not null && (effectiveFlags & CommandFlags.FireAndForget) == 0)
+                {
+                    foreach (var pending in settling)
+                    {
+                        try
+                        {
+                            await pending.ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            // carried by the proxy; see above
+                        }
+                    }
+                }
+
                 return committed;
             }
             catch (Exception ex)
@@ -268,13 +311,23 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
     {
         void Replay(IDatabaseAsync inner);
 
-        // Copy this attempt's outcome onto the durable proxy. A *replied* EXEC populates every queued
-        // operation's result before its own task completes (TransactionProcessor does both while processing
-        // that one reply), so the outcome is normally available inline. A fire-and-forget EXEC is the
-        // exception: it completes as soon as it has been written, with the replies still in flight - so
-        // forwarding must be deferred rather than blocking for a round-trip the caller explicitly declined
-        // (which is what F+F means, and what a plain RedisTransaction does in the same situation).
-        void ForwardSuccess();
+        // Copy this attempt's outcome onto the durable proxy, and say whether that had to be DEFERRED: the
+        // returned task is the attempt whose completion will settle the proxy, or null when it already has.
+        //
+        // A *replied* EXEC populates every queued operation's result before its own task completes
+        // (TransactionProcessor does both while processing that one reply), so the outcome is normally
+        // available inline. Two cases are not:
+        //
+        //  - a fire-and-forget EXEC completes as soon as it has been written, with the replies still in
+        //    flight. Waiting there would block for a round trip the caller explicitly declined, which is
+        //    what F+F means and what a plain RedisTransaction does in the same situation - so the caller
+        //    ignores the returned task;
+        //  - the NEW core sets those results inline too, but publishes each caller-facing task through a
+        //    queued continuation, deliberately, so that a reply never runs user code on the IO thread. The
+        //    result is there and the Task has not caught up, which is a distinction no caller should be able
+        //    to see: `await ExecuteAsync()` has always meant the per-command tasks are settled. So the
+        //    caller waits on what is returned, unless the EXEC itself was declined.
+        Task? ForwardSuccess();
         void Fault(Exception ex);
         void Observe();
 
@@ -316,11 +369,11 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 
         public void Replay(IDatabaseAsync inner) => _attempt = _operation(in _state, inner);
 
-        public void ForwardSuccess()
+        public Task? ForwardSuccess()
         {
             // fire-and-forget: Forward guards too, so this is here to skip the continuation below rather than
             // for correctness - there is no point registering one to settle a proxy that does not exist
-            if (_proxy is null) return;
+            if (_proxy is null) return null;
 
             // ForwardSuccess only runs after Replay, so this cannot be null; `?? throw` says that to the
             // compiler as well as the reader, and keeps the failure loud if the order ever changes
@@ -328,12 +381,11 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
             if (attempt.IsCompleted)
             {
                 Forward(attempt);
+                return null;
             }
-            else
-            {
-                // fire-and-forget EXEC: see the note on ForwardLater
-                ForwardLater(attempt);
-            }
+
+            ForwardLater(attempt);
+            return attempt;
         }
 
         private void ForwardLater(Task<TResult> attempt) => attempt.ContinueWith(
@@ -387,9 +439,9 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 
         public void Replay(IDatabaseAsync inner) => _attempt = _operation(in _state, inner);
 
-        public void ForwardSuccess()
+        public Task? ForwardSuccess()
         {
-            if (_proxy is null) return; // fire-and-forget: see RecordedOp.ForwardSuccess
+            if (_proxy is null) return null; // fire-and-forget: see RecordedOp.ForwardSuccess
 
             // ForwardSuccess only runs after Replay, so this cannot be null; `?? throw` says that to the
             // compiler as well as the reader, and keeps the failure loud if the order ever changes
@@ -397,12 +449,11 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
             if (attempt.IsCompleted)
             {
                 Forward(attempt);
+                return null;
             }
-            else
-            {
-                // fire-and-forget EXEC: see the note on ForwardLater
-                ForwardLater(attempt);
-            }
+
+            ForwardLater(attempt);
+            return attempt;
         }
 
         private void ForwardLater(Task attempt) => attempt.ContinueWith(

@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
 /// <summary>
 /// Describes a value contained in a stream (a name/value pair).
 /// </summary>
-public readonly struct NameValueEntry : IEquatable<NameValueEntry>
+public readonly struct NameValueEntry : IEquatable<NameValueEntry>, IRespArgument
 {
     internal readonly RedisValue name, value;
 
@@ -78,4 +79,19 @@ public readonly struct NameValueEntry : IEquatable<NameValueEntry>
     /// <param name="x">The first <see cref="NameValueEntry"/> to compare.</param>
     /// <param name="y">The second <see cref="NameValueEntry"/> to compare.</param>
     public static bool operator !=(NameValueEntry x, NameValueEntry y) => x.name != y.name || x.value != y.value;
+
+    /// <summary>Write this pair as two consecutive arguments: the name, then the value.</summary>
+    /// <remarks>
+    /// <b>Explicit, so the public surface does not grow.</b> What it buys is the unroll -
+    /// <c>$"{RedisCommand.XADD}{key}{fields}"</c> writes a whole run through the existing
+    /// <c>AppendFormatted&lt;T&gt;(ReadOnlySpan&lt;T&gt;) where T : IRespArgument</c>, instead of every
+    /// caller looping and spelling out "name, then value" again. Same move as
+    /// <see cref="RedisKeyOrValue"/>, for the same reason: the type knows its own shape, so the decision
+    /// is made once here rather than at each call site.
+    /// </remarks>
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
+    {
+        handler.AppendFormatted(name);
+        handler.AppendFormatted(value);
+    }
 }

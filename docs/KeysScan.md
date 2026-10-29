@@ -53,6 +53,8 @@ server.FlushDatabase();
 
 Note that unlike the `IDatabase` API (where the target database has already been selected in the `GetDatabase()` call), these methods take an optional parameter for the database, or it defaults to `0`.
 
+From 4.0 the server-scoped keyspace commands also have a command group, `server.Keyspace`, in the same async-only style as the database groups - so the wipe above can be written `await server.Keyspace.FlushAsync(0)` (there, the database is required rather than defaulted). Key enumeration is not on the group: `server.Keys(...)`, below, remains the way to list keys.
+
 The `Keys(...)` method deserves special mention: it is unusual in that it does not have an `*Async` counterpart. The reason for this is that behind the scenes, the system will determine the most appropriate method to use (`KEYS` vs `SCAN`, based on the server version), and if possible will use the `SCAN` approach to hand you back an `IEnumerable<RedisKey>` that does all the paging internally - so you never need to see the implementation details of the cursor operations. If `SCAN` is not available, it will use `KEYS`, which can cause blockages at the server. Either way, both `SCAN` and `KEYS` will need to sweep the entire keyspace, so should be avoided on production servers - or at least, targeted at replicas.
 
 So I need to remember which server I connected to? That sucks!

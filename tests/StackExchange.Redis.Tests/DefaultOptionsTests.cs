@@ -251,9 +251,23 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(0, self.ShardedSubscriptionCount);
         Assert.Equal(protocol, self.Protocol);
 
-        var expectedCount = protocol is RedisProtocol.Resp3 && sharedSubscriptionConnection ? 1 : 2;
+        // One socket before anything subscribes, shared or not: this core dials the subscription socket only
+        // when something needs it - the configuration channel (disabled for Azure Managed Redis) or a
+        // subscriber - so sharing (#3264) changes WHERE pub/sub lives, not whether a socket opens up front.
+        // AssertCanPubSubAsync below is what dials it. And nothing extra for a second core any more. There used to
+        // be a transitional allowance here for the shipped bridge's socket sitting beside the new core's;
+        // it went when the topology commands moved and the shipped bridge stopped dialling, so the server
+        // now sees exactly the one-core shape, which is the shape this test is about.
+        const int expectedCount = 1;
+
+        // the STEADY shape, given a moment to settle: under the engine flag sockets are dialled
+        // asynchronously, so an immediate read can catch one mid-open or mid-close - the same grace
+        // ConnectUsesSingleSocket gives its own count. A socket that persists still fails, with the real
+        // number in the message; only a transient one is forgiven.
+        await Poll.UntilAsync(() => serverObj.ClientCount == expectedCount, timeoutMilliseconds: 2000);
+        namedClients = (await server.ClientListAsync()).Where(x => x.Name == config.ClientName).ToArray();
         Assert.Equal(expectedCount, serverObj.ClientCount);
-        Assert.Equal(expectedCount, namedClients.Length);
+        Assert.Single(namedClients);
 
         await AssertCanPubSubAsync(conn, $"{nameof(AzureManagedRedisConnectionCount)}:{protocol}:{sharedSubscriptionConnection}");
     }
@@ -277,17 +291,34 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         var clients = server.ClientList();
         var namedClients = clients.Where(x => x.Name == conn.ClientName).ToArray();
 
+        // Two sockets under RESP2 - one carrying commands, one carrying deliveries - whichever core holds
+        // them. Under the engine flag both belong to the new core; the shipped bridges no longer dial at all,
+        // so the transitional extra socket this once allowed for is gone and the total is simply two.
+        const int expectedCount = 2;
         Assert.Equal(RedisProtocol.Resp2, server.Protocol);
-        Assert.Equal(2, serverObj.ClientCount);
+
+        // the steady shape, given the same moment to settle as AzureManagedRedisConnectsWithoutSubscriptionConnection
+        await Poll.UntilAsync(() => serverObj.ClientCount == expectedCount, timeoutMilliseconds: 2000);
+        namedClients = server.ClientList().Where(x => x.Name == conn.ClientName).ToArray();
+        Assert.Equal(expectedCount, serverObj.ClientCount);
         Assert.NotNull(interactiveId);
         Assert.NotNull(subscriptionId);
-        Assert.NotEqual(interactiveId, subscriptionId);
-        Assert.Equal(2, namedClients.Length);
+        Assert.Equal(expectedCount, namedClients.Length);
+
+        // ...and only where this core owns both legs are they distinct connections; with no subscription
+        // bridge the lookup answers with the interactive one, which is the honest answer rather than a
+        // missing one, so asking for two ids here would be asking the wrong question.
 
         var interactive = Assert.Single(clients, x => x.Id == interactiveId);
-        var subscription = Assert.Single(clients, x => x.Id == subscriptionId);
         Assert.Equal(ClientType.Normal, interactive.ClientType);
-        Assert.Equal(ClientType.PubSub, subscription.ClientType);
+
+        // whichever core placed it, the invariant under RESP2 is the same: the subscription is in
+        // subscriber mode on a socket that is NOT the one carrying ordinary commands. Asked of the
+        // bridge's subscription connection by id, that only holds while the bridge places it - under
+        // the engine flag the new core's own socket carries it and the bridge's sits idle - so ask the
+        // server which socket is subscribed instead of assuming which one should be.
+        var subscription = Assert.Single(namedClients, x => x.ClientType == ClientType.PubSub);
+        Assert.NotEqual(interactiveId, subscription.Id);
         Assert.True(subscription.SubscriptionCount > 0);
 
         await AssertCanPubSubAsync(conn, nameof(VanillaResp2ConnectsWithSeparatePubSubConnection));

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using StackExchange.Redis.Availability;
@@ -168,6 +168,12 @@ public class RetryGuardTests(ITestOutputHelper log) : TestBase(log)
 
         Assert.Equal(inner.Database, db.Database);
         Assert.Same(conn, db.Multiplexer);
+
+        // asked AFTER something has been sent, because that is what makes the question meaningful on a core
+        // that dials on demand: an endpoint nobody has needed yet is not connected and not broken either, and
+        // IsConnected cannot tell those apart without attempting - ConnectToUnexistingHostTests pins the other
+        // side of that, where a never-dialled endpoint must not claim to be connected
+        _ = await db.KeyExistsAsync(key);
         Assert.True(db.IsConnected(key));
         Assert.NotNull(await db.IdentifyEndpointAsync(key));
         Log(db.ToString()!); // exercises the feature-flag description

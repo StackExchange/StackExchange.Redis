@@ -203,7 +203,7 @@ public partial class RedisClient
             switch (type)
             {
                 case RespPrefix.Integer:
-                    MessageWriter.WriteInteger(output, (long)value.AsRedisValue());
+                    RespWire.WriteInteger(output, (long)value.AsRedisValue());
                     break;
                 case RespPrefix.Double:
                     WriteDouble(output, (double)value.AsRedisValue());
@@ -217,11 +217,11 @@ public partial class RedisClient
                     WritePrefix(output, prefix);
                     var val = (string)value.AsRedisValue() ?? "";
                     var expectedLength = Encoding.UTF8.GetByteCount(val);
-                    MessageWriter.WriteRaw(output, val, expectedLength);
-                    MessageWriter.WriteCrlf(output);
+                    RespWire.WriteRaw(output, val, expectedLength);
+                    RespWire.WriteCrlf(output);
                     break;
                 case RespPrefix.BulkString:
-                    MessageWriter.WriteBulkString(value.AsRedisValue(), output);
+                    RespWire.WriteBulkString(value.AsRedisValue(), output);
                     break;
                 case RespPrefix.Null:
                 case RespPrefix.Push when value.IsNullArray:
@@ -231,7 +231,7 @@ public partial class RedisClient
                     output.Write("_\r\n"u8);
                     break;
                 case RespPrefix.Array when value.IsNullArray:
-                    MessageWriter.WriteMultiBulkHeader(output, -1);
+                    RespWire.WriteMultiBulkHeader(output, -1);
                     break;
                 case RespPrefix.Push:
                 case RespPrefix.Map:
@@ -239,7 +239,7 @@ public partial class RedisClient
                 case RespPrefix.Set:
                 case RespPrefix.Attribute:
                     var segment = value.Span;
-                    MessageWriter.WriteMultiBulkHeader(output, segment.Length, type);
+                    RespWire.WriteMultiBulkHeader(output, segment.Length, type);
                     foreach (var item in segment)
                     {
                         if (item.IsNil) throw new InvalidOperationException("Array element cannot be nil");

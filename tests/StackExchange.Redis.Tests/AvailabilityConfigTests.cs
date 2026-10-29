@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using StackExchange.Redis.Availability;
 using Xunit;
@@ -329,5 +329,42 @@ public class AvailabilityConfigTests
         await using var muxer = await ConnectionMultiplexer.ConnectAsync(config);
         var retrying = Assert.IsType<RetryDatabase>(muxer.GetDatabase().WithRetry());
         Assert.Same(RetryPolicy.Default, retrying.Policy);
+    }
+
+    // ---- the context's multiplexer, and WithRetry() on a context ----
+    [Fact]
+    public async Task AContextReportsItsMultiplexerThroughEveryDecorator()
+    {
+        var config = ConfigurationOptions.Parse("localhost:6379");
+        config.AbortOnConnectFail = false;
+
+        await using var muxer = await ConnectionMultiplexer.ConnectAsync(config);
+        var context = muxer.GetDatabase().Context;
+
+        // the same object IDatabaseAsync.Multiplexer reports, and still so through each decorator
+        Assert.Same(muxer, context.Multiplexer);
+        Assert.Same(muxer, context.Raw.Multiplexer);
+        Assert.Same(muxer, context.WithRetry().Multiplexer);
+        Assert.Same(muxer, context.BeginBatch().Context.Multiplexer);
+        Assert.Same(muxer, context.BeginTransaction().Context.Multiplexer);
+        Assert.Same(muxer, muxer.GetServer(muxer.GetEndPoints()[0]).Context.Multiplexer);
+    }
+
+    [Fact]
+    public void AContextWithNoMultiplexerSaysSo()
+        => Assert.Null(new RespContext().WithExecutor(new FakeExecutor("+OK\r\n")).Multiplexer);
+
+    [Fact]
+    public async Task WithRetry_OnAContextUsesTheConfiguredPolicy()
+    {
+        // it used to take RetryPolicy.Default whatever was configured: a context had no multiplexer to ask
+        RetryPolicy configured = new RetryPolicy.Builder { MaxAttempts = 7 };
+        var config = ConfigurationOptions.Parse("localhost:6379");
+        config.RetryPolicy = configured;
+        config.AbortOnConnectFail = false;
+
+        await using var muxer = await ConnectionMultiplexer.ConnectAsync(config);
+        var retrying = Assert.IsType<RespRetryExecutor>(muxer.GetDatabase().Context.WithRetry().Raw.Executor);
+        Assert.Same(configured, retrying.Policy);
     }
 }

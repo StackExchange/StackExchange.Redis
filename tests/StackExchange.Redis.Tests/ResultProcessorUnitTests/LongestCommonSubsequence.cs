@@ -1,10 +1,14 @@
-using System.Linq;
+﻿using System.Linq;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests.ResultProcessorUnitTests;
 
 public class LongestCommonSubsequence(ITestOutputHelper log) : ResultProcessorUnitTest(log)
 {
+    // LCS ... IDX, as the command sends it
+    private static readonly IRespHandler<LCSMatchResult> Handler = RespHandlers.Inbuilt<LCSMatchResult>.Require();
+
     [Fact]
     public void SingleMatch_Success()
     {
@@ -18,7 +22,7 @@ public class LongestCommonSubsequence(ITestOutputHelper log) : ResultProcessorUn
         // 3) "len"
         // 4) (integer) 6
         var resp = "*4\r\n$7\r\nmatches\r\n*1\r\n*3\r\n*2\r\n:4\r\n:7\r\n*2\r\n:5\r\n:8\r\n:4\r\n$3\r\nlen\r\n:6\r\n";
-        var result = Execute(resp, ResultProcessor.LCSMatchResult);
+        var result = Execute(resp, Handler);
 
         Assert.Equal(6, result.LongestMatchLength);
         Assert.Single(result.Matches);
@@ -53,7 +57,7 @@ public class LongestCommonSubsequence(ITestOutputHelper log) : ResultProcessorUn
         // 3) "len"
         // 4) (integer) 6
         var resp = "*4\r\n$7\r\nmatches\r\n*2\r\n*3\r\n*2\r\n:4\r\n:7\r\n*2\r\n:5\r\n:8\r\n:4\r\n*3\r\n*2\r\n:2\r\n:3\r\n*2\r\n:0\r\n:1\r\n:2\r\n$3\r\nlen\r\n:6\r\n";
-        var result = Execute(resp, ResultProcessor.LCSMatchResult);
+        var result = Execute(resp, Handler);
 
         Assert.Equal(6, result.LongestMatchLength);
         Assert.Equal(2, result.Matches.Length);
@@ -90,7 +94,7 @@ public class LongestCommonSubsequence(ITestOutputHelper log) : ResultProcessorUn
         // 3) "len"
         // 4) (integer) 0
         var resp = "*4\r\n$7\r\nmatches\r\n*0\r\n$3\r\nlen\r\n:0\r\n";
-        var result = Execute(resp, ResultProcessor.LCSMatchResult);
+        var result = Execute(resp, Handler);
 
         Assert.Equal(0, result.LongestMatchLength);
         Assert.Empty(result.Matches);
@@ -100,6 +104,6 @@ public class LongestCommonSubsequence(ITestOutputHelper log) : ResultProcessorUn
     public void NotArray_Failure()
     {
         var resp = "+OK\r\n";
-        ExecuteUnexpected(resp, ResultProcessor.LCSMatchResult);
+        ExecuteUnexpected(resp, Handler);
     }
 }

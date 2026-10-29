@@ -1,11 +1,16 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using RESPite;
 
 namespace StackExchange.Redis.Availability;
 
 /// <summary>
-///     Provides availability-related extension methods (such as <see cref="WithRetry"/>) to database instances.
+///     Provides availability-related extension methods (such as
+///     <see cref="WithRetry(IDatabaseAsync, RetryPolicy?)"/>) to database instances.
 /// </summary>
+// RS0026 warns that overloads carrying optional parameters can become ambiguous later. Not here: the two
+// WithRetry overloads are told apart by their FIRST parameter - an IDatabaseAsync or a
+// RespDatabaseContext - and neither has a default, so a call can only bind to one of them.
+[SuppressMessage("ApiDesign", "RS0026:Do not add multiple overloads with optional parameters", Justification = "Overloads differ in a leading parameter that has no default; see the comment above")]
 public static class DatabaseExtensions
 {
     /// <summary>
@@ -33,12 +38,63 @@ public static class DatabaseExtensions
     /// <exception cref="System.InvalidOperationException">If <paramref name="database"/> is a batch, a
     /// transaction, already retrying, or carries an <c>asyncState</c>.</exception>
     public static IDatabaseAsync WithRetry(this IDatabaseAsync database, RetryPolicy? retryPolicy = null)
-        => new RetryDatabase(database, retryPolicy ?? ResolveRetryPolicy(database));
+        => new RetryDatabase(database, retryPolicy ?? ResolveRetryPolicy(database.Multiplexer));
+
+    /// <summary>
+    /// A context whose commands are retried when a transient fault says they can be.
+    /// </summary>
+    /// <param name="context">The context to wrap.</param>
+    /// <param name="retryPolicy">
+    /// The policy to apply; when omitted, the one configured on the context's multiplexer, as the database
+    /// overload resolves it, and <see cref="RetryPolicy.Default"/> if there is none.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// <b>A decorator on the executor, which is why this returns a context rather than a wrapper type.</b>
+    /// <see cref="WithRetry(IDatabaseAsync, RetryPolicy?)"/> has to build a whole replaying
+    /// <see cref="IDatabaseAsync"/>, because a method call is what it replays; here the thing replayed is
+    /// a rendered frame, so retry is one link in the send chain and everything downstream of it - the
+    /// groups, the cache, the key prefix - is untouched and unaware.
+    /// </para>
+    /// <para>
+    /// <b>Synchronous sends retry too</b> - including every send through a <see cref="RespContext.Blocking"/>
+    /// context made from the result - pausing between attempts by blocking the calling thread, which a
+    /// synchronous caller has already agreed to. The retrying database (the overload above) still implements
+    /// only <see cref="IDatabaseAsync"/>.
+    /// </para>
+    /// <para>
+    /// <b>The policy is resolved from configuration</b> through <see cref="RespDatabaseContext.Multiplexer"/>,
+    /// exactly as the database overload resolves it. It used to default to <see cref="RetryPolicy.Default"/>
+    /// whatever was configured, because a context had no multiplexer to ask.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="System.InvalidOperationException">If the context is already retrying.</exception>
+    public static RespDatabaseContext WithRetry(this RespDatabaseContext context, RetryPolicy? retryPolicy = null)
+    {
+        var raw = context.Raw;
+        var inner = raw.Executor ?? throw new System.InvalidOperationException(
+            "This context has no executor, so there is nothing to retry through.");
+
+        // cannot nest retry, as RetryDatabase.Validate refuses to wrap a retrying database: two loops
+        // would multiply the attempt counts rather than sharing them
+        if (inner is RespRetryExecutor)
+        {
+            throw new System.InvalidOperationException(
+                "This context is already retrying; a second policy would multiply the attempts rather than replace them.");
+        }
+
+        // the failover source comes from the executor chain rather than from an IDatabaseAsync, which is
+        // what lets a retrying CONTEXT track failover at all: RetryDatabase could always hand its own
+        // GetNextFailover down, but a context built with WithRetry had nowhere to get one and so silently
+        // ran with the failover rungs unreachable. Fetched per use, never captured - see GetFailoverSource.
+        return new RespDatabaseContext(
+            raw.WithExecutor(new RespRetryExecutor(inner, retryPolicy ?? ResolveRetryPolicy(raw.Multiplexer), inner.GetFailoverSource())));
+    }
 
     // IDatabaseAsync always exposes its multiplexer (via IRedisAsync), so the configured policy is reachable
     // without the caller having to thread it through; note IConnectionMultiplexer is a public interface that
     // callers may implement or mock, so every step here degrades to the default rather than assuming a type
-    private static RetryPolicy ResolveRetryPolicy(IDatabaseAsync database) => database.Multiplexer switch
+    private static RetryPolicy ResolveRetryPolicy(IConnectionMultiplexer? multiplexer) => multiplexer switch
     {
         IConnectionGroup group => group.Options.RetryPolicy,
         IInternalConnectionMultiplexer muxer => muxer.RawConfig.RetryPolicy ?? RetryPolicy.Default,

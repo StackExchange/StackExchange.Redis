@@ -52,5 +52,10 @@ These exist mostly for Marc's benefit:
 To build and run from source, `dotnet run` can be used with everything after `--` being args to the command:
 
 ```
-dotnet run -p:TargetVer=3 -f net10.0 -c Release -- -q -c 50 -P 100 +m --queue -n 500000 -q -l -t INCR
+dotnet run -f net10.0 -c Release -- -q -c 50 -P 100 +m --queue -n 500000 -q -l -t INCR
 ```
+
+That builds against this repository's source (v4). To compare against a shipped release instead, add
+`-p:TargetVer=3` (the current v3 package), `-p:TargetVer=2` (the last v2) or `-p:TargetVer=1` (the v1
+StrongName package); `--new` (the context API) exists only in the source build, where `--old` runs the
+classic `IDatabase` API over the same core.

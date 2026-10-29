@@ -7,13 +7,43 @@ namespace StackExchange.Redis.Tests;
 [RunPerProtocol]
 public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture fixture) : TestBase(output, fixture)
 {
+    /// <summary>
+    /// As for a batch: executing a transaction leaves it open, and the commands and conditions added
+    /// afterwards make up the next one - each run judged on its own conditions, none carried over.
+    /// </summary>
+    [Fact]
+    public async Task ATransactionCanBeExecutedAgain()
+    {
+        await using var conn = Create();
+        var db = conn.GetDatabase();
+        var key = Me();
+        await db.KeyDeleteAsync(key);
+
+        var tran = db.CreateTransaction();
+        tran.AddCondition(Condition.KeyNotExists(key));
+        _ = tran.StringSetAsync(key, "first");
+        Assert.True(await tran.ExecuteAsync());
+
+        // the same condition now fails, so this run must not apply
+        var failed = tran.AddCondition(Condition.KeyNotExists(key));
+        _ = tran.StringSetAsync(key, "second");
+        Assert.False(await tran.ExecuteAsync());
+        Assert.False(failed.WasSatisfied);
+        Assert.Equal("first", await db.StringGetAsync(key));
+
+        // no condition this time: the failed one above belonged to the previous run, not to this one
+        _ = tran.StringSetAsync(key, "third");
+        Assert.True(await tran.ExecuteAsync());
+        Assert.Equal("third", await db.StringGetAsync(key));
+    }
+
     [Fact]
     public async Task BasicEmptyTran()
     {
         await using var conn = Create();
 
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         Assert.False(db.KeyExists(key));
 
@@ -28,10 +58,13 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     {
         await using var conn = Create();
 
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var tran = db.CreateTransaction();
-        var redisTransaction = Assert.IsType<RedisTransaction>(tran);
-        Assert.Throws<NotSupportedException>(() => redisTransaction.CreateTransaction(null));
+
+        // through the INTERFACE, not the concrete type: nesting being refused is the contract, and
+        // RedisTransaction being the thing that refuses it is an implementation detail. Pinning the type
+        // made this the one test in the suite that a second ITransaction implementation could not satisfy.
+        Assert.Throws<NotSupportedException>(() => ((IDatabaseAsync)tran).CreateTransaction(null));
     }
 
     [Theory]
@@ -44,7 +77,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
         if (keyExists) db.StringSet(key2, "any value", flags: CommandFlags.FireAndForget);
@@ -91,7 +124,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -132,7 +165,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
         RedisValue hashField = "field";
@@ -180,7 +213,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -244,7 +277,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
         if (keyExists) db.ListRightPush(key2, "any value", flags: CommandFlags.FireAndForget);
@@ -291,7 +324,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -358,7 +391,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -437,7 +470,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -516,7 +549,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -582,7 +615,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
         RedisValue member = "value";
@@ -636,7 +669,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -715,7 +748,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -781,7 +814,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create(disabledCommands: ["info", "config"]);
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
         RedisValue member = "value";
@@ -834,7 +867,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         using var conn = Create();
 
         RedisKey key1 = Me() + "_1", key2 = Me() + "_2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -887,7 +920,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         using var conn = Create();
 
         RedisKey key1 = Me() + "_1", key2 = Me() + "_2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key1, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -943,7 +976,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -989,7 +1022,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -1055,7 +1088,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -1124,7 +1157,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -1203,7 +1236,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create(require: RedisFeatures.v5_0_0);
 
         RedisKey key = Me(), key2 = Me() + "2";
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         db.KeyDelete(key2, CommandFlags.FireAndForget);
 
@@ -1265,7 +1298,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         Assert.False(db.KeyExists(key));
 
@@ -1309,7 +1342,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         await using var conn = Create();
 
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         Assert.False(db.KeyExists(key));
 
@@ -1334,7 +1367,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     {
         await using var conn = Create(disabledCommands: ["SELECT"]);
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         Assert.False(db.KeyExists(key));
 
@@ -1403,7 +1436,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
         int hashHit = 0, hashMiss = 0, expireHit = 0, expireMiss = 0;
         await using (var conn = Create())
         {
-            var db = conn.GetDatabase();
+            var db = GetDatabase(conn);
             for (int i = 0; i < 40000; i++)
             {
                 RedisKey key = Me();
@@ -1437,7 +1470,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     {
         RedisKey keyA = Me() + ":A", keyB = Me() + ":B", keyC = Me() + ":C";
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.StringSet(keyA, "42",  flags: CommandFlags.FireAndForget);
         db.StringSet(keyB, "abc",  flags: CommandFlags.FireAndForget);
         db.StringSet(keyC, 13,  flags: CommandFlags.FireAndForget);
@@ -1458,7 +1491,7 @@ public class TransactionTests(ITestOutputHelper output, SharedConnectionFixture 
     {
         RedisKey keyA = Me() + ":A", keyB = Me() + ":B", keyC = Me() + ":C";
         await using var conn = Create();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.StringSet(keyA, "42",  flags: CommandFlags.FireAndForget);
         db.StringSet(keyB, "abc",  flags: CommandFlags.FireAndForget);
         db.StringSet(keyC, 13,  flags: CommandFlags.FireAndForget);

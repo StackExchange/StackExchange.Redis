@@ -30,6 +30,7 @@
     <PackageReference Include="System.Security.Cryptography.Pkcs" /> <!-- audit: see Directory.Packages.props -->
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <PackageReference Include="GitHubActionsTestLogger" /> <!-- the platform's report-github switch, which the CI action passes to every test project -->
     <PackageReference Include="Microsoft.Testing.Platform" />
   </ItemGroup>
 </Project>

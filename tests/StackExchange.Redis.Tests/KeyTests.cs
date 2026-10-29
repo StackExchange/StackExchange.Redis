@@ -28,6 +28,11 @@ public class KeyTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         for (int i = 0; i < Count; i++)
             db.StringSet(prefix + "x" + i, "y" + i, flags: CommandFlags.FireAndForget);
 
+        // ...and one awaited round trip on the same database before asking the server what it holds.
+        // Fire-and-forget promises the command is SENT, not that it has happened, so a SCAN issued straight
+        // after can legitimately see fewer keys than were written. See design notes 9b-vi.
+        _ = db.KeyExists(prefix + "x0");
+
         var count = server.Keys(dbId, prefix + "*").Count();
         Assert.Equal(Count, count);
     }

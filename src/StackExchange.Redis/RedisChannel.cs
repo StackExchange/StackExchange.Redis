@@ -261,6 +261,7 @@ namespace StackExchange.Redis
             => BuildKeySpaceChannel(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, appendStar: pattern.IsNull, allowKeyPatterns: true, subkey: false);
 
 #pragma  warning disable RS0026 // competing overloads - disambiguated via OverloadResolutionPriority
+
         /// <summary>
         /// Create a key-notification channel using a raw prefix, optionally in a specified database.
         /// </summary>
@@ -350,6 +351,7 @@ namespace StackExchange.Redis
             => BuildKeySpaceChannel(pattern, database, RedisChannelOptions.Pattern | RedisChannelOptions.MultiNode, default, appendStar: pattern.IsNull, allowKeyPatterns: true, subkey: true);
 
 #pragma  warning disable RS0026 // competing overloads - disambiguated via OverloadResolutionPriority
+
         /// <summary>
         /// Create a subkey (hash) notification channel using a raw prefix, optionally in a specified database.
         /// </summary>

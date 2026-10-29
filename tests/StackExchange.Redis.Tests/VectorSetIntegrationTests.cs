@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -10,7 +10,7 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 [RunPerProtocol]
-public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBase(output)
+public class VectorSetIntegrationTests(ITestOutputHelper output) : TestBase(output)
 {
     [Theory]
     [InlineData(true)]
@@ -18,7 +18,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetAdd_BasicOperation(bool useFp32)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         // Clean up any existing data
@@ -37,7 +37,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetAdd_WithAttributes()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -67,7 +67,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
         var server = conn.GetServer(RedisKey.Null);
         Log($"Server version: {server.Version}");
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me() + "/" + quantization;
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -102,7 +102,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetLength_EmptySet()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -115,7 +115,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetLength_WithElements()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -136,7 +136,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetDimension()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -155,7 +155,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetContains(bool useFp32)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -178,7 +178,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetGetApproximateVector(bool useFp32)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -207,7 +207,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRemove()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -233,7 +233,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetInfo(VectorSetQuantization quantization)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -265,7 +265,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRandomMember()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -286,7 +286,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRandomMembers()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -317,7 +317,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetSimilaritySearch_ByVector(bool withScores, bool withAttributes)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var disambiguator = (withScores ? 1 : 0) + (withAttributes ? 2 : 0);
         var key = Me() + disambiguator;
 
@@ -375,7 +375,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetSimilaritySearch_ByMember(bool withScores, bool withAttributes)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var disambiguator = (withScores ? 1 : 0) + (withAttributes ? 2 : 0);
         var key = Me() + disambiguator;
 
@@ -426,7 +426,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetSimilaritySearch_WithFilter(bool corruptPrefix, bool corruptSuffix)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -505,7 +505,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetSimilaritySearch_TestFilterValues(string? filterExpression)
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -557,7 +557,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetSetAttributesJson()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -585,7 +585,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetGetLinks()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -622,7 +622,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetGetLinksWithScores()
     {
         await using var conn = Create(require: RedisFeatures.v8_0_0_M04);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -671,7 +671,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_BasicOperation()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -699,7 +699,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_WithStartAndEnd()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -725,7 +725,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_WithCount()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -750,7 +750,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_WithExcludeStart()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -776,7 +776,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_WithExcludeEnd()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -802,7 +802,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_WithExcludeBoth()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -828,7 +828,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_EmptySet()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -844,7 +844,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_NoMatches()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -869,7 +869,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_OpenStart()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -895,7 +895,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_OpenEnd()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -921,7 +921,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_SyncVsAsync()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -949,7 +949,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRange_WithNumericLexOrder()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -1030,7 +1030,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRangeEnumerate_BasicIteration()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -1062,7 +1062,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRangeEnumerate_WithRange()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -1093,7 +1093,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRangeEnumerate_EarlyBreak()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -1117,7 +1117,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRangeEnumerate_EmptyBatches()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -1136,7 +1136,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRangeEnumerateAsync_BasicIteration()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
@@ -1168,7 +1168,7 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
     public async Task VectorSetRangeEnumerateAsync_WithCancellation()
     {
         await using var conn = Create(require: RedisFeatures.v8_4_0_rc1);
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         var key = Me();
 
         await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);

@@ -43,7 +43,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         Log(options.ToString());
         using (var connection = ConnectionMultiplexer.Connect(options))
         {
-            var ttl = await connection.GetDatabase().PingAsync();
+            var ttl = await GetDatabase(connection).PingAsync();
             Log(ttl.ToString());
         }
     }
@@ -120,7 +120,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
             Log("====");
             conn.ConnectionFailed += OnConnectionFailed;
             conn.InternalError += OnInternalError;
-            var db = conn.GetDatabase();
+            var db = GetDatabase(conn);
             await db.PingAsync().ForAwait();
             using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
             {
@@ -212,7 +212,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
             {
                 await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
 
-                var db = conn.GetDatabase();
+                var db = GetDatabase(conn);
                 Log("Pinging...");
                 var time = await db.PingAsync().ForAwait();
                 Log($"Ping time: {time}");
@@ -275,7 +275,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
         await using var conn = ConnectionMultiplexer.Connect(options);
 
         RedisKey key = Me();
-        var db = conn.GetDatabase();
+        var db = GetDatabase(conn);
         db.KeyDelete(key, CommandFlags.FireAndForget);
         string? s = db.StringGet(key);
         Assert.Null(s);
@@ -338,7 +338,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
             RedisKey key = Me();
             if (!setEnv) Assert.Fail("Could not set environment");
 
-            var db = conn.GetDatabase();
+            var db = GetDatabase(conn);
             db.KeyDelete(key, CommandFlags.FireAndForget);
             string? s = db.StringGet(key);
             Assert.Null(s);
@@ -472,7 +472,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
 
         await using var conn = ConnectionMultiplexer.Connect(options);
 
-        await conn.GetDatabase().PingAsync();
+        await GetDatabase(conn).PingAsync();
     }
 
     public static RemoteCertificateValidationCallback? ShowCertFailures(TextWriterOutputHelper output)
@@ -534,7 +534,7 @@ public class SSLTests(ITestOutputHelper output, SSLTests.SSLServerFixture fixtur
 
         await using var conn = ConnectionMultiplexer.Connect(options);
 
-        await conn.GetDatabase().PingAsync();
+        await GetDatabase(conn).PingAsync();
     }
 
     [Fact]

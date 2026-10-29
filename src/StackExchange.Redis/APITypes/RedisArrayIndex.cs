@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using RESPite;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -10,7 +11,7 @@ namespace StackExchange.Redis;
 /// </summary>
 /// <param name="value">The array index.</param>
 [method: CLSCompliant(false)]
-public readonly struct RedisArrayIndex(ulong value) : IEquatable<RedisArrayIndex>
+public readonly struct RedisArrayIndex(ulong value) : IEquatable<RedisArrayIndex>, IRespArgument
 {
     private readonly ulong value = value;
 
@@ -49,6 +50,16 @@ public readonly struct RedisArrayIndex(ulong value) : IEquatable<RedisArrayIndex
     public ulong Value => value;
 
     internal RedisValue ToRedisValue() => value;
+
+    /// <summary>Writes this index as one argument.</summary>
+    /// <remarks>
+    /// Explicit, as <see cref="HashEntry"/> does it: reached only through a command hole, which is the one
+    /// place it means anything, so it does not clutter the type for callers who never write a frame by hand.
+    /// One argument, which is what makes a <c>ReadOnlySpan&lt;RedisArrayIndex&gt;</c> render as a run of
+    /// indices through the handler's open span hole rather than needing an overload of its own.
+    /// </remarks>
+    void IRespArgument.WriteTo(scoped ref RespRequestBuilder handler)
+        => handler.AppendFormatted(value);
 
     /// <summary>
     /// Converts from an <see cref="int"/>.

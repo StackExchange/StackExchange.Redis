@@ -176,4 +176,13 @@ public class ClientKillFilter
         }
         return parts;
     }
+
+    /// <summary>The same rendering, as the span-shaped argument list the RESP context takes.</summary>
+    /// <param name="withReplicaCommands">Whether this server says <c>replica</c> rather than <c>slave</c>.</param>
+    /// <remarks>
+    /// One encoding, two shapes: <see cref="ToList"/> is what the unit test compares against and what the
+    /// shipped message wanted, and this is what an interpolated request appends. Rendering it twice is how
+    /// the two spellings of <c>CLIENT KILL</c> would come to disagree.
+    /// </remarks>
+    internal RedisValue[] ToArray(bool withReplicaCommands) => ToList(withReplicaCommands).ToArray();
 }
