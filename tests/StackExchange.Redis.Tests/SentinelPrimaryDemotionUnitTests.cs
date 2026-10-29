@@ -107,7 +107,7 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public async Task KnownHealthyPrimaryRetiresAReplicaNoLongerAdvertisedAndStopsRecovery()
+    public async Task KnownHealthyPrimaryKeepsItsEndPointsAndStopsRecovery()
     {
         using var data = new InProcessTestServer(log, PrimaryA);
         data.AddReplicaNode(ReplicaB, PrimaryA);
@@ -115,15 +115,18 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
         Assert.Contains(ReplicaB, conn.GetEndPoints());
 
+        // the replica fails and sentinel no longer lists it; the primary is unchanged
         data.AddReplicaNode(NewNodeC, PrimaryA);
         RemoveAndDisconnect(data, ReplicaB);
         await UntilAsync(() => !conn.GetServer(ReplicaB).IsConnected, "removed replica stayed connected");
         var owner = conn.sentinelConnection!;
-        var args = new ConnectionFailedEventArgs(null, conn, ReplicaB, ConnectionType.Interactive, ConnectionFailureType.SocketFailure, null, null);
-        owner.OnManagedConnectionFailed(conn, args);
-        await UntilAsync(() => !conn.GetEndPoints().Contains(ReplicaB) && conn.sentinelPrimaryReconnectTimer is null, "dead replica kept recovery alive");
+        owner.OnManagedConnectionFailed(conn, Failure(ReplicaB, conn));
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "dead replica kept recovery alive");
+
+        // the endpoint set is rebuilt only around a primary never seen: the replica keeps its bridge to reconnect
         Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
-        Assert.DoesNotContain(ReplicaB, conn.GetServerSnapshot().ToArray().Select(x => x.EndPoint));
+        Assert.Contains(ReplicaB, conn.GetEndPoints());
+        Assert.DoesNotContain(NewNodeC, conn.GetEndPoints());
     }
 
     [Fact]
@@ -418,43 +421,75 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "healthy primary did not stop recovery");
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task IncompleteReplicaViewDoesNotRetireConnectedNodes(bool empty)
+    [Fact]
+    public async Task FailedReplicaQueryForANewPrimaryKeepsTheOldNodes()
     {
         using var data = new InProcessTestServer(log, PrimaryA);
         data.AddReplicaNode(ReplicaB, PrimaryA);
-        data.AddReplicaNode(NewNodeC, PrimaryA);
         using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
         await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "connect left a timer");
         var held = conn.TryResolveServerEndPoint(ReplicaB);
-        sentinel.ReplicaAddressesOverride = empty ? [] : [NewNodeC];
-        await conn.sentinelConnection!.SwitchPrimaryAsync(null, conn);
+
+        // sentinel names a primary never seen, but the replica query fails: a failed query is not an empty
+        // topology, so nothing is retired - the new primary is only added
+        sentinel.ReplicaError = "NOPERM User client has no permissions to run the 'sentinel|replicas' command";
+        FailOverToNewNode(data);
+        sentinel.Primary = NewNodeC;
+        Assert.True(sentinel.ForAllClients(client => client.Publish(
+            RedisChannel.Literal("+switch-master"), "mymaster 192.0.2.1 6379 192.0.2.3 6379")) > 0, "no subscriber for +switch-master");
+
+        await AssertPrimaryBecomesAsync(conn, NewNodeC);
+        Assert.True(sentinel.ReplicaQueries > 0);
+        Assert.Contains(PrimaryA, conn.GetEndPoints());
         Assert.Contains(ReplicaB, conn.GetEndPoints());
         Assert.Same(held, conn.TryResolveServerEndPoint(ReplicaB));
         Assert.True(conn.GetServer(ReplicaB).IsConnected);
-        Assert.Null(conn.sentinelPrimaryReconnectTimer);
     }
 
     [Fact]
-    public async Task ReplicasComeFromTheSentinelWhosePrimaryWasAccepted()
+    public async Task ReplicasComeFromAnySentinelThatAnswers()
     {
         using var data = new InProcessTestServer(log, PrimaryA);
         data.AddReplicaNode(ReplicaB, PrimaryA);
-        using var accepted = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
-        using var other = new InProcessSentinelServer(data, ServiceName, PrimaryA, SecondSentinelEndPoint, log)
+        // the only sentinel whose primary answer is taken refuses the replica query
+        using var accepted = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log)
         {
-            PrimaryFlags = "master,s_down",
-            ReplicaAddressesOverride = [],
+            ReplicaError = "NOPERM User client has no permissions to run the 'sentinel|replicas' command",
         };
+        using var other = new InProcessSentinelServer(data, ServiceName, PrimaryA, SecondSentinelEndPoint, log) { PrimaryFlags = "master,s_down" };
         var config = CreateConfig(data, accepted, other);
         config.EndPoints.Add(SecondSentinelEndPoint);
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+        Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
         Assert.Contains(ReplicaB, conn.GetEndPoints());
-        Assert.True(accepted.ReplicaQueries > 0);
-        Assert.Equal(0, other.ReplicaQueries);
-        Assert.Equal(0, other.LegacyQueries);
+        await UntilAsync(() => conn.GetServer(ReplicaB) is { IsConnected: true, IsReplica: true }, "replica did not join");
+    }
+
+    [Fact]
+    public async Task OldPrimaryStillAnsweringMasterIsRetiredWhenSentinelNamesANewOne()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        data.AddReplicaNode(ReplicaB, PrimaryA);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "connect left a timer");
+
+        // C, never seen by the client, is promoted and B follows it. A is left out of the service but stays
+        // reachable and keeps answering role:master; sentinel no longer lists it.
+        data.AddEmptyNode(NewNodeC);
+        data.SetReplicaOf(ReplicaB, NewNodeC);
+        sentinel.Primary = NewNodeC;
+        Assert.True(sentinel.ForAllClients(client => client.Publish(
+            RedisChannel.Literal("+switch-master"), "mymaster 192.0.2.1 6379 192.0.2.3 6379")) > 0, "no subscriber for +switch-master");
+
+        await AssertPrimaryBecomesAsync(conn, NewNodeC);
+        await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "a second primary kept recovery alive");
+        int queries = sentinel.PrimaryQueries;
+        await Task.Delay(2500);
+        Assert.Equal(queries, sentinel.PrimaryQueries);
+        Assert.Null(conn.sentinelPrimaryReconnectTimer);
+        Assert.DoesNotContain(PrimaryA, conn.GetServerSnapshot().ToArray().Select(x => x.EndPoint));
     }
 
     [Fact]

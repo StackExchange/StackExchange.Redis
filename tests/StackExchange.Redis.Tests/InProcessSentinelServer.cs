@@ -61,6 +61,7 @@ public sealed class InProcessSentinelServer : InProcessTestServer
     public int ReplicaQueries => Volatile.Read(ref _replicaQueries);
     public int LegacyQueries => Volatile.Read(ref _legacyQueries);
     public string? PrimaryError { get; set; }
+    public string? ReplicaError { get; set; }
 
     /// <summary>Answer <c>get-master-addr-by-name</c> with nil, as a sentinel that does not (yet) know the primary does.</summary>
     public bool LegacyAnswersNothing { get; set; }
@@ -166,6 +167,7 @@ public sealed class InProcessSentinelServer : InProcessTestServer
         if (!IsService(request)) return TypedRedisValue.Error("ERR No such master with that name");
 
         Interlocked.Increment(ref _replicaQueries);
+        if (ReplicaError is string error) return TypedRedisValue.Error(error);
         // sentinel learns the replicas from the primary, so report whatever replicates it right now
         var replicas = new List<EndPoint>();
         if (_monitored.TryGetNode(Primary, out var primaryNode))
