@@ -329,6 +329,29 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
 
 ## Status
 
+- **2026-10-29: high-integrity mode restored (`ConfigurationOptions.HighIntegrity`).** Lost with the old core: the
+  option, `ConnectionFailureType.ResponseIntegrityFailure`, the docs and the `HighIntegrity*Tests` classes all
+  survived, but nothing assigned a token or validated a reply, and the test classes passed vacuously because they
+  only re-ran suites with the flag set. Rebuilt as the dual of the prefix frame, at the same choke point:
+  `RespConnection.SequenceCheckHead` makes `Stage` write `ECHO <4-byte counter>` behind every request whose
+  message is `SequenceChecked` (a per-connection counter, so nothing is stored per request: the n'th check must
+  answer n), with one more pending entry naming `RespSequenceCheckSink`; the reader holds a checked reply (a
+  reservation on the receive buffer) until the check validates, delivers it then, or faults it and closes the
+  connection with `ResponseIntegrityFailure` (RESPite throws a generic fault; `RespClientConnection` substitutes the
+  shipped type, so `ConnectionFailed` reports it). A handed-off reply (redirect, `+QUEUED`) is not held but its
+  check is still validated, which is what the MOVED case needed. `RespConnectionManager` enables it after the
+  handshake, interactive connections only, `ECHO` rendered through the command map (a map without `ECHO` refuses
+  the connection); `RespTransaction` marks `MULTI`, `WATCH`, the condition probes and the queued commands
+  unchecked, so `EXEC`/`UNWATCH` validate the span - v3's rule. Differences from v3, deliberate: the handshake's
+  own commands are not checked (v3 checked all but AUTH/HELLO; the replies are validated by content anyway), the
+  failed command gets `RedisConnectionException(ResponseIntegrityFailure)` rather than v3's
+  `InvalidOperationException`, and `ASKING`/injected `SELECT` are checked like any command. Tests the mode never
+  had, on either core: `RespSequenceCheckTests` (RESPite: wire shape, the hold, wrong token, missing frame, push
+  between reply and check, split receive, buffer roll under a held reply, hand-off, prefix + check, close while
+  held) and `HighIntegrityWireTests` (SE.Redis: EXEC-only checking in a transaction, every member in a batch, the
+  failure type), plus `HighIntegrityMovedUnitTests` now asserts the checks happened. `design/command-flow.md`
+  describes both framing extras and client-side caching end to end.
+
 - **2026-10-09: one group accessor instead of two (was a backlog item).** `RespDatabaseContext` is now an
   `IRespKeyspaceTarget` and `RespServerContext` an `IRespServerTarget` (each its own context), so the single
   constrained-generic accessor per group serves targets and contexts alike; the non-generic ones are gone, from

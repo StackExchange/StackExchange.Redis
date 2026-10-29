@@ -45,6 +45,12 @@ internal sealed class RespPrefixReplySink : IRespMessage
 
     byte[]? IRespMessage.Prefix => null;
 
+    bool IRespMessage.SequenceChecked => false; // it is never written, so there is nothing to check
+
+    void IRespMessage.OnSequenceCheck(uint token)
+    {
+    }
+
     void IRespMessage.Wait(short token, TimeSpan timeout) => throw NotWaitable();
 
     bool IRespMessage.TryReserveRequest(short token, out ReadOnlyMemory<byte> payload, bool recordSent)

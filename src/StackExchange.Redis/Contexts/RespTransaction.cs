@@ -185,6 +185,10 @@ namespace StackExchange.Redis
             // its first reply will be the +QUEUED receipt; the real result arrives from EXEC
             operation.ExpectsQueuedReceipt = true;
 
+            // and no high-integrity check of its own: inside MULTI the check would be queued too, and answered
+            // +QUEUED. EXEC is checked, and that check validates the whole span - as the v3 bridge did.
+            operation.SequenceChecked = false;
+
             lock (_sync)
             {
                 if (_sent) throw new InvalidOperationException("This transaction has already been executed.");
@@ -457,10 +461,12 @@ namespace StackExchange.Redis
             {
                 var watch = RespPayloadOperation.Rent();
                 watch.Attach(RespConditionOperation.RenderWatch(_context, conditions[i]), CommandFlags.None, default);
+                watch.SequenceChecked = false; // WATCH opens the high-integrity span that EXEC (or UNWATCH) closes and validates
                 run[i * 2] = RespRunEntry.Of(watch);
 
                 var check = new RespConditionOperation();
                 check.Attach(_context, conditions[i]);
+                check.SequenceChecked = false; // inside the span
                 checks[i] = check;
                 run[(i * 2) + 1] = RespRunEntry.Of(check);
             }
@@ -628,6 +634,7 @@ namespace StackExchange.Redis
             // transaction it would be queued and counted in EXEC's array; ahead of MULTI it governs all of it
             var multi = RespPayloadOperation.Rent();
             multi.Attach(MultiFrame, CommandFlags.None, default, multiPrefix);
+            multi.SequenceChecked = false; // MULTI opens the span; a check after it would join the transaction
 
             var execOperation = new RespExecOperation();
             execOperation.Attach(ExecFrame, operations, onAborted, flags);

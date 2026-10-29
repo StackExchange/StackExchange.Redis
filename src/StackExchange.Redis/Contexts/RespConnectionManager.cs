@@ -984,6 +984,34 @@ namespace StackExchange.Redis
             }
         }
 
+        private byte[]? _sequenceCheckHead;
+
+        /// <summary>
+        /// The head of the high-integrity check command - <c>ECHO</c> under the configured map's spelling, up to its
+        /// 4-byte argument - rendered once and shared by every interactive connection.
+        /// </summary>
+        private byte[] SequenceCheckHead(CommandMap map)
+        {
+            if (_sequenceCheckHead is { } head) return head;
+
+            if (!map.IsAvailable(RedisCommand.ECHO))
+            {
+                // refused rather than silently unchecked: a caller who asked for integrity checks and got none
+                // would have no way of knowing
+                throw new RedisConnectionException(
+                    ConnectionFailureType.ProtocolFailure,
+                    CommandFlags.CommandRetryNever,
+                    "HighIntegrity needs the ECHO command, which the configured CommandMap disables.");
+            }
+
+            var name = map.GetResp(RedisCommand.ECHO); // "$4\r\nECHO\r\n", or the renamed spelling
+            head = new byte[4 + name.Length + 4];
+            "*2\r\n"u8.CopyTo(head);
+            name.CopyTo(head.AsSpan(4));
+            "$4\r\n"u8.CopyTo(head.AsSpan(4 + name.Length));
+            return _sequenceCheckHead = head;
+        }
+
         /// <summary>Report an attempt the library gave up on: abandoned by its executor's disposal, or timed out.</summary>
         private void OnAttemptCancelled(ConnectionAttempt attempt, EndPoint endpoint, bool subscription, string logName)
         {
@@ -1128,6 +1156,14 @@ namespace StackExchange.Redis
                 // script is server-wide, and ServerEndPoint already tracks that and flushes it when a server's
                 // identity changes underneath. Borrowed rather than reimplemented.
                 connection.Server = server;
+
+                // high-integrity mode (ConfigurationOptions.HighIntegrity): every command on an interactive
+                // connection is followed by an ECHO of a running token, and no reply is handed over until the token
+                // behind it validates - RespConnection.SequenceCheckHead is the mechanism. Switched on AFTER the
+                // handshake, whose replies are validated by their content (HELLO's map, INFO, the role), and only
+                // for the interactive connection: a subscription connection's stream is deliveries, not replies,
+                // and has no sequence to check - the same two rules the v3 bridge applied.
+                if (!subscription && config.HighIntegrity) connection.SequenceCheckHead = SequenceCheckHead(config.CommandMap);
 
                 // RESP2 has no push prefix, so a delivery on this connection is an ordinary array and the only
                 // thing marking it as one is that this connection subscribes. Set it nowhere else: on an
