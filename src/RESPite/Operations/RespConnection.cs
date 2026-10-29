@@ -1315,10 +1315,11 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 // written: a stale entry's frame is simply consumed (see PendingEntry)
                 if (!(entry.IsCurrent && TryHandOff(frame, entry.Message)))
                 {
-                    if (entry.IsCurrent && NextIsSequenceCheck())
+                    if (_sequenceCheckHead is not null && entry.IsCurrent && NextIsSequenceCheck())
                     {
                         // a checked reply waits for its check (see SequenceCheckHead); a stale life has nobody
-                        // waiting, so its frame is simply consumed and only the check is validated
+                        // waiting, so its frame is simply consumed and only the check is validated. The mode
+                        // test comes first so that a connection without checks pays nothing here but the read.
                         Park(in entry, frame, buffer);
                     }
                     else
