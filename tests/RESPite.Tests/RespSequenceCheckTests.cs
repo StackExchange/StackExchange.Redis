@@ -139,7 +139,7 @@ public class RespSequenceCheckTests
 
         Assert.True(connection.Send(message));
         Assert.Equal("*1|$4|PING|" + Check(1), transport.Written);
-        Assert.Equal(2, connection.PendingCount); // the reply, and the check's reply
+        Assert.Equal(1, connection.PendingCount); // the check has no entry of its own: a bit on the request's
         Assert.Equal(1u, message.Diagnostics.HighIntegrityToken);
     }
 
@@ -153,7 +153,7 @@ public class RespSequenceCheckTests
 
         transport.Receive("+PONG\r\n");
         Assert.Equal(ValueTaskSourceStatus.Pending, message.Status);
-        Assert.Equal(1, connection.PendingCount);
+        Assert.Equal(0, connection.PendingCount); // taken from the queue, held by the reader
         Assert.Equal(0, connection.SequenceChecksPassed);
 
         transport.Receive(CheckReply(1));
@@ -372,7 +372,7 @@ public class RespSequenceCheckTests
         connection.Send(message);
 
         Assert.Equal("*3|$6|CLIENT|$7|CACHING|$3|YES|*1|$4|PING|" + Check(1), transport.Written);
-        Assert.Equal(3, connection.PendingCount);
+        Assert.Equal(2, connection.PendingCount); // the prefix's reply, and the request's
         transport.Receive("+OK\r\n+PONG\r\n"u8);
         transport.Receive(CheckReply(1));
         Assert.Equal("PONG", message.GetResult(message.Token));

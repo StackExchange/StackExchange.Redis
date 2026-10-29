@@ -67,10 +67,14 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// reading another command's name. Every action through the queue therefore uses the token captured when
     /// the life was written, and a stale entry does nothing but consume its frame.
     /// </remarks>
-    private readonly struct PendingEntry(IRespMessage message, short token)
+    private readonly struct PendingEntry(IRespMessage message, short token, bool sequenceChecked = false)
     {
         public readonly IRespMessage Message = message;
         public readonly short Token = token;
+
+        /// <summary>Whether a sequence check was written behind this request; see <see cref="SequenceCheckHead"/>.</summary>
+        /// <remarks>Sits in the struct's padding, so a checked connection costs no more queue than an unchecked one.</remarks>
+        public readonly bool SequenceChecked = sequenceChecked;
 
         public bool IsCurrent => Message.Token == Token;
     }
@@ -95,13 +99,13 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// <summary>The most recent prefix error reply, as text, or null.</summary>
     public string? LastPrefixError => _prefixReplies.LastError;
 
-    /// <summary>The pending-queue entry that stands in for a sequence check's reply; see <see cref="SequenceCheckHead"/>.</summary>
-    private readonly RespSequenceCheckSink _sequenceChecks = new();
-
     private byte[]? _sequenceCheckHead;
     private uint _nextSequenceToken = 1; // issued under the write lock
     private uint _expectedSequenceToken = 1; // consumed on the reader
     private long _sequenceChecksPassed;
+
+    // reader-loop state: the next in-band frame answers a sequence check (the entry it followed has been taken)
+    private bool _awaitingSequenceCheck;
 
     // a reply held back until the check behind it validates; reader-loop state, published last and claimed
     // (by the reader delivering it, or by Close faulting it) through _parkedMessage
@@ -120,9 +124,10 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// whose message says <see cref="IRespMessage.SequenceChecked"/> is followed - under the same write lock, so
     /// nothing can come between - by one more command that echoes a 4-byte token: this head (everything up to
     /// the token's bulk payload, e.g. <c>*2\r\n$4\r\nECHO\r\n$4\r\n</c>), then the token, little-endian,
-    /// then CRLF. The token is a running counter, so the connection need store nothing per request: the
-    /// <i>n</i>th check must answer with <i>n</i>, and a reply stream that has lost or gained a frame fails the
-    /// very next check rather than quietly answering every later command with its predecessor's reply.
+    /// then CRLF. The token is a running counter, so the connection need store nothing per request but one bit
+    /// in its pending entry: the <i>n</i>th check must answer with <i>n</i>, and a reply stream that has lost or
+    /// gained a frame fails the very next check rather than quietly answering every later command with its
+    /// predecessor's reply.
     /// </para>
     /// <para>
     /// <b>A checked reply is not delivered until its check validates.</b> The reply frame is held (a reservation
@@ -139,8 +144,16 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// </remarks>
     public byte[]? SequenceCheckHead
     {
-        get => Volatile.Read(ref _sequenceCheckHead);
-        set => Volatile.Write(ref _sequenceCheckHead, value);
+        get
+        {
+            return Volatile.Read(ref _sequenceCheckHead);
+        }
+
+        set
+        {
+            if (value is { Length: > SequenceCheckMaxLength - 6 }) throw new ArgumentOutOfRangeException(nameof(value), "The sequence-check command is too long.");
+            Volatile.Write(ref _sequenceCheckHead, value);
+        }
     }
 
     /// <summary>How many sequence checks have validated on this connection; see <see cref="SequenceCheckHead"/>.</summary>
@@ -170,33 +183,37 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             Volatile.Write(ref _bytesSent, _bytesSent + prefix.Length);
         }
 
-        _pending.Enqueue(new(message, token));
+        var head = Volatile.Read(ref _sequenceCheckHead);
+        var sequenceChecked = head is not null && message.SequenceChecked;
+
+        _pending.Enqueue(new(message, token, sequenceChecked));
         Write(payload);
         Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
 
-        // and its check behind it, the mirror of the prefix in front: one more frame, one more entry naming the
-        // sink, under the lock that staged the request, so the n'th check is the n'th thing the server echoes
-        if (Volatile.Read(ref _sequenceCheckHead) is { } head && message.SequenceChecked)
+        // and its check behind it, the mirror of the prefix in front: one more frame under the lock that staged
+        // the request, so the n'th check is the n'th thing the server echoes. No entry of its own: the bit on the
+        // request's entry tells the reader to expect it, which is one enqueue and one dequeue fewer per command.
+        if (sequenceChecked && head is not null)
         {
             var sequence = _nextSequenceToken;
             _nextSequenceToken = sequence == uint.MaxValue ? 1 : sequence + 1; // never zero, so a stale diagnostic reads as "none"
             message.OnSequenceCheck(sequence);
 
-            Span<byte> tail = stackalloc byte[6];
-            BinaryPrimitives.WriteUInt32LittleEndian(tail, sequence);
-            tail[4] = (byte)'\r';
-            tail[5] = (byte)'\n';
+            // one write, not head then tail: the transport takes its lock per write
+            Span<byte> check = stackalloc byte[SequenceCheckMaxLength];
+            head.CopyTo(check);
+            BinaryPrimitives.WriteUInt32LittleEndian(check.Slice(head.Length), sequence);
+            check[head.Length + 4] = (byte)'\r';
+            check[head.Length + 5] = (byte)'\n';
+            check = check.Slice(0, head.Length + 6);
 
-            _pending.Enqueue(new(_sequenceChecks, 0));
-            Write(head);
-            Write(tail);
-            Volatile.Write(ref _bytesSent, _bytesSent + head.Length + tail.Length);
+            Write(check);
+            Volatile.Write(ref _bytesSent, _bytesSent + check.Length);
         }
     }
 
-    /// <summary>Whether the next pending entry is a sequence check, i.e. the reply being matched now is a checked one.</summary>
-    private bool NextIsSequenceCheck()
-        => _pending.TryPeek(out var next) && ReferenceEquals(next.Message, _sequenceChecks);
+    /// <summary>The longest check command staged on the stack: the head (a renamed command can be longer than ECHO) plus the token and CRLF.</summary>
+    private const int SequenceCheckMaxLength = 128;
 
     /// <summary>Hold a checked reply until its check validates; see <see cref="SequenceCheckHead"/>.</summary>
     private void Park(in PendingEntry entry, ReadOnlySpan<byte> frame, RefCountedBuffer buffer)
@@ -304,10 +321,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             return LookAheadResult.Closed;
         }
 
-        // consume the check as if the scanner had just found it, and dequeue the entry that stood for it
+        // consume the check as if the scanner had just found it
         _start += SequenceCheckReplyLength;
         Volatile.Write(ref _bytesLastResult, SequenceCheckReplyLength);
-        _pending.TryDequeue(out _); // the sink, by NextIsSequenceCheck; only this loop dequeues
         OnSequenceCheckPassed(expected);
 
         entry.Message.TrySetResult(entry.Token, frame, buffer);
@@ -1366,32 +1382,33 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
             if (IsOutOfBand(frame) && OnOutOfBand(frame)) continue;
 
+            // the frame that answers a sequence check (see SequenceCheckHead): validated here, never handed to
+            // anybody; a failure has already closed the connection, so there is nothing left to drain
+            if (_awaitingSequenceCheck)
+            {
+                _awaitingSequenceCheck = false;
+                if (!ValidateSequenceCheck(frame)) return;
+                continue;
+            }
+
             if (_pending.TryDequeue(out var entry))
             {
-                // the frame that answers a sequence check: validated here, never handed to anybody; a failure
-                // has already closed the connection, so there is nothing left to drain
-                if (ReferenceEquals(entry.Message, _sequenceChecks))
-                {
-                    if (!ValidateSequenceCheck(frame)) return;
-                    continue;
-                }
-
                 // offered first: a redirect is an instruction, not an answer, and completing the
                 // operation with it would report a failure for something routine. Only to the life that was
                 // written: a stale entry's frame is simply consumed (see PendingEntry)
                 if (!(entry.IsCurrent && TryHandOff(frame, entry.Message)))
                 {
-                    if (_sequenceCheckHead is not null && entry.IsCurrent && NextIsSequenceCheck())
+                    if (entry.SequenceChecked)
                     {
-                        // a checked reply waits for its check (see SequenceCheckHead); a stale life has nobody
-                        // waiting, so its frame is simply consumed and only the check is validated. The mode
-                        // test comes first so that a connection without checks pays nothing here but the read.
-                        switch (LookAhead(in entry, frame, buffer))
+                        // a checked reply waits for its check; a stale life has nobody waiting, so its frame is
+                        // simply consumed and only the check is validated
+                        switch (entry.IsCurrent ? LookAhead(in entry, frame, buffer) : LookAheadResult.NotYet)
                         {
                             case LookAheadResult.Closed: return;
                             case LookAheadResult.Delivered: break;
                             default:
-                                Park(in entry, frame, buffer);
+                                if (entry.IsCurrent) Park(in entry, frame, buffer);
+                                _awaitingSequenceCheck = true;
                                 break;
                         }
                     }
@@ -1401,6 +1418,11 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                         // retain it rather than copy it out
                         entry.Message.TrySetResult(entry.Token, frame, buffer);
                     }
+                }
+                else if (entry.SequenceChecked)
+                {
+                    // handed off (a redirect, a receipt): nothing to hold, but the check still follows
+                    _awaitingSequenceCheck = true;
                 }
             }
 
