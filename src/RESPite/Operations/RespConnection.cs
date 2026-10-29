@@ -220,22 +220,31 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         if (Volatile.Read(ref _closed) != 0) FaultParked(ClosedFault());
     }
 
+    /// <summary>The reply to a sequence check is exactly this long: <c>$4\r\n</c>, four token bytes, <c>\r\n</c>.</summary>
+    private const int SequenceCheckReplyLength = 10;
+
+    /// <summary>Whether <paramref name="frame"/> is the reply to a check carrying <paramref name="expected"/>.</summary>
+    private static bool IsSequenceCheckReply(ReadOnlySpan<byte> frame, uint expected)
+        => frame.Length == SequenceCheckReplyLength
+            && frame[0] == (byte)'$' && frame[1] == (byte)'4' && frame[2] == (byte)'\r' && frame[3] == (byte)'\n'
+            && frame[8] == (byte)'\r' && frame[9] == (byte)'\n'
+            && BinaryPrimitives.ReadUInt32LittleEndian(frame.Slice(4, 4)) == expected;
+
+    /// <summary>A check validated: move the counter on.</summary>
+    private void OnSequenceCheckPassed(uint expected)
+    {
+        _expectedSequenceToken = expected == uint.MaxValue ? 1 : expected + 1;
+        Volatile.Write(ref _sequenceChecksPassed, _sequenceChecksPassed + 1);
+    }
+
     /// <summary>Validate the frame that answers a sequence check, and release the reply it was guarding.</summary>
     /// <returns><see langword="false"/> if the check failed and the connection has been closed.</returns>
     private bool ValidateSequenceCheck(ReadOnlySpan<byte> frame)
     {
         var expected = _expectedSequenceToken;
-
-        // exactly a bulk string of length 4 whose bytes are the token: "$4\r\n" + 4 bytes + "\r\n"
-        var valid = frame.Length == 10
-            && frame[0] == (byte)'$' && frame[1] == (byte)'4' && frame[2] == (byte)'\r' && frame[3] == (byte)'\n'
-            && frame[8] == (byte)'\r' && frame[9] == (byte)'\n'
-            && BinaryPrimitives.ReadUInt32LittleEndian(frame.Slice(4, 4)) == expected;
-
-        if (valid)
+        if (IsSequenceCheckReply(frame, expected))
         {
-            _expectedSequenceToken = expected == uint.MaxValue ? 1 : expected + 1;
-            Volatile.Write(ref _sequenceChecksPassed, _sequenceChecksPassed + 1);
+            OnSequenceCheckPassed(expected);
             DeliverParked();
             return true;
         }
@@ -246,6 +255,63 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         FaultParked(fault);
         Close(fault);
         return false;
+    }
+
+    private enum LookAheadResult
+    {
+        /// <summary>The check has not arrived, or something out-of-band sits in front of it: hold the reply.</summary>
+        NotYet,
+
+        /// <summary>The check was already in the buffer and validated; the reply has been delivered.</summary>
+        Delivered,
+
+        /// <summary>The check was already in the buffer and failed; the connection is closed.</summary>
+        Closed,
+    }
+
+    /// <summary>
+    /// Try to settle a checked reply without holding it: the server writes a reply and its check back to back, so
+    /// the check is usually already in the buffer when the reply is matched.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why this exists:</b> a held reply is a reservation on the receive buffer, and <see cref="EnsureSpace"/>
+    /// cannot compact a buffer somebody holds, so it rolls to a fresh one - which, with some reply nearly always
+    /// held under load, turned every receive into an allocation (measured: +48% CPU per op and peak RSS 81 to
+    /// 224 MB at 64 callers, against +6% sequentially). Looking ahead costs a bounds check and ten byte compares,
+    /// and leaves the hold for the case it was designed for: a check that genuinely straddles a read.
+    /// Only the reader loop touches <c>_start</c>, so consuming the check here is the same as the scanner finding
+    /// it next; the scan state is clean between frames, so nothing is double-counted.
+    /// </remarks>
+    private LookAheadResult LookAhead(in PendingEntry entry, ReadOnlySpan<byte> frame, RefCountedBuffer buffer)
+    {
+        if (_end - _start < SequenceCheckReplyLength) return LookAheadResult.NotYet;
+
+        var next = buffer.GetSpan().Slice(_start, SequenceCheckReplyLength);
+
+        // a push, or anything that is not a bulk string, is not the check: take the slow path, which skips pushes
+        // and validates whatever in-band frame comes next (and so still catches a desync)
+        if (next[0] != (byte)'$') return LookAheadResult.NotYet;
+
+        var expected = _expectedSequenceToken;
+        if (!IsSequenceCheckReply(next, expected))
+        {
+            // in-band, a bulk string, and not our token: this is the failure the mode exists to catch, whether the
+            // frame is complete or not - the next in-band frame can only ever be a four-byte bulk here. Settle it
+            // now rather than hold and re-discover it; the frame is described by what we can see of it.
+            var fault = CreateSequenceCheckFault(expected, next);
+            entry.Message.TrySetException(entry.Token, fault, definite: false);
+            Close(fault);
+            return LookAheadResult.Closed;
+        }
+
+        // consume the check as if the scanner had just found it, and dequeue the entry that stood for it
+        _start += SequenceCheckReplyLength;
+        Volatile.Write(ref _bytesLastResult, SequenceCheckReplyLength);
+        _pending.TryDequeue(out _); // the sink, by NextIsSequenceCheck; only this loop dequeues
+        OnSequenceCheckPassed(expected);
+
+        entry.Message.TrySetResult(entry.Token, frame, buffer);
+        return LookAheadResult.Delivered;
     }
 
     private void DeliverParked()
@@ -1320,7 +1386,14 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                         // a checked reply waits for its check (see SequenceCheckHead); a stale life has nobody
                         // waiting, so its frame is simply consumed and only the check is validated. The mode
                         // test comes first so that a connection without checks pays nothing here but the read.
-                        Park(in entry, frame, buffer);
+                        switch (LookAhead(in entry, frame, buffer))
+                        {
+                            case LookAheadResult.Closed: return;
+                            case LookAheadResult.Delivered: break;
+                            default:
+                                Park(in entry, frame, buffer);
+                                break;
+                        }
                     }
                     else
                     {

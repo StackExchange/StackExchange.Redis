@@ -210,6 +210,41 @@ public class RespSequenceCheckTests
     }
 
     [Fact]
+    public void AWrongTokenArrivingWithItsReplyFailsTheSameWay()
+    {
+        // the look-ahead path: reply and check in one receive, so the check is settled without a hold - and a
+        // wrong token there must fail exactly as one arriving later does
+        var (connection, transport) = Connect();
+        var message = TextMessage.For(Ping);
+        connection.Send(message);
+
+        var bytes = new byte[7 + 10];
+        "+PONG\r\n"u8.CopyTo(bytes);
+        CheckReply(7).CopyTo(bytes, 7);
+        transport.Receive(bytes);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => message.GetResult(message.Token));
+        Assert.Contains("expected check 1", ex.Message);
+        Assert.True(connection.IsClosed);
+        Assert.Equal(0, connection.PendingCount);
+    }
+
+    [Fact]
+    public void ABulkStringThatIsNotTheCheckFailsEvenBeforeItIsComplete()
+    {
+        // in-band and a bulk string, so it can only be the check - and it is the wrong shape; the look-ahead
+        // does not need the rest of it to know
+        var (connection, transport) = Connect();
+        var message = TextMessage.For(Ping);
+        connection.Send(message);
+
+        transport.Receive("+PONG\r\n$12\r\nsomebody els");
+        Assert.True(connection.IsClosed);
+        var ex = Assert.Throws<InvalidOperationException>(() => message.GetResult(message.Token));
+        Assert.Contains("BulkString", ex.Message);
+    }
+
+    [Fact]
     public void AMissingReplyIsCaughtByTheVeryNextCheck()
     {
         // the failure mode the mode exists for: a frame vanished from the stream, so B's reply arrives where
