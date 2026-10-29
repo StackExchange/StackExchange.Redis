@@ -109,6 +109,6 @@ public class SentinelDiscoveryUnitTests
     [InlineData("slave,disconnected", true)]
     [InlineData("slave", false)]
     [InlineData(null, false)]
-    public void DownFlagsAreExcludedFromManagedDiscovery(string? flags, bool down)
+    public void DownFlagsOfASentinelPeerRoute(string? flags, bool down)
         => Assert.Equal(down, ConnectionMultiplexer.IsSentinelNodeDown(flags));
 }

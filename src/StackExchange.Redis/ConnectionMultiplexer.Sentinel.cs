@@ -275,7 +275,7 @@ public partial class ConnectionMultiplexer
                 }
 
                 var newPrimaryEndPoint = primary.EndPoint;
-                SentinelReplica[]? replicaEndPoints = null;
+                EndPoint[]? replicaEndPoints = null;
                 for (int i = 0; i < queryAttempts && replicaEndPoints is null; i++)
                 {
                     replicaEndPoints = await GetReplicasForServiceAsync(serviceName, primary).ForAwait();
@@ -297,10 +297,9 @@ public partial class ConnectionMultiplexer
 
                 if (replicaEndPoints is not null)
                 {
-                    // a replica sentinel reports down is not connected to: it is added once its flags clear
-                    foreach (var replica in replicaEndPoints)
+                    foreach (var replicaEndPoint in replicaEndPoints)
                     {
-                        if (!replica.Down) endpoints.TryAdd(replica.EndPoint);
+                        endpoints.TryAdd(replicaEndPoint);
                     }
                 }
 
@@ -715,18 +714,14 @@ public partial class ConnectionMultiplexer
             return primary is null ? null : new SentinelPrimary(server, primary);
         });
 
-    private static async Task<SentinelReplica[]?> GetReplicasForServiceAsync(string serviceName, SentinelPrimary primary)
+    // Every replica sentinel lists is added, whatever its flags: one that is down is left to its bridge to reconnect,
+    // so a replica down at connect time (a rolling restart) joins once it is back at the same address.
+    private static async Task<EndPoint[]?> GetReplicasForServiceAsync(string serviceName, SentinelPrimary primary)
     {
         try
         {
             // Use the same sentinel route whose primary answer won; a second race could combine unrelated views.
-            var rows = await primary.Sentinel.SentinelReplicasAsync(serviceName).ForAwait();
-            var replicas = new List<SentinelReplica>(rows.Length);
-            foreach (var row in rows)
-            {
-                if (ParseSentinelAddress(row, out var down) is EndPoint address) replicas.Add(new SentinelReplica(address, down));
-            }
-            return replicas.ToArray();
+            return await primary.Sentinel.SentinelGetReplicaAddressesAsync(serviceName).ForAwait();
         }
         catch (Exception) { return null; }
     }
@@ -768,16 +763,6 @@ public partial class ConnectionMultiplexer
     // a primary is unusable only when sentinel holds it down; "disconnected" is a link sentinel is re-establishing
     internal static bool IsSentinelPrimaryDown(string? flags) => flags is not null
         && flags.Split(',').Any(static f => f is "s_down" or "o_down");
-
-    /// <summary>
-    /// A replica as sentinel reports it. Sentinel never forgets a replica (sentinel docs: "Sentinels never forget
-    /// about replicas of a given master" until <c>SENTINEL RESET</c>), so a failed one stays listed with down flags.
-    /// </summary>
-    internal readonly struct SentinelReplica(EndPoint endPoint, bool down)
-    {
-        public EndPoint EndPoint { get; } = endPoint;
-        public bool Down { get; } = down;
-    }
 
     /// <summary>
     /// The address a <c>SENTINEL MASTER</c> reply names, when it describes a healthy master; otherwise <c>null</c>.
@@ -912,11 +897,8 @@ public partial class ConnectionMultiplexer
             bool changed = false;
             if (replicas is not null)
             {
-                // Down flags (s_down/o_down/disconnected) decide only whether a node not yet held is added. A node
-                // this connection already holds stays whatever one sentinel's momentary view says - sentinel reports
-                // the demoted primary disconnected while it reconnects to it, and a live connection outranks that.
-                // Only a disconnected node missing from a nonempty reply by the same sentinel may leave;
-                // an incomplete or empty view must not retire live nodes.
+                // Every replica sentinel lists is kept or added, whatever its flags. Only a disconnected node missing
+                // from a nonempty reply by the same sentinel may leave; an incomplete or empty view must not retire live nodes.
                 var desired = new EndPointCollection { newPrimaryEndPoint };
                 foreach (var held in connection.EndPoints)
                 {
@@ -924,7 +906,7 @@ public partial class ConnectionMultiplexer
                 }
                 foreach (var replica in replicas)
                 {
-                    if (!replica.Down || connection.EndPoints.Contains(replica.EndPoint)) desired.TryAdd(replica.EndPoint);
+                    desired.TryAdd(replica);
                 }
                 changed = !new HashSet<EndPoint>(connection.EndPoints).SetEquals(desired);
                 if (changed)
