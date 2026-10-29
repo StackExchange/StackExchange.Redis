@@ -164,6 +164,35 @@ public class CycleBufferTests()
         }
     }
 
+    /// <summary>
+    /// The observable consequence of a stale start trim: a discard that empties the buffer while a write lease is
+    /// outstanding (the outbound copy-out loop draining while the writer holds <c>GetMemory</c>) must still keep the
+    /// bytes that were written into the lease.
+    /// </summary>
+    [Fact]
+    public void DiscardDuringWriteKeepsLeasedBytesAfterARecycledTrimmedSegment()
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            var first = CycleBuffer.Create();
+            first.Write("0123456789"u8);
+            first.DiscardCommitted(4);   // start-trimmed
+            first.Release();             // recycled WITHOUT Untrim
+
+            var second = CycleBuffer.Create();
+            second.Write("abc"u8);
+
+            var lease = second.GetUncommittedMemory();
+            "XYZ"u8.CopyTo(lease.Span);
+            second.DiscardCommitted(3);  // drains everything committed while the lease is open
+            second.Commit(3);
+
+            Assert.True(second.TryGetCommitted(out var committed));
+            Assert.Equal("XYZ", System.Text.Encoding.ASCII.GetString(committed.ToArray()));
+            second.Release();
+        }
+    }
+
     private static int StartTrimCountOfFirstSegment(CycleBuffer buffer)
     {
         const System.Reflection.BindingFlags Any = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;

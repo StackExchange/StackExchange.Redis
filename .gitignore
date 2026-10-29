@@ -30,10 +30,10 @@ launchSettings.json
 *.diagsession
 TestResults/
 BenchmarkDotNet.Artifacts/
-.codex
 
 # local planning/design notes (not for publication)
 planning/
 
-# agent worktrees (see .claude/); these are separate checkouts, never repo content
-.claude/worktrees/
+# agent tooling: only .claude/skills is repo content; everything else in .claude is per-user state
+.claude/*
+!.claude/skills/
