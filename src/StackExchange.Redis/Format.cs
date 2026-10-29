@@ -65,6 +65,31 @@ namespace StackExchange.Redis
             return false;
         }
 
+        /// <summary>
+        /// Parses an <c>ip:port</c> pair as the server writes it (<c>CLUSTER NODES</c>, <c>MOVED</c>/<c>ASK</c>,
+        /// <c>CLIENT LIST</c>): an IPv6 address is <b>not</b> bracketed and a port is always present, for example
+        /// <c>2a06:4e80:3:a::a:7000</c>. Splitting at the last colon is only safe when a port is known to follow,
+        /// which is why this is kept apart from <see cref="TryParseEndPoint(string?, out EndPoint?)"/> (the RFC 3986
+        /// form used in configuration strings, where <c>::1</c> is an address with no port). Anything that is not
+        /// an unbracketed IPv6 address followed by a port is handed to that method unchanged.
+        /// </summary>
+        internal static bool TryParseServerEndPoint(string? value, [NotNullWhen(true)] out EndPoint? endpoint)
+        {
+            if (value is not null && value.IndexOf(']') < 0)
+            {
+                int lastColon = value.LastIndexOf(':');
+                if (lastColon > 0 && value.IndexOf(':') != lastColon
+                    && TryParseInt32(value.Substring(lastColon + 1), out int port)
+                    && port is >= IPEndPoint.MinPort and <= IPEndPoint.MaxPort
+                    && IPAddress.TryParse(value.Substring(0, lastColon), out var address))
+                {
+                    endpoint = new IPEndPoint(address, port);
+                    return true;
+                }
+            }
+            return TryParseEndPoint(value, out endpoint);
+        }
+
         internal static string ToString(long value) => value.ToString(NumberFormatInfo.InvariantInfo);
 
         internal static string ToString(ulong value) => value.ToString(NumberFormatInfo.InvariantInfo);

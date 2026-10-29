@@ -324,7 +324,7 @@ namespace StackExchange.Redis
                 log = false;
                 string[] parts = reader.ReadString()!.Split(StringSplits.Space, 3);
                 if (Format.TryParseInt32(parts[1], out int hashSlot)
-                    && Format.TryParseEndPoint(parts[2], out var endpoint)
+                    && Format.TryParseServerEndPoint(parts[2], out var endpoint)
                     && IsUnroutableRedirect(endpoint))
                 {
                     // the slot moved, but the reply does not say where to: a hostname-preferring node
@@ -341,7 +341,7 @@ namespace StackExchange.Redis
                         : "The server redirected to an endpoint that does not identify a node that can be connected to; a topology refresh has been requested. ";
                 }
                 else if (Format.TryParseInt32(parts[1], out hashSlot)
-                    && Format.TryParseEndPoint(parts[2], out endpoint))
+                    && Format.TryParseServerEndPoint(parts[2], out endpoint))
                 {
                     // Check if MOVED points to same endpoint
                     bool isSameEndpoint = Equals(server?.EndPoint, endpoint);
