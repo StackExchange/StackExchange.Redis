@@ -23,7 +23,6 @@ public partial class ConnectionMultiplexer
     private int _sentinelAddressUpdateActive;
     private readonly HashSet<string> _sentinelAddressUpdatesPending = new(StringComparer.Ordinal);
     private int _sentinelSwitchPending;
-    private HashSet<EndPoint> _sentinelDownRoutes = new();
     internal bool IsSentinelManaged { get; private set; }
 
     /// <summary>
@@ -716,7 +715,10 @@ public partial class ConnectionMultiplexer
     /// </summary>
     private Task<T?> QuerySentinelsAsync<T>(Func<IServer, Task<T?>> query) where T : class
     {
-        return FirstSentinelResultAsync(GetSentinelsForQuery().Select(QueryAsync).ToArray(), AsyncTimeoutMilliseconds);
+        // sentinel-clients Step 1 tries the sentinels one by one; every route is asked at once instead, as the parallel
+        // query did - the requests are asynchronous and hold no worker, so a dead route delays nothing.
+        var sentinels = _serverSnapshot.Where(static s => s.ServerType == ServerType.Sentinel && !s.IsDisposed);
+        return FirstSentinelResultAsync(sentinels.Select(QueryAsync).ToArray(), AsyncTimeoutMilliseconds);
 
         async Task<T?> QueryAsync(ServerEndPoint server)
         {
@@ -724,25 +726,6 @@ public partial class ConnectionMultiplexer
             catch (Exception) { return null; }
         }
     }
-
-    // sentinel-clients Step 1 tries the sentinels one by one, moving the one that answered to the front. Every route
-    // is asked at once instead - the requests are asynchronous and hold no worker, and a Service address and the
-    // advertised pod address of the same sentinel need not be told apart - connected routes first and routes
-    // sentinel itself reports down last, so a dead route can delay nothing and the first valid answer wins.
-    private ServerEndPoint[] GetSentinelsForQuery()
-    {
-        var down = Volatile.Read(ref _sentinelDownRoutes);
-        return OrderSentinelQueryTargets(
-            _serverSnapshot.Where(static s => s.ServerType == ServerType.Sentinel && !s.IsDisposed).ToArray(),
-            static s => s.IsConnected,
-            s => down.Contains(s.EndPoint));
-    }
-
-    internal static T[] OrderSentinelQueryTargets<T>(T[] targets, Func<T, bool> connected, Func<T, bool> reportedDown)
-        => targets.OrderBy(t => connected(t) ? 0 : reportedDown(t) ? 2 : 1).ToArray(); // OrderBy is stable
-
-    internal static bool IsSentinelNodeDown(string? flags) => flags is not null
-        && flags.Split(',').Any(static f => f is "s_down" or "o_down" or "disconnected");
 
     // a primary is unusable only when sentinel holds it down; "disconnected" is a link sentinel is re-establishing
     internal static bool IsSentinelPrimaryDown(string? flags) => flags is not null
@@ -760,13 +743,6 @@ public partial class ConnectionMultiplexer
         fields.TryGetValue("flags", out var flags);
         heldDown = IsSentinelPrimaryDown(flags);
         if (heldDown || flags is null || !flags.Split(',').Contains("master")) return null;
-        return ParseSentinelAddress(fields);
-    }
-
-    private static EndPoint? ParseSentinelAddress(KeyValuePair<string, string>[] row, out bool down)
-    {
-        var fields = row.ToDictionary(static p => p.Key, static p => p.Value);
-        down = fields.TryGetValue("flags", out var flags) && IsSentinelNodeDown(flags);
         return ParseSentinelAddress(fields);
     }
 
@@ -1034,20 +1010,16 @@ public partial class ConnectionMultiplexer
                     _sentinelAddressUpdatesPending.Remove(serviceName);
                 }
                 var peers = await QuerySentinelsAsync(async server =>
-                    (KeyValuePair<string, string>[][]?)await server.SentinelSentinelsAsync(serviceName).ForAwait()).ForAwait();
+                    (EndPoint[]?)await server.SentinelGetSentinelAddressesAsync(serviceName).ForAwait()).ForAwait();
                 if (peers is null) continue;
 
-                var down = new HashSet<EndPoint>();
                 bool hasNew = false;
                 // https://valkey.io/topics/sentinel-clients/: append unknown ip:port pairs, retaining all old routes.
                 // Add before claiming reconfigure, so a busy claim cannot lose the discovery result.
                 foreach (var peer in peers)
                 {
-                    if (ParseSentinelAddress(peer, out var isDown) is not EndPoint address) continue;
-                    hasNew |= EndPoints.TryAdd(address);
-                    if (isDown) down.Add(address);
+                    hasNew |= EndPoints.TryAdd(peer);
                 }
-                Volatile.Write(ref _sentinelDownRoutes, down);
                 if (!hasNew) continue;
 
                 const string cause = "Updating Sentinel List";

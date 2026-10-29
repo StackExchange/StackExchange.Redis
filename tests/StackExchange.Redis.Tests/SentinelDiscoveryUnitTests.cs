@@ -32,16 +32,6 @@ public class SentinelDiscoveryUnitTests
         Assert.Null(await ConnectionMultiplexer.FirstSentinelResultAsync(Array.Empty<Task<string?>>(), 20));
     }
 
-    [Fact]
-    public void EveryRouteIsQueriedConnectedFirstAndReportedDownLast()
-    {
-        // sentinel-clients Step 1: no route is left out, a dead route only moves back in the launch order
-        string[] routes = ["dead-a", "service-a", "down-b", "service-b", "pod-c", "service-c"];
-        var ordered = ConnectionMultiplexer.OrderSentinelQueryTargets(routes, s => s.StartsWith("service-"), s => s.StartsWith("down-"));
-        Assert.Equal(["service-a", "service-b", "service-c", "dead-a", "pod-c", "down-b"], ordered);
-        Assert.Empty(ConnectionMultiplexer.OrderSentinelQueryTargets(Array.Empty<string>(), _ => true, _ => false));
-    }
-
     [Theory]
     [InlineData("master", true, false)]
     [InlineData("master,disconnected", true, false)]
@@ -102,13 +92,4 @@ public class SentinelDiscoveryUnitTests
     [InlineData("master", false)]
     public void OnlyDownFlagsDisqualifyAPrimary(string flags, bool down)
         => Assert.Equal(down, ConnectionMultiplexer.IsSentinelPrimaryDown(flags));
-
-    [Theory]
-    [InlineData("slave,s_down", true)]
-    [InlineData("sentinel,o_down", true)]
-    [InlineData("slave,disconnected", true)]
-    [InlineData("slave", false)]
-    [InlineData(null, false)]
-    public void DownFlagsOfASentinelPeerRoute(string? flags, bool down)
-        => Assert.Equal(down, ConnectionMultiplexer.IsSentinelNodeDown(flags));
 }
