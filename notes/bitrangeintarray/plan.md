@@ -57,9 +57,9 @@ ledger row deleted. No new types, no new result processor.
 | R.2 | Read-only; works on string values and native bitmaps | `RedisCommand.IsPrimaryOnly` (replica-eligible branch, next to `BITCOUNT`/`BITPOS`) | `BitTests.StringBitPositions_*` (live, written not run) | `READONLY` flag in the spec |
 | R.3 | `start`/`end` required, `BITCOUNT` range semantics: inclusive, `BYTE` default or `BIT`, negative from the end, clamped, reversed range empty | `IDatabase.StringBitPositions` parameters `start = 0, end = -1, indexType = StringIndexType.Byte` | `BitPositionsRoundTrip.Defaults_SendStartAndEnd`, `BitIndexType_SendsToken`; live `StringBitPositions_Ranges` | Client always sends both bounds; no `StringIndex.Unbounded` handling (unlike `BITPOS`, the server has no open-ended form here) |
 | R.4 | `ZEROS` returns clear bits, never past the end of the value | `bit: false` -> `RedisLiterals.ZEROS` appended | `BitPositionsRoundTrip.ClearBits_SendsZeros`; live `StringBitPositions_ClearBits` | Documented in the XML remarks, contrasting `StringBitPosition(bit: false)` |
-| R.5 | `LIMIT count`: lowest `count` offsets; `LIMIT 0` -> empty array; negative -> server error | `limit` parameter (`long? limit = null`), argument check in `GetStringBitPositionsMessage` | `BitPositionsRoundTrip.Limit_SendsToken`, `Limit_Negative_Throws`; live `StringBitPositions_Limit` | Negative rejected client-side with `ArgumentOutOfRangeException` rather than a round-trip |
+| R.5 | `LIMIT count`: lowest `count` offsets; `LIMIT 0` -> empty array; negative -> server error (observed: `ERR LIMIT can't be negative`) | `limit` parameter (`long? limit = null`), argument check in `GetStringBitPositionsMessage` | `BitPositionsRoundTrip.Limit_SendsToken`, `Limit_Negative_Throws`; live `StringBitPositions_Limit` | Negative rejected client-side with `ArgumentOutOfRangeException` rather than a round-trip |
 | R.6 | Paging: `BIT` -> next `start` = last offset + 1; `BYTE` -> reply completes the byte, next `start` = last offset / 8 + 1 | XML `<remarks>` on `IDatabase.StringBitPositions` | live `StringBitPositions_PagesWithoutGaps` (BYTE and BIT) | No paging helper in this plan; see open question 4 |
-| R.7 | Options accepted in any order; repeated option, last wins | n/a | n/a | Server-side leniency; the client emits one canonical order and never repeats |
+| R.7 | Options accepted in any order; repeated option, last wins | n/a | n/a | Server-side leniency (observed: `ZEROS LIMIT 2 BIT` and `LIMIT 1 LIMIT 3` both accepted); the client emits one canonical order and never repeats |
 | R.8 | Missing key or empty value -> empty array; other types -> `WRONGTYPE` | `ResultProcessor.Int64Array` (empty aggregate -> empty array); error propagates as `RedisServerException` | `ResultProcessorUnitTests.BasicAggregates.Int64Array` (`*0\r\n`); live `StringBitPositions_MissingKey` | Existing processor and tests already cover the empty shape |
 | R.9 | Reply: ascending array of non-negative integers (`reply_schema`) | `ResultProcessor.Int64Array` | `BasicAggregates.Int64Array` (RESP2 `*`, streaming `*?`, RESP3 attribute prefix) | RESP3 has no distinct shape for an integer array |
 | NF.1 | No fixed result cap; only client output-buffer limits bound the reply | `long[]` return; remarks advise `limit` for large bitmaps | n/a | See open question 3 (lease-based variant) |
@@ -225,18 +225,22 @@ Replies for the positive cases: `*4\r\n:1\r\n:7\r\n:9\r\n:30\r\n` -> `[1, 7, 9, 
 
 ### Live tests (`BitTests.cs`, written not run, `Create(require: RedisFeatures.v8_12_0)`)
 
-Scenarios copied from the PR description and marked `expected`; the implementer observes them
-when an 8.12 server is available. Setup for each: `SETBIT k 1 1`, `SETBIT k 7 1`, `SETBIT k 9 1`,
-`SETBIT k 30 1`.
+Scenarios from the PR description, **observed** on 2026-10-30 against a local unstable build
+(`redis_git_sha1:6a5fee67`, `redis_version:255.255.255`), for both a string bitmap (`TYPE` ->
+`string`, encoding `raw`) and a native one (`bitmap-default-roaring yes`; `TYPE` -> `bitmap`,
+encoding `bitmap-roaring`, `GET` -> `WRONGTYPE`). Setup for each: `SETBIT k 1 1`, `SETBIT k 7 1`,
+`SETBIT k 9 1`, `SETBIT k 30 1`.
 
-| Test | Call | expected |
+| Test | Call | observed |
 |---|---|---|
 | `StringBitPositions_Ranges` | `(k, true)` / `(k, true, 1, -1)` / `(k, true, 5, 10, Bit)` | `1 7 9 30` / `9 30` / `7 9` |
 | `StringBitPositions_ClearBits` | `(k, false, 24, 31, Bit)` / `(k, false, 30, 100, Bit)` | `24 25 26 27 28 29 31` / `31` (clamped) |
 | `StringBitPositions_Limit` | `(k, true, 0, -1, Bit, 1)` / `(k, true, 2, -1, Bit, 2)` / `(k, true, 0, -1, Byte, 1)` | `1` / `7 9` / `1 7` (BYTE completes byte 0) |
-| `StringBitPositions_PagesWithoutGaps` | loop with `limit` in both units applying the R.6 rule over a 10,000-bit random bitmap | union of pages equals the unpaged result, no repeats |
+| `StringBitPositions_PagesWithoutGaps` | loop with `limit` in both units applying the R.6 rule over a 10,000-bit random bitmap | union of pages equals the unpaged result, no repeats. The BYTE rule observed on the sample: `LIMIT 1` from byte 0 -> `1 7`; next start `7/8+1 = 1` -> `9`; next `9/8+1 = 2` -> `30`; next `30/8+1 = 4` -> empty |
 | `StringBitPositions_MissingKey` | `(missing, true)` | empty |
-| `StringBitPositions_WrongType` | on a list key | `RedisServerException` containing `WRONGTYPE` |
+| `StringBitPositions_ReversedRange` | `(k, true, 3, 1)` | empty |
+| `StringBitPositions_LimitZero` | `(k, true, 0, -1, Byte, 0)` | empty |
+| `StringBitPositions_WrongType` | on a list key | `RedisServerException` containing `WRONGTYPE` (observed: `WRONGTYPE Operation against a key holding the wrong kind of value`) |
 | `StringBitPositions_KeyPrefix` | via `db.WithKeyPrefix("p:")` | request shows `p:k` (unit-level: `KeyPrefixedTests` style) |
 
 Commands:
@@ -274,9 +278,10 @@ replies `ERR unknown command 'BITRANGEINTARRAY'`, which surfaces as `RedisServer
    Default: land #3261 first and reuse; if this lands first, add them with identical text so the
    merge is clean. Never create a second id for the same server version.
 2. **`v8_12_0` value.** #3261 uses a placeholder `new Version(8, 12, 0)` and notes the 8.12
-   integration image reports `255.255.255`, so pre-release builds may report `8.11.x` and the live
-   tests would skip on them. Default: keep the placeholder, same as #3261, and correct both when
-   the RC numbering is known. Unverified: what `INFO server` reports on the local unstable build.
+   integration image reports `255.255.255`. Observed: a local build of unstable at 6a5fee67 also
+   reports `redis_version:255.255.255`, so `IsAtLeast(8.12.0)` passes there and the live tests
+   run. The remaining risk is RC builds reporting `8.11.x`, on which they would skip. Default: keep
+   the placeholder, same as #3261, and correct both when the RC numbering is known.
 3. **Large replies.** `long[]` is simple and matches `Int64Array` consumers, but a dense multi-MB
    bitmap enumerated without `limit` allocates one `long` per set bit. A `Lease<long>` variant
    (the pattern `StringBitField(RedisKey, ReadOnlyMemory<BitFieldOperation>)` uses for
