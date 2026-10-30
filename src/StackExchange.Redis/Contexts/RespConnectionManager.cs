@@ -2181,7 +2181,7 @@ namespace StackExchange.Redis
                     var context = new RespContext(_multiplexer.CommandMap, database: -1)
                         .WithExecutor(executor.WithDatabase(-1));
                     _ = context.SendAsync(
-                        $"{RedisCommand.CLIENT}{RedisLiterals.SETINFO}{RedisLiterals.lib_name}{(RedisValue)libraryName}",
+                        $"{RedisCommand.CLIENT}{RedisLiterals.SETINFO}{RedisLiterals.lib_name}{libraryName.AsRedisValue()}",
                         CommandFlags.FireAndForget);
                 }
                 catch

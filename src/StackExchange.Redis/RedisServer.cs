@@ -307,7 +307,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                foreach (var pair in await Context.Config.GetArray(name, CommandFlags.None).ConfigureAwait(false))
+                foreach (var pair in await Context.Config.GetArray(name.AsRedisValue(), CommandFlags.None).ConfigureAwait(false))
                 {
                     RespHandshake.ApplySetting(server, pair.Key, pair.Value);
                 }

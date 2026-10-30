@@ -56,32 +56,32 @@ internal partial class RedisServer
     /// </summary>
     private static RedisValue[] HotKeysStartArgs(HotKeysMetrics metrics, long count, TimeSpan duration, long sampleRatio, int[]? slots)
     {
-        var args = new List<RedisValue> { "START", "METRICS" };
+        var args = new List<RedisValue> { RedisLiterals.START, RedisLiterals.METRICS };
         bool cpu = (metrics & HotKeysMetrics.Cpu) != 0, net = (metrics & HotKeysMetrics.Network) != 0;
         args.Add((cpu ? 1 : 0) + (net ? 1 : 0));
-        if (cpu) args.Add("CPU");
-        if (net) args.Add("NET");
+        if (cpu) args.Add(RedisLiterals.CPU);
+        if (net) args.Add(RedisLiterals.NET);
         if (count != 0)
         {
-            args.Add("COUNT");
+            args.Add(RedisLiterals.COUNT);
             args.Add(count);
         }
 
         if (duration != TimeSpan.Zero)
         {
-            args.Add("DURATION");
+            args.Add(RedisLiterals.DURATION);
             args.Add(Math.Ceiling(duration.TotalSeconds));
         }
 
         if (sampleRatio != 1)
         {
-            args.Add("SAMPLE");
+            args.Add(RedisLiterals.SAMPLE);
             args.Add(sampleRatio);
         }
 
         if (slots is { Length: > 0 })
         {
-            args.Add("SLOTS");
+            args.Add(RedisLiterals.SLOTS);
             args.Add(slots.Length);
             foreach (var slot in slots) args.Add(slot);
         }

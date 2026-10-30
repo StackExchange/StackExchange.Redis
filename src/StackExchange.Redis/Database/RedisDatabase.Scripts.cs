@@ -57,7 +57,7 @@ internal partial class RedisDatabase
         }
 
         return context.Scripts.EvaluateDirectResult(
-            (RedisValue)ToHex(hash), keys ?? [], values ?? [], isHash: true, readOnly, flags);
+            ToHex(hash).AsRedisValue(), keys ?? [], values ?? [], isHash: true, readOnly, flags);
     }
 
     private static string ToHex(byte[] hash)

@@ -202,12 +202,12 @@ namespace StackExchange.Redis
                     if (user is { Length: > 0 })
                     {
                         log?.LogInformationAuthenticatingUserPassword(new(server!));
-                        await context.SendAsync($"{RedisCommand.AUTH}{(RedisValue)user}{(RedisValue)password}").ConfigureAwait(false);
+                        await context.SendAsync($"{RedisCommand.AUTH}{user.AsRedisValue()}{password.AsRedisValue()}").ConfigureAwait(false);
                     }
                     else
                     {
                         log?.LogInformationAuthenticatingPassword(new(server!));
-                        await context.SendAsync($"{RedisCommand.AUTH}{(RedisValue)password}").ConfigureAwait(false);
+                        await context.SendAsync($"{RedisCommand.AUTH}{password.AsRedisValue()}").ConfigureAwait(false);
                     }
 
                     LogResponse(log, server, connectionType, "AUTH", "OK");
@@ -290,7 +290,7 @@ namespace StackExchange.Redis
                     if (helloCarriesCredentials) log?.LogInformationAuthenticatingViaHello(new(server!));
                     var hello = helloCarriesCredentials
                         ? await context.SendAsync(
-                                $"{RedisCommand.HELLO}{protover}{RespLiterals.Auth}{(RedisValue)(user is { Length: > 0 } ? user : RedisLiterals.@default)}{(RedisValue)password!}",
+                                $"{RedisCommand.HELLO}{protover}{RespLiterals.Auth}{(user is { Length: > 0 } ? user.AsRedisValue() : RedisLiterals.@default)}{password!.AsRedisValue()}",
                                 handler: HelloHandler.Instance)
                             .ConfigureAwait(false)
                         : await context.SendAsync(
@@ -1299,11 +1299,11 @@ namespace StackExchange.Redis
                 {
                     if (field.IsNull)
                     {
-                        await context.SendAsync($"{RedisCommand.CLIENT}{verb}{(RedisValue)value}").ConfigureAwait(false);
+                        await context.SendAsync($"{RedisCommand.CLIENT}{verb}{value.AsRedisValue()}").ConfigureAwait(false);
                     }
                     else
                     {
-                        await context.SendAsync($"{RedisCommand.CLIENT}{verb}{field}{(RedisValue)value}").ConfigureAwait(false);
+                        await context.SendAsync($"{RedisCommand.CLIENT}{verb}{field}{value.AsRedisValue()}").ConfigureAwait(false);
                     }
                 }
                 catch (RedisServerException)
