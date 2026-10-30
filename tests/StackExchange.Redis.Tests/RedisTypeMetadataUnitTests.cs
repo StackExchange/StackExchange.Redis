@@ -20,11 +20,14 @@ public class RedisTypeMetadataUnitTests
     [InlineData("stream", RedisType.Stream)]
     [InlineData("vectorset", RedisType.VectorSet)]
     [InlineData("array", RedisType.Array)]
+    [InlineData("bitmap", RedisType.Bitmap)]
+    [InlineData("gcra", RedisType.Gcra)]
     // parsing is case-insensitive (as it was in v2, which used Enum.TryParse with ignoreCase)
     [InlineData("NONE", RedisType.None)]
     [InlineData("None", RedisType.None)]
     [InlineData("ZSet", RedisType.SortedSet)]
     [InlineData("VECTORSET", RedisType.VectorSet)]
+    [InlineData("Bitmap", RedisType.Bitmap)]
     public void TryParse_KnownTokens(string value, RedisType expected)
     {
         ReadOnlySpan<byte> bytes = Encoding.ASCII.GetBytes(value);
