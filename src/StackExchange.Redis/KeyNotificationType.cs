@@ -16,7 +16,7 @@ public enum KeyNotificationType
     Unknown = 0,
     [AsciiHash("append")]
     Append = 1,
-    [AsciiHash("copy_to")] // the server has only ever emitted "copy_to" (6.2+); "copy" never matched anything
+    [AsciiHash("copy_to")]
     Copy = 2,
     [AsciiHash("del")]
     Del = 3,
@@ -140,6 +140,10 @@ public enum KeyNotificationType
     SInterStore = 62,
     [AsciiHash("zrangestore")]
     ZRangeStore = 63,
+    [AsciiHash("sunionstore")]
+    SUnionStore = 64,
+    [AsciiHash("sdiffstore")]
+    SDiffStore = 65,
 
     // side-effect notifications
     [AsciiHash("expired")]
