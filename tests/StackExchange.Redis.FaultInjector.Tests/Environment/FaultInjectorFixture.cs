@@ -199,7 +199,7 @@ public abstract class FaultInjectorFixture(DatabaseShape shape) : IAsyncLifetime
             // actual name is an assumption worth not making when the consequence is deleting the wrong thing.
             var template = ExistingDatabase.ReadAll(Environment).Values.Select(d => d.BdbId).ToHashSet();
 
-            using var rest = new ClusterRestClient(cluster, Environment.CertificateAuthorityPath);
+            using var rest = new ClusterRestClient(cluster, Environment.ConfigDirectory);
             foreach (var (bdbId, name) in await rest.ListDatabasesAsync())
             {
                 if (template.Contains(bdbId)) continue;

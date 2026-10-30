@@ -4,10 +4,10 @@ using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis;
 
-/// <summary>
+/// <content>
 /// Carries maintenance context on the faults a disruption can cause, so that a timeout during an announced
 /// migration is distinguishable from an ordinary one.
-/// </summary>
+/// </content>
 /// <remarks>
 /// This follows the established pattern on these types - <c>Commandstatus</c> and <c>Flags</c> on
 /// <see cref="RedisTimeoutException"/>, <c>FailureType</c> on <see cref="RedisConnectionException"/> - rather
@@ -34,7 +34,6 @@ public sealed partial class RedisTimeoutException
     /// occasionally naming a window that a *different*, later command merely followed.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
     public MaintenanceNotificationType MaintenanceType { get; internal init; }
 }
 
@@ -50,6 +49,5 @@ public sealed partial class RedisConnectionException
     /// its deadline surfaces either way round: as a timeout when the command was already in flight, and as a
     /// connection fault when the endpoint went away underneath it.
     /// </remarks>
-    [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
     public MaintenanceNotificationType MaintenanceType { get; internal init; }
 }

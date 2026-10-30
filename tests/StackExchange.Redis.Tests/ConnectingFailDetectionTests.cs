@@ -128,8 +128,8 @@ public class ConnectingFailDetectionTests(ITestOutputHelper output) : TestBase(o
 
         var server = conn.GetServer(TestConfig.Current.PrimaryServerAndPort);
         var protocol = server.Protocol;
-        // RESP2 has interactive+subscriber connections; RESP3 uses one connection for both.
-        var expectedCount = protocol is RedisProtocol.Resp3 ? 1 : 2;
+        // interactive+subscriber connections, unless RESP3 is sharing one connection for both (opt-in)
+        var expectedCount = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.EndPoint).SharesSubscriptionConnection() ? 1 : 2;
         Log($"Using {protocol.GetString()}; expecting {expectedCount} reconnect event(s)");
 
         Assert.SkipUnless(server.CanSimulateConnectionFailure(), "Skipping because server cannot simulate connection failure");

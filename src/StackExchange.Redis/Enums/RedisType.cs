@@ -93,6 +93,14 @@ namespace StackExchange.Redis
         /// </summary>
         [AsciiHash("array")]
         Array,
+
+        /// <summary>
+        /// A native (compressed, roaring) bitmap. Bit commands (<c>SETBIT</c>, <c>GETBIT</c>, <c>BITCOUNT</c>, <c>BITOP</c>,
+        /// <c>BITFIELD</c>, ...) work on both string bitmaps and native bitmaps; plain string commands do not work on native bitmaps.
+        /// </summary>
+        /// <remarks>Redis 8.12+. A string bitmap reports <see cref="String"/>; only the native representation reports this type.</remarks>
+        [AsciiHash("bitmap")]
+        Bitmap,
     }
 
     /// <summary>

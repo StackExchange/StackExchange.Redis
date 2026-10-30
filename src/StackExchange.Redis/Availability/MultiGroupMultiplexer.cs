@@ -89,6 +89,7 @@ namespace StackExchange.Redis
                 ExplicitOverrideFlag = 1 << 2,   // manual failover target (see ExplicitOverride)
                 SkipInitialHealthCheck = 1 << 3, // see SkipInitialHealthCheck
                 Unhealthy = 1 << 4,              // disabled by a health-check or circuit-breaker
+                FailbackVerified = 1 << 5,       // most recent failback health-check passed (see FailbackHealthCheck)
             }
 
             private int _flags;
@@ -123,6 +124,8 @@ namespace StackExchange.Redis
 
             // UTC ticks (DateTime.Ticks and TimeSpan.Ticks share the same 100ns unit); long for atomicity
             private long _lastUnhealthyTicks;
+
+            internal long LastUnhealthyTicks => Volatile.Read(ref _lastUnhealthyTicks);
 
             /// <summary>
             /// Clear the <see cref="IsUnhealthy"/> flag against this endpoint, allowing it to be reconsidered.
@@ -228,6 +231,21 @@ namespace StackExchange.Redis
             /// </summary>
             public TimeSpan? FailbackDelay { get; set; }
 
+            /// <summary>
+            /// A health-check consulted only before traffic moves <em>to</em> this member; when
+            /// <see langword="null"/>, <see cref="MultiGroupOptions.FailbackHealthCheck"/> is used, and when that
+            /// is also <see langword="null"/>, there is none.
+            /// </summary>
+            /// <remarks>
+            /// Unlike <see cref="HealthCheck"/>, this never removes the active member: it decides whether a member
+            /// that is not active may become so, typically by asking whether it has caught up with the others.
+            /// A member is only eligible once this reports <see cref="HealthCheckResult.Healthy"/>; an
+            /// <see cref="HealthCheckResult.Inconclusive"/> answer (for example, the question could not be asked)
+            /// leaves it ineligible. If no connected member is eligible, selection falls back to connectivity and
+            /// <see cref="HealthCheck"/> alone, so the group always serves from somewhere when it can.
+            /// </remarks>
+            public HealthCheck? FailbackHealthCheck { get; set; }
+
             // the breaker to hand to this member's connections: member override, else its own config, else the group
             internal CircuitBreaker? ResolveCircuitBreaker(MultiGroupOptions options)
                 => CircuitBreaker ?? Configuration.CircuitBreaker ?? options.CircuitBreaker;
@@ -235,6 +253,15 @@ namespace StackExchange.Redis
             internal HealthCheck ResolveHealthCheck(MultiGroupOptions options) => HealthCheck ?? options.HealthCheck;
 
             internal TimeSpan ResolveFailbackDelay(MultiGroupOptions options) => FailbackDelay ?? options.FailbackDelay;
+
+            internal HealthCheck? ResolveFailbackHealthCheck(MultiGroupOptions options) => FailbackHealthCheck ?? options.FailbackHealthCheck;
+
+            // maintained by the group on each pass; only meaningful when a failback health-check resolves
+            internal bool FailbackVerified
+            {
+                get => GetFlag(MemberFlags.FailbackVerified);
+                set => SetFlag(MemberFlags.FailbackVerified, value);
+            }
 
             /// <summary>
             /// The relative weight of this group member; higher is preferred.
@@ -327,7 +354,10 @@ namespace StackExchange.Redis
 
                 if (isConnected)
                 {
-                    if (Volatile.Read(ref _lastUnhealthyTicks) < failbackFailureCutoffTicks) ResetIsUnhealthy();
+                    // at or before the cutoff: with a zero FailbackDelay the cutoff is "now", and on a coarse clock
+                    // (DateTime.UtcNow advances every ~15.6ms on .NET Framework) a failure and the pass that clears
+                    // it can share a tick - a strict comparison would then hold the member out for another interval
+                    if (Volatile.Read(ref _lastUnhealthyTicks) <= failbackFailureCutoffTicks) ResetIsUnhealthy();
                 }
                 else
                 {
@@ -337,9 +367,11 @@ namespace StackExchange.Redis
                 var oldConnected = IsConnected;
                 IsConnected = isConnected;
 
-                return isConnected == oldConnected ? GroupConnectionChangedEventArgs.ChangeType.Unknown
-                    : isConnected ? GroupConnectionChangedEventArgs.ChangeType.Reconnected
-                    : GroupConnectionChangedEventArgs.ChangeType.Disconnected;
+                return isConnected == oldConnected
+                    ? GroupConnectionChangedEventArgs.ChangeType.Unknown
+                    : isConnected
+                        ? GroupConnectionChangedEventArgs.ChangeType.Reconnected
+                        : GroupConnectionChangedEventArgs.ChangeType.Disconnected;
             }
 
             internal void UpdateLatency()
@@ -613,7 +645,7 @@ namespace StackExchange.Redis
                         // note the interval is a group-level concern (how often we re-evaluate the active
                         // member), not a property of any individual health-check
                         interval = typed._options.HealthCheckInterval;
-                        return interval > TimeSpan.Zero & interval != TimeSpan.MaxValue;
+                        return (interval > TimeSpan.Zero) & (interval != TimeSpan.MaxValue);
                     }
 
                     interval = TimeSpan.Zero;
@@ -667,7 +699,81 @@ namespace StackExchange.Redis
                 }
 
                 HealthCheck.PutReusablePending(ref _reusableHealthCheckBuffer, ref pending);
+                await RunFailbackChecksAsync(members).ForAwait();
             }
+
+            // Failback checks decide eligibility, never health: they run only for members that are up and not
+            // active (the active member's answer is never used), after liveness has been updated, and a verdict
+            // is only kept while it can still be acted on - so a member that stops being up, or becomes active,
+            // must be checked afresh before it is next eligible. Anything short of Healthy, including a
+            // timeout, leaves the member ineligible; none of it marks a member unhealthy.
+            private async Task RunFailbackChecksAsync(ConnectionGroupMember[] members)
+            {
+                // a provisional active member (chosen by the liveness fallback) is still checked, so that it can
+                // stop being provisional once it has caught up; a normal active member is not
+                var active = _activeStub.Active;
+                var provisional = Volatile.Read(ref _provisional);
+                List<PendingFailbackCheck>? checks = null;
+                int totalTimeoutMillis = 0;
+                foreach (var member in members)
+                {
+                    var check = member.ResolveFailbackHealthCheck(_options);
+                    if (check is null) continue;
+
+                    if (!member.ConsiderActive || (ReferenceEquals(member.Multiplexer, active) && !ReferenceEquals(active, provisional)))
+                    {
+                        member.FailbackVerified = false;
+                        continue;
+                    }
+
+                    totalTimeoutMillis = Math.Max(totalTimeoutMillis, check.TotalTimeoutMillis());
+                    (checks ??= []).Add(new(member, check.CheckHealthAsync(member.Multiplexer)));
+                }
+
+                if (checks is null) return;
+
+                var all = new Task[checks.Count];
+                for (int i = 0; i < all.Length; i++) all[i] = checks[i].Pending;
+                await Task.WhenAll(all).TimeoutAfter(totalTimeoutMillis).ForAwait();
+
+                foreach (var item in checks)
+                {
+                    var member = item.Member;
+                    var pending = item.Pending;
+                    if (pending.IsCompletedSuccessfully)
+                    {
+                        member.FailbackVerified = await pending.ForAwait() is HealthCheckResult.Healthy;
+                    }
+                    else
+                    {
+                        _ = pending.ObserveErrors();
+                        member.FailbackVerified = false;
+                    }
+                }
+            }
+
+            // a named pair rather than a tuple: the library must not reference System.ValueTuple (see SanityCheckTests)
+            private readonly struct PendingFailbackCheck(ConnectionGroupMember member, Task<HealthCheckResult> pending)
+            {
+                public ConnectionGroupMember Member { get; } = member;
+
+                public Task<HealthCheckResult> Pending { get; } = pending;
+            }
+
+            // Eligible to become (or stay) active: an explicit failover target always is, as is the active member
+            // - unless it is provisional, having been chosen by the liveness fallback without ever passing its
+            // failback check; otherwise a member with a failback check must have passed it on the latest pass.
+            private bool IsFailbackEligible(ConnectionGroupMember member, ConnectionMultiplexer? active)
+                => member.ExplicitOverride
+                || (ReferenceEquals(member.Multiplexer, active) && !ReferenceEquals(active, Volatile.Read(ref _provisional)))
+                || member.ResolveFailbackHealthCheck(_options) is null
+                || member.FailbackVerified;
+
+            // The active member when it was chosen by the liveness fallback (no live member was eligible), else null.
+            // Other clients never select a member that fails its lag check at all; this is the nearest equivalent
+            // that still serves when every member is behind: such a member is left for an eligible one as soon as
+            // one is available, and becomes an ordinary active member once it passes its own failback check.
+            private ConnectionMultiplexer? _provisional;
 
             private long GetFailbackFailureCutoff(ConnectionGroupMember member)
             {
@@ -685,7 +791,7 @@ namespace StackExchange.Redis
             {
                 if (_disposed) return;
                 var existingActive = _activeStub.Active;
-                ConnectionGroupMember? preferredMember = null, previousMember = null;
+                ConnectionGroupMember? preferredMember = null, fallbackMember = null, previousMember = null;
                 var members = _members;
                 foreach (var member in members)
                 {
@@ -699,8 +805,26 @@ namespace StackExchange.Redis
                         member.UpdateLatency(); // this can change passively
 
                         // (note that when in doubt, we prefer the active muxer, to prevent flapping)
-                        preferredMember = ConnectionGroupMember.Select(preferredMember, member, existingActive);
+                        fallbackMember = ConnectionGroupMember.Select(fallbackMember, member, existingActive);
+                        if (IsFailbackEligible(member, existingActive))
+                        {
+                            preferredMember = ConnectionGroupMember.Select(preferredMember, member, existingActive);
+                        }
                     }
+                }
+
+                // The active member is eligible unless provisional, so this only applies when it is gone, there is
+                // none, or it is itself provisional: if no live member has passed its failback check - every one
+                // lagging, say, which is the normal state of a partition between regions - serve from the best live
+                // member rather than from none, marking it provisional.
+                if (preferredMember is null)
+                {
+                    preferredMember = fallbackMember;
+                    Volatile.Write(ref _provisional, fallbackMember?.Multiplexer);
+                }
+                else
+                {
+                    Volatile.Write(ref _provisional, null);
                 }
 
                 SetActive(preferredMember?.Multiplexer);
@@ -871,13 +995,17 @@ namespace StackExchange.Redis
                 }
             }
 
-            private int _circuitBreakerDebounce = 0;
+            private int _rerouteDebounce = 0;
             private void OnMemberConnectionFailed(object? sender, ConnectionFailedEventArgs e)
             {
-                // deliberately scoped to this one failure type; re-probe and re-select promptly rather
-                // than waiting for the next poll tick, so traffic routes away from the dropped member
-                if (e.FailureType is ConnectionFailureType.CircuitBreaker
-                    && Interlocked.CompareExchange(ref _circuitBreakerDebounce, 1, 0) is 0)
+                // deliberately scoped to these failure types; re-probe and re-select promptly rather than
+                // waiting for the next poll tick, so traffic routes away from the dropped member. A breaker
+                // trip is the member's own traffic telling us it is unstable; LOADING is the server telling
+                // us outright that it cannot serve yet (and its handshake will keep failing the same way
+                // until it can, so nothing routed there in the meantime gets a reply - the breaker only ever
+                // sees replies, so it cannot be what moves us). Ordinary socket drops are left to reconnect
+                if (e.FailureType is ConnectionFailureType.CircuitBreaker or ConnectionFailureType.Loading
+                    && Interlocked.CompareExchange(ref _rerouteDebounce, 1, 0) is 0)
                 {
                     GetMember(sender as ConnectionMultiplexer)?.SetUnhealthy();
                     _ = Task.Run(async () =>
@@ -892,7 +1020,7 @@ namespace StackExchange.Redis
                         }
                         finally
                         {
-                            Volatile.Write(ref _circuitBreakerDebounce, 0);
+                            Volatile.Write(ref _rerouteDebounce, 0);
                         }
                     });
                 }
@@ -1123,7 +1251,7 @@ namespace StackExchange.Redis
 
             public IDatabase GetDatabase(int db = -1, object? asyncState = null)
             {
-                if (asyncState is null & db >= -1 & db <= ConnectionMultiplexer.MaxCachedDatabaseInstance)
+                if ((asyncState is null) & (db >= -1) & (db <= ConnectionMultiplexer.MaxCachedDatabaseInstance))
                 {
                     return _databases[db + 1] ??= new MultiGroupDatabase(this, db, null);
                 }
@@ -1331,6 +1459,12 @@ namespace StackExchange.Redis
                 {
                     var health = await member.ResolveHealthCheck(_options).CheckHealthAsync(muxer).ConfigureAwait(false);
                     member.UpdateState(health, GetFailbackFailureCutoff(member));
+
+                    // a newly added member is never the active one, so its failback check applies at once
+                    if (member.ResolveFailbackHealthCheck(_options) is { } failback && member.ConsiderActive)
+                    {
+                        member.FailbackVerified = await failback.CheckHealthAsync(muxer).ConfigureAwait(false) is HealthCheckResult.Healthy;
+                    }
                 }
 
                 // apply any shared hooks

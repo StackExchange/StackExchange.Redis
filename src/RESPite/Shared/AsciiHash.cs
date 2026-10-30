@@ -106,7 +106,7 @@ public readonly partial struct AsciiHash
                 {
                     byte x = firstPtr[i];
                     var xCI = x & CS_MASK;
-                    if (xCI >= 'A' & xCI <= 'Z')
+                    if ((xCI >= 'A') & (xCI <= 'Z'))
                     {
                         // alpha mismatch
                         if (xCI != (secondPtr[i] & CS_MASK)) return false;
@@ -171,7 +171,7 @@ public readonly partial struct AsciiHash
                 {
                     int x = (byte)firstPtr[i];
                     var xCI = x & CS_MASK;
-                    if (xCI >= 'A' & xCI <= 'Z')
+                    if ((xCI >= 'A') & (xCI <= 'Z'))
                     {
                         // alpha mismatch
                         if (xCI != (secondPtr[i] & CS_MASK)) return false;
@@ -206,7 +206,7 @@ public readonly partial struct AsciiHash
                 {
                     int x = (byte)firstPtr[i];
                     var xCI = x & CS_MASK;
-                    if (xCI >= 'A' & xCI <= 'Z')
+                    if ((xCI >= 'A') & (xCI <= 'Z'))
                     {
                         // alpha mismatch
                         if (xCI != (secondPtr[i] & CS_MASK)) return false;

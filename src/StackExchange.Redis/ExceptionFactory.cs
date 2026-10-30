@@ -247,21 +247,24 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message message, ServerEndPoint? server, WriteResult? result = null, PhysicalBridge? bridge = null)
+        // message is null when the timeout isn't tied to one command: a scan without a pattern is a single
+        // HGETALL/SMEMBERS/etc. that the enumerator can only see as a task.
+        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string? baseErrorMessage, Message? message, ServerEndPoint? server, WriteResult? result = null, PhysicalBridge? bridge = null)
         {
-            List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
+            var data = new List<Tuple<string, string>>();
+            if (message is not null) data.Add(Tuple.Create("Message", message.CommandAndKey));
             var sb = new StringBuilder();
 
             // We timeout writing messages in quite different ways sync/async - so centralize messaging here.
             if (string.IsNullOrEmpty(baseErrorMessage) && result == WriteResult.TimeoutBeforeWrite)
             {
-                baseErrorMessage = message.IsBacklogged
+                baseErrorMessage = message is { IsBacklogged: true }
                     ? "The message timed out in the backlog attempting to send because no connection became available"
                     : "The timeout was reached before the message could be written to the output buffer, and it was not sent";
             }
 
             var lastConnectionException = bridge?.LastException as RedisConnectionException;
-            var logConnectionException = message.IsBacklogged && lastConnectionException is not null;
+            var logConnectionException = message is { IsBacklogged: true } && lastConnectionException is not null;
 
             if (!string.IsNullOrEmpty(baseErrorMessage))
             {
@@ -281,7 +284,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                sb.Append("Timeout performing ").Append(message.CommandString).Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
+                sb.Append("Timeout performing ").Append(message?.CommandString ?? "operation").Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
             }
 
             // Add timeout data, if we have it

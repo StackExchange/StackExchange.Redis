@@ -39,12 +39,17 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
         Assert.True(File.Exists("cluster.zip"));
     }
 
-    [Fact]
-    public async Task ConnectUsesSingleSocket()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConnectUsesSingleSocket(bool sharedSubscriptionConnection)
     {
         for (int i = 0; i < 5; i++)
         {
-            await using var conn = Create(failMessage: i + ": ", log: Writer);
+            await using var conn = Create(
+                failMessage: i + ": ",
+                log: Writer,
+                configuration: sharedSubscriptionConnection ? GetConfiguration() + ",sharedSubscriptionConnection=true" : null);
 
             foreach (var ep in conn.GetEndPoints())
             {
@@ -58,7 +63,7 @@ public class ClusterTests(ITestOutputHelper output, SharedConnectionFixture fixt
                 var srv = conn.GetServer(ep);
                 var counters = srv.GetCounters();
                 Assert.Equal(1, counters.Interactive.SocketCount);
-                Assert.Equal(TestContext.Current.IsResp3() ? 0 : 1, counters.Subscription.SocketCount);
+                Assert.Equal(sharedSubscriptionConnection && TestContext.Current.IsResp3() ? 0 : 1, counters.Subscription.SocketCount);
             }
         }
     }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -225,8 +225,9 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
     }
 
     // The unhappy path of the failover threshold: the attempt count says "wait for a failover now", but no
-    // failover ever comes (the member stays nominally healthy - a couple of LOADING replies are not enough
-    // to trip the default breaker). We wait out FailoverDelay and then carry on retrying the original
+    // failover ever comes (the member stays nominally healthy: a couple of LOADING replies are not enough
+    // to trip the default breaker, and the re-probe they trigger finds the member healthy, so the group
+    // keeps it). We wait out FailoverDelay and then carry on retrying the original
     // member rather than giving up, and the group never moves.
     [Fact]
     public async Task WithRetry_WhenFailoverNeverArrives_KeepsRetryingSameMember()

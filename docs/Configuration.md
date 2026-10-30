@@ -36,6 +36,18 @@ pointing to that primary server that will automatically be updated if the primar
 var conn = ConnectionMultiplexer.Connect("localhost,serviceName=myprimary");
 ```
 
+`abortConnect` applies to sentinel connections the same way it applies to everything else. With `abortConnect=true` (the default), `Connect`
+throws if the sentinels cannot be reached or do not know the service. With `abortConnect=false`, `Connect` returns a multiplexer even then:
+it is not connected, operations fail with a connection exception that names the problem, and it connects itself to the primary once the
+sentinels become reachable and name one. If you want startup to fail when the sentinels are unavailable, keep `abortConnect=true`.
+
+A sentinel-managed connection tracks failovers through several signals: the `+switch-master` announcement, a reconnect poll whenever the
+connection to the primary is lost, and - because the announcement is delivered over pub/sub and can be missed - a periodic check that
+notices when the node last named as primary is still connected but now reports itself as a replica (a failover where nothing disconnected,
+such as a primary demoted in place). In that last case the client re-asks sentinel for the current primary and follows its answer, even to
+a node at an address it has never seen; while sentinel still names the demoted node (sentinel itself has not yet failed over), the client
+keeps asking without tearing down or reconfiguring the healthy connections.
+
 An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
 
 ```csharp
@@ -100,6 +112,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | tunnel={string}        | `Tunnel`               | `null`                       | Tunnel for connections (use `http:{proxy url}` for "connect"-based proxy server)                          |
 | setlib={bool}          | `SetClientLibrary`     | `true`                       | Whether to attempt to use `CLIENT SETINFO` to set the library name/version on the connection              |
 | protocol={string}      | `Protocol`             | `null`                       | Redis protocol to use; see section below                                                                  |
+| sharedSubscriptionConnection={bool} | `SharedSubscriptionConnection` | `false` | Under RESP3, share the interactive connection with pub/sub rather than using a dedicated one; see section below |
 | highIntegrity={bool}   | `HighIntegrity`        | `false`                      | High integrity (incurs overhead) sequence checking on every command; see section below                    |
 | defaults={string}      | `Defaults`             | `null`                       | Selects a named defaults provider; see section below                                                      |
 | maintNotifications={string} | `MaintenanceNotifications` | `disabled`           | Whether to ask servers for maintenance notifications; see section below                                    |
@@ -266,7 +279,7 @@ Both options can be customized or disabled (set to `""`), via the `.Configuratio
 
 These settings are also used by the `IServer.MakeMaster()` method, which can set the tie-breaker in the database and broadcast the configuration change message. The configuration message can also be used separately to primary/replica changes simply to request all nodes to refresh their configurations, via the `ConnectionMultiplexer.PublishReconfigure` method.
 
-The configuration channel is subscribed to on every server connection, under both RESP2 and RESP3. Like any other pub/sub channel, it has the `ChannelPrefix` (if one is configured) applied - both when subscribing to it and when the library publishes to it - so a client with `channelPrefix=app1-` listens on `app1-__Booksleeve_MasterChanged`. Two consequences follow:
+The configuration channel is subscribed to on every server, under both RESP2 and RESP3 - on the subscription connection, or on the interactive connection when it is shared with pub/sub (`SharedSubscriptionConnection`); this is enough to make the server treat that connection as a pub/sub client. Like any other pub/sub channel, it has the `ChannelPrefix` (if one is configured) applied - both when subscribing to it and when the library publishes to it - so a client with `channelPrefix=app1-` listens on `app1-__Booksleeve_MasterChanged`. Two consequences follow:
 
 - If you announce a change yourself rather than through the library (for example `PUBLISH app1-__Booksleeve_MasterChanged "*"` from `redis-cli`), publish to the *prefixed* name, once for each distinct prefix in use; clients with a different prefix will not hear it. A publish to the unprefixed name is only heard by clients that have no prefix.
 - If you use ACLs that restrict channels, the user needs access to the *prefixed* channel (for example `&app1-__Booksleeve_MasterChanged`), in addition to any channels the application itself uses.
@@ -375,13 +388,8 @@ broken connection. This requires RESP3, and the client asks for it per connectio
 | `enabled` | **Required**: ask, and reject the connection unless notifications are live. Only point this at a deployment you know supports them. |
 
 Note that `enabled` means *required*, not merely *on* - it is the cross-client name for that mode, and it will
-refuse a connection that cannot deliver notifications, including any RESP2 connection.
-
-**For now this is purely opt-in: you must set `maintNotifications` yourself.** The `amr`, `rediscloud` and
-`enterprise` providers are intended to select `auto` for you, so that on those deployments nothing needs
-setting - but that auto-enlistment is held back until the feature has been through formal acceptance testing,
-and is expected in a follow-up release. Naming a provider today sets its other defaults without turning
-notifications on.
+refuse a connection that cannot deliver notifications, including any RESP2 connection. The `amr`, `rediscloud`
+and `enterprise` providers select `auto` for you, so on those deployments you need not set anything.
 
 While a disruption has been announced, command timeouts are relaxed - raised to `maintRelaxedTimeout`, never
 lowered, so a caller with a more generous timeout keeps it. The window ends when the server says the disruption
@@ -399,9 +407,13 @@ saying so.
 
 ## Redis protocol
 
-RESP3 is a newer protocol (available on v6 servers and above) which allows (among other changes) pub/sub messages to be communicated on the *same* connection - which can be very
-desirable in servers with a large number of clients; under RESP2, pub/sub requires a separate connection to the server. The protocol handshake needs to happen very early in the
-connection, so the library only attempts RESP3 when it has reason to expect it to work.
+RESP3 is a newer protocol (available on v6 servers and above) which allows (among other changes) pub/sub messages to be communicated on the *same* connection - which can be
+desirable in servers with a large number of clients; under RESP2, pub/sub requires a separate connection to the server. The library still uses a separate pub/sub connection under
+RESP3 unless `SharedSubscriptionConnection` is enabled: the server applies its (much tighter) `pubsub` output-buffer limits to any connection with an active subscription, which
+can get a shared connection - and every command in flight on it - closed. Before enabling it, check that the server's `pubsub` limits (`CONFIG GET client-output-buffer-limit`)
+are suitable for your largest replies, not just your pub/sub messages; see [RESP3](Resp3#pubsub-connections) for details.
+
+The protocol handshake needs to happen very early in the connection, so the library only attempts RESP3 when it has reason to expect it to work.
 
 The library determines whether to use RESP3 by:
 - The `HELLO` command has been disabled: RESP2 is used
@@ -410,6 +422,8 @@ The library determines whether to use RESP3 by:
 - Otherwise: RESP3 is attempted if `defaultVersion` (6.0 unless overridden) is v6 or above
 
 Note that `HELLO` is issued either way: `HELLO 2` when staying on RESP2. The reply tells us the server version, replication role, mode (standalone/sentinel/cluster) and connection
-identifier, none of which we would otherwise know without `INFO` or `CONFIG GET` - both of which are in the `@dangerous` ACL category, and are commonly restricted. `HELLO` itself is
+identifier, none of which we would otherwise know without `INFO` or `CONFIG GET` - both of which are in the `@dangerous` ACL category, and are commonly restricted. The role and mode
+are only taken from the interactive connection (the subscription connection does no discovery), and a reported mode of `cluster` only leads to cluster *routing* once a slot map has
+been obtained from `CLUSTER SLOTS`/`CLUSTER NODES`; a proxy that announces a cluster but refuses those commands is routed as a single standalone server. `HELLO` itself is
 in the `@connection` category. If you need to prevent it (for example when talking to a proxy that does not understand it), disable it at the command-map level with `$hello=` in the
 configuration string - or specify a `defaultVersion` below 6.0, since `HELLO` did not exist before then.

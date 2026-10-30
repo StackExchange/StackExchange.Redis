@@ -887,6 +887,13 @@ namespace StackExchange.Redis
                     .TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
         }
 
+        /// <summary>
+        /// Sub-commands of an <see cref="IMultiMessage"/> are written inside the lock without passing through
+        /// <see cref="SetEnqueued"/>; they take the parent's write time, so that they share its timeout budget
+        /// (including any time it spent in the backlog) rather than looking overdue by the process uptime.
+        /// </summary>
+        internal void InheritWriteTime(Message parent) => _writeTickCount = parent._writeTickCount;
+
         private int _writeTickCount;
 
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);

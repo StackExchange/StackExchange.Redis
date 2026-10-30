@@ -19,7 +19,6 @@ namespace StackExchange.Redis;
 /// this is the one place they are easy to misread.
 /// </para>
 /// </remarks>
-[Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
 public enum MaintenanceNotificationMode
 {
     /// <summary>

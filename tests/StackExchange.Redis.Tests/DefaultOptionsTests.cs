@@ -197,17 +197,17 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Theory]
-    [InlineData("contoso.redis.azure.net", MaintenanceNotificationMode.Disabled)] // AMR: will be Auto
-    [InlineData("contoso.cloud.redislabs.com", MaintenanceNotificationMode.Disabled)] // Redis Cloud: will be Auto
+    [InlineData("contoso.redis.azure.net", MaintenanceNotificationMode.Auto)] // AMR
+    [InlineData("contoso.cloud.redislabs.com", MaintenanceNotificationMode.Auto)] // Redis Cloud
     [InlineData("contoso.redis.cache.windows.net", MaintenanceNotificationMode.Disabled)] // classic Azure: stays off
     [InlineData("contoso.example.com", MaintenanceNotificationMode.Disabled)] // and so does anything unrecognized
     public void MaintenanceNotificationDefaultPerProvider(string hostName, MaintenanceNotificationMode expected)
     {
-        // Every endpoint is Disabled for now: maintenance notifications ship purely opt-in, so *nothing*
-        // enlists you and the only thing that turns them on is setting maintNotifications yourself. The
-        // providers for AMR and Redis Cloud are intended to select Auto - see the commented-out overrides on
-        // each - and this theory is what flips back when auto-enlistment lands: the first two rows become
-        // Auto, and the last two stay Disabled because nothing recognizes them either way.
+        // The recognized hosted families enlist automatically, which is the whole point of the providers: a
+        // connection string that names nothing but the hostname gets the feature. Auto rather than Enabled so
+        // that a deployment which cannot deliver keeps working - the opt-in is refused and the feature stays
+        // off. The last two rows stay Disabled because nothing recognizes them either way, and they are what
+        // stops this test passing merely because everything returns the same answer.
         var epc = new EndPointCollection(new List<EndPoint>() { new DnsEndPoint(hostName, 0) });
         var provider = DefaultOptionsProvider.GetProvider(epc);
         Output.WriteLine($"{hostName} -> {provider.GetType().Name}");
@@ -218,20 +218,31 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(expected, options.MaintenanceNotifications);
     }
 
+    /// <summary>
+    /// A dedicated subscription connection unless pub/sub is explicitly allowed to share the RESP3 interactive one;
+    /// either way the interactive connection must not be left subscribed (and so classed as pub/sub by the server).
+    /// The dedicated connection is lazy: with nothing to subscribe to (AMR disables the configuration channel), a
+    /// client that never uses pub/sub is a single "normal" connection, and the second socket only appears on first use.
+    /// </summary>
     [Theory]
-    [InlineData(RedisProtocol.Resp2)]
-    [InlineData(RedisProtocol.Resp3)]
-    public async Task AzureManagedRedisConnectsWithoutSubscriptionConnection(RedisProtocol protocol)
+    [InlineData(RedisProtocol.Resp2, false)]
+    [InlineData(RedisProtocol.Resp3, false)]
+    [InlineData(RedisProtocol.Resp2, true)]
+    [InlineData(RedisProtocol.Resp3, true)]
+    public async Task AzureManagedRedisConnectionCount(RedisProtocol protocol, bool sharedSubscriptionConnection)
     {
         using var serverObj = new InProcessTestServer(Output, new DnsEndPoint("contoso.redis.azure.net", 10000), useSsl: true);
         var config = serverObj.GetClientConfig();
         config.ClientName = Guid.NewGuid().ToString().Replace("-", "");
         config.Protocol = protocol;
+        config.SharedSubscriptionConnection = sharedSubscriptionConnection;
+        Assert.Equal("", config.ConfigurationChannel); // the premise: nothing to subscribe to at startup
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
 
         var server = conn.GetServer(conn.GetEndPoints().Single());
-        var interactiveId = ((IInternalConnectionMultiplexer)conn).GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+        var mux = (IInternalConnectionMultiplexer)conn;
+        var interactiveId = mux.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
         var clients = await server.ClientListAsync();
         var namedClients = clients.Where(x => x.Name == config.ClientName).ToArray();
 
@@ -244,11 +255,64 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(0, self.ShardedSubscriptionCount);
         Assert.Equal(protocol, self.Protocol);
 
-        var expectedCount = protocol is RedisProtocol.Resp3 ? 1 : 2;
-        Assert.Equal(expectedCount, serverObj.ClientCount);
-        Assert.Equal(expectedCount, namedClients.Length);
+        // nobody has subscribed to anything yet: one connection, whatever the protocol or sharing mode
+        Assert.Equal(1, serverObj.ClientCount);
+        Assert.Single(namedClients);
+        var subscriptionId = mux.GetConnectionId(server.EndPoint, ConnectionType.Subscription);
+        if (protocol is RedisProtocol.Resp3 && sharedSubscriptionConnection)
+        {
+            Assert.Equal(interactiveId, subscriptionId); // shared: pub/sub *is* the interactive connection
+        }
+        else
+        {
+            Assert.Null(subscriptionId); // dedicated: not opened yet
+        }
 
-        await AssertCanPubSubAsync(conn, $"{nameof(AzureManagedRedisConnectsWithoutSubscriptionConnection)}:{protocol}");
+        await AssertCanPubSubAsync(conn, $"{nameof(AzureManagedRedisConnectionCount)}:{protocol}:{sharedSubscriptionConnection}");
+
+        // first use opened the dedicated connection, unless pub/sub shares the RESP3 interactive one
+        var expectedCount = protocol is RedisProtocol.Resp3 && sharedSubscriptionConnection ? 1 : 2;
+        Assert.Equal(expectedCount, serverObj.ClientCount);
+        clients = await server.ClientListAsync();
+        Assert.Equal(expectedCount, clients.Count(x => x.Name == config.ClientName));
+        self = Assert.Single(clients, x => x.Id == interactiveId);
+        Assert.Equal(ClientType.Normal, self.ClientType); // still: the subscription came and went on the other one
+    }
+
+    /// <summary>
+    /// The configuration channel is something to subscribe to the moment we connect, so when one is configured the
+    /// dedicated subscription connection is opened eagerly, as part of connecting, not on first use.
+    /// </summary>
+    [Theory]
+    [InlineData(RedisProtocol.Resp2)]
+    [InlineData(RedisProtocol.Resp3)]
+    public async Task ConfigurationChannelOpensSubscriptionConnectionEagerly(RedisProtocol protocol)
+    {
+        using var serverObj = new InProcessTestServer(Output, new DnsEndPoint("redis.contoso.com", 10000), useSsl: true);
+        var config = serverObj.GetClientConfig();
+        config.ClientName = Guid.NewGuid().ToString().Replace("-", "");
+        config.Protocol = protocol;
+        config.ConfigurationChannel = nameof(ConfigurationChannelOpensSubscriptionConnectionEagerly);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+
+        var server = conn.GetServer(conn.GetEndPoints().Single());
+        var mux = (IInternalConnectionMultiplexer)conn;
+        var interactiveId = mux.GetConnectionId(server.EndPoint, ConnectionType.Interactive);
+        var subscriptionId = mux.GetConnectionId(server.EndPoint, ConnectionType.Subscription);
+        Assert.NotNull(interactiveId);
+        Assert.NotNull(subscriptionId);
+        Assert.NotEqual(interactiveId, subscriptionId);
+        Assert.Equal(2, serverObj.ClientCount);
+
+        var clients = await server.ClientListAsync();
+        Assert.Equal(2, clients.Count(x => x.Name == config.ClientName));
+        var interactive = Assert.Single(clients, x => x.Id == interactiveId);
+        var subscription = Assert.Single(clients, x => x.Id == subscriptionId);
+        Assert.Equal(ClientType.Normal, interactive.ClientType);
+        Assert.Equal(0, interactive.SubscriptionCount);
+        Assert.Equal(ClientType.PubSub, subscription.ClientType);
+        Assert.Equal(1, subscription.SubscriptionCount); // the configuration channel
     }
 
     [Fact]

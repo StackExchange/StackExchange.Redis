@@ -145,6 +145,6 @@ The in-process managed server (`toys/StackExchange.Redis.Server`) may also need 
 ## Before finishing
 
 - `dotnet build Build.csproj -c Release /p:CI=true` — analyzers + `TreatWarningsAsErrors` must pass (this catches a missing `PublicAPI.Unshipped.txt` entry).
-- `dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -f net10.0 --filter "FullyQualifiedName~MyCommand"` — runs your new unit tests without any server.
-- `dotnet test tests/StackExchange.Redis.Build.Tests/StackExchange.Redis.Build.Tests.csproj` — if you touched `TransactionAnalyzer`. Also needs no server, and takes seconds.
+- `dotnet test --project tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -f net10.0 --filter-class "*MyCommand*"` — runs your new unit tests without any server (Microsoft.Testing.Platform filters take fully qualified names, `*` at either end).
+- `dotnet test --project tests/StackExchange.Redis.Build.Tests/StackExchange.Redis.Build.Tests.csproj` — if you touched `TransactionAnalyzer`. Also needs no server, and takes seconds.
 - Double-check no shipped signature changed (back-compat).

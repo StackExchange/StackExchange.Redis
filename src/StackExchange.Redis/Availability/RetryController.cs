@@ -62,7 +62,7 @@ internal sealed class RetryController
     /// Whether it is ever worth capturing the next-failover token: only when there is more than one
     /// attempt and the failover threshold sits below the attempt cap.
     /// </summary>
-    public bool TracksFailover => _maxAttempts > 1 & _maxBeforeFailover < _maxAttempts;
+    public bool TracksFailover => (_maxAttempts > 1) & (_maxBeforeFailover < _maxAttempts);
 
     public bool CanRetry(
         int attempt,
@@ -100,7 +100,7 @@ internal sealed class RetryController
             // by count, we should really switch over to the failover now; is failover available *and* are we allowed?
             delay = failover;
             failover = CancellationToken.None; // only failover once
-            return delay.CanBeCanceled & (policy & RetryResult.FailoverServer) != 0;
+            return delay.CanBeCanceled & ((policy & RetryResult.FailoverServer) != 0);
         }
 
         // can we pause and retry on the same server?

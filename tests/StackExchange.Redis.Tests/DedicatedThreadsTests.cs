@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
@@ -27,18 +27,19 @@ public class DedicatedThreadsTests(ITestOutputHelper output) : TestBase(output)
     private const string Flag = "DedicatedThreads";
 
     /// <summary>Connect with the flag in a known state, and put it back afterwards.</summary>
-    private async Task WithFlagAsync(bool enabled, Func<IInternalConnectionMultiplexer, EndPoint, Task> assert)
+    private async Task WithFlagAsync(bool enabled, Func<IInternalConnectionMultiplexer, EndPoint, Task> assert, bool sharedSubscriptionConnection = false)
     {
         var wasSet = ConnectionMultiplexer.GetFeatureFlag(Flag);
         ConnectionMultiplexer.SetFeatureFlag(Flag, enabled);
         try
         {
-            await using var conn = Create(shared: false);
+            await using var conn = Create(
+                shared: false,
+                configuration: sharedSubscriptionConnection ? GetConfiguration() + ",sharedSubscriptionConnection=true" : null);
             var endpoint = conn.GetEndPoints()[0];
 
             // the flag is consumed while the connection is being established, so make sure one exists before
-            // asking anything about it - and touch pub/sub too, since under RESP2 that is a second connection
-            // that is not created until it is needed
+            // asking anything about it - and touch pub/sub too, since that can be a second connection
             var db = conn.GetDatabase();
             await db.PingAsync();
             await conn.GetSubscriber().PingAsync();
@@ -72,15 +73,16 @@ public class DedicatedThreadsTests(ITestOutputHelper output) : TestBase(output)
     /// quoted per node rather than per connection.
     /// </summary>
     /// <remarks>
-    /// Only checkable under RESP2. Under RESP3 there *is* no separate subscription connection - the bridge
-    /// lookup returns the interactive one - so the question does not arise, and asserting "false" there would
-    /// be asserting against the shared connection we just required to be true.
+    /// Only checkable with a dedicated subscription connection. When RESP3 shares the interactive connection
+    /// with pub/sub (opt-in) the bridge lookup returns the interactive one, so the question does not arise, and
+    /// asserting "false" there would be asserting against the shared connection we just required to be true.
     /// </remarks>
-    [Fact]
-    public Task WithTheFlag_PubSubStaysOnTheThreadPool() => WithFlagAsync(true, (conn, endpoint) =>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task WithTheFlag_PubSubStaysOnTheThreadPool(bool sharedSubscriptionConnection) => WithFlagAsync(true, (conn, endpoint) =>
     {
-        var protocol = conn.GetServerEndPoint(endpoint).Protocol ?? RedisProtocol.Resp2;
-        if (protocol >= RedisProtocol.Resp3)
+        if (conn.GetServerEndPoint(endpoint).SharesSubscriptionConnection())
         {
             // one connection carries both, so the subscription lookup is the interactive connection
             Assert.True(conn.IsSyncReader(endpoint, ConnectionType.Subscription));
@@ -97,5 +99,5 @@ public class DedicatedThreadsTests(ITestOutputHelper output) : TestBase(output)
         }
 
         return Task.CompletedTask;
-    });
+    }, sharedSubscriptionConnection);
 }

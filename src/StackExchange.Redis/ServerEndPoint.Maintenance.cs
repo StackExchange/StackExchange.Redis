@@ -41,7 +41,6 @@ internal sealed partial class ServerEndPoint
     /// cannot be made.
     /// </para>
     /// </remarks>
-    [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
     private MaintenanceNotificationMode MaintenanceMode
         => Multiplexer.IsGroupMember
             ? MaintenanceNotificationMode.Disabled
@@ -522,11 +521,11 @@ internal sealed partial class ServerEndPoint
         while (watch.ElapsedMilliseconds < deadline)
         {
             if (isDisposed) return; // nothing to report about an endpoint that has gone away
-            if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions)) return; // in time
+            if (IsConnected && IsSubscriberConnectedOrNotRequired) return; // in time
             await Task.Delay(50).ForAwait();
         }
 
-        if (isDisposed || (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions))) return;
+        if (isDisposed || (IsConnected && IsSubscriberConnectedOrNotRequired)) return;
 
         Multiplexer.Logger?.LogWarningMaintenanceHandoffMissedDeadline(
             new(this),

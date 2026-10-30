@@ -3829,7 +3829,8 @@ namespace StackExchange.Redis
         /// <param name="expiry">The expiry to set.</param>
         /// <param name="when">The condition to enforce.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <remarks>See <seealso href="https://redis.io/commands/delex"/>.</remarks>
+        /// <returns><see langword="true"/> if the string was set, <see langword="false"/> otherwise.</returns>
+        /// <remarks>See <seealso href="https://redis.io/commands/set"/>.</remarks>
 #pragma warning disable RS0027 // Public API with optional parameter(s) should have the most parameters amongst its public overloads
         bool StringSet(RedisKey key, RedisValue value, Expiration expiry = default, ValueCondition when = default, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0027

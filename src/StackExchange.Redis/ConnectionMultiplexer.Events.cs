@@ -1,12 +1,62 @@
 ﻿using System;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using StackExchange.Redis.Maintenance;
 
 namespace StackExchange.Redis;
 
 public partial class ConnectionMultiplexer
 {
+    internal void OnConnectionAttemptCompleted(
+        EndPoint endpoint,
+        ConnectionType connectionType,
+        bool isSuccess,
+        ConnectionAttemptStage stage,
+        ConnectionFailureType failureType,
+        Exception? exception,
+        X509Certificate? clientCertificate,
+        string? tlsHostName,
+        ServerCertificateCheck? serverCertificateCheck,
+        string? physicalName)
+    {
+        if (_isDisposed) return;
+        var handler = RawConfig.ConnectionAttemptCompletedHandler;
+        if (handler != null)
+        {
+            // the sequence and the timestamp are taken together, so that they agree on the order: taken apart, two
+            // attempts completing at once (the interactive and subscription connections failing together) could each
+            // take one first and the other second, and a later sequence number would carry an earlier time
+            long sequenceNumber;
+            DateTime completedTimeUtc;
+            lock (_connectionAttemptSequenceLock)
+            {
+                sequenceNumber = ++_connectionAttemptSequence;
+                completedTimeUtc = DateTime.UtcNow;
+            }
+
+            CompleteAsWorker(new ConnectionAttemptCompletedEventArgs(
+                handler,
+                this,
+                endpoint,
+                connectionType,
+                isSuccess,
+                stage,
+                failureType,
+                exception,
+                clientCertificate,
+                tlsHostName,
+                serverCertificateCheck,
+                sequenceNumber,
+                completedTimeUtc,
+                physicalName));
+        }
+    }
+
+    private long _connectionAttemptSequence;
+    private readonly object _connectionAttemptSequenceLock = new();
+
     /// <summary>
     /// Raised whenever a physical connection fails.
     /// </summary>

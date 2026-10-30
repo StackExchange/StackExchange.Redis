@@ -193,17 +193,18 @@ namespace StackExchange.Redis
             }
 
             // Anything else goes in the bin - we're just not ready for you yet
-            message.Cancel();
-            Multiplexer.OnMessageFaulted(message, null);
-            message.Complete(null);
-            return WriteResult.NoConnectionAvailable;
+            return FailDueToNoConnection(message);
         }
 
         private WriteResult FailDueToNoConnection(Message message)
         {
-            message.Cancel();
-            Multiplexer.OnMessageFaulted(message, null);
-            message.Complete(null);
+            // fail with the exception the caller would otherwise construct from the result, rather than Cancel():
+            // a cancelled box surfaces as TaskCanceledException, and although ExecuteAsyncImpl then tries to
+            // fault the task with the real exception, the box's continuation can get there first (#3283) - and a
+            // batch has no caller translating the result at all
+            var ex = ExceptionFactory.NoConnectionAvailable(Multiplexer, message, ServerEndPoint);
+            Multiplexer.OnMessageFaulted(message, ex);
+            message.SetExceptionAndComplete(ex, null);
             return WriteResult.NoConnectionAvailable;
         }
 
@@ -454,6 +455,12 @@ namespace StackExchange.Redis
             var tmp = physical;
             if (tmp != null && state != (int)State.ConnectedEstablished)
             {
+                // we are abandoning any attempt in flight in order to retry; that says nothing about the server, so report
+                // it as such (reporting is once-only, so the failure recorded below does not report the attempt again)
+                tmp.ReportAttemptOutcome(
+                    isSuccess: false,
+                    ConnectionFailureType.ConnectionDisposed,
+                    new RedisConnectionException(ConnectionFailureType.ConnectionDisposed, CommandFlags.None, "The connection attempt was abandoned so that it could be retried"));
                 tmp.RecordConnectionFailed(ConnectionFailureType.UnableToConnect);
             }
             TryConnect(null);
@@ -549,6 +556,8 @@ namespace StackExchange.Redis
         internal void OnFullyEstablished(PhysicalConnection connection, string source)
         {
             Trace("OnFullyEstablished");
+            // the attempt itself succeeded (handshake complete), even if this bridge has since moved on and discards it below
+            connection.ReportAttemptOutcome(isSuccess: true, ConnectionFailureType.None, null);
             connection.SetIdle();
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
@@ -574,11 +583,11 @@ namespace StackExchange.Redis
         private int connectStartTicks;
         private long connectTimeoutRetryCount = 0;
 
+        /// <summary>Milliseconds since the current (or most recent) connection attempt began.</summary>
+        private int ConnectElapsedMilliseconds() => unchecked(Environment.TickCount - Volatile.Read(ref connectStartTicks));
+
         private bool DueForConnectRetry()
-        {
-            int connectTimeMilliseconds = unchecked(Environment.TickCount - Volatile.Read(ref connectStartTicks));
-            return Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Volatile.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
-        }
+            => Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Volatile.Read(ref connectTimeoutRetryCount), ConnectElapsedMilliseconds());
 
         internal void OnHeartbeat(bool ifConnectedOnly)
         {
@@ -610,7 +619,13 @@ namespace StackExchange.Redis
                 switch (state)
                 {
                     case State.Connecting:
-                        if (DueForConnectRetry())
+                        // The retry policy spaces attempts; it must not cut one short while it is still inside its
+                        // ConnectTimeout budget. The default policy (ExponentialRetry at half the connect timeout)
+                        // would otherwise abandon an attempt after 2.5s - less than name resolution alone takes
+                        // when a DNS server is not answering - and then report it as a connect timeout (#2894).
+                        // The socket connect carries its own ConnectTimeout cancellation; this check is what bounds
+                        // TLS and anything after it.
+                        if (ConnectElapsedMilliseconds() >= Multiplexer.RawConfig.ConnectTimeout && DueForConnectRetry())
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
                             var ex = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout", Name);
@@ -619,6 +634,7 @@ namespace StackExchange.Redis
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;
+                            snapshot?.ReportAttemptOutcome(isSuccess: false, ConnectionFailureType.UnableToConnect, ex); // else Dispose reports it without the timeout
                             OnDisconnected(ConnectionFailureType.UnableToConnect, snapshot, out bool isCurrent, out State oldState);
                             snapshot?.Dispose(); // Cleanup the existing connection/socket if any, otherwise it will wait reading indefinitely
                             TryConnect(null);
@@ -795,6 +811,17 @@ namespace StackExchange.Redis
             }
             foreach (var message in messages)
             {
+                if (NeedsReconnect || physical.IsWriteFaulted)
+                {
+                    // the connection went away part-way through the batch (typically an earlier message's write
+                    // faulted it); give the remainder the treatment a single command gets at the top of
+                    // TryWriteSync - backlog or fail, per policy - rather than writing to a dead connection (#3282).
+                    // Both flags matter: the reconnect flag is cleared as soon as a replacement connection starts
+                    // (TryConnect, on another thread), but the connection we are still holding stays poisoned
+                    QueueOrFailMessage(message);
+                    continue;
+                }
+
                 // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
@@ -815,8 +842,8 @@ namespace StackExchange.Redis
                 && Protocol is RedisProtocol.Resp2
                 && ServerEndPoint.TryRerouteToSubscriptionBridge(message, this))
             {
-                // this was queued while we expected RESP3 - where subscriptions share the interactive
-                // connection - but the handshake resolved to RESP2, which needs them on their own connection.
+                // this was queued while we expected RESP3 - where subscriptions can share the interactive
+                // connection (SharedSubscriptionConnection) - but the handshake resolved to RESP2, which needs them on their own connection.
                 // Writing it here would put *this* connection into subscriber mode, which rejects every
                 // ordinary command on it from then on; see #3154
                 Trace($"Rerouting {message.CommandAndKey} to the subscription connection (RESP2)");
@@ -838,6 +865,9 @@ namespace StackExchange.Redis
                 SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
                 foreach (var subCommand in multiMessage.GetMessages(physical))
                 {
+                    // sub-commands do not pass through SetEnqueued (only the parent did, before the backlog);
+                    // without a write time the heartbeat sees them as overdue by the process uptime (#3292)
+                    if (!ReferenceEquals(subCommand, message)) subCommand.InheritWriteTime(message);
                     result = WriteMessageToServerInsideWriteLock(physical, subCommand);
                     if (result != WriteResult.Success)
                     {
@@ -900,7 +930,7 @@ namespace StackExchange.Redis
 
                 var result = WriteMessageInsideLock(physical, message);
 
-                if (result == WriteResult.Success & message.IsFlushRequiredSync)
+                if ((result == WriteResult.Success) & message.IsFlushRequiredSync)
                 {
                     physical.Flush();
                 }
@@ -1353,9 +1383,10 @@ namespace StackExchange.Redis
 
         private WriteResult TimedOutBeforeWrite(Message message)
         {
-            message.Cancel();
-            Multiplexer.OnMessageFaulted(message, null);
-            message.Complete(null);
+            // as FailDueToNoConnection: a real exception, not Cancel()
+            var ex = ExceptionFactory.Timeout(Multiplexer, null, message, ServerEndPoint, WriteResult.TimeoutBeforeWrite, this);
+            Multiplexer.OnMessageFaulted(message, ex);
+            message.SetExceptionAndComplete(ex, null);
             return WriteResult.TimeoutBeforeWrite;
         }
 
@@ -1402,7 +1433,7 @@ namespace StackExchange.Redis
                     if (!gotLock) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
                 }
                 var result = WriteMessageInsideLock(physical, message);
-                if (result == WriteResult.Success & message.IsFlushRequiredAsync)
+                if ((result == WriteResult.Success) & message.IsFlushRequiredAsync)
                 {
                     physical.Flush();
                 }
@@ -1586,6 +1617,21 @@ namespace StackExchange.Redis
             Multiplexer.OnInternalError(exception, ServerEndPoint.EndPoint, ConnectionType, origin);
         }
 
+        /// <summary>
+        /// Writes a fire-and-forget command that is injected ahead of a caller's message (SELECT, READONLY, ASKING, PREPARE).
+        /// These never pass through <see cref="Message.SetEnqueued"/>, so the write time is stamped here; some of them are
+        /// shared static instances, so the stamp can be overwritten by another connection, but only ever with a later time,
+        /// which can make a pending prefix look younger than it is - never older (#3292).
+        /// </summary>
+        private void WritePrefixCommandInsideWriteLock(PhysicalConnection connection, Message prefix)
+        {
+            prefix.SetWriteTime();
+            connection.EnqueueInsideWriteLock(prefix);
+            prefix.WriteTo(connection);
+            prefix.SetRequestSent();
+            IncrementOpCount();
+        }
+
         private void SelectDatabaseInsideWriteLock(PhysicalConnection connection, Message message)
         {
             int db = message.Db;
@@ -1594,10 +1640,7 @@ namespace StackExchange.Redis
                 var sel = connection.GetSelectDatabaseCommand(db, message);
                 if (sel != null)
                 {
-                    connection.EnqueueInsideWriteLock(sel);
-                    sel.WriteTo(connection);
-                    sel.SetRequestSent();
-                    IncrementOpCount();
+                    WritePrefixCommandInsideWriteLock(connection, sel);
                 }
             }
         }
@@ -1616,10 +1659,7 @@ namespace StackExchange.Redis
                 if (connection.TryAddPreparedFieldSet(fieldSet.Id))
                 {
                     var prepare = fieldSet.CreatePrepareMessage(message.Db);
-                    connection.EnqueueInsideWriteLock(prepare);
-                    prepare.WriteTo(connection);
-                    prepare.SetRequestSent();
-                    IncrementOpCount();
+                    WritePrefixCommandInsideWriteLock(connection, prepare);
                     fieldSet.RegisterServer(ServerEndPoint, message.Db);
                 }
             }
@@ -1638,7 +1678,11 @@ namespace StackExchange.Redis
 
             if (connection.IsWriteFaulted)
             {
-                // never add to the response queue of a connection whose queue we no longer trust
+                // never add to the response queue of a connection whose queue we no longer trust - but, like every
+                // other refusal to write, complete the message *here*: a caller writing a list (a batch) does not
+                // act on the result, and a message that is neither queued nor completed is awaited forever (#3282)
+                message.Fail(ConnectionFailureType.SocketFailure, null, "an earlier write on this connection failed; this command was not written", Multiplexer);
+                message.Complete(connection);
                 return WriteResult.WriteFailure;
             }
 
@@ -1675,19 +1719,12 @@ namespace StackExchange.Redis
                         var readmode = connection.GetReadModeCommand(isPrimaryOnly);
                         if (readmode != null)
                         {
-                            connection.EnqueueInsideWriteLock(readmode);
-                            readmode.WriteTo(connection);
-                            readmode.SetRequestSent();
-                            IncrementOpCount();
+                            WritePrefixCommandInsideWriteLock(connection, readmode);
                         }
                     }
                     if (message.IsAsking)
                     {
-                        var asking = ReusableAskingCommand;
-                        connection.EnqueueInsideWriteLock(asking);
-                        asking.WriteTo(connection);
-                        asking.SetRequestSent();
-                        IncrementOpCount();
+                        WritePrefixCommandInsideWriteLock(connection, ReusableAskingCommand);
                     }
                 }
                 switch (cmd)

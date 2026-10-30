@@ -185,6 +185,7 @@ namespace StackExchange.Redis
                 MaintenanceRelaxedWindowMax = "maintRelaxedWindowMax",
                 MaintenancePostEventRelaxedDuration = "maintPostEventRelaxed",
                 HighIntegrity = "highIntegrity",
+                SharedSubscriptionConnection = "sharedSubscriptionConnection",
                 TcpKeepAlive = "tcpKeepAlive";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
@@ -229,6 +230,7 @@ namespace StackExchange.Redis
                 MaintenanceRelaxedWindowMax,
                 MaintenancePostEventRelaxedDuration,
                 HighIntegrity,
+                SharedSubscriptionConnection,
                 TcpKeepAlive,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
@@ -290,6 +292,8 @@ namespace StackExchange.Redis
             MaintenanceRelaxedWindowMaxHasValue = 1UL << 38,
             MaintenancePostEventRelaxedDurationHasValue = 1UL << 39,
             TopologyRefreshSecondsHasValue = 1UL << 41,
+            SharedSubscriptionConnectionHasValue = 1UL << 42,
+            SharedSubscriptionConnectionValue = 1UL << 43,
         }
 
         private OptionFlags optionFlags;
@@ -386,11 +390,26 @@ namespace StackExchange.Redis
         public event RemoteCertificateValidationCallback? CertificateValidation;
 
         /// <summary>
+        /// Raised once for every physical connection attempt (initial connect or reconnect, interactive or subscription), reporting
+        /// whether that attempt completed the Redis handshake, and identifying the client certificate selected for it, if any; note
+        /// that this cannot be specified in the configuration-string.
+        /// </summary>
+        /// <remarks>
+        /// Unlike <see cref="ConnectionMultiplexer.ConnectionFailed"/>, this is not suppressed while a server remains unreachable: every
+        /// failed reconnect attempt is reported. Subscribe before connecting, so that initial attempts are observed. Handlers are invoked
+        /// on a worker thread, not on the connection's own thread.
+        /// </remarks>
+        public event EventHandler<ConnectionAttemptCompletedEventArgs>? ConnectionAttemptCompleted;
+
+        /// <summary>
         /// The default (not explicitly configured) options for this connection, fetched based on our parsed endpoints.
         /// </summary>
         public DefaultOptionsProvider Defaults
         {
-            get => defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
+            get
+            {
+                return defaultOptions ??= DefaultOptionsProvider.GetProvider(EndPoints);
+            }
             set
             {
                 defaultOptions = value;
@@ -497,6 +516,23 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// A Boolean value that specifies whether, under RESP3, pub/sub should share the interactive connection rather than
+        /// using a dedicated subscription connection. Has no effect under RESP2, which always requires a separate connection.
+        /// </summary>
+        /// <remarks>
+        /// Sharing halves the number of connections, but the server classifies any connection with an active subscription
+        /// (including the library's own configuration channel) as a pub/sub client, which by default applies much stricter
+        /// output-buffer limits (<c>client-output-buffer-limit pubsub 32mb 8mb 60</c>). A large reply, or a burst of pipelined
+        /// replies, can then cause the server to close the connection - taking all in-flight commands with it. Only enable this
+        /// if replies are known to be small, or the server's pub/sub output-buffer limits have been relaxed.
+        /// </remarks>
+        public bool SharedSubscriptionConnection
+        {
+            get => HasValue(OptionFlags.SharedSubscriptionConnectionHasValue) ? IsSet(OptionFlags.SharedSubscriptionConnectionValue) : Defaults.SharedSubscriptionConnection;
+            set => SetBooleanWithValue(OptionFlags.SharedSubscriptionConnectionHasValue, OptionFlags.SharedSubscriptionConnectionValue, value);
+        }
+
+        /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even when not known by the machine.
         /// </summary>
         /// <param name="issuerCertificatePath">The file system path to find the certificate at.</param>
@@ -529,23 +565,30 @@ namespace StackExchange.Redis
 #if NET
         internal static LocalCertificateSelectionCallback CreatePemUserCertificateCallback(string userCertificatePath, string? userKeyPath)
         {
+            var pfx = LoadPemUserCertificate(userCertificatePath, userKeyPath);
+            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
+        }
+
+        internal static X509Certificate2 LoadPemUserCertificate(string userCertificatePath, string? userKeyPath)
+        {
             // PEM handshakes not universally supported and causes a runtime error about ephemeral certificates; to avoid, export as PFX
             using var pem = X509Certificate2.CreateFromPemFile(userCertificatePath, userKeyPath);
 #pragma warning disable SYSLIB0057 // X509 loading
-            var pfx = new X509Certificate2(pem.Export(X509ContentType.Pfx));
+            return new X509Certificate2(pem.Export(X509ContentType.Pfx));
 #pragma warning restore SYSLIB0057 // X509 loading
-
-            return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
 #endif
 
         internal static LocalCertificateSelectionCallback CreatePfxUserCertificateCallback(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
         {
-#pragma warning disable SYSLIB0057 // X509 loading
-            var pfx = new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
-#pragma warning restore SYSLIB0057 // X509 loading
+            var pfx = LoadPfxUserCertificate(userCertificatePath, password, storageFlags);
             return (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) => pfx;
         }
+
+        internal static X509Certificate2 LoadPfxUserCertificate(string userCertificatePath, string? password, X509KeyStorageFlags storageFlags = X509KeyStorageFlags.DefaultKeySet)
+#pragma warning disable SYSLIB0057 // X509 loading
+            => new X509Certificate2(userCertificatePath, password ?? "", storageFlags);
+#pragma warning restore SYSLIB0057 // X509 loading
 
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even when not known by the machine.
@@ -558,7 +601,7 @@ namespace StackExchange.Redis
             => TrustIssuerCallback(new X509Certificate2(issuerCertificatePath));
 #pragma warning restore SYSLIB0057 // X509 loading
 
-        private static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
+        internal static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
 
@@ -670,7 +713,10 @@ namespace StackExchange.Redis
                 Proxy.Envoyproxy => CommandMap.Envoyproxy,
                 _ => CommandMap.Default,
             };
-            set => commandMap = value ?? throw new ArgumentNullException(nameof(value));
+            set
+            {
+                commandMap = value ?? throw new ArgumentNullException(nameof(value));
+            }
         }
 
         /// <summary>
@@ -706,7 +752,10 @@ namespace StackExchange.Redis
                 var defaultTimeout = Defaults.ConnectTimeout;
                 return defaultTimeout.HasValue ? (int)defaultTimeout.GetValueOrDefault().TotalMilliseconds : Math.Max(5000, SyncTimeout);
             }
-            set => SetWithValue(OptionFlags.ConnectTimeoutHasValue, ref connectTimeout, value);
+            set
+            {
+                SetWithValue(OptionFlags.ConnectTimeoutHasValue, ref connectTimeout, value);
+            }
         }
 
         /// <summary>
@@ -1032,6 +1081,12 @@ namespace StackExchange.Redis
             private set => CertificateValidation = value;
         }
 
+        internal EventHandler<ConnectionAttemptCompletedEventArgs>? ConnectionAttemptCompletedHandler
+        {
+            get => ConnectionAttemptCompleted;
+            private set => ConnectionAttemptCompleted = value;
+        }
+
         /// <summary>
         /// How often to re-check the replication role of each connected server, in seconds (every minute by
         /// default), or <c>0</c> to never do so.
@@ -1123,6 +1178,7 @@ namespace StackExchange.Redis
             commandMap = commandMap,
             CertificateValidationCallback = CertificateValidationCallback,
             CertificateSelectionCallback = CertificateSelectionCallback,
+            ConnectionAttemptCompletedHandler = ConnectionAttemptCompletedHandler,
             ChannelPrefix = ChannelPrefix.Clone(),
 #pragma warning disable CS0618 // Type or member is obsolete
             SocketManager = SocketManager,
@@ -1241,6 +1297,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.DefaultDatabase, OptionFlags.DefaultDatabaseHasValue, in defaultDatabase);
             Append(sb, OptionKeys.SetClientLibrary, OptionFlags.SetClientLibraryHasValue, OptionFlags.SetClientLibraryValue);
             Append(sb, OptionKeys.HighIntegrity, OptionFlags.HighIntegrityHasValue, OptionFlags.HighIntegrityValue);
+            Append(sb, OptionKeys.SharedSubscriptionConnection, OptionFlags.SharedSubscriptionConnectionHasValue, OptionFlags.SharedSubscriptionConnectionValue);
             if (HasValue(OptionFlags.ProtocolHasValue)) Append(sb, OptionKeys.Protocol, FormatProtocol(_protocol));
             // only when the caller set it *and* it can be named: an inferred provider must not be baked into
             // the string, or re-parsing would pin a choice that was only ever a guess from the endpoints
@@ -1258,7 +1315,8 @@ namespace StackExchange.Redis
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
 
-            static string FormatProtocol(RedisProtocol protocol) => protocol switch {
+            static string FormatProtocol(RedisProtocol protocol) => protocol switch
+            {
                 RedisProtocol.Resp2 => "resp2",
                 RedisProtocol.Resp3 => "resp3",
                 _ => protocol.ToString(),
@@ -1495,6 +1553,9 @@ namespace StackExchange.Redis
                         case OptionKeys.HighIntegrity:
                             HighIntegrity = OptionKeys.ParseBoolean(key, value);
                             break;
+                        case OptionKeys.SharedSubscriptionConnection:
+                            SharedSubscriptionConnection = OptionKeys.ParseBoolean(key, value);
+                            break;
                         case OptionKeys.TcpKeepAlive:
                             TcpKeepAlive = OptionKeys.ParseBoolean(key, value);
                             break;
@@ -1614,7 +1675,6 @@ namespace StackExchange.Redis
         /// configure for a group. Expect the restriction to be lifted.
         /// </para>
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public MaintenanceNotificationMode MaintenanceNotifications
         {
             get => HasValue(OptionFlags.MaintenanceNotificationsHasValue) ? _maintenanceNotifications : Defaults.MaintenanceNotifications;
@@ -1631,13 +1691,15 @@ namespace StackExchange.Redis
         /// a client that wants a named replacement should ask for one. Prefer an FQDN form under TLS: an address
         /// cannot be validated against a certificate carrying only DNS names.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public MaintenanceEndpointType MaintenanceMovingEndpointType
         {
             get => HasValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue)
                 ? _maintenanceMovingEndpointType
                 : Defaults.MaintenanceMovingEndpointType;
-            set => SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, value);
+            set
+            {
+                SetWithValue(OptionFlags.MaintenanceMovingEndpointTypeHasValue, ref _maintenanceMovingEndpointType, value);
+            }
         }
 
         /// <summary>
@@ -1651,7 +1713,6 @@ namespace StackExchange.Redis
         /// relaxed; keep-alive, the heartbeat and connection-failure detection are deliberately untouched, so
         /// a server that dies mid-maintenance is still noticed on the usual schedule.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public TimeSpan MaintenanceRelaxedTimeout
         {
             get => HasValue(OptionFlags.MaintenanceRelaxedTimeoutHasValue) ? _maintenanceRelaxedTimeout : Defaults.MaintenanceRelaxedTimeout;
@@ -1667,13 +1728,15 @@ namespace StackExchange.Redis
         /// closes early, since relaxation delays the point at which a genuinely slow server surfaces as a
         /// timeout. Expressed in seconds in a configuration string.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public TimeSpan MaintenanceRelaxedWindowMax
         {
             get => HasValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue)
                 ? _maintenanceRelaxedWindowMax
                 : Defaults.MaintenanceRelaxedWindowMax ?? Multiply(MaintenanceRelaxedTimeout, 3);
-            set => SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, value);
+            set
+            {
+                SetWithValue(OptionFlags.MaintenanceRelaxedWindowMaxHasValue, ref _maintenanceRelaxedWindowMax, value);
+            }
         }
 
         /// <summary>
@@ -1687,13 +1750,15 @@ namespace StackExchange.Redis
         /// <see cref="MaintenanceRelaxedWindowMax"/>: in that case nothing told us the event finished, and
         /// extending past the backstop would defeat it. Expressed in seconds in a configuration string.
         /// </remarks>
-        [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
         public TimeSpan MaintenancePostEventRelaxedDuration
         {
             get => HasValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue)
                 ? _maintenancePostEventRelaxedDuration
                 : Defaults.MaintenancePostEventRelaxedDuration ?? Multiply(MaintenanceRelaxedTimeout, 2);
-            set => SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, value);
+            set
+            {
+                SetWithValue(OptionFlags.MaintenancePostEventRelaxedDurationHasValue, ref _maintenancePostEventRelaxedDuration, value);
+            }
         }
 
         // TimeSpan * int is netstandard2.1+, so this is ticks arithmetic to keep the down-level TFMs building

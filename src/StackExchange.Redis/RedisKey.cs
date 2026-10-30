@@ -342,9 +342,11 @@ namespace StackExchange.Redis
             }
 
             int aLen = a?.Length ?? 0,
-                bLen = b == null ? 0 : (b is string bString
-                ? Encoding.UTF8.GetByteCount(bString)
-                : ((byte[])b).Length),
+                bLen = b == null
+                    ? 0
+                    : b is string bString
+                        ? Encoding.UTF8.GetByteCount(bString)
+                        : ((byte[])b).Length,
                 cLen = c?.Length ?? 0;
 
             var result = new byte[aLen + bLen + cLen];

@@ -30,8 +30,7 @@ internal abstract class VectorSetSimilaritySearchMessage(
         int searchExplorationFactor,
         string? filterExpression,
         int maxFilteringEffort,
-        bool useFp32) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon,
-        searchExplorationFactor, filterExpression, maxFilteringEffort, useFp32)
+        bool useFp32) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon, searchExplorationFactor, filterExpression, maxFilteringEffort, useFp32)
     {
         internal override int GetSearchTargetArgCount() =>
             UseFp32 ? 2 : (2 + vector.Length); // FP32 {vector} or VALUES {num} {vector}
@@ -67,8 +66,7 @@ internal abstract class VectorSetSimilaritySearchMessage(
         int searchExplorationFactor,
         string? filterExpression,
         int maxFilteringEffort,
-        bool useFp32) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon,
-        searchExplorationFactor, filterExpression, maxFilteringEffort, useFp32)
+        bool useFp32) : VectorSetSimilaritySearchMessage(db, flags, vsimFlags, key, count, epsilon, searchExplorationFactor, filterExpression, maxFilteringEffort, useFp32)
     {
         internal override int GetSearchTargetArgCount() => 2; // ELE {member}
 

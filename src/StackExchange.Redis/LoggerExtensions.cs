@@ -71,6 +71,7 @@ internal static partial class LoggerExtensions
     // awkwardly they read. If a name genuinely must change, pin the old one via the attribute's EventName.
     [LoggerMessage(
         Level = LogLevel.Error,
+        EventId = 127,
         Message = "Connection failed: {EndPoint} ({ConnectionType}, {FailureType}): {ErrorMessage}")]
     internal static partial void LogErrorConnectionFailed(this ILogger logger, Exception? exception, EndPointLogValue endPoint, ConnectionType connectionType, ConnectionFailureType failureType, string errorMessage);
 
@@ -223,7 +224,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 25,
         Message = "  {EndPoint}: Endpoint is (Interactive: {InteractiveState}, Subscription: {SubscriptionState})")]
-    internal static partial void LogInformationEndpointState(this ILogger logger, EndPointLogValue endPoint, PhysicalBridge.State interactiveState, PhysicalBridge.State subscriptionState);
+    internal static partial void LogInformationEndpointState(this ILogger logger, EndPointLogValue endPoint, PhysicalBridge.State interactiveState, string subscriptionState);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -281,6 +282,12 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
+        EventId = 133,
+        Message = "{ClusterCount} server(s) identify as a cluster but no slot map is available; routing as standalone")]
+    internal static partial void LogInformationClusterWithoutSlotMap(this ILogger logger, int clusterCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         EventId = 35,
         Message = "No subscription changes necessary")]
     internal static partial void LogInformationNoSubscriptionChanges(this ILogger logger);
@@ -326,6 +333,18 @@ internal static partial class LoggerExtensions
         EventId = 42,
         Message = "Encountered error while updating cluster config: {ErrorMessage}")]
     internal static partial void LogErrorEncounteredErrorWhileUpdatingClusterConfig(this ILogger logger, Exception exception, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 128,
+        Message = "{Server}: CLUSTER SLOTS was refused ({ErrorMessage}); continuing with CLUSTER NODES alone")]
+    internal static partial void LogInformationClusterSlotsRefused(this ILogger logger, ServerEndPointLogValue server, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 129,
+        Message = "{Server}: CLUSTER NODES was refused ({ErrorMessage}); no cluster topology is available")]
+    internal static partial void LogInformationClusterNodesRefused(this ILogger logger, ServerEndPointLogValue server, string errorMessage);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -629,6 +648,18 @@ internal static partial class LoggerExtensions
         Message = "{Server}: Auto-configured (HELLO) role: {Role}")]
     internal static partial void LogInformationAutoConfiguredHelloRole(this ILogger logger, ServerEndPointLogValue server, string role);
 
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 131,
+        Message = "{Server}: Auto-configured (HELLO) product: {Variant} {Version}")]
+    internal static partial void LogInformationAutoConfiguredHelloProductVariant(this ILogger logger, ServerEndPointLogValue server, ProductVariant variant, string version);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        EventId = 132,
+        Message = "{Server}: Auto-configured (HELLO) unrecognized server '{ServerName}'; ignoring its version")]
+    internal static partial void LogInformationAutoConfiguredHelloUnknownServer(this ILogger logger, ServerEndPointLogValue server, string serverName);
+
     // PhysicalBridge logging methods
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -768,7 +799,7 @@ internal static partial class LoggerExtensions
     // established" arrived under one id on netfx and another on modern TFMs, for no gain to anyone.
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 99,
+        EventId = 126,
         Message = "TLS connection established successfully using protocol: {SslProtocol}, cipher suite: {CipherSuite}")]
     internal static partial void LogInformationTLSConnectionEstablished(this ILogger logger, System.Security.Authentication.SslProtocols sslProtocol, System.Net.Security.TlsCipherSuite cipherSuite);
 #endif
@@ -781,13 +812,13 @@ internal static partial class LoggerExtensions
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 116,
+        EventId = 124,
         Message = "{Server}: Requesting maintenance notifications ({Mode})")]
     internal static partial void LogInformationRequestingMaintenanceNotifications(this ILogger logger, ServerEndPointLogValue server, MaintenanceNotificationMode mode);
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        EventId = 117,
+        EventId = 125,
         Message = "{Server}: Maintenance notifications accepted")]
     internal static partial void LogInformationMaintenanceNotificationsAccepted(this ILogger logger, ServerEndPointLogValue server);
 
@@ -826,4 +857,10 @@ internal static partial class LoggerExtensions
         EventId = 120,
         Message = "{Server}: Re-reading topology after {Failures} consecutive connect failures")]
     internal static partial void LogInformationRefreshingAfterConnectFailures(this ILogger logger, ServerEndPointLogValue server, int failures);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        EventId = 130,
+        Message = "Lag-aware health check could not ask {RestEndpoint}: {Reason}")]
+    internal static partial void LogWarningLagAwareInconclusive(this ILogger logger, string restEndpoint, string reason);
 }

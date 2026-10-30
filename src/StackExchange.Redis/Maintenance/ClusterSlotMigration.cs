@@ -14,7 +14,6 @@ namespace StackExchange.Redis.Maintenance;
 /// that sent it - every node in the cluster reports the same movements, so the sender is not implicitly the
 /// source.
 /// </remarks>
-[Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
 public readonly struct ClusterSlotMigration
 {
     internal ClusterSlotMigration(EndPoint? source, EndPoint? target, IReadOnlyList<SlotRange> slots, string? raw)

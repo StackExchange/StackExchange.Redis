@@ -252,8 +252,13 @@ public sealed class VectorSetIntegrationTests(ITestOutputHelper output) : TestBa
         Assert.Equal(quantization, v.Quantization);
         Assert.Null(v.QuantizationRaw); // Should be null for known quant types
 
-        Assert.NotEqual(0, v.VectorSetUid);
-        Assert.NotEqual(0, v.HnswMaxNodeUid);
+        // vset-uid is a zero-based per-process counter: the first vector set created after the server starts
+        // has uid 0, which is exactly what happens on a fresh CI server when this is the first such test to run.
+        // So check the parse against the raw reply rather than against zero.
+        var raw = (await db.ExecuteAsync("VINFO", key)).ToDictionary();
+        Assert.Equal((long)raw["vset-uid"], v.VectorSetUid);
+        Assert.Equal((long)raw["hnsw-max-node-uid"], v.HnswMaxNodeUid);
+        Assert.NotEqual(0, v.HnswMaxNodeUid); // node uids start at 1, and there is one node
     }
 
     [Fact]

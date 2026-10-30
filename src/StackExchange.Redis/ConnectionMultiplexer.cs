@@ -95,8 +95,8 @@ namespace StackExchange.Redis
         private int _activeHeartbeatErrors, lastHeartbeatTicks;
         internal long LastHeartbeatSecondsAgo =>
             pulse is null
-            ? -1
-            : unchecked(Environment.TickCount - Volatile.Read(ref lastHeartbeatTicks)) / 1000;
+                ? -1
+                : unchecked(Environment.TickCount - Volatile.Read(ref lastHeartbeatTicks)) / 1000;
 
         private static int lastGlobalHeartbeatTicks = Environment.TickCount;
         internal static long LastGlobalHeartbeatSecondsAgo =>
@@ -1003,7 +1003,8 @@ namespace StackExchange.Redis
             // a retired server may still be referenced by an alias for a moment; never hand one back, or the
             // caller receives something whose bridges are gone
             return _serverIdentities.TryGetValue(endpoint, out var byIdentity) && !byIdentity.IsDisposed
-                ? byIdentity : null;
+                ? byIdentity
+                : null;
         }
 
         // bumped once per applied cluster topology; absence is measured in these rather than in time, so a
@@ -1401,6 +1402,7 @@ namespace StackExchange.Redis
                 Trace("heartbeat");
 
                 CheckTopologyRefreshDue(now);
+                if (_isSentinel) CheckManagedPrimariesDemoted();
 
                 var tmp = GetServerSnapshot();
                 int token = 0;
@@ -1482,7 +1484,8 @@ namespace StackExchange.Redis
 
             // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
             return (asyncState == null && db <= MaxCachedDatabaseInstance)
-                ? GetCachedDatabaseInstance(db) : new RedisDatabase(this, db, asyncState);
+                ? GetCachedDatabaseInstance(db)
+                : new RedisDatabase(this, db, asyncState);
         }
 
         // DB zero is stored separately, since 0-only is a massively common use-case
@@ -1517,7 +1520,7 @@ namespace StackExchange.Redis
             for (int i = 0; i < len; i++)
             {
                 var server = tmp[(int)(((uint)i + startOffset) % len)];
-                if (server != null && server.ServerType == serverType && server.IsSelectable(command, allowDisconnected))
+                if (server != null && server.ServerType.IsRoutableAs(serverType) && server.IsSelectable(command, allowDisconnected))
                 {
                     if (server.IsReplica)
                     {
@@ -1564,8 +1567,8 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The async state to pass into the resulting <see cref="RedisServer"/>.</param>
         public IServer GetServer(string hostAndPort, object? asyncState = null) =>
             Format.TryParseEndPoint(hostAndPort, out var ep)
-            ? GetServer(ep, asyncState)
-            : throw new ArgumentException($"The specified host and port could not be parsed: {hostAndPort}", nameof(hostAndPort));
+                ? GetServer(ep, asyncState)
+                : throw new ArgumentException($"The specified host and port could not be parsed: {hostAndPort}", nameof(hostAndPort));
 
         /// <summary>
         /// Obtain a configuration API for an individual server.
@@ -1742,22 +1745,38 @@ namespace StackExchange.Redis
         /// anything we are about to depend on being connected.
         /// </para>
         /// <para>
-        /// Both legs, where the subscription connection is a separate one: under RESP2 the waiters registered
-        /// by <see cref="ServerEndPoint.OnConnectedAsync"/> are only completed once that second connection is
-        /// up, so activating the interactive bridge alone leaves such a wait hanging.
+        /// The dedicated subscription connection (always under RESP2, and under RESP3 unless
+        /// <see cref="ConfigurationOptions.SharedSubscriptionConnection"/> is enabled) is only opened here when there is
+        /// something for it to do straight away: the configuration channel, or existing subscriptions (see
+        /// <see cref="ServerEndPoint.RequiresEagerSubscriptionConnection"/>). Otherwise it is created on first use, so
+        /// an application that never subscribes never pays for the second socket. When it is opened here, the waiters
+        /// registered by <see cref="ServerEndPoint.OnConnectedAsync"/> are only completed once that second connection is
+        /// up, so activating the interactive bridge alone would leave such a wait hanging.
         /// </para>
         /// </remarks>
         internal static void ActivateServer(ServerEndPoint server, ILogger? log)
         {
-            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
             server.Activate(ConnectionType.Interactive, log);
-            // if (hasSubscriptions && server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
-            if (server.SupportsSubscriptions && !server.KnowOrAssumeResp3())
+            if (server.RequiresEagerSubscriptionConnection)
             {
                 // Intentionally not logging the sub connection
                 server.Activate(ConnectionType.Subscription, null);
             }
         }
+
+        /// <summary>
+        /// Claims the reconfigure gate without running a reconfigure, so that work that must not interleave with
+        /// one (such as <see cref="SwitchPrimary"/> rewriting the endpoint list) can make its pre-checks and its
+        /// side effects atomic with respect to competing reconfigures. A successful claim MUST be handed to
+        /// <see cref="ReconfigureAsync(bool, bool, ILogger, EndPoint, string, bool, CommandFlags, bool)"/> with
+        /// <c>claimed: true</c> (which releases it however it exits), or released via
+        /// <see cref="ReleaseReconfigureClaim"/> - a leaked claim refuses every later reconfigure.
+        /// </summary>
+        internal bool TryClaimReconfigure(string cause) =>
+            Interlocked.CompareExchange(ref activeConfigCause, cause, null) == null;
+
+        /// <summary>Releases a claim taken by <see cref="TryClaimReconfigure"/> that was never handed to a reconfigure.</summary>
+        internal void ReleaseReconfigureClaim() => Interlocked.Exchange(ref activeConfigCause, null);
 
         internal bool ReconfigureIfNeeded(EndPoint? blame, bool fromBroadcast, string cause, bool publishReconfigure = false, CommandFlags flags = CommandFlags.None)
         {
@@ -1787,16 +1806,23 @@ namespace StackExchange.Redis
         public Task<bool> ReconfigureAsync(string reason) =>
             ReconfigureAsync(first: false, reconfigureAll: false, log: Logger, blame: null, cause: reason);
 
-        internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, ILogger? log, EndPoint? blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
+        internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, ILogger? log, EndPoint? blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None, bool claimed = false)
         {
-            if (_isDisposed) throw new ObjectDisposedException(ToString());
+            if (_isDisposed)
+            {
+                // a caller-held claim must not leak: nothing else would ever release it
+                if (claimed) ReleaseReconfigureClaim();
+                throw new ObjectDisposedException(ToString());
+            }
             bool showStats = log is not null;
 
             bool ranThisCall = false;
             try
             {
-                // Note that we *always* exchange the reason (first one counts) to prevent duplicate runs
-                ranThisCall = Interlocked.CompareExchange(ref activeConfigCause, cause, null) == null;
+                // Note that we *always* exchange the reason (first one counts) to prevent duplicate runs;
+                // claimed means the caller already owns the gate (TryClaimReconfigure) and we run under - and
+                // release - that claim
+                ranThisCall = claimed || Interlocked.CompareExchange(ref activeConfigCause, cause, null) == null;
 
                 if (!ranThisCall)
                 {
@@ -1920,7 +1946,7 @@ namespace StackExchange.Redis
                         // Log current state after await
                         foreach (var server in servers)
                         {
-                            log?.LogInformationEndpointState(new(server.EndPoint), server.InteractiveConnectionState, server.SubscriptionConnectionState);
+                            log?.LogInformationEndpointState(new(server.EndPoint), server.InteractiveConnectionState, server.SubscriptionConnectionStateDescription);
                         }
 
                         log?.LogInformationTaskSummary();
@@ -2023,7 +2049,19 @@ namespace StackExchange.Redis
                         }
                     }
 
-                    if (clusterCount == 0)
+                    // A server *saying* it is a cluster is not enough to route as one: that needs a slot map, and
+                    // proxied deployments can announce "cluster" while refusing every CLUSTER subcommand (AMR with
+                    // the Enterprise clustering policy, #3284). With no map there is nothing to route by and the
+                    // only thing cluster mode would add is rejecting cross-slot commands client-side, which the
+                    // proxy would have accepted. The map is never cleared once populated, so an established
+                    // cluster whose refresh is refused (#3275) keeps routing as one.
+                    bool noSlotMap = ServerSelectionStrategy.IsSlotMapEmpty;
+                    if (clusterCount > 0 && noSlotMap)
+                    {
+                        log?.LogInformationClusterWithoutSlotMap(clusterCount);
+                    }
+
+                    if (clusterCount == 0 || noSlotMap)
                     {
                         // Set the serverSelectionStrategy
                         if (RawConfig.Proxy == Proxy.Twemproxy)
@@ -2037,8 +2075,15 @@ namespace StackExchange.Redis
                         else if (standaloneCount == 0 && sentinelCount > 0)
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Sentinel;
+                            if (!first)
+                            {
+                                // A sentinel connection whose initial connect soft-failed (AbortOnConnectFail=false) is
+                                // only now reaching a sentinel; the connect path that would have wired up the sentinel
+                                // handlers has long since returned. (The first connect leaves that to ConnectImpl.)
+                                InitializeSentinel(log);
+                            }
                         }
-                        else if (standaloneCount > 0)
+                        else if (standaloneCount > 0 || clusterCount > 0)
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
@@ -2067,8 +2112,14 @@ namespace StackExchange.Redis
                     else
                     {
                         ServerSelectionStrategy.ServerType = ServerType.Cluster;
-                        long coveredSlots = ServerSelectionStrategy.CountCoveredSlots();
-                        log?.LogInformationClusterSlotsCovered(coveredSlots, ServerSelectionStrategy.TotalSlots);
+                        log?.LogInformationClusterSlotsCovered(ServerSelectionStrategy.CountCoveredSlots(), ServerSelectionStrategy.TotalSlots);
+
+                        // a cluster has many primaries by design; if we routed as standalone before the map
+                        // arrived, the nomination above may have marked all but one of them redundant
+                        foreach (var primary in primaries)
+                        {
+                            primary.ClearUnselectable(UnselectableFlags.RedundantPrimary);
+                        }
                     }
                     if (!first)
                     {
@@ -2156,13 +2207,41 @@ namespace StackExchange.Redis
                 // node including those serving nothing. Asked as a pair for symmetry - trusting the topology
                 // cached from autoconfigure here would mean acting on possibly-stale data while deliberately
                 // re-reading the other half
+                // ObserveErrors: if either await below throws, the *other* task is abandoned mid-flight,
+                // and both ride the same connection - a faulted orphan must never surface as an
+                // UnobservedTaskException in the host
                 var slotsTask = ExecuteAsyncImpl(
-                    RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server);
+                    RedisServer.GetClusterSlotsMessage(CommandFlags.None), ResultProcessor.ClusterSlots, null, server).ObserveErrors();
                 var nodesTask = ExecuteAsyncImpl(
-                    RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server);
+                    RedisServer.GetClusterNodesMessage(CommandFlags.None), ResultProcessor.ClusterNodes, null, server).ObserveErrors();
 
-                var slots = await slotsTask.ForAwait();
-                var clusterConfig = await nodesTask.ForAwait();
+                ClusterSlotsResult? slots;
+                try
+                {
+                    slots = await slotsTask.ForAwait();
+                }
+                catch (RedisServerException ex)
+                {
+                    // the server *refused* the command - a posture, not a fault: proxied deployments
+                    // commonly answer NODES while blocking SLOTS (Redis Enterprise exposes SLOTS only
+                    // under the OSS cluster API, for example; see #3274). Fall back to the NODES-only
+                    // path, exactly as for a pre-4.0 server that has no SLOTS view to give
+                    log?.LogInformationClusterSlotsRefused(new(server), ex.Message);
+                    slots = null;
+                }
+
+                ClusterConfiguration? clusterConfig;
+                try
+                {
+                    clusterConfig = await nodesTask.ForAwait();
+                }
+                catch (RedisServerException ex)
+                {
+                    // likewise; a server refusing NODES as well exposes no topology at all, however it
+                    // announced itself (a proxy's HELLO can say "cluster" while CLUSTER stays blocked)
+                    log?.LogInformationClusterNodesRefused(new(server), ex.Message);
+                    return null;
+                }
                 if (clusterConfig is null)
                 {
                     return null;
@@ -2944,8 +3023,8 @@ namespace StackExchange.Redis
             return quits;
         }
 
-        long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endpoint, ConnectionType type)
-            => TryResolveServerEndPoint(endpoint)?.GetBridge(type)?.ConnectionId;
+        long? IInternalConnectionMultiplexer.GetConnectionId(EndPoint endPoint, ConnectionType type)
+            => TryResolveServerEndPoint(endPoint)?.GetBridge(type)?.ConnectionId;
 
         internal uint UpdateLatency()
         {

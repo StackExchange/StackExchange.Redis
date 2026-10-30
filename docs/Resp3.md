@@ -3,7 +3,8 @@
 RESP2 and RESP3 are evolutions of the Redis protocol, with RESP3 existing from Redis server version 6 onwards (v7.2+ for Redis Enterprise). The main differences are:
 
 1. RESP3 can carry out-of-band / "push" messages on a single connection, where-as RESP2 requires a separate connection for out-of-band (pub/sub) messages
-    - this single connection can be of huge benefit in high-usage servers, as it halves the number of connections required
+    - SE.Redis still uses a separate pub/sub connection by default under RESP3, because of how servers limit subscribed connections; sharing a single connection
+      is opt-in - see [Pub/sub connections](#pubsub-connections) below
 2. RESP3 supports *additional* out-of-band messages that cannot be expressed in RESP2, which allows advanced features such as "smart client handoffs" (also called
    "hitless upgrades"; a family of server maintenance notifications)
     - these features allow for greater stability in complex deployments, and are implemented in SE.Redis: see
@@ -16,6 +17,35 @@ For many users, using RESP3 is a "no-brainer" - it offers significant benefits w
 migration work that may be required. In particular, some commands *return different result structures* in RESP3 mode; for example a jagged (nested) array might become a "map"
 (essentially an interleaved flat array). SE.Redis has been updated to handle these cases transparently, but if you are using `Execute[Async]` or `ScriptEvaluate[Async]` (or if
 you are using an additional library that issues ad-hoc commands or scripts on your behalf) you may need to update your processing code to compensate for this. This is discussed more below.
+
+# Pub/sub connections
+
+RESP3 *allows* pub/sub to share the connection used for ordinary commands, which halves the number of connections. SE.Redis does **not** do this by default: as under RESP2,
+it uses a dedicated subscription connection to each server. This is because the server treats any connection with an active subscription as a *pub/sub client*, and applies the
+`pubsub` class of [`client-output-buffer-limit`](https://redis.io/docs/latest/develop/reference/clients/#output-buffer-limits) to it. The default is:
+
+```
+client-output-buffer-limit pubsub 32mb 8mb 60
+```
+
+meaning the server closes the connection if its pending output ever exceeds 32MiB, or stays above 8MiB for 60 seconds. Those limits are designed for subscribers (where a slow
+reader would otherwise grow the server's memory without bound), but they are easily reached by ordinary traffic: a single large value, a large `MGET`/`HGETALL`/`LRANGE`,
+or a burst of pipelined replies. Ordinary (`normal`) clients have no such limit by default. On a shared connection, the server closing it fails *every* in-flight command, not
+just pub/sub - and since SE.Redis subscribes to the [configuration channel](Configuration#tiebreakers-and-configuration-change-announcements) automatically, a shared
+connection is a pub/sub client even if your application never subscribes to anything.
+
+To share the connection anyway, set `SharedSubscriptionConnection` (`sharedSubscriptionConnection=true` in the configuration string). This has no effect under RESP2.
+**Before enabling it, check that the server's `pubsub` limits suit your workload**: they must accommodate the largest reply (and the largest burst of pipelined or batched
+replies) that any command on the connection can produce, not just your pub/sub messages. You can inspect them with:
+
+```
+CONFIG GET client-output-buffer-limit
+```
+
+and (where permitted) change just the `pubsub` class with, for example, `CONFIG SET client-output-buffer-limit "pubsub 256mb 64mb 60"` (or `0 0 0` to remove the limit),
+remembering to persist it in the server configuration. Many managed services do not allow `CONFIG`, and may apply different limits; if you cannot confirm the limits,
+leave sharing disabled. A disconnect caused by these limits is logged by the server as `scheduled to be closed ASAP for overcoming of output buffer limits`, and the
+client sees it as an unexpected socket close.
 
 # Enabling RESP3
 

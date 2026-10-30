@@ -472,6 +472,12 @@ public class BacklogTests(ITestOutputHelper output) : TestBase(output)
             Log("Test: Checking reconnected");
             Assert.True(conn.IsConnected);
 
+            // lastPing completing proves the backlog drained, not that every connection is idle: the reconnect's own
+            // handshake traffic (and the subscription connection's) can still be awaiting replies at this instant,
+            // and TotalOutstanding counts those too (seen on CI as 7 and 1); so wait for quiescence rather than assert it
+            Log("Test: awaiting quiescence");
+            await UntilConditionAsync(TimeSpan.FromSeconds(5), () => conn.GetCounters().TotalOutstanding == 0).ForAwait();
+
             Log("Test: asserting reconnected counters");
             var reconnectedServerCounters = server.GetCounters();
             var reconnectedConnCounters = conn.GetCounters();

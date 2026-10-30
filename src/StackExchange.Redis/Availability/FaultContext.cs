@@ -53,7 +53,7 @@ public readonly struct FaultContext
 
         NotApplied = IsKnownNotApplied(kind, status);
 
-        if (kind is not RedisErrorKind.None & _connectionFailureType is ConnectionFailureType.None)
+        if ((kind is not RedisErrorKind.None) & (_connectionFailureType is ConnectionFailureType.None))
         {
             // fill in some blanks
             switch (kind)
@@ -128,7 +128,6 @@ public readonly struct FaultContext
     /// was for. Left to policy rather than acted on here, since "ignore faults during maintenance" is a
     /// judgement about the deployment, not about the protocol.
     /// </remarks>
-    [Experimental(Experiments.MaintenanceNotifications, UrlFormat = Experiments.UrlFormat)]
     public Maintenance.MaintenanceNotificationType MaintenanceType { get; }
 
     private static bool IsKnownNotApplied(RedisErrorKind kind, CommandStatus status)

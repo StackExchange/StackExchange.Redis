@@ -12,7 +12,7 @@ docker compose up -d                    # 10-15 minutes for the cluster to come 
 
 export SER_FI_CONFIG_DIR=$PWD           # or FI_CONSOLE_CONFIG_DIR, which is also honoured
 export E2E_SCENARIO_TESTS=true          # explicit opt-in: these create and delete databases
-dotnet test tests/StackExchange.Redis.FaultInjector.Tests
+dotnet test --project tests/StackExchange.Redis.FaultInjector.Tests/StackExchange.Redis.FaultInjector.Tests.csproj
 ```
 
 **Point it at the *current* environment.** A stale directory passes every check we make: the credentials are
@@ -124,6 +124,23 @@ topology that id exists on *both* clusters. `cluster_index` exists only on the s
 is blackholed is the injector's choice - it evidently picks the first, which is `Members[0]`. The test logs
 every member's `host:port` and says so in the final assertion message, because a wrong-cluster injection
 otherwise looks exactly like a failback that never happened.
+
+## Lag-aware failback
+
+`LagAwareFailbackScenarioTests` checks the lag-aware failback check (`HealthCheck.LagAware`) against the
+same `re-active-active` pair: the group must not fail back onto a member that is alive but behind, and must
+return once it has caught up. It needs credentials for **both** clusters in `env_output.json` (the AWS
+multi-cluster template has them) and skips otherwise.
+
+No fault is injected. The preferred member is made to fall behind by pausing sync *into* it - `crdt_sync: paused`
+through its cluster's REST API, via `ClusterRestClient.SetCrdtSyncAsync` - while writes go to the other member,
+and sync is resumed in a `finally`. That is the one state change this tier makes outside the injector, because
+the injector has no action for it, and because the obvious alternative is worse: `network_latency` shapes the
+node's whole interface and its cleanup can fail, which on one environment left the cluster's DNS and REST API
+unreachable until fixed by hand.
+
+Measured shape of a passing run: on the preferred member first; held off it for the 15 s it was behind, while
+alive and connected; failed back about 4 s after sync resumed, by which time it had all of the writes.
 
 ## Three states, deliberately distinct
 

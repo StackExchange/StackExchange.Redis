@@ -16,7 +16,7 @@ public enum KeyNotificationType
     Unknown = 0,
     [AsciiHash("append")]
     Append = 1,
-    [AsciiHash("copy")]
+    [AsciiHash("copy_to")]
     Copy = 2,
     [AsciiHash("del")]
     Del = 3,
@@ -120,10 +120,34 @@ public enum KeyNotificationType
     ArDelRange = 52,
     [AsciiHash("arset")]
     ArSet = 53,
+    [AsciiHash("setbit")] // class $ on a string bitmap, class b on a native (roaring) bitmap
+    SetBit = 54,
+    [AsciiHash("arinsert")]
+    ArInsert = 55,
+    [AsciiHash("armset")]
+    ArMSet = 56,
+    [AsciiHash("arring")]
+    ArRing = 57,
+    [AsciiHash("arseek")]
+    ArSeek = 58,
+    [AsciiHash("pfadd")]
+    PfAdd = 59,
+    [AsciiHash("sexpire")]
+    SExpire = 60,
+    [AsciiHash("spersist")]
+    SPersist = 61,
+    [AsciiHash("sinterstore")]
+    SInterStore = 62,
+    [AsciiHash("zrangestore")]
+    ZRangeStore = 63,
+    [AsciiHash("sunionstore")]
+    SUnionStore = 64,
+    [AsciiHash("sdiffstore")]
+    SDiffStore = 65,
     [AsciiHash("bless")]
-    Bless = 54,
+    Bless = 66,
     [AsciiHash("unbless")]
-    Unbless = 55,
+    Unbless = 67,
 
     // side-effect notifications
     [AsciiHash("expired")]
@@ -136,5 +160,7 @@ public enum KeyNotificationType
     Overwritten = 1003,
     [AsciiHash("type_changed")]
     TypeChanged = 1004,
+    [AsciiHash("keymiss")] // class m; excluded from the "A" alias, so only seen when requested explicitly
+    KeyMiss = 1005,
 #pragma warning restore CS1591 // docs, redundant
 }

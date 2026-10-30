@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -7,28 +7,32 @@ namespace StackExchange.Redis.Tests;
 /// <summary>
 /// The configuration-change channel is how a client is told, by hand, that the topology moved: a <c>PUBLISH</c> to
 /// it makes every subscribed client refresh. Under RESP2 the dedicated subscription connection subscribes to it as
-/// part of its handshake; RESP3 has no such connection, and the subscription was never made. See #3254.
+/// part of its handshake; a RESP3 interactive connection shared with pub/sub has no such connection, and the
+/// subscription was never made. See #3254.
 /// </summary>
 [RunPerProtocol]
 public class ConfigurationChannelUnitTests(ITestOutputHelper log)
 {
     private const string Channel = "__Booksleeve_MasterChanged";
 
-    private static ConfigurationOptions Configure(InProcessTestServer server, bool prefix)
+    private static ConfigurationOptions Configure(InProcessTestServer server, bool prefix, bool shared)
     {
         var config = server.GetClientConfig();
         config.ConfigurationChannel = Channel; // the test server turns this off by default
+        config.SharedSubscriptionConnection = shared;
         if (prefix) config.ChannelPrefix = RedisChannel.Literal("testuser-");
         return config;
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PublishingToTheConfigurationChannelIsHeard(bool prefix)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task PublishingToTheConfigurationChannelIsHeard(bool prefix, bool shared)
     {
         using var server = new InProcessTestServer(log);
-        var config = Configure(server, prefix);
+        var config = Configure(server, prefix, shared);
         await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
 
         var heard = new TaskCompletionSource<EndPointEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -48,14 +52,16 @@ public class ConfigurationChannelUnitTests(ITestOutputHelper log)
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task TheLibrarysOwnBroadcastIsHeard(bool prefix)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task TheLibrarysOwnBroadcastIsHeard(bool prefix, bool shared)
     {
         // the channel is subscribed with the channel prefix applied, so it must be fired with it too - or a
         // client that changes a server's role announces it to a channel that nobody is listening on
         using var server = new InProcessTestServer(log);
-        await using var conn = await ConnectionMultiplexer.ConnectAsync(Configure(server, prefix));
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(Configure(server, prefix, shared));
 
         var heard = new TaskCompletionSource<EndPointEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
         conn.ConfigurationChangedBroadcast += (_, e) => heard.TrySetResult(e);

@@ -174,7 +174,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         using (server)
         await using (conn)
         {
-            Assert.Equal(1, server.SendRawPush(null, "MOVING", "1", "15", placeholder));
+            Assert.True(server.SendRawPush(null, "MOVING", "1", "15", placeholder) > 0); // raw pushes ignore opt-in, so the subscription connection gets one too
 
             var evt = await events.NextAsync();
             log.WriteLine(evt.RawMessage ?? "(no message)");
@@ -228,7 +228,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         using (server)
         await using (conn)
         {
-            Assert.Equal(1, server.SendRawPush(null, "MIGRATING", "42", "7", "[\"shard:2\"]"));
+            Assert.True(server.SendRawPush(null, "MIGRATING", "42", "7", "[\"shard:2\"]") > 0); // raw pushes ignore opt-in, so the subscription connection gets one too
 
             var evt = await events.NextAsync();
             log.WriteLine(evt.RawMessage ?? "(no message)");
@@ -263,7 +263,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         using (server)
         await using (conn)
         {
-            Assert.Equal(1, server.SendRawPush(null, "failing_over", "5", "9", "[]"));
+            Assert.True(server.SendRawPush(null, "failing_over", "5", "9", "[]") > 0); // raw pushes ignore opt-in, so the subscription connection gets one too
 
             var evt = await events.NextAsync();
             log.WriteLine(evt.RawMessage ?? "(no message)");
@@ -279,7 +279,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         using (server)
         await using (conn)
         {
-            Assert.Equal(1, server.SendRawPush(null, "MIGRATING", "8", "20", "[\"shard:3\"]", "something-new", "and-another"));
+            Assert.True(server.SendRawPush(null, "MIGRATING", "8", "20", "[\"shard:3\"]", "something-new", "and-another") > 0); // raw pushes ignore opt-in, so the subscription connection gets one too
 
             var evt = await events.NextAsync();
             log.WriteLine(evt.RawMessage ?? "(no message)");

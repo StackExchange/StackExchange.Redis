@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,18 +12,22 @@ namespace StackExchange.Redis.Tests;
 /// <summary>
 /// A connection can negotiate RESP3 and then, on a later reconnect, fail to (the HELLO times out, a token
 /// expires, the endpoint moves to a down-level server, ...). We then downgrade to RESP2, which needs pub/sub on
-/// its own connection - but subscriptions queued while we still expected RESP3 are sitting in the *interactive*
-/// bridge's backlog. Writing those to the interactive connection puts it into subscriber mode, which breaks
+/// its own connection - but subscriptions queued while we still expected RESP3 (and were sharing the interactive
+/// connection with pub/sub; <see cref="ConfigurationOptions.SharedSubscriptionConnection"/>) are sitting in the
+/// *interactive* bridge's backlog. Writing those to the interactive connection puts it into subscriber mode, which breaks
 /// every normal command on it; see issue #3154.
 /// </summary>
 public class Resp3DowngradeTests(ITestOutputHelper log)
 {
-    [Fact]
-    public async Task SubscribeQueuedBeforeDowngradeDoesNotPoisonInteractive()
+    [Theory]
+    [InlineData(true)] // the #3154 scenario: subscriptions were queued on the interactive bridge
+    [InlineData(false)] // a dedicated subscription connection all along: nothing to reroute
+    public async Task SubscribeQueuedBeforeDowngradeDoesNotPoisonInteractive(bool sharedSubscriptionConnection)
     {
         using var server = new DowngradeServer(log);
         var config = server.GetClientConfig();
         config.Protocol = RedisProtocol.Resp3;
+        config.SharedSubscriptionConnection = sharedSubscriptionConnection;
         config.AllowSimulateConnectionFailure = true;
         config.AbortOnConnectFail = false;
         config.ConnectTimeout = 5000;
@@ -130,8 +134,8 @@ public class Resp3DowngradeTests(ITestOutputHelper log)
             => HelloSupported ? base.Hello(client, in request) : request.CommandNotFound();
 
         /// <summary>
-        /// Connections that carried both subscription and ordinary commands; legitimate under RESP3 (one
-        /// connection does everything), fatal under RESP2 (subscriber mode rejects ordinary commands).
+        /// Connections that carried both subscription and ordinary commands; legitimate under RESP3 when
+        /// sharing the connection with pub/sub (one connection does everything), fatal under RESP2 (subscriber mode rejects ordinary commands).
         /// </summary>
         public List<string> ConnectionsMixingSubscriptionsAndCommands(RedisProtocol protocol) =>
             [.. _byClient

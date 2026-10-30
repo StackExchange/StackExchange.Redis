@@ -11,16 +11,26 @@ public sealed partial class HealthCheck
     /// Evaluate the health of the specified multiplexer, by evaluating all endpoints.
     /// </summary>
     public Task<HealthCheckResult> CheckHealthAsync(IConnectionMultiplexer multiplexer)
-        => !IsEnabled ? HealthCheckProbe.InconclusiveTask
-        : multiplexer.IsConnected ? CheckHealthCoreAsync(multiplexer)
-        : HealthCheckProbe.UnhealthyTask;
+        => !IsEnabled
+            ? HealthCheckProbe.InconclusiveTask
+            : multiplexer.IsConnected
+                ? CheckHealthCoreAsync(multiplexer)
+                : HealthCheckProbe.UnhealthyTask;
 
     private async Task<HealthCheckResult> CheckHealthCoreAsync(IConnectionMultiplexer multiplexer)
     {
         try
         {
             Task<HealthCheckResult>[] pending;
-            if (multiplexer is IInternalConnectionMultiplexer internalMultiplexer)
+            if (Probe.Scope is HealthCheckProbeScope.Member)
+            {
+                // the answer is about the database, not an endpoint: ask once, via any connected server
+                var server = FirstConnectedServer(multiplexer);
+                if (server is null) return HealthCheckResult.Unhealthy;
+                pending = GetReusablePending(ref _reusablePending, 1);
+                pending[0] = CheckHealthAsync(server);
+            }
+            else if (multiplexer is IInternalConnectionMultiplexer internalMultiplexer)
             {
                 var snapshot = internalMultiplexer.GetServerSnapshot();
                 pending = GetReusablePending(ref _reusablePending, snapshot.Length);
@@ -49,6 +59,26 @@ public sealed partial class HealthCheck
             // definitely unhappy
             return HealthCheckResult.Unhealthy;
         }
+    }
+
+    private static IServer? FirstConnectedServer(IConnectionMultiplexer multiplexer)
+    {
+        if (multiplexer is IInternalConnectionMultiplexer internalMultiplexer)
+        {
+            foreach (var endpoint in internalMultiplexer.GetServerSnapshot())
+            {
+                if (endpoint.IsConnected) return endpoint.GetRedisServer(null);
+            }
+
+            return null;
+        }
+
+        foreach (var server in multiplexer.GetServers())
+        {
+            if (server.IsConnected) return server;
+        }
+
+        return null;
     }
 
     internal int TotalTimeoutMillis()
@@ -143,9 +173,11 @@ public sealed partial class HealthCheck
     /// Evaluate the health of an endpoint.
     /// </summary>
     public Task<HealthCheckResult> CheckHealthAsync(IServer server)
-        => !IsEnabled ? HealthCheckProbe.InconclusiveTask
-        : server.IsConnected ? CheckHealthCoreAsync(server)
-        : HealthCheckProbe.UnhealthyTask;
+        => !IsEnabled
+            ? HealthCheckProbe.InconclusiveTask
+            : server.IsConnected
+                ? CheckHealthCoreAsync(server)
+                : HealthCheckProbe.UnhealthyTask;
 
     private async Task<HealthCheckResult> CheckHealthCoreAsync(IServer server)
     {
