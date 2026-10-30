@@ -641,9 +641,9 @@ namespace StackExchange.Redis
             }
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false)
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter? writer = null, ServerType? serverType = null, Availability.CircuitBreaker? groupCircuitBreaker = null, bool isGroupMember = false, EndPointCollection? endpoints = null, bool synchronousConnect = false)
         {
-            IDisposable? killMe = null;
+            ConnectionMultiplexer? killMe = null;
             EventHandler<ConnectionFailedEventArgs>? connectHandler = null;
             ConnectionMultiplexer? muxer = null;
             var configLogger = configuration.LoggerFactory?.CreateLogger<ConnectionMultiplexer>();
@@ -651,13 +651,24 @@ namespace StackExchange.Redis
             try
             {
                 var sw = ValueStopwatch.StartNew();
-                log?.LogInformationConnectingAsync(RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
+                if (synchronousConnect) log?.LogInformationConnectingSync(RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
+                else log?.LogInformationConnectingAsync(RuntimeInformation.FrameworkDescription, Utils.GetLibVersion());
 
-                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: isGroupMember);
+                muxer = CreateMultiplexer(configuration, log, serverType, out connectHandler, endpoints: endpoints, groupCircuitBreaker: groupCircuitBreaker, isGroupMember: isGroupMember);
                 killMe = muxer;
                 Interlocked.Increment(ref muxer._connectAttemptCount);
-                bool configured = await muxer.ReconfigureAsync(first: true, reconfigureAll: false, log, null, "connect").ObserveErrors().ForAwait();
-                if (!configured)
+                var configure = muxer.ReconfigureAsync(first: true, reconfigureAll: false, log, null, "connect").ObserveErrors();
+                if (synchronousConnect && !configure.IsCompleted
+                    && !await configure.TimeoutAfter(muxer.SyncConnectTimeout(true)).ForAwait())
+                {
+                    // The public sync Sentinel boundary retains ConnectImpl's soft timeout, without blocking a
+                    // worker inside the shared async core. Reconfigure keeps running on the returned multiplexer.
+                    var ex = ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
+                    if (configuration.AbortOnConnectFail) throw ex;
+                    muxer.LastException = ex;
+                    muxer.Logger?.LogErrorSyncConnectTimeout(ex, ex.Message);
+                }
+                else if (!await configure.ForAwait())
                 {
                     throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                 }
@@ -670,7 +681,9 @@ namespace StackExchange.Redis
                     muxer.InitializeSentinel(log);
                 }
 
-                await configuration.AfterConnectAsync(muxer, s => log?.LogInformationAfterConnect(s)).ForAwait();
+                var afterConnect = configuration.AfterConnectAsync(muxer, s => log?.LogInformationAfterConnect(s)).ObserveErrors();
+                if (synchronousConnect) await afterConnect.TimeoutAfter(muxer.SyncConnectTimeout(true)).ForAwait();
+                else await afterConnect.ForAwait();
 
                 log?.LogInformationTotalConnectTime(sw.ElapsedMilliseconds);
 
@@ -679,7 +692,7 @@ namespace StackExchange.Redis
             finally
             {
                 if (connectHandler != null && muxer != null) muxer.ConnectionFailed -= connectHandler;
-                if (killMe != null) try { killMe.Dispose(); } catch { }
+                if (killMe != null) try { await killMe.DisposeAsync().ForAwait(); } catch { }
                 if (log is TextWriterLogger twLogger) twLogger.Release();
             }
         }
@@ -1765,7 +1778,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Claims the reconfigure gate without running a reconfigure, so that work that must not interleave with
-        /// one (such as <see cref="SwitchPrimary"/> rewriting the endpoint list) can make its pre-checks and its
+        /// one (such as <see cref="SwitchPrimaryAsync"/> rewriting the endpoint list) can make its pre-checks and its
         /// side effects atomic with respect to competing reconfigures. A successful claim MUST be handed to
         /// <see cref="ReconfigureAsync(bool, bool, ILogger, EndPoint, string, bool, CommandFlags, bool)"/> with
         /// <c>claimed: true</c> (which releases it however it exits), or released via

@@ -46,7 +46,11 @@ connection to the primary is lost, and - because the announcement is delivered o
 notices when the node last named as primary is still connected but now reports itself as a replica (a failover where nothing disconnected,
 such as a primary demoted in place). In that last case the client re-asks sentinel for the current primary and follows its answer, even to
 a node at an address it has never seen; while sentinel still names the demoted node (sentinel itself has not yet failed over), the client
-keeps asking without tearing down or reconfiguring the healthy connections.
+keeps asking without tearing down or reconfiguring the healthy connections. A command answered with `READONLY` is the same signal: the node
+is marked as a replica at once, rather than at the next role check (`ConfigCheckSeconds`), and the client asks sentinel on its next heartbeat.
+Sentinel is queried asynchronously - waiting on a slow or unreachable sentinel holds no thread-pool thread - and the client only follows a
+sentinel that holds the node it names as a healthy master (`SENTINEL MASTER` flags without `s_down`/`o_down`; sentinels without
+`SENTINEL MASTER` are asked with `get-master-addr-by-name`).
 
 An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
 
