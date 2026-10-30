@@ -97,6 +97,15 @@ namespace StackExchange.Redis.Protocol
         /// <summary>Whether this payload is GC-owned (<see cref="CreateOwned"/>) rather than pooled; for tests.</summary>
         internal bool IsOwned => _lease.IsFixed;
 
+        /// <summary>
+        /// Whether the request this answers reached the server <b>without</b> the prefix frame it was composed with
+        /// (<see cref="RespRequest.Prefix"/>), so the server never saw the modifier and the reply must not be treated
+        /// as if it had. Set by the operation that parsed the reply; read by the cache, which refuses to store such a
+        /// reply because nothing would ever invalidate it. See <c>RespPayloadOperation.DropPrefix</c> for the one
+        /// case that does this today, an <c>ASK</c> redirect.
+        /// </summary>
+        internal bool PrefixDropped { get; set; }
+
         /// <summary>The number of live references; zero once the blob is back in the pool.</summary>
         internal int RefCount => _lease.RefCount;
 

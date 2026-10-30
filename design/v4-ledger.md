@@ -329,6 +329,21 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
 
 ## Status
 
+- **2026-10-30: an `ASK` re-send drops the `CLIENT CACHING` prefix and exempts `ASKING` from the sequence check.**
+  Both are one-shot server flags that mean "the next command", and each is the other's next command: the server
+  clears either after any command that is not the one that set it (`resetClient`, outside `MULTI`), so there is
+  no order that keeps both. Measured on Redis 8.9 with a slot set `IMPORTING`: `ASKING, CLIENT CACHING YES, GET`
+  answers `-MOVED` (which, as a second redirect, fails the command); `CLIENT CACHING YES, ASKING, GET` is served
+  but the key is never tracked, so a stored reply would be stale until eviction; `ASKING, ECHO, GET` answers
+  `-MOVED` too, so high-integrity mode broke every `ASK` redirect. The redirect is the half that cannot be given
+  up. `RespEndpointExecutor.TryResendAsking` now calls `RespPayloadOperation.DropPrefix` (the operation remembers,
+  and stamps `RespPayload.PrefixDropped` on its reply; `RespClientCache.TryCompleteCore` refuses such a reply and
+  counts it as `RefusedUntracked`) and marks the `ASKING` operation `SequenceChecked = false`, so the pair's one
+  check lands behind the command as a transaction's does behind `EXEC`. A dropped `CLIENT CACHING NO` costs one
+  spurious invalidation push, harmless. `MOVED` is unaffected: the whole operation is re-sent, prefix and check
+  included. Tests: `RespRedirectFollowingTests` (prefix dropped and nothing stored; check behind the command, both
+  nodes' counters in step) and `RespClientCacheTests.AReplyWhoseRequestLostItsPrefixIsNotStored`. The in-process
+  server cannot produce an `ASK`, so there is no end-to-end case; the fake-transport tests assert the exact bytes.
 - **2026-10-29: high-integrity mode restored (`ConfigurationOptions.HighIntegrity`).** Lost with the old core: the
   option, `ConnectionFailureType.ResponseIntegrityFailure`, the docs and the `HighIntegrity*Tests` classes all
   survived, but nothing assigned a token or validated a reply, and the test classes passed vacuously because they
@@ -345,7 +360,8 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
   unchecked, so `EXEC`/`UNWATCH` validate the span - v3's rule. Differences from v3, deliberate: the handshake's
   own commands are not checked (v3 checked all but AUTH/HELLO; the replies are validated by content anyway), the
   failed command gets `RedisConnectionException(ResponseIntegrityFailure)` rather than v3's
-  `InvalidOperationException`, and `ASKING`/injected `SELECT` are checked like any command. Tests the mode never
+  `InvalidOperationException`, and an injected `SELECT` is checked like any command (`ASKING` is exempt; see the
+  2026-10-30 entry). Tests the mode never
   had, on either core: `RespSequenceCheckTests` (RESPite: wire shape, the hold, wrong token, missing frame, push
   between reply and check, split receive, buffer roll under a held reply, hand-off, prefix + check, close while
   held) and `HighIntegrityWireTests` (SE.Redis: EXEC-only checking in a transaction, every member in a batch, the

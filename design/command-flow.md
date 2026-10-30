@@ -191,7 +191,14 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
   operations and write them as one run, taking the write slot first so nothing interleaves. A
   transaction additionally expects `+QUEUED` receipts and distributes the positional `EXEC` array.
 - **Redirects.** Handled on the IO loop, in reply order, so commands redirected together keep their
-  order; the map is updated for `MOVED` and not for `ASK`.
+  order; the map is updated for `MOVED` and not for `ASK`. An `ASK` re-send is `ASKING` and the command as
+  one write, and **neither framing extra may sit between them**: `ASKING`, `CLIENT CACHING` and a sequence
+  check all mean "the next command", and the server clears each after any command that is not the one that
+  set it (`ASKING, CLIENT CACHING YES, GET` answers `-MOVED`; the other order is served but never tracked;
+  measured on Redis 8.9). The redirect wins: the prefix frame is dropped
+  (`RespPayloadOperation.DropPrefix`), the reply is marked `PrefixDropped` and the cache refuses to store it
+  (`RefusedUntracked`), and the `ASKING` is exempt from the sequence check, which lands behind the command.
+  A `MOVED` re-send is the whole operation on the new node, prefix and check included.
 - **Backlog.** Commands wait here when there is no connection. They survive a failed connect (subject to
   `BacklogPolicy`), are swept against their timeout, and drain in arrival order.
 - **Client-side caching, end to end.** One `RespClientCache` per multiplexer (configured by
