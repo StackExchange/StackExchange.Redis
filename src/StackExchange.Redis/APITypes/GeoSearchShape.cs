@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using StackExchange.Redis.Protocol;
+﻿using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -27,14 +26,9 @@ public abstract class GeoSearchShape
         Unit = unit;
     }
 
-    internal abstract void AddArgs(List<RedisValue> args);
-
     /// <summary>Write the shape straight to a frame, for the interpolated surface.</summary>
     /// <remarks>
-    /// The same operands as <see cref="AddArgs(List{RedisValue})"/> in the same order, written rather
-    /// than collected: that path builds a list to hand to a message, this one has a frame already open.
-    /// Both are internal abstract, so the type is effectively sealed to this assembly and neither can be
-    /// added to without the other.
+    /// Internal abstract, so the type is effectively sealed to this assembly.
     /// </remarks>
     /// <param name="command">The frame being written.</param>
     internal abstract void AddArgs(ref RespRequestBuilder command);
@@ -58,16 +52,6 @@ public class GeoSearchCircle : GeoSearchShape
     }
 
     internal sealed override int ArgCount => 3;
-
-    /// <summary>
-    /// Gets the <see cref="RedisValue"/>s for this shape.
-    /// </summary>
-    internal sealed override void AddArgs(List<RedisValue> args)
-    {
-        args.Add(RedisLiterals.BYRADIUS);
-        args.Add(_radius);
-        args.Add(Unit.ToLiteral());
-    }
 
     /// <inheritdoc/>
     internal sealed override void AddArgs(ref RespRequestBuilder command)
@@ -100,14 +84,6 @@ public class GeoSearchBox : GeoSearchShape
     }
 
     internal sealed override int ArgCount => 4;
-
-    internal sealed override void AddArgs(List<RedisValue> args)
-    {
-        args.Add(RedisLiterals.BYBOX);
-        args.Add(_width);
-        args.Add(_height);
-        args.Add(Unit.ToLiteral());
-    }
 
     /// <inheritdoc/>
     internal sealed override void AddArgs(ref RespRequestBuilder command)

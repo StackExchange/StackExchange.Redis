@@ -56,21 +56,6 @@ public readonly struct StreamIdempotentId
 
     internal int ArgCount => IdempotentId.HasValue ? 3 : ProducerId.HasValue ? 2 : 0;
 
-    internal void WriteTo(RedisValue[] args, ref int index)
-    {
-        if (IdempotentId.HasValue)
-        {
-            args[index++] = RedisLiterals.IDMP;
-            args[index++] = ProducerId;
-            args[index++] = IdempotentId;
-        }
-        else if (ProducerId.HasValue)
-        {
-            args[index++] = RedisLiterals.IDMPAUTO;
-            args[index++] = ProducerId;
-        }
-    }
-
     /// <inheritdoc/>
     public override int GetHashCode() => ProducerId.GetHashCode() ^ IdempotentId.GetHashCode();
 

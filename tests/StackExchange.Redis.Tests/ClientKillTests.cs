@@ -1,9 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Protocol;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -113,10 +114,26 @@ public class ClientKillTests(ITestOutputHelper output) : TestBase(output)
         long maxAge = 102;
 
         var filter = new ClientKillFilter().WithId(id).WithClientType(type).WithUsername(userName).WithEndpoint(endpoint).WithServerEndpoint(serverEndpoint).WithSkipMe(skipMe).WithMaxAgeInSeconds(maxAge);
-        List<RedisValue> expected =
-        [
-            "KILL", "ID", "101", "TYPE", "normal", "USERNAME", "user1", "ADDR", "127.0.0.1:1234", "LADDR", "198.0.0.1:6379", "SKIPME", "yes", "MAXAGE", "102",
-        ];
-        Assert.Equal(expected, filter.ToList(true));
+        Assert.Equal(
+            "*16|$6|CLIENT|$4|KILL|$2|ID|$3|101|$4|TYPE|$6|normal|$8|USERNAME|$5|user1|" +
+            "$4|ADDR|$14|127.0.0.1:1234|$5|LADDR|$14|198.0.0.1:6379|$6|SKIPME|$3|yes|$6|MAXAGE|$3|102|",
+            Render(filter, withReplicaCommands: true));
+    }
+
+    /// <summary>A server that pre-dates <c>replica</c> must be asked about its <c>slave</c>s.</summary>
+    [Theory]
+    [InlineData(true, "*4|$6|CLIENT|$4|KILL|$4|TYPE|$7|replica|")]
+    [InlineData(false, "*4|$6|CLIENT|$4|KILL|$4|TYPE|$5|slave|")]
+    public void TestClientKillReplicaSpelling(bool withReplicaCommands, string expected)
+    {
+        var filter = new ClientKillFilter().WithClientType(ClientType.Replica);
+        Assert.Equal(expected, Render(filter, withReplicaCommands));
+    }
+
+    private static string Render(ClientKillFilter filter, bool withReplicaCommands)
+    {
+        var ctx = new RespContext();
+        using var frame = ctx.Render($"{RedisCommand.CLIENT}{new ClientKillFilter.Operand(filter, withReplicaCommands)}");
+        return Encoding.UTF8.GetString(frame.Span.ToArray()).Replace("\r\n", "|");
     }
 }

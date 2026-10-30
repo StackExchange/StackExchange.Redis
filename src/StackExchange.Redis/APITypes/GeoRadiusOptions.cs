@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 
 namespace StackExchange.Redis;
 
@@ -33,23 +32,4 @@ public enum GeoRadiusOptions
     /// Populates the commonly used values from the entry (the integer hash is not returned as it is not commonly useful).
     /// </summary>
     Default = WithCoordinates | WithDistance,
-}
-
-internal static class GeoRadiusOptionsExtensions
-{
-    internal static void AddArgs(this GeoRadiusOptions options, List<RedisValue> values)
-    {
-        if ((options & GeoRadiusOptions.WithCoordinates) != 0)
-        {
-            values.Add(RedisLiterals.WITHCOORD);
-        }
-        if ((options & GeoRadiusOptions.WithDistance) != 0)
-        {
-            values.Add(RedisLiterals.WITHDIST);
-        }
-        if ((options & GeoRadiusOptions.WithGeoHash) != 0)
-        {
-            values.Add(RedisLiterals.WITHHASH);
-        }
-    }
 }

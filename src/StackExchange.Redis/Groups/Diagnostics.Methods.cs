@@ -278,7 +278,7 @@ public static partial class Diagnostics
 
     /// <summary>CLIENT KILL: close the connections a filter describes, and say how many.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
-    /// <param name="filter">The filter, already rendered - it begins with <c>KILL</c>.</param>
+    /// <param name="filter">The filter's wire form, which begins with <c>KILL</c>.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
@@ -301,7 +301,7 @@ public static partial class Diagnostics
     /// </remarks>
     internal static ValueTask<long> ClientKillCount(
         this RespDiagnostics diagnostics,
-        ReadOnlySpan<RedisValue> filter,
+        ClientKillFilter.Operand filter,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
         => diagnostics.Context.SendAsync(
