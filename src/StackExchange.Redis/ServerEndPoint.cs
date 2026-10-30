@@ -161,6 +161,24 @@ namespace StackExchange.Redis
         }
 
         public bool SupportsSubscriptions => Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE);
+
+        /// <summary>
+        /// Whether the dedicated subscription connection should be opened as part of activating this endpoint, rather
+        /// than on first use. That connection is lazy by default: it only costs a socket (and a reconnect, on every
+        /// failover) once there is something to subscribe to, which at activation time means the configuration channel,
+        /// or subscriptions that already exist (and may need to move to this endpoint).
+        /// </summary>
+        internal bool RequiresEagerSubscriptionConnection => SupportsSubscriptions && !SharesSubscriptionConnection()
+            && (Multiplexer.ConfigurationChangedChannel is not null || Multiplexer.GetSubscriptionsCount() != 0);
+
+        /// <summary>
+        /// Whether the subscription side of this endpoint is as connected as it needs to be: subscriptions are not
+        /// supported, or share the interactive connection, or the dedicated subscription connection has not been
+        /// asked for yet (it is created on demand), or it is up. This is the "second leg" check for connect waits:
+        /// an absent connection is not a disconnected one.
+        /// </summary>
+        internal bool IsSubscriberConnectedOrNotRequired
+            => !SupportsSubscriptions || SharesSubscriptionConnection() || subscription is not { IsConnected: false };
         public bool SupportsPrimaryWrites => supportsPrimaryWrites ??= !IsReplica || !ReplicaReadOnly || AllowReplicaWrites;
 
         private readonly List<TaskCompletionSource<string>> _pendingConnectionMonitors = new List<TaskCompletionSource<string>>();
@@ -224,6 +242,20 @@ namespace StackExchange.Redis
 
         internal State InteractiveConnectionState => interactive?.ConnectionState ?? State.Disconnected;
         internal State SubscriptionConnectionState => SharesSubscriptionConnection() ? InteractiveConnectionState : subscription?.ConnectionState ?? State.Disconnected;
+
+        /// <summary>
+        /// <see cref="SubscriptionConnectionState"/> for logs, distinguishing a dedicated subscription connection that
+        /// has simply not been needed yet (it is created on demand) from one that is down.
+        /// </summary>
+        internal string SubscriptionConnectionStateDescription
+        {
+            get
+            {
+                if (SharesSubscriptionConnection()) return InteractiveConnectionState.ToString();
+                var sub = subscription;
+                return sub is null ? "NotRequired" : sub.ConnectionState.ToString();
+            }
+        }
 
         public long OperationCount => (interactive?.OperationCount ?? 0) + (subscription?.OperationCount ?? 0);
 
@@ -1117,17 +1149,20 @@ namespace StackExchange.Redis
                             SubscribeToConfigurationChannel(bridge);
                         }
                     }
-                    else if (bridge == interactive && !isResp3 && SupportsSubscriptions
-                        && Multiplexer.RawConfig.SharedSubscriptionConnection && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2)
+                    else if (bridge == interactive && !isResp3
+                        && Multiplexer.RawConfig.SharedSubscriptionConnection && Multiplexer.RawConfig.Protocol > RedisProtocol.Resp2
+                        && RequiresEagerSubscriptionConnection)
                     {
                         // interactive, and we wanted to share it with pub/sub under RESP3+, but we didn't get it; spin up
-                        // pub/sub (when not sharing, ActivateServer has already done so, as under RESP2)
+                        // pub/sub if there is something for it to do (when not sharing, ActivateServer has already done so, as
+                        // under RESP2); otherwise it gets created on first use, like any other dedicated subscription connection
                         Activate(ConnectionType.Subscription, null);
                     }
-                    if (IsConnected && (IsSubscriberConnected || !SupportsSubscriptions || shared))
+                    if (IsConnected && (shared || IsSubscriberConnectedOrNotRequired))
                     {
-                        // Only connect on the second leg - we can accomplish this by checking both
-                        // Or the first leg, if we're only making 1 connection because subscriptions aren't supported
+                        // Only complete on the second leg - we can accomplish this by checking both
+                        // Or the first leg, if we're only making 1 connection: because subscriptions aren't supported,
+                        // or share this connection, or because the dedicated subscription connection hasn't been needed yet
                         CompletePendingConnectionMonitors(source);
                     }
 
