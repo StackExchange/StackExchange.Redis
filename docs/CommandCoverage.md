@@ -57,6 +57,8 @@ Statuses: `policy` (excluded by design), `not-applicable` (not meaningful for a 
 | `PSYNC` | 2.8.0 | `not-applicable` | Replication protocol between servers. |
 | `XSETID` | 5.0.0 | `not-applicable` | Internal: upstream describes it as a replication command for stream state. |
 | `FAILOVER` | 6.2.0 | `not-applicable` | Operator-driven coordinated failover; `IServer.MakePrimaryAsync` covers the client-side story. |
+| `CLIENT PAUSE` | 3.0.0 | `not-applicable` | Suspends every client on the server, including this one. Operator tooling for coordinated failover; far too easy to misuse from application code. |
+| `CLIENT UNPAUSE` | 6.2.0 | `not-applicable` | As `CLIENT PAUSE`. |
 | `SFLUSH` | 8.0.0 | `not-applicable` | Flush a slot range (experimental); cluster slot administration. |
 | `TRIMSLOTS` | 8.4.0 | `not-applicable` | Deletes keys left in slots a node no longer owns after atomic slot migration; cluster slot administration. |
 
@@ -173,8 +175,6 @@ PRs welcome; follow the `implement-resp-command` skill. Pre-release server featu
 | `MEMORY USAGE` | 4.0.0 | `todo` | Per-key memory; `MEMORY DOCTOR`/`STATS`/`PURGE` are exposed, this one is the useful one for profiling. |
 | `CLUSTER INFO` | 3.0.0 | `todo` | Cluster state summary (`cluster_state`, slot counts, epoch) on `IServer`, next to `ClusterNodes`. |
 | `LATENCY HISTOGRAM` | 7.0.0 | `todo` | Per-command latency histograms on `IServer`, next to `LATENCY LATEST`/`HISTORY`. |
-| `CLIENT PAUSE` | 3.0.0 | `todo` | Pause/unpause as an `IServer` pair; useful in coordinated failover scripts. Neither half is exposed today. |
-| `CLIENT UNPAUSE` | 6.2.0 | `todo` | As `CLIENT PAUSE`. |
 | `PUBSUB SHARDCHANNELS` | 7.0.0 | `todo` | Sharded pub/sub is implemented; the introspection half is not (`IServer.SubscriptionChannels` covers the global form). |
 | `PUBSUB SHARDNUMSUB` | 7.0.0 | `todo` | As `SHARDCHANNELS` (`IServer.SubscriptionSubscriberCount` covers the global form). |
 | `XGROUP CREATECONSUMER` | 6.2.0 | `todo` | Explicit consumer creation; `XGROUP CREATE`/`DESTROY`/`DELCONSUMER`/`SETID` are exposed. |
