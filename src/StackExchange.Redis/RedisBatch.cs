@@ -75,6 +75,12 @@ namespace StackExchange.Redis
 
             foreach (var pair in byBridge)
             {
+                // attached here, not in the loop above: that loop can still abandon the whole batch for want of a
+                // server, and commands that never reach a bridge should not show up in a profiling session
+                foreach (var message in pair.Value)
+                {
+                    multiplexer.AttachProfiling(message, pair.Key.ServerEndPoint);
+                }
                 if (!pair.Key.TryEnqueue(pair.Value, pair.Key.ServerEndPoint.IsReplica))
                 {
                     FailNoServer(multiplexer, pair.Value);

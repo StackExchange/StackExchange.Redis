@@ -96,6 +96,35 @@ public class ProfilingTests(ITestOutputHelper output) : TestBase(output)
     }
 
     [Fact]
+    public async Task Batch()
+    {
+        await using var conn = Create();
+
+        var key = Me();
+        var session = new ProfilingSession();
+        conn.RegisterProfiler(() => session);
+
+        var dbId = TestConfig.GetDedicatedDB(conn);
+        var db = conn.GetDatabase(dbId);
+
+        // a batch is handed to the bridge directly, so it used to skip profiling altogether (#2175)
+        var batch = db.CreateBatch();
+        var set = batch.StringSetAsync(key, "world");
+        var get = batch.StringGetAsync(key);
+        var echo = batch.ExecuteAsync("ECHO", "fii");
+        batch.Execute();
+        await Task.WhenAll(set, get, echo);
+        Assert.Equal("world", await get);
+
+        var cmds = session.FinishProfiling();
+        Assert.Equal("ECHO,GET,SET", string.Join(",", cmds.Select(x => x.Command).OrderBy(x => x)));
+
+        AssertProfiledCommandValues(cmds.Single(cmd => cmd.Command == "SET"), conn, dbId);
+        AssertProfiledCommandValues(cmds.Single(cmd => cmd.Command == "GET"), conn, dbId);
+        AssertProfiledCommandValues(cmds.Single(cmd => cmd.Command == "ECHO"), conn, -1);
+    }
+
+    [Fact]
     public async Task ManyThreads()
     {
         Skip.UnlessLongRunning();
