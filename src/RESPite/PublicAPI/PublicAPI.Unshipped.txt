@@ -1,3 +1,1 @@
 #nullable enable
-*REMOVED*[SER004]override RESPite.AsciiHash.Equals(object? other) -> bool
-[SER004]override RESPite.AsciiHash.Equals(object? obj) -> bool
