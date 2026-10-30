@@ -817,6 +817,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitPosition(ToInner(key), bit, start, end, indexType, flags);
 
+        public long[] StringBitPositions(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, long? limit = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitPositions(ToInner(key), bit, start, end, indexType, limit, flags);
+
         public bool StringDelete(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDelete(ToInner(key), when, flags);
 

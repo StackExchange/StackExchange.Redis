@@ -3494,6 +3494,36 @@ namespace StackExchange.Redis
         long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the positions of the bits set to 1 (or, when <paramref name="bit"/> is <c>false</c>, set to 0) in a range of a string or bitmap, in ascending order.
+        /// Positions are counted as in <see cref="StringBitPosition(RedisKey, bool, long, long, StringIndexType, CommandFlags)"/>: the string is an array of bits from left to right, where the most significant bit of the first byte is position 0.
+        /// </summary>
+        /// <param name="key">The key of the string or bitmap.</param>
+        /// <param name="bit">True to return the positions of set bits, false to return the positions of clear bits.</param>
+        /// <param name="start">The start of the range (defaults to 0).</param>
+        /// <param name="end">The end of the range, inclusive (defaults to -1, the last byte or bit). Negative values index from the end of the value.</param>
+        /// <param name="indexType">Whether <paramref name="start"/> and <paramref name="end"/> are byte or bit offsets (defaults to <see cref="StringIndexType.Byte"/>).</param>
+        /// <param name="limit">The maximum number of positions to return, lowest first; <c>null</c> returns every match in the range. See the remarks for paging.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The matching bit positions in ascending order; empty when the key does not exist, the range is empty, or nothing matches.</returns>
+        /// <remarks>
+        /// <para><seealso href="https://redis.io/commands/bitrangeintarray"/></para>
+        /// <para>
+        /// Unlike <see cref="StringBitPosition(RedisKey, bool, long, long, StringIndexType, CommandFlags)"/> with <paramref name="bit"/> <c>false</c>,
+        /// the range never extends past the end of the value, so no clear bits are reported beyond it.
+        /// </para>
+        /// <para>
+        /// To page through a large bitmap, pass <paramref name="limit"/> and continue from the last position returned:
+        /// with <see cref="StringIndexType.Bit"/>, the next <paramref name="start"/> is that position plus one;
+        /// with <see cref="StringIndexType.Byte"/>, the server completes the byte containing the last position (so a page can hold up to 7 more than <paramref name="limit"/>),
+        /// and the next <paramref name="start"/> is that position divided by 8, plus one. A page shorter than <paramref name="limit"/> ends the scan.
+        /// Pages are separate commands and do not share a snapshot.
+        /// </para>
+        /// <para>Available from Redis 8.12; older servers reject the command.</para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        long[] StringBitPositions(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, long? limit = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Decrements the number stored at key by decrement.
         /// If the key does not exist, it is set to 0 before performing the operation.
         /// An error is returned if the key contains a value of the wrong type or contains a string that is not representable as integer.

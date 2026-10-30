@@ -174,6 +174,7 @@ namespace StackExchange.Redis
             WITHCOORD = RedisValue.FromRaw("WITHCOORD"u8),
             WITHDIST = RedisValue.FromRaw("WITHDIST"u8),
             WITHHASH = RedisValue.FromRaw("WITHHASH"u8),
+            ZEROS = RedisValue.FromRaw("ZEROS"u8),
 
             // geo units
             ft = RedisValue.FromRaw("ft"u8),

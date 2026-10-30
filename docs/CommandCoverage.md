@@ -171,7 +171,6 @@ PRs welcome; follow the `implement-resp-command` skill. Pre-release server featu
 | `SPEXPIREAT` | 8.12.0 | `todo` | Set member expiry. |
 | `SPEXPIRETIME` | 8.12.0 | `todo` | Set member expiry. |
 | `SPTTL` | 8.12.0 | `todo` | Set member expiry; the read path (see `STTL` above). |
-| `BITRANGEINTARRAY` | 8.12.0 | `todo` | Bitmap to integer array; sits with the existing `BITFIELD`/`BITOP` surface. |
 | `MEMORY USAGE` | 4.0.0 | `todo` | Per-key memory; `MEMORY DOCTOR`/`STATS`/`PURGE` are exposed, this one is the useful one for profiling. |
 | `CLUSTER INFO` | 3.0.0 | `todo` | Cluster state summary (`cluster_state`, slot counts, epoch) on `IServer`, next to `ClusterNodes`. |
 | `LATENCY HISTOGRAM` | 7.0.0 | `todo` | Per-command latency histograms on `IServer`, next to `LATENCY LATEST`/`HISTORY`. |
