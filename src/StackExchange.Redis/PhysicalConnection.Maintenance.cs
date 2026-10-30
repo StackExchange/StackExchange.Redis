@@ -258,8 +258,13 @@ internal sealed partial class PhysicalConnection
     /// <summary>
     /// Parses one end of a migration, treating the placeholder forms as "not named" rather than as an error.
     /// </summary>
+    /// <remarks>
+    /// This is server-emitted <c>ip:port</c> text, so it takes the same parser as <c>CLUSTER NODES</c> and
+    /// <c>MOVED</c>: an unbracketed IPv6 address read as a configuration string parses as an address with port 0,
+    /// which the placeholder check below would then silently discard.
+    /// </remarks>
     private static EndPoint? ParseMigrationEndPoint(string? value)
-        => string.IsNullOrEmpty(value) || value == "?" || !Format.TryParseEndPoint(value, out var parsed) || IsPlaceholderEndPoint(parsed)
+        => string.IsNullOrEmpty(value) || value == "?" || !Format.TryParseServerEndPoint(value, out var parsed) || IsPlaceholderEndPoint(parsed)
             ? null
             : parsed;
 

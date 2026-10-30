@@ -67,7 +67,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Parses an <c>ip:port</c> pair as the server writes it (<c>CLUSTER NODES</c>, <c>MOVED</c>/<c>ASK</c>,
-        /// <c>CLIENT LIST</c>): an IPv6 address is <b>not</b> bracketed and a port is always present, for example
+        /// <c>CLIENT LIST</c>, the <c>MOVING</c>/<c>SMIGRATED</c> maintenance notifications): an IPv6 address is <b>not</b> bracketed and a port is always present, for example
         /// <c>2a06:4e80:3:a::a:7000</c>. Splitting at the last colon is only safe when a port is known to follow,
         /// which is why this is kept apart from <see cref="TryParseEndPoint(string?, out EndPoint?)"/> (the RFC 3986
         /// form used in configuration strings, where <c>::1</c> is an address with no port). Anything that is not
