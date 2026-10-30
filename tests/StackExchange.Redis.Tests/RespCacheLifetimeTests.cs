@@ -57,6 +57,38 @@ public class RespCacheLifetimeTests
     }
 
     [Fact]
+    public async Task AnExpiredEntryIsReplacedByTheNextFill()
+    {
+        // an expired entry is DEAD for every purpose except the dictionary slot it still occupies; the fill
+        // that follows the miss has to take that slot over, not be written off as redundant against it.
+        // Otherwise the key cannot be re-cached until the sweep (ten seconds by default) removes the corpse,
+        // and a steadily-read key misses on every read for the whole of that gap (#3318). Sweeping is
+        // turned off here so that nothing but the fill path can make this pass.
+        using var cache = new RespClientCache(new CacheOptions
+        {
+            Admission = CacheAdmission.OnFirstMiss,
+            SweepInterval = TimeSpan.Zero,
+            DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(100) },
+        });
+        var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n", "$1\r\nc\r\n");
+        var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
+
+        Assert.Equal("a", await Get(context));
+        Assert.Equal(1, cache.Stored);
+
+        await Task.Delay(200);
+
+        Assert.Equal("b", await Get(context));    // expired; fetched again...
+        Assert.Equal(2, executor.Sends);
+        Assert.True(cache.Expired > 0);
+        Assert.Equal(2, cache.Stored);            // ...and the fresh reply took over the slot
+        Assert.Equal(1, cache.Count);
+
+        Assert.Equal("b", await Get(context));    // so the next read is a hit again
+        Assert.Equal(2, executor.Sends);
+    }
+
+    [Fact]
     public async Task AContextCanDemandSomethingFresherThanThePolicy()
     {
         // the one knob that is per-call, because freshness tolerance is a property of the caller - and the

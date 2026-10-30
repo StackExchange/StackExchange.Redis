@@ -1144,8 +1144,14 @@ namespace StackExchange.Redis.Caching
             // cache never recovers: it decays to a 0% hit rate and then costs pure overhead. Found by the
             // RespFest cache league, where this cache served 0.0% of reads under churn against 58-82% for
             // every other client, and the cached build was slower than the same build with caching off.
+            //
+            // An EXPIRED resident entry is dead in the same way, and was missed above: IsValid tracks
+            // invalidation generations only, so an entry that aged past TimeToLive still reads as valid,
+            // the fill was written off against it, and a steadily-read key missed on every read from the
+            // moment it expired until the sweep took the corpse away (#3318, found by the caching demo:
+            // with a 5s TimeToLive and the default 10s sweep, half of every ten seconds at a 0% hit rate).
             if (_entries.TryGetValue(entryKey, out var previous)
-                && (fill.Replaces || !previous.IsValid)
+                && (fill.Replaces || !previous.IsValid || CachePolicy.IsOlderThan(previous.FilledAt, Policy.TimeToLiveTicks))
                 && _entries.TryUpdate(entryKey, entry, previous))
             {
                 Interlocked.Add(ref _bytes, entry.Bytes - previous.Bytes);
