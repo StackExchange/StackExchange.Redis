@@ -224,7 +224,7 @@ internal static partial class LoggerExtensions
         Level = LogLevel.Information,
         EventId = 25,
         Message = "  {EndPoint}: Endpoint is (Interactive: {InteractiveState}, Subscription: {SubscriptionState})")]
-    internal static partial void LogInformationEndpointState(this ILogger logger, EndPointLogValue endPoint, BridgeState interactiveState, BridgeState subscriptionState);
+    internal static partial void LogInformationEndpointState(this ILogger logger, EndPointLogValue endPoint, BridgeState interactiveState, string subscriptionState);
 
     [LoggerMessage(
         Level = LogLevel.Information,

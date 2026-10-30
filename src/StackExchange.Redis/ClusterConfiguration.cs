@@ -371,7 +371,7 @@ namespace StackExchange.Redis
             }
             AuxFields ??= [];
 
-            if (Format.TryParseEndPoint(ep, out var epResult))
+            if (Format.TryParseServerEndPoint(ep, out var epResult))
             {
                 EndPoint = epResult;
             }

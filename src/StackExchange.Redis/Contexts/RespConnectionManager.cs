@@ -684,6 +684,16 @@ namespace StackExchange.Redis
                 && interactive.IsConnectedNow;
         }
 
+        /// <summary>Whether a dedicated subscription socket has ever been asked for on this endpoint.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks>
+        /// The subscription socket is dialled on demand, so "absent" is a different answer from "down":
+        /// connect waits and the endpoint-state log both need to say "not required" rather than treating a
+        /// socket nobody asked for as a disconnected one. Like <see cref="IsSubscriptionConnected"/>, this
+        /// is a question, and asking it must not dial.
+        /// </remarks>
+        internal bool HasDedicatedSubscriptionConnection(EndPoint endpoint) => _subscriptions.ContainsKey(endpoint);
+
         /// <summary>How many sockets this core currently holds to one endpoint.</summary>
         /// <param name="endpoint">The endpoint.</param>
         /// <remarks>
@@ -1345,7 +1355,12 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>Dial a subscription socket for the library's own configuration channel.</summary>
+        /// <summary>
+        /// Dial a subscription socket when activation already knows it will be needed: for the library's own
+        /// configuration channel, or for subscriptions that already exist and may need to move to this endpoint.
+        /// Otherwise it stays undialled - the socket is dialled on first use, so an application that never
+        /// subscribes never pays for it (#3310).
+        /// </summary>
         /// <param name="endpoint">The endpoint being activated.</param>
         /// <remarks>
         /// <para>
@@ -1372,12 +1387,13 @@ namespace StackExchange.Redis
         /// opens roots the multiplexer, so a multiplexer that is abandoned without being disposed is no
         /// longer collected (<c>GarbageCollectionTests.MuxerIsCollected</c>). Kept anyway, because
         /// withdrawing it loses the configuration channel entirely under RESP2 - six failing tests
-        /// against two - but it is not finished.
+        /// against two - but it is not finished. Gating the dial on anyone actually needing it (above) is
+        /// what keeps that cost away from clients that never subscribe.
         /// </para>
         /// </remarks>
-        internal void DialSubscriptionSocketForConfigurationChannel(EndPoint endpoint)
+        internal void DialSubscriptionSocketIfRequired(EndPoint endpoint)
         {
-            if (_multiplexer.ConfigurationChangedChannel is null
+            if ((_multiplexer.ConfigurationChangedChannel is null && !_multiplexer.AnySubscribed())
                 || !_multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
             {
                 return;

@@ -1760,14 +1760,17 @@ namespace StackExchange.Redis
         /// anything we are about to depend on being connected.
         /// </para>
         /// <para>
-        /// Both legs, where the subscription connection is a separate one - always under RESP2, and under RESP3
-        /// unless <see cref="ConfigurationOptions.SharedSubscriptionConnection"/> is enabled (#3264): the library's own
-        /// configuration channel lives on that second connection, and nothing else will ever dial it.
+        /// The dedicated subscription connection - always under RESP2, and under RESP3 unless
+        /// <see cref="ConfigurationOptions.SharedSubscriptionConnection"/> is enabled (#3264) - is only dialled here
+        /// when there is something for it to do straight away: the library's own configuration channel, which nothing
+        /// else will ever dial for, or subscriptions that already exist and may need to move to this endpoint (see
+        /// <see cref="ServerEndPoint.RequiresEagerSubscriptionConnection"/>). Otherwise it is dialled on first use, so
+        /// an application that never subscribes never pays for the second socket - or for its reconnect on every
+        /// failover (#3310).
         /// </para>
         /// </remarks>
         internal static void ActivateServer(ServerEndPoint server, ILogger? log)
         {
-            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
             // the core dials - HERE, because "activate this server" is what this method means, and a
             // caller that says it expects the server to come up. When the v3 bridges stopped dialling
             // this had to take their place. Doing it only in ReconfigureAsync's loop left an
@@ -1782,11 +1785,11 @@ namespace StackExchange.Redis
                 server.Multiplexer.Connections.DialEndpointSoon(server.EndPoint);
             }
 
-            if (server.SupportsSubscriptions && !server.SharesSubscriptionConnection())
+            if (server.RequiresEagerSubscriptionConnection)
             {
                 // the configuration channel is subscribed by CONNECTING rather than by anyone asking for it -
                 // see the method's own notes, including its known cost
-                server.Multiplexer.Connections.DialSubscriptionSocketForConfigurationChannel(server.EndPoint);
+                server.Multiplexer.Connections.DialSubscriptionSocketIfRequired(server.EndPoint);
             }
         }
 
@@ -1997,7 +2000,7 @@ namespace StackExchange.Redis
                         // Log current state after await
                         foreach (var server in servers)
                         {
-                            log?.LogInformationEndpointState(new(server.EndPoint), server.InteractiveConnectionState, server.SubscriptionConnectionState);
+                            log?.LogInformationEndpointState(new(server.EndPoint), server.InteractiveConnectionState, server.SubscriptionConnectionStateDescription);
                         }
 
                         log?.LogInformationTaskSummary();

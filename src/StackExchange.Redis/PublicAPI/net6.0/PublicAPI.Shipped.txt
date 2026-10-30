@@ -1,4 +1,5 @@
 ﻿#nullable enable
+StackExchange.Redis.Availability.LagAwareOptions.SetUserPemCertificate(string! userCertificatePath, string? userKeyPath = null) -> void
 override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.DisposeAsync() -> System.Threading.Tasks.ValueTask
 override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.Read(System.Span<byte> buffer) -> int
 override StackExchange.Redis.Configuration.LoggingTunnel.LoggingDuplexStream.ReadAsync(System.Memory<byte> buffer, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>

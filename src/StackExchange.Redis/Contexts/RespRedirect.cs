@@ -98,9 +98,11 @@ namespace StackExchange.Redis
             if (!TryParseSlot(rest.Slice(0, space), out var slot)) return false;
 
             // the endpoint has to become a string eventually - EndPoint parsing is string-shaped all the
-            // way down - but only on the redirect path, which is rare by construction
+            // way down - but only on the redirect path, which is rare by construction. Server-emitted
+            // ip:port, so it takes the same parser as CLUSTER NODES: the server writes an IPv6 address
+            // UNBRACKETED, which the configuration-string parser reads as an address with no port (#1422).
             var target = System.Text.Encoding.UTF8.GetString(rest.Slice(space + 1).ToArray());
-            var endpoint = Format.TryParseEndPoint(target, out var parsed) && !IsUnroutableTarget(parsed)
+            var endpoint = Format.TryParseServerEndPoint(target, out var parsed) && !IsUnroutableTarget(parsed)
                 ? parsed
                 : null;
 
