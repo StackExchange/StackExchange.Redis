@@ -49,8 +49,8 @@ Statuses: `policy` (excluded by design), `not-applicable` (not meaningful for a 
 | `CLIENT INFO` | 6.2.0 | `not-applicable` | The current connection's own `CLIENT LIST` row; connections are an internal detail of the multiplexer, and `ClientList` covers the server-wide view. |
 | `HIMPORT DISCARDALL` | 8.10.0 | `not-applicable` | Drops every field-set on the connection. The library tracks field-sets individually and discards each on dispose; a blanket discard on a shared connection would invalidate other callers' live field-sets. See [HImport](HImport). |
 | `SCRIPT DEBUG` | 3.2.0 | `not-applicable` | Interactive Lua debugger session for `redis-cli`; needs a dedicated connection and a REPL. |
-| `CLIENT CACHING` | 6.0.0 | `not-applicable` | Only meaningful with `CLIENT TRACKING` in `OPTIN`/`OPTOUT` mode; see client-side caching under deferred. |
-| `CLIENT GETREDIR` | 6.0.0 | `not-applicable` | Introspection of `CLIENT TRACKING` redirection; see deferred. |
+| `CLIENT CACHING` | 6.0.0 | `not-applicable` | Only meaningful with `CLIENT TRACKING` in `OPTIN`/`OPTOUT` mode; the v4 cache owns that decision per connection. |
+| `CLIENT GETREDIR` | 6.0.0 | `not-applicable` | Introspection of `CLIENT TRACKING` redirection; the v4 cache knows its own redirection. |
 | `LOLWUT` | 5.0.0 | `not-applicable` | Art. `Execute("LOLWUT")` works. |
 | `LATENCY GRAPH` | 2.8.13 | `not-applicable` | ASCII-art output for a console; `LATENCY HISTORY`/`LATEST` are exposed. |
 | `XIDMPRECORD` | 8.6.2 | `not-applicable` | Internal: sets idempotent-producer metadata on an existing entry; `XADD` with IDMP options is the client path. |
@@ -81,6 +81,11 @@ Operator tooling. All of it works through `Execute` on an `IServer`; none of it 
 | `CLUSTER SET-CONFIG-EPOCH` | 3.0.0 | `not-applicable` | Cluster administration. |
 | `CLUSTER SETSLOT` | 3.0.0 | `not-applicable` | Slot administration. |
 | `CLUSTER SYNCSLOTS` | 8.4.0 | `not-applicable` | Internal to atomic slot migration between nodes. |
+| `CLUSTER MYID` | 3.0.0 | `not-applicable` | Node identity; `ClusterConfiguration` carries node ids from `CLUSTER NODES`. |
+| `CLUSTER MYSHARDID` | 7.2.0 | `not-applicable` | As `CLUSTER MYID`. |
+| `CLUSTER KEYSLOT` | 3.0.0 | `not-applicable` | The client computes slots locally (`HashSlot`). |
+| `CLUSTER COUNTKEYSINSLOT` | 3.0.0 | `not-applicable` | Slot administration (resharding tooling). |
+| `CLUSTER GETKEYSINSLOT` | 3.0.0 | `not-applicable` | Slot administration (resharding tooling). |
 | `SENTINEL CKQUORUM` | 2.8.4 | `not-applicable` | Sentinel administration; the client consumes sentinel via `GET-MASTER-ADDR-BY-NAME`, `SENTINELS`, `REPLICAS`, `MASTERS`. |
 | `SENTINEL FLUSHCONFIG` | 2.8.4 | `not-applicable` | Sentinel administration. |
 | `SENTINEL INFO-CACHE` | 3.2.0 | `not-applicable` | Sentinel internals. |
@@ -104,6 +109,9 @@ Operator tooling. All of it works through `Execute` on an `IServer`; none of it 
 | `BACKUP SEAL` | 8.10.0 | `not-applicable` | Server backup administration. |
 | `BACKUP START` | 8.10.0 | `not-applicable` | Server backup administration. |
 | `BACKUP STATUS` | 8.10.0 | `not-applicable` | Server backup administration. |
+| `COMMAND DOCS` | 7.0.0 | `not-applicable` | Command introspection for tooling; `COMMAND COUNT`, `COMMAND LIST` and `COMMAND GETKEYS` are exposed on `IServer`. |
+| `COMMAND INFO` | 2.8.13 | `not-applicable` | As `COMMAND DOCS`. |
+| `COMMAND GETKEYSANDFLAGS` | 7.0.0 | `not-applicable` | As `COMMAND DOCS`. |
 
 ## Deferred: wanted, design first
 
@@ -133,21 +141,13 @@ Operator tooling. All of it works through `Execute` on an `IServer`; none of it 
 | `ACL SETUSER` | 6.0.0 | `deferred` | Part of the ACL design. |
 | `ACL USERS` | 6.0.0 | `deferred` | Part of the ACL design. |
 | `ACL WHOAMI` | 6.0.0 | `deferred` | Part of the ACL design. |
-| `CLIENT TRACKING` | 6.0.0 | `deferred` | Client-side caching: invalidation push messages have to be routed by the multiplexer, so this is a connection-level feature, not a command. |
-| `CLIENT TRACKINGINFO` | 6.2.0 | `deferred` | Part of client-side caching. |
+| `CLIENT TRACKING` | 6.0.0 | `deferred` | Client-side caching is a connection-level feature (invalidation pushes routed by the multiplexer), not a command. Implemented in v4, where the handshake issues `CLIENT TRACKING`; not planned for v3. |
+| `CLIENT TRACKINGINFO` | 6.2.0 | `deferred` | Part of client-side caching (v4). |
 | `CLIENT NO-EVICT` | 7.0.0 | `deferred` | Per-connection flag; belongs in `ConfigurationOptions` and the handshake, not on `IServer`. |
 | `CLIENT NO-TOUCH` | 7.2.0 | `deferred` | Per-connection flag, as `NO-EVICT`. |
-| `CLUSTER SHARDS` | 7.0.0 | `deferred` | Topology introspection. `ClusterConfiguration` is built from `CLUSTER NODES`; switching to or exposing `SHARDS` is a design question, not a one-off command. |
+| `CLUSTER SHARDS` | 7.0.0 | `deferred` | Not used anywhere today: `ClusterConfiguration` is built from `CLUSTER NODES`, and configuration export captures `NODES` and `SLOTS`. Moving topology discovery to `SHARDS`, or exposing it typed, is a design question. |
 | `CLUSTER LINKS` | 7.0.0 | `deferred` | Topology introspection. |
 | `CLUSTER SLOT-STATS` | 8.2.0 | `deferred` | Per-slot statistics; pairs with hot-key tooling. |
-| `CLUSTER MYID` | 3.0.0 | `deferred` | Node identity; `ClusterConfiguration` already carries node ids from `CLUSTER NODES`. |
-| `CLUSTER MYSHARDID` | 7.2.0 | `deferred` | As `CLUSTER MYID`. |
-| `CLUSTER KEYSLOT` | 3.0.0 | `deferred` | The client computes slots locally (`HashSlot`); a server round-trip for the same answer is rarely wanted. |
-| `CLUSTER COUNTKEYSINSLOT` | 3.0.0 | `deferred` | Slot introspection. |
-| `CLUSTER GETKEYSINSLOT` | 3.0.0 | `deferred` | Slot introspection. |
-| `COMMAND DOCS` | 7.0.0 | `deferred` | Command introspection; `COMMAND COUNT`, `COMMAND LIST` and `COMMAND GETKEYS` are exposed on `IServer`. The rich forms need a typed model for the reply. |
-| `COMMAND INFO` | 2.8.13 | `deferred` | As `COMMAND DOCS`. |
-| `COMMAND GETKEYSANDFLAGS` | 7.0.0 | `deferred` | As `COMMAND DOCS`. |
 
 ## Todo: accepted gaps
 
