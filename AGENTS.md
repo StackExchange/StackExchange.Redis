@@ -120,6 +120,7 @@ Repo-specific [Agent Skills](https://agentskills.io/home) (the portable `SKILL.m
 - `implement-resp-command` — add a new RESP command to StackExchange.Redis end-to-end (enum, interfaces, `RedisDatabase`, `ResultProcessor`, public-API tracking, and the ResultProcessor + RoundTrip unit tests).
 - `create-implementation-plan-for-redis-api-change` — write the reviewable implementation plan for a Redis API change from a shared client HLD before any code is written (public API, files, ordered steps, test plan, gating version). Read-only: it produces one markdown file and defers to `implement-resp-command` for the conventions.
 - `summarize-database` — profile a live (often production) RESP database by sampling: discover key patterns, where data lives by count and size, and what the values are. Read-only.
+- `audit-command-coverage` — re-diff the upstream Redis command specs against the `RedisCommand` enum and the coverage ledger (`docs/CommandCoverage.md`); reports commands the server gained that have no recorded decision, plus resolved/stale ledger rows, and updates the ledger. Edits only the ledger.
 
 That path is where Claude Code discovers them; the files themselves are tool-agnostic, so if your agent reads skills from a different directory (Codex uses `.agents/skills/`, etc.), point it at this folder or copy the skill across.
 
