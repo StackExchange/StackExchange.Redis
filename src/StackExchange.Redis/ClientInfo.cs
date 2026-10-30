@@ -235,7 +235,7 @@ namespace StackExchange.Redis
 
                         switch (key)
                         {
-                            case "addr" when Format.TryParseEndPoint(value, out var addr): client.Address = addr; break;
+                            case "addr" when Format.TryParseServerEndPoint(value, out var addr): client.Address = addr; break;
                             case "age": client.AgeSeconds = Format.ParseInt32(value); break;
                             case "idle": client.IdleSeconds = Format.ParseInt32(value); break;
                             case "db": client.Database = Format.ParseInt32(value); break;

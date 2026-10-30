@@ -183,6 +183,43 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         }
     }
 
+    [Fact]
+    public async Task MovingToAnUnbracketedIPv6AddressIsParsed()
+    {
+        // the server writes IPv6 without brackets (#1422); read as a configuration string that is an address
+        // with no port, which the placeholder check would then drop - losing the one thing MOVING is for
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            Assert.True(server.SendRawPush(null, "MOVING", "1", "15", "2a06:4e80:3:a::a:7002") > 0);
+
+            var evt = await events.NextAsync();
+            log.WriteLine(evt.RawMessage ?? "(no message)");
+            Assert.Equal(new IPEndPoint(IPAddress.Parse("2a06:4e80:3:a::a"), 7002), evt.NewEndPoint);
+        }
+    }
+
+    [Fact]
+    public async Task SlotMigrationBetweenUnbracketedIPv6AddressesIsParsed()
+    {
+        var (server, conn, events) = await ConnectAsync(log);
+        using (server)
+        await using (conn)
+        {
+            Assert.Equal(1, server.SendSlotMigrations(null, MaintenanceNotificationKind.SlotMigrated,
+            [
+                ("2a06:4e80:3:a::a:7000", "2a06:4e80:3:a::b:7001", "0-99"),
+            ]));
+
+            var evt = await events.NextAsync();
+            log.WriteLine(evt.RawMessage ?? "(no message)");
+            var migration = Assert.Single(evt.SlotMigrations);
+            Assert.Equal(new IPEndPoint(IPAddress.Parse("2a06:4e80:3:a::a"), 7000), migration.Source);
+            Assert.Equal(new IPEndPoint(IPAddress.Parse("2a06:4e80:3:a::b"), 7001), migration.Target);
+        }
+    }
+
     [Theory]
     [InlineData(MaintenanceNotificationKind.SlotMigrating, MaintenanceNotificationType.SlotMigrating)]
     [InlineData(MaintenanceNotificationKind.SlotMigrated, MaintenanceNotificationType.SlotMigrated)]
