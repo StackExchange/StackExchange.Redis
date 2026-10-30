@@ -851,6 +851,10 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.StringBitPosition(RedisKey, bool, long, long, StringIndexType, CommandFlags)"/>
         Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.StringBitPositions(RedisKey, bool, long, long, StringIndexType, long?, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<long[]> StringBitPositionsAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, long? limit = null, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.StringDecrement(RedisKey, long, CommandFlags)"/>
         Task<long> StringDecrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);
 

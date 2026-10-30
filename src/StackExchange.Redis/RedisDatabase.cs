@@ -3951,6 +3951,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public long[] StringBitPositions(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, long? limit = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringBitPositionsMessage(key, bit, start, end, indexType, limit, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64Array, defaultValue: Array.Empty<long>());
+        }
+
+        public Task<long[]> StringBitPositionsAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, long? limit = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStringBitPositionsMessage(key, bit, start, end, indexType, limit, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64Array, defaultValue: Array.Empty<long>());
+        }
+
         public long StringDecrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
         {
             return StringIncrement(key, -value, flags);
@@ -5641,6 +5653,36 @@ namespace StackExchange.Redis
             {
                 StringIndexType.Byte => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end),
                 _ => Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end, indexType.ToLiteral()),
+            };
+        }
+
+        internal Message GetStringBitPositionsMessage(in RedisKey key, bool bit, long start, long end, StringIndexType indexType, long? limit, CommandFlags flags)
+        {
+            if (limit < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(limit), "LIMIT can't be negative.");
+            }
+
+            // BITRANGEINTARRAY key start end [BYTE|BIT] [LIMIT count] [ZEROS]; the server accepts the options in
+            // any order, we always emit this one. BYTE is the default and is omitted, as for BITCOUNT/BITPOS.
+            bool unit = indexType switch
+            {
+                StringIndexType.Byte => false,
+                StringIndexType.Bit => true,
+                _ => throw new ArgumentOutOfRangeException(nameof(indexType)),
+            };
+            const RedisCommand cmd = RedisCommand.BITRANGEINTARRAY;
+            // (unit token, LIMIT present, ZEROS present)
+            return (unit, limit.HasValue, !bit) switch
+            {
+                (false, false, false) => Message.Create(Database, flags, cmd, key, start, end),
+                (true, false, false) => Message.Create(Database, flags, cmd, key, start, end, RedisLiterals.BIT),
+                (false, true, false) => Message.Create(Database, flags, cmd, key, start, end, RedisLiterals.LIMIT, limit.GetValueOrDefault()),
+                (false, false, true) => Message.Create(Database, flags, cmd, key, start, end, RedisLiterals.ZEROS),
+                (true, true, false) => Message.Create(Database, flags, cmd, key, start, end, RedisLiterals.BIT, RedisLiterals.LIMIT, limit.GetValueOrDefault()),
+                (true, false, true) => Message.Create(Database, flags, cmd, key, start, end, RedisLiterals.BIT, RedisLiterals.ZEROS),
+                (false, true, true) => Message.Create(Database, flags, cmd, key, start, end, RedisLiterals.LIMIT, limit.GetValueOrDefault(), RedisLiterals.ZEROS),
+                (true, true, true) => Message.Create(Database, flags, cmd, key, start, end, RedisLiterals.BIT, RedisLiterals.LIMIT, limit.GetValueOrDefault(), RedisLiterals.ZEROS),
             };
         }
 
