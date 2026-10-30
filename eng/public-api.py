@@ -10,7 +10,10 @@ keeps them sorted between runs - this is what does, run at a moment somebody is 
 *Promotion* (``--promote`` only). Moves every entry from ``PublicAPI.Unshipped.txt`` into its sibling
 ``PublicAPI.Shipped.txt``. "Shipped" means released and frozen, so doing this mid-cycle would freeze
 API that has not shipped and cannot then be changed without it looking like a break. It is therefore
-opt in, and belongs to the release: ship the package, then promote.
+opt in, and belongs to the release: ship the package, then promote. A ``*REMOVED*`` entry in the
+unshipped file (the analyzer's record that a shipped signature is gone, for example a parameter was
+renamed) is applied rather than copied: the named signature leaves the shipped file and the marker is
+consumed. Copying it across would leave the shipped file claiming a symbol that no longer exists.
 
     eng/public-api.py                # sort in place, promote nothing
     eng/public-api.py --promote      # the release step: fold unshipped into shipped, and sort
@@ -25,6 +28,9 @@ import sys
 # one block: sorting the raw line groups by modifier instead, splitting every type across an
 # abstract/override/static/virtual block and a bare one.
 MODIFIERS = ("abstract ", "override ", "static ", "virtual ", "readonly ", "const ", "sealed ")
+
+# the analyzer's prefix for "this shipped entry no longer exists"; only ever valid in an unshipped file
+REMOVED = "*REMOVED*"
 
 
 def sort_key(line):
@@ -97,10 +103,23 @@ def main():
 
         rel = os.path.relpath(shipped_path, root)
         entries = list(shipped.entries)
-        promoted = []
+        promoted, removed = [], []
+        promoting = bool(args.promote and unshipped and unshipped.entries)
 
-        if args.promote and unshipped and unshipped.entries:
-            promoted = list(unshipped.entries)
+        stray = [e for e in entries if e.startswith(REMOVED)]
+        if stray:
+            problems.append(f"{rel}: {len(stray)} {REMOVED} entr(y/ies) in a shipped file, e.g. {stray[0]}")
+            continue
+
+        if promoting:
+            removed = [e[len(REMOVED):] for e in unshipped.entries if e.startswith(REMOVED)]
+            promoted = [e for e in unshipped.entries if not e.startswith(REMOVED)]
+            # a removal must name something that is actually shipped; anything else is a hand-edit gone wrong
+            missing = [r for r in removed if r not in set(entries)]
+            if missing:
+                problems.append(f"{rel}: {len(missing)} {REMOVED} entr(y/ies) not found in shipped, e.g. {missing[0]}")
+                continue
+            entries = [e for e in entries if e not in set(removed)]
             # an entry in both files is not something to silently dedupe: the analyzer rejects
             # duplicates (RS0025), and it means one of the two was hand-edited
             clash = [e for e in promoted if e in set(entries)]
@@ -110,8 +129,8 @@ def main():
             entries += promoted
 
         new_shipped = sorted(entries, key=sort_key)
-        if shipped.render(new_shipped) != shipped.render(shipped.entries) or promoted:
-            note = f" (+{len(promoted)} promoted)" if promoted else ""
+        if shipped.render(new_shipped) != shipped.render(shipped.entries) or promoting:
+            note = f" (+{len(promoted)} promoted, -{len(removed)} removed)" if promoting else ""
             changed.append(rel + note)
             if not args.check:
                 shipped.write(new_shipped)
@@ -120,9 +139,9 @@ def main():
             rel_un = os.path.relpath(unshipped_path, root)
             # promoted entries leave; whatever remains is sorted too, so that appending to it from two
             # branches collides less often
-            new_unshipped = [] if promoted else sorted(unshipped.entries, key=sort_key)
+            new_unshipped = [] if promoting else sorted(unshipped.entries, key=sort_key)
             if unshipped.render(new_unshipped) != unshipped.render(unshipped.entries):
-                if not promoted:
+                if not promoting:
                     changed.append(rel_un)
                 if not args.check:
                     unshipped.write(new_unshipped)
