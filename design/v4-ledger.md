@@ -329,6 +329,60 @@ pub/sub gets a dedicated connection by default, sharing is opt-in via `SharedSub
 
 ## Status
 
+- **2026-10-29: high-integrity mode restored (`ConfigurationOptions.HighIntegrity`).** Lost with the old core: the
+  option, `ConnectionFailureType.ResponseIntegrityFailure`, the docs and the `HighIntegrity*Tests` classes all
+  survived, but nothing assigned a token or validated a reply, and the test classes passed vacuously because they
+  only re-ran suites with the flag set. Rebuilt as the dual of the prefix frame, at the same choke point:
+  `RespConnection.SequenceCheckHead` makes `Stage` write `ECHO <4-byte counter>` behind every request whose
+  message is `SequenceChecked` (a per-connection counter, so nothing is stored per request: the n'th check must
+  answer n), with one more pending entry naming `RespSequenceCheckSink`; the reader holds a checked reply (a
+  reservation on the receive buffer) until the check validates, delivers it then, or faults it and closes the
+  connection with `ResponseIntegrityFailure` (RESPite throws a generic fault; `RespClientConnection` substitutes the
+  shipped type, so `ConnectionFailed` reports it). A handed-off reply (redirect, `+QUEUED`) is not held but its
+  check is still validated, which is what the MOVED case needed. `RespConnectionManager` enables it after the
+  handshake, interactive connections only, `ECHO` rendered through the command map (a map without `ECHO` refuses
+  the connection); `RespTransaction` marks `MULTI`, `WATCH`, the condition probes and the queued commands
+  unchecked, so `EXEC`/`UNWATCH` validate the span - v3's rule. Differences from v3, deliberate: the handshake's
+  own commands are not checked (v3 checked all but AUTH/HELLO; the replies are validated by content anyway), the
+  failed command gets `RedisConnectionException(ResponseIntegrityFailure)` rather than v3's
+  `InvalidOperationException`, and `ASKING`/injected `SELECT` are checked like any command. Tests the mode never
+  had, on either core: `RespSequenceCheckTests` (RESPite: wire shape, the hold, wrong token, missing frame, push
+  between reply and check, split receive, buffer roll under a held reply, hand-off, prefix + check, close while
+  held) and `HighIntegrityWireTests` (SE.Redis: EXEC-only checking in a transaction, every member in a batch, the
+  failure type), plus `HighIntegrityMovedUnitTests` now asserts the checks happened. `design/command-flow.md`
+  describes both framing extras and client-side caching end to end.
+  **Measured** (RespFest `hi-off` / `hi-on`, 2026-10-29, local Redis 8.2, 3 repeats, governor powersave; vendored
+  clients `dotnet-stackexchange-v4` @ 48e6e7aa, `-v4-base` @ 86a82688, `-v3-hi` = 3.3.0 with the switch):
+  - *Off path, branch vs base:* identical within spread on every cell - ops/s 52.3k/52.3k incr-seq, 506k/507k
+    incr-pipe32, 950k/961k incr-conc64, 50.3k/50.0k get-1k-seq, 758k/754k get-1k-conc64; CPU us/op 59.2/60.0,
+    6.21/6.44, 7.68/7.63, 61.3/61.8, 9.48/9.62. No regression.
+  - *Cost of the mode, v4 on vs off:* incr-seq -5% ops/s (+6% CPU/op), get-1k-seq -4%, incr-pipe32 -29% (+15% CPU),
+    incr-conc64 -31% (+48% CPU/op, p50 61 -> 89us), get-1k-conc64 -25% (+34% CPU/op). Peak RSS under concurrency
+    81 -> 224 MB and 95 -> 242 MB.
+  - *v3 3.3.0, on vs off:* incr-seq -4%, get-1k-seq -5%, incr-pipe32 -23%, incr-conc64 -8.5% (+7% CPU/op),
+    get-1k-conc64 0% (v3 is bottlenecked elsewhere there). Absolute, both on: v4 652k vs v3 540k incr-conc64, 570k
+    vs 274k get-1k-conc64, 358k vs 365k incr-pipe32, 49.8k vs 52.7k incr-seq.
+  - *Diagnosis of the concurrent gap (inferred, not yet profiled):* the hold is a reservation on the receive buffer,
+    and `EnsureSpace` rolls to a fresh buffer whenever a reservation is outstanding - so under load, where some
+    reply is nearly always held across a receive boundary, the inbound buffer rolls far more often than before
+    (the RSS doubling is the symptom). The server writes a reply and its ECHO contiguously, so the check is
+    usually already in the buffer when the reply is matched: **next step** is to look ahead for a complete check
+    frame before parking, and reserve only when the check genuinely straddles a read. v3 had no hold (it
+    deferred `Complete` on an already-parsed message), which is why its concurrent cost is a quarter of ours.
+  - *Mitigated (`v4-high-integrity-lookahead`, RespFest `hi-on-la` / `hi-on-la2`):* two changes. The look-ahead
+    (9106f4ce) alone bought ~10% CPU/op at 64 callers and nothing in RSS, which falsified the buffer-roll
+    diagnosis: allocation per op was +56 bytes with the mode on, identical before and after, and that was the
+    second `ConcurrentQueue` entry per command standing in for the check's reply. 91810686 moves the "checked"
+    bit into the request's own `PendingEntry` (its padding) and stages the check in one transport write instead
+    of head then tail. Result, mode on, same session: allocation per op now equal to mode off (104 / 189 / 1161
+    B/op), peak RSS back to baseline (76-97 MB against 138-333), and against the branch before the mitigation:
+    incr-pipe32 379k -> 415k ops/s (CPU/op 7.05 -> 6.89), incr-conc64 653k -> 701k (11.67 -> 9.83),
+    get-1k-conc64 590k -> 619k (12.66 -> 11.15); sequential unchanged. Cost of the mode after mitigation, on vs
+    off: incr-seq -5%, get-1k-seq -4%, incr-pipe32 -18% (+7-11% CPU/op), incr-conc64 -26% (+28% CPU/op),
+    get-1k-conc64 -18% (+18% CPU/op). What remains is the mode itself: twice the frames each way, and at 64
+    callers the single-threaded server is handling 1.4M commands/s for 700k operations, so part of the remaining
+    throughput gap is the server's, not the client's.
+
 - **2026-10-09: one group accessor instead of two (was a backlog item).** `RespDatabaseContext` is now an
   `IRespKeyspaceTarget` and `RespServerContext` an `IRespServerTarget` (each its own context), so the single
   constrained-generic accessor per group serves targets and contexts alike; the non-generic ones are gone, from

@@ -373,6 +373,17 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
     /// </remarks>
     public byte[]? Prefix { get; protected set; }
 
+    /// <inheritdoc cref="IRespMessage.SequenceChecked"/>
+    /// <remarks>
+    /// Per life, like <see cref="Prefix"/>: true unless whoever composes a run says otherwise, and restored by
+    /// the reset that ends the life, so an instance that carried an unchecked queued command does not carry the
+    /// exemption into its next life as an ordinary one.
+    /// </remarks>
+    public bool SequenceChecked { get; set; } = true;
+
+    /// <inheritdoc/>
+    public void OnSequenceCheck(uint token) => _diagnostics.HighIntegrityToken = token;
+
     /// <inheritdoc/>
     public bool TryReserveRequest(short token, out ReadOnlyMemory<byte> payload, bool recordSent = true)
     {
@@ -750,6 +761,7 @@ internal abstract class RespMessageBase<TResponse> : IRespMessage, IValueTaskSou
         TryReleaseRequest();
         _diagnostics = default; // the whole point of keeping it in one struct
         Prefix = null; // a modifier belongs to the command it was attached for, not to the instance
+        SequenceChecked = true; // the exemption likewise: see the property
         OnReset();
 
         _asyncCore.Reset();

@@ -1,6 +1,6 @@
 ﻿# Where a command goes
 
-**Status: describes what is built, as of 2026-10-12.** Unlike `message-core-replacement.md`, which is a
+**Status: describes what is built, as of 2026-10-29.** Unlike `message-core-replacement.md`, which is a
 plan, this is a map of the code as it stands - so where the two disagree, this one is the one that is
 wrong, and should be fixed.
 
@@ -48,8 +48,9 @@ RespExecutorBase               a COMPOSITION, not a fixed chain:
 RespPayloadOperation<T>        one command in flight, AND the awaitable for its parsed result; pooled
         |
         v
-RespClientConnection           : RespConnection (RESPite) - pending queue, write lock, close notice
-        |
+RespClientConnection           : RespConnection (RESPite) - pending queue, write lock, close notice;
+        |                      a prefix frame ahead of a request (CLIENT CACHING YES|NO) and, under
+        |                      high-integrity mode, a sequence check (ECHO <token>) behind it
         v
 DuplexTransport                socket, TLS, tunnel; the read loop (a filler and a parser by default)
 ```
@@ -84,7 +85,13 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
    it (`CacheOptOut` suppresses the probe as well as the store). A hit returns without routing or
    sending; an identical request already in flight is awaited rather than duplicated (asynchronous callers
    only); otherwise a fill is opened - if admission lets it (by default only on a repeated miss) - so the
-   reply populates the cache on the way back. See `client-side-cache.md`.
+   reply populates the cache on the way back. **Opt-in and opt-out** are decided here too, from the flags
+   and the cache's `CacheTrackingMode`: under `Tracking` (the default where the server supports it) and
+   `Broadcast` every cacheable read is a candidate and `CacheOptOut` excludes one; under `TrackingOptIn`
+   and `TrackingByPrefix` nothing is cached unless the read carries `CacheOptIn`. Where the server has to
+   be told - `CLIENT CACHING YES` for an opted-in read under the opt-in modes, `CLIENT CACHING NO` for an
+   opted-out read under `Tracking` - the cache hands the send a *prefix frame* (`RespRequest.Prefix`), which
+   step 8 writes immediately ahead of the request. See `client-side-cache.md` and the bullet below.
 
 4. **Borrow or detach.** An executor that copies the bytes during the call (`CopiesRequestOnSend` - the
    endpoint executor, and the database view over it) is handed a *borrowed* view of the frame
@@ -119,6 +126,20 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
    Under the experimental `CombineWrites` flag a send that finds the write lock busy leaves its operation
    in an inbox for the lock holder to write, instead of waiting on the lock.
 
+   `RespConnection.Stage` is the one place a request's bytes meet the pending queue - every send shape
+   (single, preamble pair, run, inbox drain) goes through it - and it is where the two **framing extras**
+   happen, under the same lock hold as the request so nothing can come between:
+   - A **prefix frame** (`IRespMessage.Prefix`): one complete frame written ahead of the request, with one
+     pending entry ahead of the request's naming a per-connection sink that swallows its reply (an error
+     reply is counted, never surfaced). This is how `CLIENT CACHING YES|NO` reaches the server as a modifier
+     of exactly the next command. A transaction that contains reads puts one ahead of `MULTI`.
+   - A **sequence check** (`RespConnection.SequenceCheckHead`, set by `RespConnectionManager` on every
+     interactive connection when `ConfigurationOptions.HighIntegrity` is on): one more command behind the
+     request - `ECHO` of a 4-byte running token - with one more pending entry naming the check sink. Not
+     written for a message that says `SequenceChecked = false`: `MULTI`, `WATCH`, the condition probes and
+     the queued commands, whose replies are not the next in-band frame; `EXEC` and `UNWATCH` are checked and
+     so validate the span.
+
 9. **Reply.** By default the transport reads with two loops: a *filler* that reads the socket into a small
    ring of buffers, and a *parser* that hands each filled buffer to `RespConnection.OnReceived` - so the
    next read is already under way while the last is parsed. They hand buffers back and forth through two
@@ -130,7 +151,14 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
 10. **Hand-off or complete.** The frame is offered to the redirect handler first, because a `-MOVED` is
     an instruction rather than an answer. If nobody takes it, `TrySetResult` calls
     `RespPayloadOperation.ParseFrame`, which turns an error reply into a `RedisServerException` and
-    otherwise *retains* the receive buffer rather than copying out of it. The operation completes with
+    otherwise *retains* the receive buffer rather than copying out of it. Under high-integrity mode there
+    is a step in between: a checked reply is **held** (a reservation on the receive buffer, nothing copied)
+    until the next in-band frame arrives and is the bulk string carrying the expected token; then it is
+    delivered. Anything else faults the held command and closes the connection with
+    `ConnectionFailureType.ResponseIntegrityFailure`, which fails everything pending behind it - a reply
+    stream that has lost or gained a frame cannot be re-aligned, only abandoned. A handed-off reply (a
+    redirect, a `+QUEUED` receipt) is not held, but its check is still consumed and validated, so the
+    counter stays in step across a `MOVED`. The operation completes with
     `RunContinuationsAsynchronously`, so the caller's continuation goes to the thread pool and never runs
     on the parser. A blocked synchronous caller has no continuation at all: it is waiting on the operation's
     monitor, and completing pulses it, so it wakes on its own thread.
@@ -166,6 +194,29 @@ caller *takes* the result - `RespPayloadOperation<T>.GetResult` - not on the rea
   order; the map is updated for `MOVED` and not for `ASK`.
 - **Backlog.** Commands wait here when there is no connection. They survive a failed connect (subject to
   `BacklogPolicy`), are swept against their timeout, and drain in arrival order.
+- **Client-side caching, end to end.** One `RespClientCache` per multiplexer (configured by
+  `ConfigurationOptions.ClientCache`, or for a connection group once by `MultiGroupOptions.ClientCache`,
+  which every member inherits), reached through the context: a group resolves the active member's cache
+  per command. The key is the rendered request (step 2), so two spellings of one command are two entries.
+  *Probe and fill* are step 3; *invalidation* arrives as RESP3 `invalidate` pushes (step 9 routes them to
+  the cache before any pending-queue matching) under the `CLIENT TRACKING` the handshake negotiated for
+  the mode - `Tracking` is per-key, `Broadcast` is `BCAST` with the configured `Prefixes` (byte prefixes,
+  copied when set), the opt-in modes are `OPTIN` - or, under `KeyspaceNotifications` (and `Default` where
+  tracking is unavailable: RESP2, or a server without it, #3305), from `__keyspace@<db>__` notifications on
+  the subscription connection instead. Our own writes stamp the keys they touch in every member's cache
+  before they are sent; any connection failure flushes the cache synchronously, as does an unreadable
+  push; `TimeToLive` is the backstop. The public view is `GetClientCache()`: `Invalidate`, `InvalidateAll`
+  and the counters. The design, with its measurements and rejected alternatives: `client-side-cache.md`;
+  the user-facing description: `docs/ClientSideCaching.md`.
+- **High-integrity mode** (`ConfigurationOptions.HighIntegrity`, off by default; the sequence check in
+  steps 8 and 10). What v3 did on the bridge, as a connection primitive: every command on an interactive
+  connection is followed by `ECHO <token>`, the token is a per-connection counter (so the connection stores
+  nothing per request: the *n*th check must answer *n*), and no reply is handed to its caller until the
+  check behind it validates. Switched on after the handshake, whose replies are validated by content, and
+  never on a subscription connection, whose stream is deliveries rather than replies. `ECHO` is rendered
+  through the command map, so a renamed `ECHO` is honoured; a map that disables it refuses the connection
+  rather than silently checking nothing. The token is visible in an operation's diagnostics dump as
+  `hi-token`. Cost: one ~30-byte frame out and 10 bytes in per command, plus the hold.
 - **Pub/sub.** A subscription connection is a second `RespEndpointExecutor` per endpoint. Under RESP2 it
   has to be, because messages arrive as ordinary arrays; under RESP3 it is by default too (#3264), because
   the server applies its pub/sub output-buffer limit to any connection with a live subscription, and an

@@ -92,6 +92,26 @@ internal interface IRespMessage : IValueTaskSource
     /// </remarks>
     byte[]? Prefix { get; }
 
+    /// <summary>
+    /// Whether, on a connection that checks reply sequence (<see cref="RespConnection.SequenceCheckHead"/>), this
+    /// request is followed by a check frame.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>True for an ordinary command, false for one whose reply is not the next in-band frame</b> - a command
+    /// queued inside <c>MULTI</c> is answered <c>+QUEUED</c> now and for real from <c>EXEC</c>'s array, and a
+    /// <c>WATCH</c> or <c>MULTI</c> opens a span the server will not let a check into without the check itself
+    /// joining the transaction. The command that closes the span (<c>EXEC</c>, <c>DISCARD</c>, <c>UNWATCH</c>)
+    /// is checked, and so validates everything the span contained. The connection consults this once, under the
+    /// write lock, as it stages the request.
+    /// </para>
+    /// </remarks>
+    bool SequenceChecked { get; }
+
+    /// <summary>Told the token the connection wrote after this request, for diagnostics.</summary>
+    /// <param name="token">The sequence token; never zero.</param>
+    void OnSequenceCheck(uint token);
+
     /// <summary>Deliver a reply held in a single span.</summary>
     /// <param name="token">The version this caller holds.</param>
     /// <param name="response">The complete reply frame.</param>

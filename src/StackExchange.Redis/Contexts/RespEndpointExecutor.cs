@@ -68,6 +68,9 @@ namespace StackExchange.Redis
         private readonly object _sync = new();
 
         private RespConnection? _connection;
+
+        /// <summary>The live connection, if any, for diagnostics and tests; not for sending.</summary>
+        internal RespConnection? ConnectionForDiagnostics => Volatile.Read(ref _connection);
         private Task<RespConnection>? _connecting;
         private Queue<RespPayloadOperation>? _backlog;
         private bool _disposed;

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
@@ -66,10 +67,14 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// reading another command's name. Every action through the queue therefore uses the token captured when
     /// the life was written, and a stale entry does nothing but consume its frame.
     /// </remarks>
-    private readonly struct PendingEntry(IRespMessage message, short token)
+    private readonly struct PendingEntry(IRespMessage message, short token, bool sequenceChecked = false)
     {
         public readonly IRespMessage Message = message;
         public readonly short Token = token;
+
+        /// <summary>Whether a sequence check was written behind this request; see <see cref="SequenceCheckHead"/>.</summary>
+        /// <remarks>Sits in the struct's padding, so a checked connection costs no more queue than an unchecked one.</remarks>
+        public readonly bool SequenceChecked = sequenceChecked;
 
         public bool IsCurrent => Message.Token == Token;
     }
@@ -93,6 +98,66 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
     /// <summary>The most recent prefix error reply, as text, or null.</summary>
     public string? LastPrefixError => _prefixReplies.LastError;
+
+    private byte[]? _sequenceCheckHead;
+    private uint _nextSequenceToken = 1; // issued under the write lock
+    private uint _expectedSequenceToken = 1; // consumed on the reader
+    private long _sequenceChecksPassed;
+
+    // reader-loop state: the next in-band frame answers a sequence check (the entry it followed has been taken)
+    private bool _awaitingSequenceCheck;
+
+    // a reply held back until the check behind it validates; reader-loop state, published last and claimed
+    // (by the reader delivering it, or by Close faulting it) through _parkedMessage
+    private IRespMessage? _parkedMessage;
+    private short _parkedToken;
+    private RefCountedBuffer? _parkedBuffer;
+    private int _parkedOffset, _parkedLength;
+
+    /// <summary>
+    /// The rendered head of the sequence-check command, or <see langword="null"/> (the default) for a connection
+    /// that does not check reply sequence.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The high-integrity mode of the shipped client, as a connection primitive.</b> When set, every request
+    /// whose message says <see cref="IRespMessage.SequenceChecked"/> is followed - under the same write lock, so
+    /// nothing can come between - by one more command that echoes a 4-byte token: this head (everything up to
+    /// the token's bulk payload, e.g. <c>*2\r\n$4\r\nECHO\r\n$4\r\n</c>), then the token, little-endian,
+    /// then CRLF. The token is a running counter, so the connection need store nothing per request but one bit
+    /// in its pending entry: the <i>n</i>th check must answer with <i>n</i>, and a reply stream that has lost or
+    /// gained a frame fails the very next check rather than quietly answering every later command with its
+    /// predecessor's reply.
+    /// </para>
+    /// <para>
+    /// <b>A checked reply is not delivered until its check validates.</b> The reply frame is held (a reservation
+    /// on the receive buffer, released as soon as the check lands) and delivered, or faulted, by the check's
+    /// outcome - so a caller never sees a value the next frame then proves was not theirs. On a failed check the
+    /// held reply is faulted with <see cref="CreateSequenceCheckFault"/> and the connection closes with it,
+    /// which fails everything else pending: there is no recovery for a desynchronised stream.
+    /// </para>
+    /// <para>
+    /// The spelling of the command is the owner's (the shipped client renders it through its command map, so a
+    /// renamed <c>ECHO</c> is honoured); this type only knows the shape of the reply it expects. Set before the
+    /// connection is published to senders, on the thread that connects it.
+    /// </para>
+    /// </remarks>
+    public byte[]? SequenceCheckHead
+    {
+        get
+        {
+            return Volatile.Read(ref _sequenceCheckHead);
+        }
+
+        set
+        {
+            if (value is { Length: > SequenceCheckMaxLength - 6 }) throw new ArgumentOutOfRangeException(nameof(value), "The sequence-check command is too long.");
+            Volatile.Write(ref _sequenceCheckHead, value);
+        }
+    }
+
+    /// <summary>How many sequence checks have validated on this connection; see <see cref="SequenceCheckHead"/>.</summary>
+    public long SequenceChecksPassed => Volatile.Read(ref _sequenceChecksPassed);
 
     /// <summary>Stamp, enqueue and stage one reserved request - and its prefix in front of it, if it has one.</summary>
     /// <param name="message">The message being written.</param>
@@ -118,10 +183,195 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
             Volatile.Write(ref _bytesSent, _bytesSent + prefix.Length);
         }
 
-        _pending.Enqueue(new(message, token));
+        var head = Volatile.Read(ref _sequenceCheckHead);
+        var sequenceChecked = head is not null && message.SequenceChecked;
+
+        _pending.Enqueue(new(message, token, sequenceChecked));
         Write(payload);
         Volatile.Write(ref _bytesSent, _bytesSent + payload.Length);
+
+        // and its check behind it, the mirror of the prefix in front: one more frame under the lock that staged
+        // the request, so the n'th check is the n'th thing the server echoes. No entry of its own: the bit on the
+        // request's entry tells the reader to expect it, which is one enqueue and one dequeue fewer per command.
+        if (sequenceChecked && head is not null)
+        {
+            var sequence = _nextSequenceToken;
+            _nextSequenceToken = sequence == uint.MaxValue ? 1 : sequence + 1; // never zero, so a stale diagnostic reads as "none"
+            message.OnSequenceCheck(sequence);
+
+            // one write, not head then tail: the transport takes its lock per write
+            Span<byte> check = stackalloc byte[SequenceCheckMaxLength];
+            head.CopyTo(check);
+            BinaryPrimitives.WriteUInt32LittleEndian(check.Slice(head.Length), sequence);
+            check[head.Length + 4] = (byte)'\r';
+            check[head.Length + 5] = (byte)'\n';
+            check = check.Slice(0, head.Length + 6);
+
+            Write(check);
+            Volatile.Write(ref _bytesSent, _bytesSent + check.Length);
+        }
     }
+
+    /// <summary>The longest check command staged on the stack: the head (a renamed command can be longer than ECHO) plus the token and CRLF.</summary>
+    private const int SequenceCheckMaxLength = 128;
+
+    /// <summary>Hold a checked reply until its check validates; see <see cref="SequenceCheckHead"/>.</summary>
+    private void Park(in PendingEntry entry, ReadOnlySpan<byte> frame, RefCountedBuffer buffer)
+    {
+        if (!buffer.TryReserve(frame, out var reservation))
+        {
+            // cannot hold the bytes (not our buffer, or it is already gone): deliver now rather than lose the
+            // reply; the check behind it is still validated, so a desync still closes the connection
+            entry.Message.TrySetResult(entry.Token, frame, buffer);
+            return;
+        }
+
+        _parkedToken = entry.Token;
+        _parkedBuffer = buffer;
+        _parkedOffset = reservation.Offset;
+        _parkedLength = reservation.Length;
+        Volatile.Write(ref _parkedMessage, entry.Message); // last: publishes the fields above to Close
+
+        // Close drains the queue, so the check entry that would have delivered this is gone; a close that
+        // raced the park must not leave the reply held forever
+        if (Volatile.Read(ref _closed) != 0) FaultParked(ClosedFault());
+    }
+
+    /// <summary>The reply to a sequence check is exactly this long: <c>$4\r\n</c>, four token bytes, <c>\r\n</c>.</summary>
+    private const int SequenceCheckReplyLength = 10;
+
+    /// <summary>Whether <paramref name="frame"/> is the reply to a check carrying <paramref name="expected"/>.</summary>
+    private static bool IsSequenceCheckReply(ReadOnlySpan<byte> frame, uint expected)
+        => frame.Length == SequenceCheckReplyLength
+            && frame[0] == (byte)'$' && frame[1] == (byte)'4' && frame[2] == (byte)'\r' && frame[3] == (byte)'\n'
+            && frame[8] == (byte)'\r' && frame[9] == (byte)'\n'
+            && BinaryPrimitives.ReadUInt32LittleEndian(frame.Slice(4, 4)) == expected;
+
+    /// <summary>A check validated: move the counter on.</summary>
+    private void OnSequenceCheckPassed(uint expected)
+    {
+        _expectedSequenceToken = expected == uint.MaxValue ? 1 : expected + 1;
+        Volatile.Write(ref _sequenceChecksPassed, _sequenceChecksPassed + 1);
+    }
+
+    /// <summary>Validate the frame that answers a sequence check, and release the reply it was guarding.</summary>
+    /// <returns><see langword="false"/> if the check failed and the connection has been closed.</returns>
+    private bool ValidateSequenceCheck(ReadOnlySpan<byte> frame)
+    {
+        var expected = _expectedSequenceToken;
+        if (IsSequenceCheckReply(frame, expected))
+        {
+            OnSequenceCheckPassed(expected);
+            DeliverParked();
+            return true;
+        }
+
+        // the stream is not what we think it is; the held reply may be somebody else's, and so may every reply
+        // after it - fault the one we hold, then close, which faults the rest
+        var fault = CreateSequenceCheckFault(expected, frame);
+        FaultParked(fault);
+        Close(fault);
+        return false;
+    }
+
+    private enum LookAheadResult
+    {
+        /// <summary>The check has not arrived, or something out-of-band sits in front of it: hold the reply.</summary>
+        NotYet,
+
+        /// <summary>The check was already in the buffer and validated; the reply has been delivered.</summary>
+        Delivered,
+
+        /// <summary>The check was already in the buffer and failed; the connection is closed.</summary>
+        Closed,
+    }
+
+    /// <summary>
+    /// Try to settle a checked reply without holding it: the server writes a reply and its check back to back, so
+    /// the check is usually already in the buffer when the reply is matched.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why this exists:</b> a held reply is a reservation on the receive buffer, and <see cref="EnsureSpace"/>
+    /// cannot compact a buffer somebody holds, so it rolls to a fresh one - which, with some reply nearly always
+    /// held under load, turned every receive into an allocation (measured: +48% CPU per op and peak RSS 81 to
+    /// 224 MB at 64 callers, against +6% sequentially). Looking ahead costs a bounds check and ten byte compares,
+    /// and leaves the hold for the case it was designed for: a check that genuinely straddles a read.
+    /// Only the reader loop touches <c>_start</c>, so consuming the check here is the same as the scanner finding
+    /// it next; the scan state is clean between frames, so nothing is double-counted.
+    /// </remarks>
+    private LookAheadResult LookAhead(in PendingEntry entry, ReadOnlySpan<byte> frame, RefCountedBuffer buffer)
+    {
+        if (_end - _start < SequenceCheckReplyLength) return LookAheadResult.NotYet;
+
+        var next = buffer.GetSpan().Slice(_start, SequenceCheckReplyLength);
+
+        // a push, or anything that is not a bulk string, is not the check: take the slow path, which skips pushes
+        // and validates whatever in-band frame comes next (and so still catches a desync)
+        if (next[0] != (byte)'$') return LookAheadResult.NotYet;
+
+        var expected = _expectedSequenceToken;
+        if (!IsSequenceCheckReply(next, expected))
+        {
+            // in-band, a bulk string, and not our token: this is the failure the mode exists to catch, whether the
+            // frame is complete or not - the next in-band frame can only ever be a four-byte bulk here. Settle it
+            // now rather than hold and re-discover it; the frame is described by what we can see of it.
+            var fault = CreateSequenceCheckFault(expected, next);
+            entry.Message.TrySetException(entry.Token, fault, definite: false);
+            Close(fault);
+            return LookAheadResult.Closed;
+        }
+
+        // consume the check as if the scanner had just found it
+        _start += SequenceCheckReplyLength;
+        Volatile.Write(ref _bytesLastResult, SequenceCheckReplyLength);
+        OnSequenceCheckPassed(expected);
+
+        entry.Message.TrySetResult(entry.Token, frame, buffer);
+        return LookAheadResult.Delivered;
+    }
+
+    private void DeliverParked()
+    {
+        var message = Interlocked.Exchange(ref _parkedMessage, null);
+        if (message is null) return; // handed off (a redirect, a queued receipt), or a stale life: nothing was held
+
+        var buffer = _parkedBuffer!;
+        _parkedBuffer = null;
+        try
+        {
+            message.TrySetResult(_parkedToken, buffer.GetSpan().Slice(_parkedOffset, _parkedLength), buffer);
+        }
+        finally
+        {
+            buffer.Release(); // our reservation; the message took its own if it is keeping the bytes
+        }
+    }
+
+    private void FaultParked(Exception fault)
+    {
+        var message = Interlocked.Exchange(ref _parkedMessage, null);
+        if (message is null) return;
+
+        var buffer = _parkedBuffer;
+        _parkedBuffer = null;
+
+        // INDEFINITE: the server answered, so the command may well have been applied; what cannot be trusted
+        // is which answer was whose
+        message.TrySetException(_parkedToken, fault, definite: false);
+        buffer?.Release();
+    }
+
+    /// <summary>The fault for a sequence check that did not validate; see <see cref="SequenceCheckHead"/>.</summary>
+    /// <param name="expected">The token the check should have carried.</param>
+    /// <param name="frame">The frame that arrived instead.</param>
+    /// <returns>The exception the held reply, and then every pending command, fails with.</returns>
+    protected virtual Exception CreateSequenceCheckFault(uint expected, ReadOnlySpan<byte> frame)
+        => new InvalidOperationException(
+            $"Reply sequence check failed: expected check {expected}, received {DescribeFrame(frame)}; the reply stream is desynchronised.");
+
+    /// <summary>A short description of a frame for a fault message: its kind and size, never its contents.</summary>
+    protected static string DescribeFrame(ReadOnlySpan<byte> frame)
+        => frame.IsEmpty ? "an empty frame" : $"a {(RespPrefix)frame[0]} frame of {frame.Length} bytes";
 
     /// <summary>
     /// Sends that found the write lock busy, waiting for the holder to write them; only used when
@@ -1132,6 +1382,15 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
             if (IsOutOfBand(frame) && OnOutOfBand(frame)) continue;
 
+            // the frame that answers a sequence check (see SequenceCheckHead): validated here, never handed to
+            // anybody; a failure has already closed the connection, so there is nothing left to drain
+            if (_awaitingSequenceCheck)
+            {
+                _awaitingSequenceCheck = false;
+                if (!ValidateSequenceCheck(frame)) return;
+                continue;
+            }
+
             if (_pending.TryDequeue(out var entry))
             {
                 // offered first: a redirect is an instruction, not an answer, and completing the
@@ -1139,9 +1398,31 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 // written: a stale entry's frame is simply consumed (see PendingEntry)
                 if (!(entry.IsCurrent && TryHandOff(frame, entry.Message)))
                 {
-                    // the buffer goes along with the bytes, so a message whose result IS the frame can
-                    // retain it rather than copy it out
-                    entry.Message.TrySetResult(entry.Token, frame, buffer);
+                    if (entry.SequenceChecked)
+                    {
+                        // a checked reply waits for its check; a stale life has nobody waiting, so its frame is
+                        // simply consumed and only the check is validated
+                        switch (entry.IsCurrent ? LookAhead(in entry, frame, buffer) : LookAheadResult.NotYet)
+                        {
+                            case LookAheadResult.Closed: return;
+                            case LookAheadResult.Delivered: break;
+                            default:
+                                if (entry.IsCurrent) Park(in entry, frame, buffer);
+                                _awaitingSequenceCheck = true;
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        // the buffer goes along with the bytes, so a message whose result IS the frame can
+                        // retain it rather than copy it out
+                        entry.Message.TrySetResult(entry.Token, frame, buffer);
+                    }
+                }
+                else if (entry.SequenceChecked)
+                {
+                    // handed off (a redirect, a receipt): nothing to hold, but the check still follows
+                    _awaitingSequenceCheck = true;
                 }
             }
 
@@ -1184,6 +1465,9 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         {
             entry.Message.TrySetException(entry.Token, reason, definite: false);
         }
+
+        // a reply held for a check that will now never arrive is pending in the same sense: answered, unverified
+        FaultParked(reason);
 
         // and what never reached the socket: DEFINITE, since none of it was written. A sender racing this
         // close can still enqueue after it; the holder's drain sees the connection closed and fails those too.

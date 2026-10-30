@@ -36,5 +36,22 @@ public class HighIntegrityMovedUnitTests(ITestOutputHelper log)
         await y;
         Assert.Equal(2, await db.StringGetAsync(a));
         Assert.Equal(2, await db.StringGetAsync(b));
+
+        // and the mode was actually in force: every interactive connection checked its replies, and the node
+        // the redirect went to has validated checks of its own - a MOVED must not leave either side out of step
+        long checks = 0;
+        foreach (var endpoint in client.GetEndPoints())
+        {
+            var connection = client.Connections.InteractiveEndpoint(endpoint).ConnectionForDiagnostics;
+            if (connection is null) continue;
+            Assert.False(connection.IsClosed);
+            var passed = connection.SequenceChecksPassed;
+            if (highIntegrity) Assert.True(passed > 0, $"no checks validated on {endpoint}");
+            else Assert.Equal(0, passed);
+            checks += passed;
+        }
+
+        if (highIntegrity) Assert.True(checks >= 8, $"expected a check per command, saw {checks}");
+        log.WriteLine($"sequence checks validated: {checks}");
     }
 }

@@ -94,6 +94,24 @@ namespace StackExchange.Redis
             return new RedisConnectionException(ConnectionFailureType.SocketClosed, CommandFlags.None, message, null, CommandStatus.Unknown);
         }
 
+        /// <inheritdoc/>
+        /// <remarks>
+        /// High-integrity mode's failure, under the shipped type and <see cref="ConnectionFailureType.ResponseIntegrityFailure"/>:
+        /// the held command fails with it, the connection closes with it, and <c>ConnectionFailed</c> reports that
+        /// type - so a caller filtering on it sees the same thing v3 raised. The message names the endpoint and
+        /// the shape of what arrived, never its contents.
+        /// </remarks>
+        protected override Exception CreateSequenceCheckFault(uint expected, ReadOnlySpan<byte> frame)
+        {
+            var where = Server?.EndPoint is { } endpoint ? " on " + Format.ToString(endpoint) : "";
+            return new RedisConnectionException(
+                ConnectionFailureType.ResponseIntegrityFailure,
+                CommandFlags.None,
+                $"High-integrity mode detected possible protocol de-sync{where}: expected sequence check {expected}, received {DescribeFrame(frame)}.",
+                null,
+                CommandStatus.Unknown);
+        }
+
         /// <summary>
         /// Whether deliveries on this connection can arrive as ordinary arrays, not only as push frames.
         /// </summary>
