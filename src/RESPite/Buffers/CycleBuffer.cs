@@ -260,7 +260,7 @@ public partial struct CycleBuffer
         if (startSegment is null)
         {
             Debug.Assert(
-                endSegmentLength == 0 & endSegmentCommitted == 0,
+                (endSegmentLength == 0) & (endSegmentCommitted == 0),
                 "un-init state should be zero");
             return;
         }
