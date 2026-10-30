@@ -265,6 +265,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool KeyPersist(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyPersist(ToInner(key), flags);
 
+        public bool KeyBless(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyBless(ToInner(key), bless, flags);
+
+        public bool KeyUnbless(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyUnbless(ToInner(key), bless, flags);
+
+        public BlessFlags KeyBlessFlags(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyBlessFlags(ToInner(key), flags);
+
         public RedisKey KeyRandom(CommandFlags flags = CommandFlags.None) =>
             throw new NotSupportedException("RANDOMKEY is not supported when a key-prefix is specified");
 
