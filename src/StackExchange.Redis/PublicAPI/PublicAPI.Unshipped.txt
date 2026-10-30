@@ -37,3 +37,17 @@ StackExchange.Redis.Availability.LagAwareOptions.SetUserPfxCertificate(string! u
 override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.AfterConnectAsync(StackExchange.Redis.ConnectionMultiplexer! multiplexer, System.Action<string!>! log) -> System.Threading.Tasks.Task!
 *REMOVED*override StackExchange.Redis.Configuration.AzureOptionsProvider.AfterConnectAsync(StackExchange.Redis.ConnectionMultiplexer! muxer, System.Action<string!>! log) -> System.Threading.Tasks.Task!
 override StackExchange.Redis.Configuration.AzureOptionsProvider.AfterConnectAsync(StackExchange.Redis.ConnectionMultiplexer! multiplexer, System.Action<string!>! log) -> System.Threading.Tasks.Task!
+StackExchange.Redis.KeyNotificationType.ArInsert = 55 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ArMSet = 56 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ArRing = 57 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ArSeek = 58 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.KeyMiss = 1005 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.PfAdd = 59 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SExpire = 60 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SInterStore = 62 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SDiffStore = 65 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SPersist = 61 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SUnionStore = 64 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SetBit = 54 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZRangeStore = 63 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.RedisType.Bitmap = 10 -> StackExchange.Redis.RedisType
