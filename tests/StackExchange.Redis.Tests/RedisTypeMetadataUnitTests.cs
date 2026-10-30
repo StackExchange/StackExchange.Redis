@@ -21,7 +21,6 @@ public class RedisTypeMetadataUnitTests
     [InlineData("vectorset", RedisType.VectorSet)]
     [InlineData("array", RedisType.Array)]
     [InlineData("bitmap", RedisType.Bitmap)]
-    [InlineData("gcra", RedisType.Gcra)]
     // parsing is case-insensitive (as it was in v2, which used Enum.TryParse with ignoreCase)
     [InlineData("NONE", RedisType.None)]
     [InlineData("None", RedisType.None)]

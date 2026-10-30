@@ -479,7 +479,6 @@ public class KeyNotificationUnitTests(ITestOutputHelper log)
     [InlineData("armset", KeyNotificationType.ArMSet)]
     [InlineData("arring", KeyNotificationType.ArRing)]
     [InlineData("arseek", KeyNotificationType.ArSeek)]
-    [InlineData("gcra", KeyNotificationType.Gcra)]
     [InlineData("pfadd", KeyNotificationType.PfAdd)]
     [InlineData("sexpire", KeyNotificationType.SExpire)]
     [InlineData("spersist", KeyNotificationType.SPersist)]

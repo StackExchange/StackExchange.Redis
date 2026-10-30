@@ -101,12 +101,6 @@ namespace StackExchange.Redis
         /// <remarks>Redis 8.12+. A string bitmap reports <see cref="String"/>; only the native representation reports this type.</remarks>
         [AsciiHash("bitmap")]
         Bitmap,
-
-        /// <summary>
-        /// A GCRA (generic cell rate algorithm) rate-limiter.
-        /// </summary>
-        [AsciiHash("gcra")]
-        Gcra,
     }
 
     /// <summary>

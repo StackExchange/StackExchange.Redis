@@ -130,18 +130,16 @@ public enum KeyNotificationType
     ArRing = 57,
     [AsciiHash("arseek")]
     ArSeek = 58,
-    [AsciiHash("gcra")]
-    Gcra = 59,
     [AsciiHash("pfadd")]
-    PfAdd = 60,
+    PfAdd = 59,
     [AsciiHash("sexpire")]
-    SExpire = 61,
+    SExpire = 60,
     [AsciiHash("spersist")]
-    SPersist = 62,
+    SPersist = 61,
     [AsciiHash("sinterstore")]
-    SInterStore = 63,
+    SInterStore = 62,
     [AsciiHash("zrangestore")]
-    ZRangeStore = 64,
+    ZRangeStore = 63,
 
     // side-effect notifications
     [AsciiHash("expired")]
