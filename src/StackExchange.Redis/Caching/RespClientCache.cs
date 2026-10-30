@@ -84,6 +84,7 @@ namespace StackExchange.Redis.Caching
         private long _refusedRaced;
         private long _redundantFills;
         private long _refusedError;
+        private long _refusedUntracked;
         private long _coalesced;
         private long _expired;
         private long _refreshes;
@@ -469,6 +470,17 @@ namespace StackExchange.Redis.Caching
         /// worth investigating on its own: errors should be rare, and caching them would have hidden that.
         /// </remarks>
         public long RefusedError => Volatile.Read(ref _refusedError);
+
+        /// <summary>
+        /// Fills refused because the request reached the server without its <c>CLIENT CACHING</c> prefix, so the
+        /// server is not tracking the keys and nothing would ever invalidate the entry.
+        /// </summary>
+        /// <remarks>
+        /// An <c>ASK</c> redirect is what does this today: <c>ASKING</c> and the prefix cannot both precede one
+        /// command, each clears the other, and the redirect wins (see <c>RespPayloadOperation.DropPrefix</c>). So a
+        /// read of a key mid-migration is served uncached. Expect zero outside a slot migration.
+        /// </remarks>
+        public long RefusedUntracked => Volatile.Read(ref _refusedUntracked);
 
         /// <summary>
         /// Invalidate one key, as reported by the server. Allocation-free, and cheap when the key is not
@@ -1098,6 +1110,15 @@ namespace StackExchange.Redis.Caching
 
         private bool TryCompleteCore(in RespFill fill, RespPayload response)
         {
+            if (response.PrefixDropped)
+            {
+                // the server never saw the CLIENT CACHING YES, so under an opt-in mode it is not tracking these keys;
+                // stored, this reply would sit here until eviction with no invalidation ever coming
+                Interlocked.Increment(ref _refusedUntracked);
+                fill.Key.Dispose();
+                return false;
+            }
+
             if (!IsCacheableReply(response.Span))
             {
                 Interlocked.Increment(ref _refusedError);

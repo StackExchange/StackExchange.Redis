@@ -1265,11 +1265,22 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
+        /// <para>
         /// <b>Declined when there is no live connection, rather than backlogged.</b> A backlog drains one
         /// operation at a time, so the pair would lose the adjacency that is the entire point - another
         /// sender can take the write lock between them, and the server would apply the <c>ASKING</c> to
         /// that command instead. Declining lets the redirect stand as the error it arrived as, which is
         /// also the more honest answer: the node we were asked to try is not reachable.
+        /// </para>
+        /// <para>
+        /// <b>Nothing else may sit between <c>ASKING</c> and the command either</b>, including the two framing
+        /// extras this library adds: a <c>CLIENT CACHING</c> prefix frame or a high-integrity sequence check in
+        /// that gap is "the next command" as far as the server is concerned, and clears the <c>ASKING</c> - the
+        /// redirected command then answers <c>-MOVED</c> and, having already followed one redirect, fails. So the
+        /// prefix is dropped (<see cref="RespPayloadOperation.DropPrefix"/> says what that costs) and the
+        /// <c>ASKING</c> is exempt from the check, which lands behind the command as a transaction's does behind
+        /// <c>EXEC</c>.
+        /// </para>
         /// </remarks>
         internal override bool TryResendAsking(RespPayloadOperation operation)
         {
@@ -1281,9 +1292,11 @@ namespace StackExchange.Redis
             }
 
             Reprofile(operation, isMoved: false);
+            operation.DropPrefix();
 
             var asking = RespPayloadOperation.Rent();
             asking.Attach(AskingFrame, CommandFlags.None, default);
+            asking.SequenceChecked = false; // ASKING opens a two-command span; the check closes it
             if (!connection.Send(asking, operation))
             {
                 RespPayloadOperation.DiscardReply(asking);

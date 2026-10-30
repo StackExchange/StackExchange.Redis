@@ -2052,6 +2052,37 @@ public class RespClientCacheTests
     }
 
     [Fact]
+    public void AReplyWhoseRequestLostItsPrefixIsNotStored()
+    {
+        // an ASK redirect re-sends the read behind ASKING and without its CLIENT CACHING YES (the two cannot both
+        // precede one command), so the server is not tracking the key: the reply is marked, and must not be kept
+        using var cache = new RespClientCache(Mode(CacheTrackingMode.TrackingOptIn));
+
+        var frame = Get("abc");
+        Assert.True(cache.TryBeginFill(ref frame, 0, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, out var fill));
+        Assert.Equal(CachingYes, PrefixOf(fill.Key));
+
+        var payload = RespPayload.Create(Utf8("$5\r\nhello\r\n"));
+        payload.PrefixDropped = true;
+        try
+        {
+            Assert.False(cache.TryComplete(fill, payload));
+        }
+        finally
+        {
+            payload.Release();
+        }
+
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(1, cache.RefusedUntracked);
+
+        // and the next read misses and fills for itself, rather than finding a stale entry
+        var again = Get("abc");
+        Assert.True(cache.TryBeginFill(ref again, 0, CommandFlags.CommandRetryReadOnly | CommandFlags.CacheOptIn, out fill));
+        fill.Abandon();
+    }
+
+    [Fact]
     public void TrackingModeSaysNoForAnOptedOutReadAndNothingOtherwise()
     {
         using var cache = new RespClientCache(Mode(CacheTrackingMode.Tracking));

@@ -179,6 +179,38 @@ namespace StackExchange.Redis
         internal bool HasFollowedRedirect { get; set; }
 
         /// <summary>
+        /// Whether this command was re-issued without the prefix frame it was composed with; see
+        /// <see cref="DropPrefix"/>. Copied onto the reply (<see cref="RespPayload.PrefixDropped"/>), where the cache
+        /// reads it.
+        /// </summary>
+        internal bool PrefixDropped { get; private set; }
+
+        /// <summary>Forget the prefix frame, because the next send cannot carry it; the reply will say so.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b><c>ASKING</c> and <c>CLIENT CACHING</c> both apply to "the next command", and each is the other's next
+        /// command.</b> The server clears either flag after any command that is not the one that set it (outside
+        /// <c>MULTI</c>), so there is no order that keeps both: <c>ASKING, CLIENT CACHING YES, GET</c> answers
+        /// <c>-MOVED</c>, and <c>CLIENT CACHING YES, ASKING, GET</c> is served but the key is never tracked - measured
+        /// against Redis 8.9 with a slot set <c>IMPORTING</c>, and plain to read in <c>resetClient</c>.
+        /// </para>
+        /// <para>
+        /// The redirect is the one that cannot be given up - without it the command fails - so the modifier goes.
+        /// An <c>ASK</c>-redirected read is served uncached: the reply is marked and the cache refuses to store it
+        /// (<c>RespClientCache.RefusedUntracked</c>), because an entry the server is not tracking would sit there
+        /// until eviction with no invalidation ever coming. A dropped <c>CLIENT CACHING NO</c> costs one spurious
+        /// invalidation push for a key the cache does not hold, which is harmless. The key is mid-migration either
+        /// way, so this is one uncached read of a key that is about to move.
+        /// </para>
+        /// </remarks>
+        internal void DropPrefix()
+        {
+            if (Prefix is null) return;
+            Prefix = null;
+            PrefixDropped = true;
+        }
+
+        /// <summary>
         /// Whether this command's next reply is a <c>+QUEUED</c> receipt rather than its result.
         /// </summary>
         /// <remarks>
@@ -534,6 +566,7 @@ namespace StackExchange.Redis
         protected override void OnReset()
         {
             HasFollowedRedirect = false;
+            PrefixDropped = false;
             Command = RedisCommand.NONE;
             Observer = null;
             Server = null;
@@ -705,11 +738,18 @@ namespace StackExchange.Redis
             if (source is not null && source.TryReserve(frame, out var reservation)
                 && reservation.Owner is RefCountedBuffer buffer)
             {
-                return new RespPayload(buffer, reservation.Offset, reservation.Length);
+                return Stamp(new RespPayload(buffer, reservation.Offset, reservation.Length));
             }
 
             // no owner, or the span is not a window onto it: the bytes are valid only for this call
-            return RespPayload.Create(frame);
+            return Stamp(RespPayload.Create(frame));
+        }
+
+        /// <summary>Carry onto the reply what the cache needs to know about how the request was sent.</summary>
+        private RespPayload Stamp(RespPayload payload)
+        {
+            if (PrefixDropped) payload.PrefixDropped = true;
+            return payload;
         }
 
         protected override RespPayload ParseFrame(in ReadOnlySequence<byte> frame)
@@ -719,7 +759,7 @@ namespace StackExchange.Redis
             try
             {
                 frame.CopyTo(buffer);
-                return RespPayload.Create(new ReadOnlySpan<byte>(buffer, 0, length));
+                return Stamp(RespPayload.Create(new ReadOnlySpan<byte>(buffer, 0, length)));
             }
             finally
             {

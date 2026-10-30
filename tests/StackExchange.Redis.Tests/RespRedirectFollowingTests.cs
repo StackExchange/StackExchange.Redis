@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Operations;
 using RESPite.Transports;
+using StackExchange.Redis.Caching;
 using Xunit;
 
 namespace StackExchange.Redis.Tests;
@@ -60,15 +61,24 @@ public class RespRedirectFollowingTests
 
         internal string Written => Transport.Written;
 
-        internal static Node Create(RespRedirectRouter router, EndPoint endpoint)
+        internal static Node Create(RespRedirectRouter router, EndPoint endpoint, byte[]? sequenceCheckHead = null)
         {
             var node = new Node();
             node.Executor = new RespEndpointExecutor(
-                _ => Task.FromResult<RespConnection>(new RespClientConnection(node.Transport, router)),
+                _ => Task.FromResult<RespConnection>(new RespClientConnection(node.Transport, router) { SequenceCheckHead = sequenceCheckHead }),
                 endpoint: endpoint);
             return node;
         }
     }
+
+    /// <summary>What <c>RespConnectionManager</c> sets for high-integrity mode: <c>ECHO</c> with a 4-byte token to follow.</summary>
+    private static readonly byte[] EchoHead = "*2\r\n$4\r\nECHO\r\n$4\r\n"u8.ToArray();
+
+    /// <summary>The token bytes of the n'th sequence check, as they appear in the written text and in its reply.</summary>
+    private static string Token(uint n) => new([(char)(n & 0xFF), (char)((n >> 8) & 0xFF), (char)((n >> 16) & 0xFF), (char)(n >> 24)]);
+
+    /// <summary>The reply to the n'th sequence check.</summary>
+    private static string CheckReply(uint n) => $"$4\r\n{Token(n)}\r\n";
 
     [Fact]
     public async Task AMovedIsFollowedAndTheAnswerComesFromTheNewNode()
@@ -154,6 +164,104 @@ public class RespRedirectFollowingTests
         Assert.Equal("mine", (string?)await pending);
 
         Assert.Equal(0, moves); // ASK says THIS KEY is migrating, not that the slot has moved
+    }
+
+    [Fact]
+    public async Task AnAskDropsTheCachePrefixAndTheReplyIsNotStored()
+    {
+        // ASKING and CLIENT CACHING both apply to "the next command", and each is the other's next command:
+        // measured, ASKING, CLIENT CACHING YES, GET answers -MOVED, and CLIENT CACHING YES, ASKING, GET is served
+        // but never tracked. The redirect is the one that cannot be given up, so the prefix is dropped - and the
+        // reply must then NOT be cached, because the server is not tracking the key and nothing would invalidate it
+        var owner = new IPEndPoint(IPAddress.Loopback, 7001);
+        RespMultiplexerExecutor muxer = null!;
+
+        var wrongNode = Node.Create((in RespRedirect r, RespPayloadOperation op) => muxer.TryFollowRedirect(in r, op), new IPEndPoint(IPAddress.Loopback, 7000));
+        var rightNode = Node.Create((in RespRedirect r, RespPayloadOperation op) => muxer.TryFollowRedirect(in r, op), owner);
+
+        var topology = new RespTopology(RespClusterState.Yes);
+        muxer = new RespMultiplexerExecutor(
+            topology,
+            (_, _, _) => wrongNode.Executor,
+            (_, _) => wrongNode.Executor,
+            forEndpoint: ep => Equals(ep, owner) ? rightNode.Executor : null);
+
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, TrackingMode = CacheTrackingMode.TrackingOptIn });
+        var context = new RespDatabaseContext(new RespContext(serverType: ServerType.Cluster).WithTopology(topology).WithExecutor(muxer).WithCache(cache));
+
+        var pending = context.Strings.GetAsync("user:1", CommandFlags.CacheOptIn);
+        await WaitFor(() => wrongNode.Written.Contains("user:1", StringComparison.Ordinal));
+
+        // the first attempt carried the modifier
+        Assert.Equal("*3|$6|CLIENT|$7|CACHING|$3|YES|*2|$3|GET|$6|user:1|", wrongNode.Written);
+
+        // ASKING needs a live connection (see AnAskDoesNotUpdateTheMapAndSendsASKINGFirst), so warm the target
+        var warm = new RespDatabaseContext(new RespContext().WithExecutor(rightNode.Executor));
+        var warming = warm.Strings.GetAsync("warm");
+        await WaitFor(() => rightNode.Written.Length > 0);
+        rightNode.Transport.Reply("$4\r\nwarm\r\n");
+        await warming;
+        var alreadyWritten = rightNode.Written.Length;
+
+        // the prefix's reply, then the redirect
+        wrongNode.Transport.Reply($"+OK\r\n-ASK {ServerSelectionStrategy.GetHashSlot((RedisKey)"user:1")} 127.0.0.1:7001\r\n");
+        await WaitFor(() => rightNode.Written.Contains("user:1", StringComparison.Ordinal));
+
+        // ASKING immediately precedes the command; the prefix is gone, not moved
+        Assert.Equal("*1|$6|ASKING|*2|$3|GET|$6|user:1|", rightNode.Written.Substring(alreadyWritten));
+
+        rightNode.Transport.Reply("+OK\r\n$4\r\nmine\r\n");
+        Assert.Equal("mine", (string?)await pending);
+
+        // the caller got the answer; the cache did not keep it, and says why
+        Assert.Equal(0, cache.Count);
+        Assert.Equal(1, cache.RefusedUntracked);
+    }
+
+    [Fact]
+    public async Task AnAskKeepsTheSequenceCheckBehindTheCommand()
+    {
+        // the same clearing rule applies to a high-integrity check: ASKING, ECHO, GET answers -MOVED (measured).
+        // So the ASKING is exempt and the pair's one check follows the command, as a transaction's follows EXEC
+        var owner = new IPEndPoint(IPAddress.Loopback, 7001);
+        RespMultiplexerExecutor muxer = null!;
+
+        var wrongNode = Node.Create((in RespRedirect r, RespPayloadOperation op) => muxer.TryFollowRedirect(in r, op), new IPEndPoint(IPAddress.Loopback, 7000), EchoHead);
+        var rightNode = Node.Create((in RespRedirect r, RespPayloadOperation op) => muxer.TryFollowRedirect(in r, op), owner, EchoHead);
+
+        var topology = new RespTopology(RespClusterState.Yes);
+        muxer = new RespMultiplexerExecutor(
+            topology,
+            (_, _, _) => wrongNode.Executor,
+            (_, _) => wrongNode.Executor,
+            forEndpoint: ep => Equals(ep, owner) ? rightNode.Executor : null);
+
+        var context = new RespDatabaseContext(new RespContext(serverType: ServerType.Cluster).WithTopology(topology).WithExecutor(muxer));
+
+        var pending = context.Strings.GetAsync("user:1");
+        await WaitFor(() => wrongNode.Written.Contains("ECHO", StringComparison.Ordinal));
+        Assert.Equal($"*2|$3|GET|$6|user:1|*2|$4|ECHO|$4|{Token(1)}|", wrongNode.Written);
+
+        var warm = new RespDatabaseContext(new RespContext().WithExecutor(rightNode.Executor));
+        var warming = warm.Strings.GetAsync("warm");
+        await WaitFor(() => rightNode.Written.Contains("ECHO", StringComparison.Ordinal));
+        rightNode.Transport.Reply("$4\r\nwarm\r\n" + CheckReply(1));
+        await warming;
+        var alreadyWritten = rightNode.Written.Length;
+
+        // the redirect is handed off, and the check behind it is still validated
+        wrongNode.Transport.Reply($"-ASK {ServerSelectionStrategy.GetHashSlot((RedisKey)"user:1")} 127.0.0.1:7001\r\n" + CheckReply(1));
+        await WaitFor(() => rightNode.Written.Contains("user:1", StringComparison.Ordinal) && rightNode.Written.EndsWith("|", StringComparison.Ordinal) && rightNode.Written.Substring(alreadyWritten).Contains("ECHO", StringComparison.Ordinal));
+
+        // one check, behind the command - not between ASKING and the command
+        Assert.Equal($"*1|$6|ASKING|*2|$3|GET|$6|user:1|*2|$4|ECHO|$4|{Token(2)}|", rightNode.Written.Substring(alreadyWritten));
+
+        rightNode.Transport.Reply("+OK\r\n$4\r\nmine\r\n" + CheckReply(2));
+        Assert.Equal("mine", (string?)await pending);
+
+        Assert.Equal(2, rightNode.Executor.ConnectionForDiagnostics!.SequenceChecksPassed);
+        Assert.Equal(1, wrongNode.Executor.ConnectionForDiagnostics!.SequenceChecksPassed);
+        Assert.False(rightNode.Executor.ConnectionForDiagnostics!.IsClosed);
     }
 
     [Fact]
