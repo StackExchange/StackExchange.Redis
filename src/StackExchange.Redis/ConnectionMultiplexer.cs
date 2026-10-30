@@ -1745,18 +1745,19 @@ namespace StackExchange.Redis
         /// anything we are about to depend on being connected.
         /// </para>
         /// <para>
-        /// Both legs, where the subscription connection is a separate one (always under RESP2, and under RESP3
-        /// unless <see cref="ConfigurationOptions.SharedSubscriptionConnection"/> is enabled): under RESP2 the waiters registered
-        /// by <see cref="ServerEndPoint.OnConnectedAsync"/> are only completed once that second connection is
-        /// up, so activating the interactive bridge alone leaves such a wait hanging.
+        /// The dedicated subscription connection (always under RESP2, and under RESP3 unless
+        /// <see cref="ConfigurationOptions.SharedSubscriptionConnection"/> is enabled) is only opened here when there is
+        /// something for it to do straight away: the configuration channel, or existing subscriptions (see
+        /// <see cref="ServerEndPoint.RequiresEagerSubscriptionConnection"/>). Otherwise it is created on first use, so
+        /// an application that never subscribes never pays for the second socket. When it is opened here, the waiters
+        /// registered by <see cref="ServerEndPoint.OnConnectedAsync"/> are only completed once that second connection is
+        /// up, so activating the interactive bridge alone would leave such a wait hanging.
         /// </para>
         /// </remarks>
         internal static void ActivateServer(ServerEndPoint server, ILogger? log)
         {
-            // bool hasSubscriptions = GetSubscriptionsCount() != 0;
             server.Activate(ConnectionType.Interactive, log);
-            // if (hasSubscriptions && server.SupportsSubscriptions && !server.SharesSubscriptionConnection())
-            if (server.SupportsSubscriptions && !server.SharesSubscriptionConnection())
+            if (server.RequiresEagerSubscriptionConnection)
             {
                 // Intentionally not logging the sub connection
                 server.Activate(ConnectionType.Subscription, null);
@@ -1945,7 +1946,7 @@ namespace StackExchange.Redis
                         // Log current state after await
                         foreach (var server in servers)
                         {
-                            log?.LogInformationEndpointState(new(server.EndPoint), server.InteractiveConnectionState, server.SubscriptionConnectionState);
+                            log?.LogInformationEndpointState(new(server.EndPoint), server.InteractiveConnectionState, server.SubscriptionConnectionStateDescription);
                         }
 
                         log?.LogInformationTaskSummary();

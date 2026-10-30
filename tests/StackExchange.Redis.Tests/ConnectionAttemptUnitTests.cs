@@ -25,6 +25,12 @@ public class ConnectionAttemptUnitTests(ITestOutputHelper output)
 
         await using var conn = await ConnectionMultiplexer.ConnectAsync(options);
 
+        // the dedicated subscription connection is opened on first use (this config has no configuration channel
+        // to subscribe to at startup), so give it a reason to exist: that attempt should be reported like any other
+        await WaitForAsync(() => attempts.Count(a => a.IsSuccess) >= 1);
+        Assert.DoesNotContain(attempts, a => a.ConnectionType == ConnectionType.Subscription);
+        await conn.GetSubscriber().SubscribeAsync(RedisChannel.Literal(nameof(SuccessfulAttemptsAreReported)), (_, _) => { });
+
         await WaitForAsync(() => attempts.Count(a => a.IsSuccess) >= 2);
         var interactive = Assert.Single(attempts, a => a.ConnectionType == ConnectionType.Interactive);
         var subscription = Assert.Single(attempts, a => a.ConnectionType == ConnectionType.Subscription);
