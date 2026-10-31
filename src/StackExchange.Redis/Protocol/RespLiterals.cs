@@ -338,6 +338,54 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Kill { get; }
 
+        /// <summary>The <c>TYPE</c> operand of <c>CLIENT KILL</c>; a client type follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Type { get; }
+
+        /// <summary>The <c>normal</c> client type of <c>CLIENT KILL TYPE</c>.</summary>
+        [Resp("normal")]
+        internal static partial RespFragment Normal { get; }
+
+        /// <summary>The <c>replica</c> client type of <c>CLIENT KILL TYPE</c>, where the server knows the word.</summary>
+        [Resp("replica")]
+        internal static partial RespFragment Replica { get; }
+
+        /// <summary>The <c>slave</c> client type of <c>CLIENT KILL TYPE</c>, for servers that pre-date <c>replica</c>.</summary>
+        [Resp("slave")]
+        internal static partial RespFragment Slave { get; }
+
+        /// <summary>The <c>pubsub</c> client type of <c>CLIENT KILL TYPE</c>.</summary>
+        [Resp("pubsub")]
+        internal static partial RespFragment PubSub { get; }
+
+        /// <summary>The <c>USERNAME</c> operand of <c>CLIENT KILL</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Username { get; }
+
+        /// <summary>The <c>ADDR</c> operand of <c>CLIENT KILL</c>: the client's own address.</summary>
+        [Resp]
+        internal static partial RespFragment Addr { get; }
+
+        /// <summary>The <c>LADDR</c> operand of <c>CLIENT KILL</c>: the server-side (local) address.</summary>
+        [Resp("LADDR")]
+        internal static partial RespFragment LAddr { get; }
+
+        /// <summary>The <c>SKIPME</c> operand of <c>CLIENT KILL</c>; <c>yes</c> or <c>no</c> follows it.</summary>
+        [Resp("SKIPME")]
+        internal static partial RespFragment SkipMe { get; }
+
+        /// <summary>The <c>MAXAGE</c> operand of <c>CLIENT KILL</c>, in seconds.</summary>
+        [Resp("MAXAGE")]
+        internal static partial RespFragment MaxAge { get; }
+
+        /// <summary>The <c>yes</c> value of <c>CLIENT KILL SKIPME</c>.</summary>
+        [Resp("yes")]
+        internal static partial RespFragment Yes { get; }
+
+        /// <summary>The <c>no</c> value of <c>CLIENT KILL SKIPME</c>.</summary>
+        [Resp("no")]
+        internal static partial RespFragment No { get; }
+
         /// <summary>The <c>NODES</c> subcommand of <c>CLUSTER</c>: every node, as this one sees them.</summary>
         [Resp]
         internal static partial RespFragment Nodes { get; }
@@ -698,5 +746,33 @@ namespace StackExchange.Redis
         /// <summary>The <c>NOTHREAD</c> operand of <c>VSIM</c>.</summary>
         [Resp]
         internal static partial RespFragment NoThread { get; }
+
+        /// <summary>The <c>START</c> subcommand of <c>HOTKEYS</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Start { get; }
+
+        /// <summary>The <c>METRICS</c> operand of <c>HOTKEYS START</c>; a count and that many metric names follow it.</summary>
+        [Resp]
+        internal static partial RespFragment Metrics { get; }
+
+        /// <summary>The <c>CPU</c> metric of <c>HOTKEYS START METRICS</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Cpu { get; }
+
+        /// <summary>The <c>NET</c> metric of <c>HOTKEYS START METRICS</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Net { get; }
+
+        /// <summary>The <c>DURATION</c> operand of <c>HOTKEYS START</c>, in seconds.</summary>
+        [Resp]
+        internal static partial RespFragment Duration { get; }
+
+        /// <summary>The <c>SAMPLE</c> operand of <c>HOTKEYS START</c>; a sampling ratio follows it.</summary>
+        [Resp]
+        internal static partial RespFragment Sample { get; }
+
+        /// <summary>The <c>STOP</c> subcommand of <c>HOTKEYS</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Stop { get; }
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net;
+using StackExchange.Redis.Protocol;
 
 namespace StackExchange.Redis;
 
@@ -120,69 +120,69 @@ public class ClientKillFilter
         return this;
     }
 
-    internal List<RedisValue> ToList(bool withReplicaCommands)
-    {
-        var parts = new List<RedisValue>(15)
-        {
-            RedisLiterals.KILL,
-        };
-        if (Id != null)
-        {
-            parts.Add(RedisLiterals.ID);
-            parts.Add(Id.Value);
-        }
-        if (ClientType != null)
-        {
-            parts.Add(RedisLiterals.TYPE);
-            switch (ClientType.Value)
-            {
-                case Redis.ClientType.Normal:
-                    parts.Add(RedisLiterals.normal);
-                    break;
-                case Redis.ClientType.Replica:
-                    parts.Add(withReplicaCommands ? RedisLiterals.replica : RedisLiterals.slave);
-                    break;
-                case Redis.ClientType.PubSub:
-                    parts.Add(RedisLiterals.pubsub);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(ClientType));
-            }
-        }
-        if (Username != null)
-        {
-            parts.Add(RedisLiterals.USERNAME);
-            parts.Add(Username.AsRedisValue());
-        }
-        if (Endpoint != null)
-        {
-            parts.Add(RedisLiterals.ADDR);
-            parts.Add(Format.ToString(Endpoint).AsRedisValue());
-        }
-        if (ServerEndpoint != null)
-        {
-            parts.Add(RedisLiterals.LADDR);
-            parts.Add(Format.ToString(ServerEndpoint).AsRedisValue());
-        }
-        if (SkipMe != null)
-        {
-            parts.Add(RedisLiterals.SKIPME);
-            parts.Add(SkipMe.Value ? RedisLiterals.yes : RedisLiterals.no);
-        }
-        if (MaxAgeInSeconds != null)
-        {
-            parts.Add(RedisLiterals.MAXAGE);
-            parts.Add(MaxAgeInSeconds);
-        }
-        return parts;
-    }
-
-    /// <summary>The same rendering, as the span-shaped argument list the RESP context takes.</summary>
+    /// <summary>
+    /// The wire form of the filter: <c>KILL</c> plus one <c>NAME value</c> pair per field that was set,
+    /// written straight into the frame as <c>$"{RedisCommand.CLIENT}{operand}"</c>.
+    /// </summary>
+    /// <param name="filter">The filter to render.</param>
     /// <param name="withReplicaCommands">Whether this server says <c>replica</c> rather than <c>slave</c>.</param>
     /// <remarks>
-    /// One encoding, two shapes: <see cref="ToList"/> is what the unit test compares against and what the
-    /// shipped message wanted, and this is what an interpolated request appends. Rendering it twice is how
-    /// the two spellings of <c>CLIENT KILL</c> would come to disagree.
+    /// The one encoding of <c>CLIENT KILL</c>: the loose-argument overload renders through a filter too,
+    /// precisely so that a second copy cannot come to disagree with this one about - say - what a replica
+    /// is called on this server.
     /// </remarks>
-    internal RedisValue[] ToArray(bool withReplicaCommands) => ToList(withReplicaCommands).ToArray();
+    internal readonly struct Operand(ClientKillFilter filter, bool withReplicaCommands) : IRespArgument
+    {
+        public void WriteTo(scoped ref RespRequestBuilder handler)
+        {
+            handler.AppendFormatted(RespLiterals.Kill);
+            if (filter.Id is { } id)
+            {
+                handler.AppendFormatted(RespLiterals.Id);
+                handler.AppendFormatted((RedisValue)id);
+            }
+
+            if (filter.ClientType is { } clientType)
+            {
+                handler.AppendFormatted(RespLiterals.Type);
+                handler.AppendFormatted(clientType switch
+                {
+                    Redis.ClientType.Normal => RespLiterals.Normal,
+                    Redis.ClientType.Replica => withReplicaCommands ? RespLiterals.Replica : RespLiterals.Slave,
+                    Redis.ClientType.PubSub => RespLiterals.PubSub,
+                    _ => throw new ArgumentOutOfRangeException(nameof(ClientType)),
+                });
+            }
+
+            if (filter.Username is { } username)
+            {
+                handler.AppendFormatted(RespLiterals.Username);
+                handler.AppendFormatted(username.AsRedisValue());
+            }
+
+            if (filter.Endpoint is { } endpoint)
+            {
+                handler.AppendFormatted(RespLiterals.Addr);
+                handler.AppendFormatted(Format.ToString(endpoint).AsRedisValue());
+            }
+
+            if (filter.ServerEndpoint is { } serverEndpoint)
+            {
+                handler.AppendFormatted(RespLiterals.LAddr);
+                handler.AppendFormatted(Format.ToString(serverEndpoint).AsRedisValue());
+            }
+
+            if (filter.SkipMe is { } skipMe)
+            {
+                handler.AppendFormatted(RespLiterals.SkipMe);
+                handler.AppendFormatted(skipMe ? RespLiterals.Yes : RespLiterals.No);
+            }
+
+            if (filter.MaxAgeInSeconds is { } maxAge)
+            {
+                handler.AppendFormatted(RespLiterals.MaxAge);
+                handler.AppendFormatted((RedisValue)maxAge);
+            }
+        }
+    }
 }
