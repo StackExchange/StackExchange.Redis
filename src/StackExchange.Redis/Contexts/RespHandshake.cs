@@ -812,13 +812,13 @@ namespace StackExchange.Redis
                 if (endpointType.IsNull)
                 {
                     await context.SendAsync(
-                        $"{RedisCommand.CLIENT}{RespLiterals.Maint_Notifications}{RedisLiterals.ON}")
+                        $"{RedisCommand.CLIENT}{RespLiterals.Maint_Notifications}{RespLiterals.On}")
                         .ConfigureAwait(false);
                 }
                 else
                 {
                     await context.SendAsync(
-                        $"{RedisCommand.CLIENT}{RespLiterals.Maint_Notifications}{RedisLiterals.ON}{RespLiterals.MovingEndpointType}{endpointType}")
+                        $"{RedisCommand.CLIENT}{RespLiterals.Maint_Notifications}{RespLiterals.On}{RespLiterals.MovingEndpointType}{endpointType}")
                         .ConfigureAwait(false);
                 }
 
@@ -1408,34 +1408,15 @@ namespace StackExchange.Redis
         {
             var options = cache.Options;
             var mode = cache.EffectiveTrackingMode;
-            var prefixes = options.PrefixBytes; // the snapshot the cache matches on: the same bytes go to the server
             var command = RedisCommand.CLIENT;
 
             // CLIENT TRACKING ON [BCAST] [PREFIX p]...
             if (mode == Caching.CacheTrackingMode.Broadcast)
             {
-                if (prefixes.Length == 0)
-                {
-                    await context.SendAsync($"{command}{RedisLiterals.TRACKING}{RedisLiterals.ON}{RedisLiterals.BCAST}")
-                        .ConfigureAwait(false);
-                }
-                else
-                {
-                    // built as values rather than composed in the interpolation, because the number of
-                    // PREFIX pairs is not known until here
-                    var args = new RedisValue[3 + (prefixes.Length * 2)];
-                    var index = 0;
-                    args[index++] = RedisLiterals.TRACKING;
-                    args[index++] = RedisLiterals.ON;
-                    args[index++] = RedisLiterals.BCAST;
-                    foreach (var prefix in prefixes)
-                    {
-                        args[index++] = RedisLiterals.PREFIX;
-                        args[index++] = prefix; // bytes, verbatim: no re-encoding on the way out
-                    }
-
-                    await context.SendAsync($"{command}{args}").ConfigureAwait(false);
-                }
+                // the prefixes are the snapshot the cache matches on: the same bytes go to the server
+                await context.SendAsync(
+                    $"{command}{RespLiterals.Tracking}{RespLiterals.On}{RespLiterals.Bcast}{new TrackingPrefixesOperand(options.PrefixBytes)}")
+                    .ConfigureAwait(false);
             }
             else
             {
@@ -1446,9 +1427,27 @@ namespace StackExchange.Redis
                 // what TrackingByPrefix does for an unflagged read inside its prefixes. The prefixes themselves
                 // stay client-side there: PREFIX is refused without BCAST.
                 var refinement = mode is Caching.CacheTrackingMode.TrackingOptIn or Caching.CacheTrackingMode.TrackingByPrefix
-                    ? RedisLiterals.OPTIN
-                    : RedisLiterals.OPTOUT;
-                await context.SendAsync($"{command}{RedisLiterals.TRACKING}{RedisLiterals.ON}{refinement}").ConfigureAwait(false);
+                    ? RespLiterals.OptIn
+                    : RespLiterals.OptOut;
+                await context.SendAsync($"{command}{RespLiterals.Tracking}{RespLiterals.On}{refinement}").ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>The <c>PREFIX p</c> pairs of <c>CLIENT TRACKING ON BCAST</c>; nothing when there are none.</summary>
+        /// <remarks>
+        /// An operand because the number of pairs is not known until the handshake runs; this used to
+        /// render a <c>RedisValue[]</c> and splice it in. The prefix bytes go out verbatim - no
+        /// re-encoding on the way to the server, so the server matches exactly what the cache matches.
+        /// </remarks>
+        internal readonly struct TrackingPrefixesOperand(byte[][] prefixes) : IRespArgument
+        {
+            public void WriteTo(scoped ref RespRequestBuilder handler)
+            {
+                foreach (var prefix in prefixes)
+                {
+                    handler.AppendFormatted(RespLiterals.Prefix);
+                    handler.AppendFormatted((ReadOnlySpan<byte>)prefix);
+                }
             }
         }
 

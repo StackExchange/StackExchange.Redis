@@ -58,6 +58,30 @@ namespace StackExchange.Redis
         [Resp("moving-endpoint-type")]
         internal static partial RespFragment MovingEndpointType { get; }
 
+        /// <summary>The <c>TRACKING</c> sub-command of <c>CLIENT</c>.</summary>
+        [Resp]
+        internal static partial RespFragment Tracking { get; }
+
+        /// <summary>The <c>ON</c> switch, shared by <c>CLIENT TRACKING</c> and <c>CLIENT MAINT_NOTIFICATIONS</c>.</summary>
+        [Resp]
+        internal static partial RespFragment On { get; }
+
+        /// <summary>The <c>BCAST</c> mode of <c>CLIENT TRACKING</c>: invalidation broadcast by prefix.</summary>
+        [Resp]
+        internal static partial RespFragment Bcast { get; }
+
+        /// <summary>The <c>OPTIN</c> refinement of <c>CLIENT TRACKING</c>: track only behind <c>CLIENT CACHING YES</c>.</summary>
+        [Resp]
+        internal static partial RespFragment OptIn { get; }
+
+        /// <summary>The <c>OPTOUT</c> refinement of <c>CLIENT TRACKING</c>: track everything not behind <c>CLIENT CACHING NO</c>.</summary>
+        [Resp]
+        internal static partial RespFragment OptOut { get; }
+
+        /// <summary>The <c>PREFIX</c> operand of <c>CLIENT TRACKING ON BCAST</c>; one prefix follows each.</summary>
+        [Resp]
+        internal static partial RespFragment Prefix { get; }
+
         /// <summary>The <c>LEN</c> operand of <c>LCS</c>.</summary>
         [Resp]
         internal static partial RespFragment Len { get; }
