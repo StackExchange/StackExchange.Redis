@@ -44,6 +44,71 @@ public class ClusterFailoverRolesUnitTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task TopologyRefreshDoesNotRequireAllowAdmin()
+    {
+        var (server, primary, replica) = Create(log);
+        using (server)
+        {
+            // every other test here inherits AllowAdmin=true from the harness, which is exactly how the
+            // gap hid: the refresh re-reads CLUSTER SLOTS through the ordinary endpoint executor, and the
+            // AllowAdmin gate there refused the library's own housekeeping for any ordinarily-configured
+            // client - so after a failover, no map repair, ever (the #3323 investigation)
+            var config = server.GetClientConfig(withPubSub: false);
+            config.AllowAdmin = false;
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+            Assert.False(conn.GetServer(primary).IsReplica);
+            Assert.True(conn.GetServer(replica).IsReplica);
+
+            server.Failover(replica);
+            await conn.ReconfigureAsync("test");
+
+            Assert.True(conn.GetServer(primary).IsReplica);
+            Assert.False(conn.GetServer(replica).IsReplica);
+            await conn.GetDatabase().StringSetAsync("after", "2");
+        }
+    }
+
+    [Fact]
+    public async Task RolesLearnedBeforeTheMapDoNotStrandWrites()
+    {
+        var (server, primary, replica) = Create(log);
+        using (server)
+        {
+            // AllowAdmin=false, as an ordinary client: with it true (the harness default) the topology
+            // refresh always repaired the map before the deadlock could be seen, which is how both halves
+            // of this hid from every other test in this class
+            var config = server.GetClientConfig(withPubSub: false);
+            config.AllowAdmin = false;
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+            var db = conn.GetDatabase();
+            await db.StringSetAsync("before", "1");
+
+            server.Failover(replica);
+
+            // the role arrives before the map catches up - as a reconnect handshake delivers it - so the
+            // stale map routes writes at a known replica and refuses them before any byte goes out: no
+            // -MOVED is coming to heal the map, and the refusal itself must prompt the refresh instead
+            // (the #3323 investigation: writes to a failed-over shard stayed refused until a restart)
+            conn.ConnectionsIfCreated!.OnRole(primary, isReplica: true);
+            Assert.True(conn.GetServer(primary).IsReplica);
+
+            Assert.True(await Poll.UntilAsync(() =>
+            {
+                try
+                {
+                    db.StringSet("after", "2");
+                    return true;
+                }
+                catch (RedisCommandException)
+                {
+                    return false;
+                }
+            }));
+            Assert.Equal("2", await db.StringGetAsync("after"));
+        }
+    }
+
+    [Fact]
     public async Task TopologyRefreshRepairsRolesAfterAFailover()
     {
         var (server, primary, replica) = Create(log);

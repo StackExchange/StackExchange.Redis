@@ -1985,7 +1985,15 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.CommandDisabled(request.Command);
             }
 
+            // ...but not for the library's own traffic. AllowAdmin protects the CALLER-facing surface - a
+            // caller should not FLUSHALL by accident - and the handshake already escapes it by running on a
+            // context over the bare connection, the same exemption the v3 handshake got from SetInternalCall.
+            // The topology refresh has no bare connection: it re-reads CLUSTER SLOTS through this executor
+            // after a failover, and gating it here meant no client without AllowAdmin could ever repair its
+            // slot map - every refresh refused itself, and writes to a failed-over shard only recovered if a
+            // -MOVED happened to win the race against the role being learned (the #3323 investigation).
             if (!config.AllowAdmin
+                && (request.Flags & CommandFlagsInternal.InternalCallFlag) == 0
                 && AdminCommands.IsAdminCommand(
                     request.Command,
                     AdminCommands.TryGetSubCommand(in request, out var subCommand) ? subCommand : null))
@@ -1995,6 +2003,13 @@ namespace StackExchange.Redis
 
             if (server.IsReplica && !server.AllowReplicaWrites && request.Command.IsPrimaryOnly())
             {
+                // The refusal is also evidence. Routing chose this endpoint for a primary-only command, so
+                // whatever routed here - the slot map, after a failover - believes a role this endpoint
+                // contradicts. Said to the manager the way a -MOVED would be, because the refusal happens
+                // before any byte goes out, so no redirect is coming to say it for us: this is the deadlock
+                // RespTopology.RoleLearned's remarks describe (stale map + fresh role = refused client-side,
+                // forever) actually being broken.
+                server.Multiplexer.ConnectionsIfCreated?.OnWriteRefusedByRole(server.EndPoint);
                 throw ExceptionFactory.PrimaryOnly(config.IncludeDetailInExceptions, request.Command, null, server);
             }
         }
