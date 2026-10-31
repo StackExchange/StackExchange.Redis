@@ -157,6 +157,28 @@ namespace StackExchange.Redis
         }
 
         public bool SupportsSubscriptions => Multiplexer.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE);
+
+        /// <summary>
+        /// Whether the dedicated subscription connection should be opened as part of activating this endpoint, rather
+        /// than on first use. That connection is lazy by default: it only costs a socket (and a reconnect, on every
+        /// failover) once there is something to subscribe to, which at activation time means the configuration channel,
+        /// or subscriptions that already exist (and may need to move to this endpoint).
+        /// </summary>
+        internal bool RequiresEagerSubscriptionConnection => SupportsSubscriptions && !SharesSubscriptionConnection()
+            && (Multiplexer.ConfigurationChangedChannel is not null || Multiplexer.AnySubscribed());
+
+        /// <summary>
+        /// Whether the subscription side of this endpoint is as connected as it needs to be: subscriptions are not
+        /// supported, or share the interactive connection, or the dedicated subscription connection has not been
+        /// asked for yet (it is dialled on demand), or it is up. This is the "second leg" check for connect waits:
+        /// an absent connection is not a disconnected one.
+        /// </summary>
+        internal bool IsSubscriberConnectedOrNotRequired
+            => !SupportsSubscriptions || SharesSubscriptionConnection()
+            || Multiplexer.ConnectionsIfCreated is not { } core
+            || !core.HasDedicatedSubscriptionConnection(EndPoint)
+            || core.IsSubscriptionConnected(EndPoint);
+
         public bool SupportsPrimaryWrites => supportsPrimaryWrites ??= !IsReplica || !ReplicaReadOnly || AllowReplicaWrites;
 
         private readonly List<TaskCompletionSource<string>> _pendingConnectionMonitors = new List<TaskCompletionSource<string>>();
@@ -206,6 +228,21 @@ namespace StackExchange.Redis
 
         internal BridgeState SubscriptionConnectionState
             => Multiplexer.ConnectionsIfCreated?.IsSubscriptionConnected(EndPoint) == true ? BridgeState.ConnectedEstablished : InteractiveConnectionState;
+
+        /// <summary>
+        /// <see cref="SubscriptionConnectionState"/> for logs, distinguishing a dedicated subscription connection that
+        /// has simply not been needed yet (it is dialled on demand) from one that is down.
+        /// </summary>
+        internal string SubscriptionConnectionStateDescription
+        {
+            get
+            {
+                if (SharesSubscriptionConnection()) return InteractiveConnectionState.ToString();
+                var core = Multiplexer.ConnectionsIfCreated;
+                if (core is null || !core.HasDedicatedSubscriptionConnection(EndPoint)) return "NotRequired";
+                return (core.IsSubscriptionConnected(EndPoint) ? BridgeState.ConnectedEstablished : BridgeState.Disconnected).ToString();
+            }
+        }
 
         public long OperationCount => Multiplexer.ConnectionsIfCreated?.OperationCount(EndPoint) ?? 0;
 

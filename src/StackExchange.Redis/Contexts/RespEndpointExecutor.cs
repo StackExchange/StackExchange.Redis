@@ -1186,7 +1186,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            return SendRun(connection, QueuedOperation.ToRun(operations), operations.Count, database);
+            return SendRun(connection, QueuedOperation.ToRun(operations), operations.Count, database, profile: true);
         }
 
         /// <inheritdoc/>
@@ -1194,7 +1194,14 @@ namespace StackExchange.Redis
             => SendRun(connection, run, count, Database);
 
         /// <summary>Write a run, preceded by a <c>SELECT</c> if this connection is on another database.</summary>
-        internal bool SendRun(RespConnection connection, RespRunEntry[] run, int count, int database)
+        /// <remarks>
+        /// Only a batch asks for profiling (<paramref name="profile"/>): its commands are ordinary commands
+        /// that happen to travel together, and a batch used to skip profiling altogether because it bypasses
+        /// <c>Dispatch</c>, where single sends start their records (#2175). A transaction's run stays
+        /// unprofiled here, as it always was - its operations answer <c>QUEUED</c> and then answer again
+        /// inside <c>EXEC</c>, which is not the shape a <c>ProfiledCommand</c> describes.
+        /// </remarks>
+        internal bool SendRun(RespConnection connection, RespRunEntry[] run, int count, int database, bool profile = false)
         {
             // a batch's and a transaction's operations are built by the composing executor rather than by
             // Dispatch, so this is where they learn who counts their outcome. Without it a deployment whose
@@ -1207,6 +1214,18 @@ namespace StackExchange.Redis
                     operation.Server = Server;
                     operation.IsSubscription = IsSubscriptionEndpoint;
                     Interlocked.Increment(ref _operationCount);
+
+                    // the same record a single send starts in Dispatch, with the same database rule:
+                    // the COMMAND's database, and -1 for a command that names no database at all
+                    if (profile && _startProfile is { } start)
+                    {
+                        start(
+                            operation,
+                            operation.Command,
+                            operation.Flags,
+                            CommandFlagsInternal.RequiresDatabase(operation.Command) ? operation.Database : -1,
+                            _endpoint);
+                    }
                 }
             }
 

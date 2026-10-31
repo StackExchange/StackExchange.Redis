@@ -219,6 +219,7 @@ namespace StackExchange.Redis
             operation.Diagnostics.Status = RespCommandStatus.WaitingInBacklog;
             operation.Slot = request.Slot;
             operation.Database = Database; // read if it is ever re-sent on its own, after a redirect
+            operation.Command = request.Command; // identity, for the profiling record (#2175) and diagnostics
 
             lock (_sync)
             {

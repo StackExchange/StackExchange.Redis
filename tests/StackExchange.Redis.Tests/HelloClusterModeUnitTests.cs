@@ -51,6 +51,9 @@ public class HelloClusterModeUnitTests(ITestOutputHelper log)
         // for a reconnect that never has to happen
         await conn.GetSubscriber().SubscribeAsync(RedisChannel.Literal("hello-mode"), static (_, _) => { });
         var endpoint = conn.GetServerSnapshot()[0];
+        // the dedicated subscription connection is lazy (and this config has no configuration channel), so give it
+        // a reason to exist before we try to drop it
+        await conn.GetSubscriber().SubscribeAsync(RedisChannel.Literal(nameof(CrossSlotSurvivesSubscriptionReconnect)), (_, _) => { });
         await WaitUntilAsync(() => endpoint.IsSubscriberConnected, "subscriber connected");
 
         // drop *only* the subscription connection, as the server did in #3284; the reconnect is too quick

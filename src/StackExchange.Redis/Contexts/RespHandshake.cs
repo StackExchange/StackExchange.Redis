@@ -1754,8 +1754,11 @@ namespace StackExchange.Redis
                         reader.SkipChildren();
                     }
 
-                    if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port)
-                        && Format.TryParseEndPoint(host + ":" + port, out var peer))
+                    // host and port arrive as separate tokens, so hand them over separately: gluing them
+                    // with ':' turns an unbracketed IPv6 host into an address with no port (#1422), which
+                    // is the same mistake the sentinel +switch-master handler used to make
+                    if (host is { Length: > 0 } && port is { Length: > 0 }
+                        && Format.TryParseEndPoint(host, port, out var peer))
                     {
                         (peers ??= new()).Add(peer);
                     }
@@ -1774,8 +1777,9 @@ namespace StackExchange.Redis
                 if (reader.TryMoveNext()) port = reader.IsScalar ? reader.ReadString() : null;
 
                 List<EndPoint>? peers = null;
-                if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(port)
-                    && Format.TryParseEndPoint(host + ":" + port, out var primary))
+                // separate tokens, separate arguments: see ParsePrimary on unbracketed IPv6 hosts
+                if (host is { Length: > 0 } && port is { Length: > 0 }
+                    && Format.TryParseEndPoint(host, port, out var primary))
                 {
                     peers = new() { primary };
                 }

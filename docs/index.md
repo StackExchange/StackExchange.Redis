@@ -60,6 +60,7 @@ Documentation
 - [Command groups](Groups) - `db.Strings`, `db.Hashes`, ...: where every command lives, and how they are called
 - [Ad-hoc commands](Execute) - running commands without a dedicated API, building them in pieces with `Compose`, and the low-allocation `ExecuteResp` API
 - [Extending the client](Extending) - for library authors: adding commands this client does not have, and migrating off `Execute(string, object[])`
+- [Command coverage](CommandCoverage) - which server commands the library does not expose, and why
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 - [Timeouts](Timeouts) - guidance on dealing with timeout problems
 - [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
