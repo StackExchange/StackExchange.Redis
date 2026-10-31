@@ -599,6 +599,25 @@ namespace StackExchange.Redis
             _multiplexer.ReconfigureIfNeeded(null, false, "unroutable redirect");
         }
 
+        /// <summary>A primary-only command was refused client-side because its routed endpoint is a replica.</summary>
+        /// <param name="endpoint">The endpoint the command was routed to.</param>
+        /// <remarks>
+        /// As strong a staleness signal as a <c>-MOVED</c>, and the one a failover leaves behind when the
+        /// demoted node's role was learned before the slot map caught up: the write never reaches the server,
+        /// so no redirect is coming to correct the map (the deadlock <see cref="RespTopology.RoleLearned"/>
+        /// describes). One reconfiguration per suspicion, not per refused command: the flag is only raised
+        /// when it was clear, and <c>SetSlotRange</c> clears it, so a steady stream of refused writes asks
+        /// once and then waits for the answer.
+        /// </remarks>
+        internal void OnWriteRefusedByRole(EndPoint endpoint)
+        {
+            if (!_topology.SlotMapSuspect)
+            {
+                _topology.SlotMapSuspect = true;
+                _multiplexer.ReconfigureIfNeeded(endpoint, false, "write refused: endpoint is a replica");
+            }
+        }
+
         /// <summary>One executor - and so one socket - per endpoint for RESP2 deliveries, created on demand.</summary>
         private readonly ConcurrentDictionary<EndPoint, RespEndpointExecutor> _subscriptions = new();
 
@@ -2334,7 +2353,10 @@ namespace StackExchange.Redis
                 try
                 {
                     var context = new RespDatabaseContext(new RespContext(_multiplexer.CommandMap, database: -1).WithExecutor(executor));
-                    var role = await context.SendAsync($"{RedisCommand.ROLE}", handler: RespHandshake.RoleHandler.Instance).ConfigureAwait(false);
+                    var role = await context.SendAsync(
+                        $"{RedisCommand.ROLE}",
+                        flags: CommandFlagsInternal.InternalCallFlag,
+                        handler: RespHandshake.RoleHandler.Instance).ConfigureAwait(false);
                     _topology.OnRole(endpoint, role.Role);
                     if (role.Peers is not null)
                     {
@@ -2433,8 +2455,12 @@ namespace StackExchange.Redis
 
                     try
                     {
+                        // flagged as the library's own call: this send goes through the published endpoint
+                        // executor, whose AllowAdmin gate is for the caller-facing surface - without the
+                        // flag, a client without AllowAdmin could never re-read its slot map (#3323)
                         var slots = await Context(pair.Value).SendAsync(
                             $"{RedisCommand.CLUSTER}{RespLiterals.Slots}",
+                            flags: CommandFlagsInternal.InternalCallFlag,
                             handler: RespHandshake.ClusterSlotsHandler.Instance).ConfigureAwait(false);
 
                         if (slots is not { Assignments.Count: > 0 }) continue; // answered, told us nothing
@@ -2462,7 +2488,9 @@ namespace StackExchange.Redis
                 try
                 {
                     var role = await Context(pair.Value).SendAsync(
-                        $"{RedisCommand.ROLE}", handler: RespHandshake.RoleHandler.Instance).ConfigureAwait(false);
+                        $"{RedisCommand.ROLE}",
+                        flags: CommandFlagsInternal.InternalCallFlag,
+                        handler: RespHandshake.RoleHandler.Instance).ConfigureAwait(false);
 
                     _topology.OnRole(pair.Key, role.Role);
                     if (role.Peers is not null)
