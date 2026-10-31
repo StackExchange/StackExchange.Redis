@@ -1375,6 +1375,17 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// The dedicated subscription connection's availability, for the reconfigure connect wait: completes
+        /// when the eagerly-dialled socket (<see cref="DialSubscriptionSocketIfRequired"/>) has established.
+        /// <see cref="RespEndpointExecutor.ConnectNowAsync"/> short-circuits when it already has, joins the
+        /// dial in flight when it has not, and declines onto a completed task under backoff - so the wait is
+        /// bounded by the caller's budget, never hung on a leg that is not coming.
+        /// </summary>
+        /// <param name="endpoint">The endpoint whose subscription leg the connect is waiting on.</param>
+        internal Task SubscriptionConnectedAsync(EndPoint endpoint)
+            => SubscriptionEndpoint(endpoint).ConnectNowAsync(CancellationToken.None);
+
+        /// <summary>
         /// Dial a subscription socket when activation already knows it will be needed: for the library's own
         /// configuration channel, or for subscriptions that already exist and may need to move to this endpoint.
         /// Otherwise it stays undialled - the socket is dialled on first use, so an application that never
