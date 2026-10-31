@@ -1974,6 +1974,33 @@ namespace StackExchange.Redis
                             available[i] = server.OnConnectedAsync(log, sendTracerIfConnected: isFirstIteration, autoConfigureIfConnected: reconfigureAll);
                         }
 
+                        // One topology read per pass, by the core that owns the connections - replacing the
+                        // v3 AutoConfigureAsync sweep rather than joining it, which is why it is not
+                        // per endpoint. Before the loop below, deliberately: that loop reads IsReplica to
+                        // decide which servers are primaries, so a role repaired afterwards would be a
+                        // reconfiguration that disagrees with itself.
+                        //
+                        // ...and BEFORE the wait, not after it, because the refresh only uses connections
+                        // that are already live and the wait is bounded by ConnectTimeout: a reconfigure
+                        // prompted by a node going AWAY spent that whole wait dialling the very node that
+                        // is gone before asking the healthy ones where the slots went, so a failover's
+                        // write outage was detection + ConnectTimeout instead of detection (the #3323
+                        // investigation). A pass that starts with nothing live gets its answer from the
+                        // handshakes this wait completes - a first connection asks CLUSTER SLOTS itself
+                        // when there is no map or it is suspect - and the second iteration (new cluster
+                        // members) refreshes again over whatever iteration one established.
+                        //
+                        // Ownership is tested rather than assumed. This core can dial lazily, so a deployment
+                        // nobody has sent a command to may have nothing open here, and then the per-server
+                        // reads below are the only thing that can answer; "refreshing" from a core with no
+                        // connections sends nothing and reports success, which is how
+                        // MaintenanceTopologyRefreshTests and PeriodicTopologyRefreshTests came to count
+                        // zero CLUSTER commands for a pass that was supposed to re-read the topology.
+                        if (ConnectionsIfCreated is { HasAnyInteractiveConnection: true } refreshing)
+                        {
+                            await refreshing.RefreshTopologyAsync(log).ForAwait();
+                        }
+
                         watch ??= ValueStopwatch.StartNew();
                         var remaining = RawConfig.ConnectTimeout - watch.Value.ElapsedMilliseconds;
                         log?.LogInformationAllowingEndpointsToRespond(available.Length, TimeSpan.FromMilliseconds(remaining));
@@ -2001,23 +2028,6 @@ namespace StackExchange.Redis
                         }
 
                         log?.LogInformationTaskSummary();
-
-                        // One topology read per pass, by the core that owns the connections - replacing the
-                        // v3 AutoConfigureAsync sweep rather than joining it, which is why it is not
-                        // per endpoint. Before the loop below, deliberately: that loop reads IsReplica to
-                        // decide which servers are primaries, so a role repaired afterwards would be a
-                        // reconfiguration that disagrees with itself.
-                        //
-                        // Ownership is tested rather than assumed. This core can dial lazily, so a deployment
-                        // nobody has sent a command to may have nothing open here, and then the per-server
-                        // reads below are the only thing that can answer; "refreshing" from a core with no
-                        // connections sends nothing and reports success, which is how
-                        // MaintenanceTopologyRefreshTests and PeriodicTopologyRefreshTests came to count
-                        // zero CLUSTER commands for a pass that was supposed to re-read the topology.
-                        if (ConnectionsIfCreated is { HasAnyInteractiveConnection: true } refreshing)
-                        {
-                            await refreshing.RefreshTopologyAsync(log).ForAwait();
-                        }
 
                         EndPointCollection? updatedClusterEndpointCollection = null;
                         for (int i = 0; i < available.Length; i++)

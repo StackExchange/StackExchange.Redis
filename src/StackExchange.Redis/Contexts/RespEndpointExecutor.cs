@@ -1595,6 +1595,15 @@ namespace StackExchange.Redis
         /// </remarks>
         private Exception? _lastConnectFault;
 
+        /// <summary>Whether losing the current connection should prompt a topology re-read.</summary>
+        /// <remarks>
+        /// The v3 bridge's <c>reconfigureNextFailure</c>: armed when a connection is published (so only an
+        /// ESTABLISHED connection's loss counts, never a failed dial), consumed by the first
+        /// <see cref="RecordFault"/> that announces a failure - so one socket death noticed twice (the read
+        /// loop's close and a racing send's refusal) still asks for one reconfiguration.
+        /// </remarks>
+        private int _reconfigureOnFailure;
+
         /// <summary>Remember why a connection ended.</summary>
         /// <param name="connection">The connection that is going away.</param>
         /// <param name="wasRequested">
@@ -1642,10 +1651,15 @@ namespace StackExchange.Redis
             // connection was silent - measured by MaintenanceRelaxationTests, which breaks a
             // connection during a relaxed window and waits for somebody to notice.
             //
-            // reconfigure: false, because the caller decides. A connection going away is not by itself a
-            // reason to re-read the topology - OnRepeatedConnectFailure is what judges that, with the
-            // restraint that question needs - and asking for one per dropped socket is the stampede the
-            // rate limit exists to prevent.
+            // reconfigure: once per ESTABLISHED connection lost, which is the v3 contract exactly: the
+            // bridge armed reconfigureNextFailure only in OnFullyEstablished and consumed it on the next
+            // failure. The stampede the restraint guards against is a dead endpoint times a RETRY loop -
+            // dial failures - and those still do not reconfigure here (OnRepeatedConnectFailure judges
+            // them, rate-limited). A connection that completed its handshake and then died cannot loop:
+            // it has to be re-established before it can be lost again. This core passed false for both
+            // cases, so after a failover the only re-read came from the third consecutive dial failure,
+            // ~15s after the node went away; 2.x/3.x re-route in the time it takes to notice the socket
+            // (the #3323 investigation's remaining gap).
             //
             // ...and NOT when the close was asked for, which is the same distinction the v3 bridge
             // made with `wasRequested`. A retirement, a maintenance recycle or a dispose is not a failure,
@@ -1658,7 +1672,7 @@ namespace StackExchange.Redis
                     IsSubscriptionEndpoint ? ConnectionType.Subscription : ConnectionType.Interactive,
                     fault is RedisConnectionException rce ? rce.FailureType : ConnectionFailureType.SocketFailure,
                     fault,
-                    reconfigure: false,
+                    reconfigure: Interlocked.Exchange(ref _reconfigureOnFailure, 0) == 1,
                     physicalName: null);
             }
         }
@@ -2670,6 +2684,10 @@ namespace StackExchange.Redis
                     };
                     _connection = connection;
                     Interlocked.Increment(ref _socketCount);
+
+                    // arm the reconfigure-on-failure flag, as the v3 bridge did in OnFullyEstablished:
+                    // losing THIS connection is worth one topology re-read (see RecordFault)
+                    Volatile.Write(ref _reconfigureOnFailure, 1);
 
                     // if somebody owns the write slot they are waiting on this very task, and THEY will
                     // drain - draining here as well would write the backlog out from under them

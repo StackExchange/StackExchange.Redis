@@ -108,6 +108,59 @@ public class ClusterFailoverRolesUnitTests(ITestOutputHelper log)
         }
     }
 
+    /// <summary>An <see cref="InProcessTestServer"/> whose endpoints can individually refuse new connections.</summary>
+    private sealed class BlackholeableServer(ITestOutputHelper log) : InProcessTestServer(log)
+    {
+        public volatile EndPoint? Dark;
+
+        protected override ValueTask OnAcceptClientAsync(EndPoint endpoint)
+            => Equals(endpoint, Dark)
+                ? throw new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused)
+                : default;
+    }
+
+    [Fact]
+    public async Task LosingAnEstablishedConnectionPromptsATopologyRefresh()
+    {
+        var server = new BlackholeableServer(log) { ServerType = ServerType.Cluster };
+        GetHost(server.DefaultEndPoint, out var port);
+        var primary = server.DefaultEndPoint;
+        var replica = server.AddReplicaNode(new IPEndPoint(IPAddress.Loopback, port + 1), primary);
+        using (server)
+        {
+            var config = server.GetClientConfig(withPubSub: false);
+            config.AllowAdmin = false;
+            var capture = new CapturingLogger();
+            config.LoggerFactory = capture;
+            await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+            var db = conn.GetDatabase();
+            await db.StringSetAsync("before", "1");
+            var slot = ServerSelectionStrategy.GetHashSlot("before");
+            Assert.Equal(primary, conn.ConnectionsIfCreated!.SlotOwnerForTest(slot));
+
+            // let the connect-time reconfigure passes drain first: ReconfigureIfNeeded coalesces while one
+            // is in flight, and this test is about the TRIGGER, not the coalescing
+            await Poll.ReconfigureAsync(conn, "settle");
+
+            // the node is promoted away from AND goes dark, as an Azure-style failover looks from a QUIET
+            // client: no command in flight to be redirected, no write to be refused - the only news is the
+            // dropped connection. The reconnect cannot succeed (so no restore-time reconfigure), the
+            // repeated-connect-failure re-read is tens of seconds away, and the periodic check up to
+            // configCheckSeconds. Losing an established connection must itself prompt the re-read, which
+            // is the v3 bridge's reconfigureNextFailure contract.
+            server.Failover(replica);
+            server.Dark = primary;
+            Assert.True(conn.ConnectionsIfCreated!.SimulateConnectionFailure(primary, SimulatedFailureType.AllInteractive));
+
+            var healed = await Poll.UntilAsync(() =>
+                Equals(conn.ConnectionsIfCreated!.SlotOwnerForTest(slot), replica));
+            if (!healed) log.WriteLine("CAPTURED:\n" + capture.All);
+            Assert.True(healed);
+            await db.StringSetAsync("after", "2");
+            Assert.Equal("2", await db.StringGetAsync("after"));
+        }
+    }
+
     [Fact]
     public async Task TopologyRefreshRepairsRolesAfterAFailover()
     {
