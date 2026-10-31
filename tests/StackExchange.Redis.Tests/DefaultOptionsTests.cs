@@ -324,6 +324,42 @@ public class DefaultOptionsTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(1, subscription.SubscriptionCount); // the configuration channel
     }
 
+    /// <summary>
+    /// The deterministic shape of <see cref="ConfigurationChannelOpensSubscriptionConnectionEagerly"/>'s CI
+    /// failures: the eager subscription connection is dialled fire-and-forget, so on a loaded machine the
+    /// connect wait released on the interactive leg alone and <c>ConnectAsync</c> returned while the
+    /// library's own broadcast channel was still dialling. A server slow to accept that one leg must delay
+    /// the connect, not escape it.
+    /// </summary>
+    [Theory]
+    [InlineData(RedisProtocol.Resp2)]
+    [InlineData(RedisProtocol.Resp3)]
+    public async Task ConfigurationChannelConnectWaitsForTheSubscriptionConnection(RedisProtocol protocol)
+    {
+        using var serverObj = new SlowSubscriptionAcceptServer(Output);
+        var config = serverObj.GetClientConfig();
+        config.Protocol = protocol;
+        config.ConfigurationChannel = nameof(ConfigurationChannelConnectWaitsForTheSubscriptionConnection);
+
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer);
+
+        var mux = (IInternalConnectionMultiplexer)conn;
+        var endpoint = conn.GetEndPoints().Single();
+        Assert.NotNull(mux.GetConnectionId(endpoint, ConnectionType.Interactive));
+        Assert.NotNull(mux.GetConnectionId(endpoint, ConnectionType.Subscription));
+        Assert.Equal(2, serverObj.ClientCount);
+    }
+
+    private sealed class SlowSubscriptionAcceptServer(ITestOutputHelper log) : InProcessTestServer(log)
+    {
+        protected override async ValueTask OnAcceptClientAsync(EndPoint endpoint, ConnectionType connectionType)
+        {
+            // long enough that a connect released on the interactive leg alone asserts before this accept
+            // completes, and comfortably inside the connect timeout for the wait that covers it
+            if (connectionType == ConnectionType.Subscription) await Task.Delay(1000);
+        }
+    }
+
     [Fact]
     public async Task VanillaResp2ConnectsWithSeparatePubSubConnection()
     {

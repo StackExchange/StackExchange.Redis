@@ -530,6 +530,25 @@ namespace StackExchange.Redis
             return false;
         }
 
+        /// <summary>
+        /// An endpoint's availability for the reconfigure connect wait, when the dedicated subscription
+        /// connection is part of connecting (<see cref="ServerEndPoint.RequiresEagerSubscriptionConnection"/>):
+        /// complete only when both legs are. The subscription leg is best effort, mirroring the wait that
+        /// consumes this - its failure must not fault the endpoint's availability, because the interactive
+        /// leg decides selectability and a refused subscription dial is redialled on demand.
+        /// </summary>
+        private static async Task<string> AlsoAwaitingTheSubscriptionLeg(Task<string> connected, Task subscriptionConnected)
+        {
+            try
+            {
+                await subscriptionConnected.ForAwait();
+            }
+            catch
+            {
+            }
+            return await connected.ForAwait();
+        }
+
         private static async Task<bool> WaitAllIgnoreErrorsAsync(string name, Task[] tasks, int timeoutMilliseconds, ILogger? log, [CallerMemberName] string? caller = null, [CallerLineNumber] int callerLineNumber = 0)
         {
             _ = tasks ?? throw new ArgumentNullException(nameof(tasks));
@@ -1974,7 +1993,21 @@ namespace StackExchange.Redis
                             // This awaits either the endpoint's initial connection, or a tracer if we're already connected
                             // (which is the reconfigure case, except second iteration which is only for newly discovered cluster members).
                             var isFirstIteration = iter == 0;
-                            available[i] = server.OnConnectedAsync(log, sendTracerIfConnected: isFirstIteration, autoConfigureIfConnected: reconfigureAll);
+                            var connected = server.OnConnectedAsync(log, sendTracerIfConnected: isFirstIteration, autoConfigureIfConnected: reconfigureAll);
+
+                            // ...and the subscription leg, when it is part of connecting rather than on-demand:
+                            // ActivateServer above dialled it for the library's own configuration channel (or for
+                            // subscriptions that must be re-placed), but that dial is fire-and-forget, so released
+                            // on the interactive leg alone this wait lets ConnectAsync return a multiplexer whose
+                            // own broadcast channel is still dialling - which on a loaded machine it still is
+                            // (ConfigurationChannelOpensSubscriptionConnectionEagerly's CI failures). The v3 core
+                            // made its connect monitors wait on exactly this (#3310); here the monitors keep their
+                            // single-leg meaning - reconnect consumers want the interactive leg, and gating them
+                            // re-times subscription re-placement against one-shot publishes (Resp3DowngradeTests) -
+                            // and only this connect wait broadens.
+                            available[i] = server.RequiresEagerSubscriptionConnection
+                                ? AlsoAwaitingTheSubscriptionLeg(connected, Connections.SubscriptionConnectedAsync(server.EndPoint))
+                                : connected;
                         }
 
                         // One topology read per pass, by the core that owns the connections - replacing the

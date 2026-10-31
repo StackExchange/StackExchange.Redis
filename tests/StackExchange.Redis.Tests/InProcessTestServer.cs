@@ -398,7 +398,7 @@ public class InProcessTestServer : MemoryCacheRedisServer
         {
             if (server.TryGetNode(endpoint, out var node))
             {
-                await server.OnAcceptClientAsync(endpoint);
+                await server.OnAcceptClientAsync(endpoint, connectionType);
                 server._log?.WriteLine(
                     $"[{endpoint}] accepting {connectionType} mapped to {server.ServerType} node {node} via {(server.UseSsl ? "TLS" : "plaintext")}");
                 var clientToServer = new Pipe(pipeOptions ?? PipeOptions.Default);
@@ -479,6 +479,11 @@ public class InProcessTestServer : MemoryCacheRedisServer
     }
 
     protected virtual ValueTask OnAcceptClientAsync(EndPoint endpoint) => default;
+
+    /// <summary>As <see cref="OnAcceptClientAsync(EndPoint)"/>, but seeing the connection type the client
+    /// declared, so a test can slow or refuse one leg of an endpoint without touching the other.</summary>
+    protected virtual ValueTask OnAcceptClientAsync(EndPoint endpoint, ConnectionType connectionType)
+        => OnAcceptClientAsync(endpoint);
 
     /*
 
