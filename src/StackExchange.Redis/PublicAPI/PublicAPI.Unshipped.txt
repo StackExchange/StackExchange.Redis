@@ -1,1 +1,4 @@
 ﻿#nullable enable
+StackExchange.Redis.Availability.ConnectionGroupExtensions
+StackExchange.Redis.Availability.ConnectionGroupMember.IsSenderOf(object? sender) -> bool
+static StackExchange.Redis.Availability.ConnectionGroupExtensions.FindMember(this StackExchange.Redis.Availability.IConnectionGroup! group, object? sender) -> StackExchange.Redis.Availability.ConnectionGroupMember?
