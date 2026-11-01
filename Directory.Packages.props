@@ -1,4 +1,4 @@
-<Project>
+﻿<Project>
   <ItemGroup>
     <!-- Packages we depend on for StackExchange.Redis, upgrades can create binding redirect pain! -->
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.14" />
@@ -23,7 +23,6 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="4.14.0" />
     <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Testing.Platform" Version="1.7.3" />
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.7.115" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
