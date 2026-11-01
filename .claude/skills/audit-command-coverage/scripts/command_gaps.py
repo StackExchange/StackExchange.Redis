@@ -8,9 +8,10 @@ Inputs:
 
 A command counts as *covered* when its wire token is a `RedisCommand` enum member (or an
 `[AsciiHash("...")]` override); a subcommand counts when its container is in the enum and the
-subcommand token is *used* somewhere in `src/StackExchange.Redis`: either via its `RedisLiterals`
-member (`RedisLiterals.GETKEYS`) or as a string literal. Definitions in RedisLiterals.cs alone
-do not count.
+subcommand token is *used* somewhere in `src/StackExchange.Redis`: via its `RedisLiterals`
+member (`RedisLiterals.GETKEYS`), via its pre-framed `RespLiterals` fragment
+(`RespLiterals.GetKeys`, declared `[Resp]` or `[Resp("token")]`), or as a string literal.
+Definitions in RedisLiterals.cs / RespLiterals.cs alone do not count.
 
 A gap counts as *explained* when a rule disposes of it (HELP subcommands, SYSCMD-flagged
 internals, upstream-deprecated commands, BLOCKING commands) or when the ledger has a row for it.
@@ -77,16 +78,26 @@ def load_enum_tokens(repo):
 
 
 LITERAL_DECL = re.compile(r'(\w+)\s*=\s*RedisValue\.FromRaw\("([^"]*)"u8\)')
+# `[Resp] ... RespFragment Name { get; }` spells the token NAME; `[Resp("token")]` spells it out
+FRAGMENT_DECL = re.compile(r'\[Resp(?:\("([^"]*)"\))?\]\s*internal\s+static\s+partial\s+RespFragment\s+(\w+)\s*\{')
+BUILD_DIRS = {"bin", "obj"}
+# the connection core (handshake, topology refresh, cache plumbing): a command the library issues
+# for itself there is not a command it exposes, so those use sites do not count
+PLUMBING_DIRS = {"Contexts"}
 
 
 def load_source_blob(repo):
-    """The library source minus RedisLiterals.cs, plus a map of wire token -> RedisLiterals identifier.
+    """The library source minus the literal declarations, plus maps of wire token -> identifier.
 
-    RedisLiterals.cs *defines* tokens; only a use site (`RedisLiterals.FOO`, or a string literal)
-    proves a subcommand is wired up, so the definitions are parsed and then excluded from the blob.
+    RedisLiterals.cs and RespLiterals.cs *define* tokens; only a use site (`RedisLiterals.FOO`,
+    `RespLiterals.Foo`, or a string literal) in surface code proves a subcommand is wired up, so the
+    definitions are parsed into (token -> identifiers) maps and then excluded from the blob, as is
+    the connection core. Build output is skipped so the answer does not depend on what was last
+    compiled.
     """
-    parts, literals = [], {}
-    for root, _, files in os.walk(os.path.join(repo, "src", "StackExchange.Redis")):
+    parts, literals, fragments = [], {}, {}
+    for root, dirs, files in os.walk(os.path.join(repo, "src", "StackExchange.Redis")):
+        dirs[:] = [d for d in dirs if d not in BUILD_DIRS and d not in PLUMBING_DIRS]
         for file in files:
             if not file.endswith(".cs"):
                 continue
@@ -95,9 +106,13 @@ def load_source_blob(repo):
             if file == "RedisLiterals.cs":
                 for m in LITERAL_DECL.finditer(text):
                     literals.setdefault(m.group(2).upper(), set()).add(m.group(1))
+            elif file == "RespLiterals.cs":
+                for m in FRAGMENT_DECL.finditer(text):
+                    token = m.group(1) if m.group(1) is not None else m.group(2)
+                    fragments.setdefault(token.upper(), set()).add(m.group(2))
             else:
                 parts.append(text)
-    return "\n".join(parts), literals
+    return "\n".join(parts), literals, fragments
 
 
 def load_ledger(path):
@@ -122,15 +137,18 @@ def main():
 
     spec = load_spec(args.spec)
     tokens = load_enum_tokens(repo)
-    blob, literals = load_source_blob(repo)
+    blob, literals, fragments = load_source_blob(repo)
     ledger_sha, ledger = load_ledger(ledger_path)
 
     def has_literal(tok):
-        # a use of the RedisLiterals member for this token, or the token as an inline UTF-8 literal
-        # ("TOKEN"u8, which is how this codebase spells raw wire tokens); plain "TOKEN" strings are
-        # too often log text, attribute arguments or unrelated enums to count
+        # a use of the RedisLiterals member or the RespLiterals fragment for this token, or the token
+        # as an inline UTF-8 literal ("TOKEN"u8, which is how this codebase spells raw wire tokens);
+        # plain "TOKEN" strings are too often log text, attribute arguments or unrelated enums to count
         for ident in literals.get(tok.upper(), ()):
             if re.search(r"\bRedisLiterals\." + re.escape(ident) + r"\b", blob):
+                return True
+        for ident in fragments.get(tok.upper(), ()):
+            if re.search(r"\bRespLiterals\." + re.escape(ident) + r"\b", blob):
                 return True
         return re.search(r'"' + re.escape(tok) + r'"u8', blob) is not None
 
@@ -151,8 +169,9 @@ def main():
         is_covered = covered(r)
         in_ledger = r["full"] in ledger
         status, rule = rule_for(r)
-        if in_ledger and ledger[r["full"]] == "implemented":
-            # hand-written message the heuristic cannot see; the ledger vouches for it
+        if in_ledger and ledger[r["full"]] == "implemented" and not is_covered:
+            # an implementation the heuristic cannot see; the ledger vouches for it. Once the
+            # heuristic *can* see it the row is redundant, and falls through to RESOLVED below.
             continue
         if is_covered:
             if in_ledger and ledger[r["full"]] != "enum-only":
