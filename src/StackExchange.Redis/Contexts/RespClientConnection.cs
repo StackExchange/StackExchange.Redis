@@ -96,6 +96,21 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
+        /// Our own close - a dispose with commands still in flight - failed those commands with
+        /// <see cref="ConnectionFailureType.ConnectionDisposed"/> under the same shipped type on v3; a caller catching
+        /// <see cref="RedisConnectionException"/> around a shutdown still does, rather than meeting RESPite's own
+        /// <see cref="InvalidOperationException"/>.
+        /// </remarks>
+        protected override Exception CreateClosedFault()
+        {
+            var message = Server?.EndPoint is { } endpoint
+                ? $"This client closed the connection to {Format.ToString(endpoint)}."
+                : "This client closed the connection.";
+            return new RedisConnectionException(ConnectionFailureType.ConnectionDisposed, CommandFlags.None, message, null, CommandStatus.Unknown);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
         /// High-integrity mode's failure, under the shipped type and <see cref="ConnectionFailureType.ResponseIntegrityFailure"/>:
         /// the held command fails with it, the connection closes with it, and <c>ConnectionFailed</c> reports that
         /// type - so a caller filtering on it sees the same thing v3 raised. The message names the endpoint and
