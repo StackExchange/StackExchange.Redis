@@ -50,6 +50,41 @@ public static partial class Diagnostics
             : diagnostics.Context.SendAsync<long>(
                 $"{RedisCommand.LATENCY}{RespLiterals.Reset}{eventNames}", flags, cancellationToken: cancellationToken);
 
+    /// <summary>LATENCY RESET, the <see cref="IServer"/> spelling: the caller's <see cref="string"/> names.</summary>
+    /// <param name="diagnostics">The diagnostic command group.</param>
+    /// <param name="eventNames">The events to forget; every event when null or empty.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <remarks>
+    /// <inheritdoc cref="LatencyResetAsync(RespDiagnostics, ReadOnlySpan{RedisValue}, CommandFlags, CancellationToken)" path="/remarks"/>
+    /// The names write through <see cref="EventNamesOperand"/> rather than being copied into a
+    /// <see cref="RedisValue"/> array first; <paramref name="eventNames"/> has no default so that a
+    /// bare <c>LatencyResetAsync()</c> still means the public span overload.
+    /// </remarks>
+    internal static ValueTask<long> LatencyResetAsync(
+        this RespDiagnostics diagnostics,
+        string[]? eventNames,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => eventNames is not { Length: > 0 }
+            ? diagnostics.Context.SendAsync<long>(
+                $"{RedisCommand.LATENCY}{RespLiterals.Reset}", flags, cancellationToken: cancellationToken)
+            : diagnostics.Context.SendAsync<long>(
+                $"{RedisCommand.LATENCY}{RespLiterals.Reset}{new EventNamesOperand(eventNames)}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>The event names of <c>LATENCY RESET</c>, written as they are.</summary>
+    /// <remarks>
+    /// An operand because the count is the caller's; this used to render a <c>RedisValue[]</c> in
+    /// <c>RedisServer</c> and splice it in.
+    /// </remarks>
+    internal readonly struct EventNamesOperand(string[] eventNames) : IRespArgument
+    {
+        public void WriteTo(scoped ref RespRequestBuilder handler)
+        {
+            foreach (var name in eventNames) handler.AppendFormatted(name);
+        }
+    }
+
     /// <summary>LATENCY HISTORY: every recorded spike for one event, oldest first.</summary>
     /// <param name="diagnostics">The diagnostic command group.</param>
     /// <param name="eventName">The event to report on.</param>

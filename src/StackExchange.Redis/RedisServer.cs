@@ -912,27 +912,11 @@ namespace StackExchange.Redis
         public string LatencyDoctor(CommandFlags flags = CommandFlags.None)
             => Wait(OrEmpty(Context.Diagnostics.LatencyDoctorAsync(flags)));
 
-        /// <summary>The event names as the span the command group takes.</summary>
-        /// <param name="eventNames">The caller's names; null or empty means every event.</param>
-        /// <remarks>
-        /// One allocation on an administrative command that resets a server's latency history, which is
-        /// not a path anybody pipelines. The v3 spelling built a <c>RedisValue[]</c> here too, with
-        /// the subcommand prepended into it; the group owns the subcommand now.
-        /// </remarks>
-        private static RedisValue[] LatencyEventNames(string[]? eventNames)
-        {
-            if (eventNames is null || eventNames.Length == 0) return Array.Empty<RedisValue>();
-
-            var arr = new RedisValue[eventNames.Length];
-            for (int i = 0; i < arr.Length; i++) arr[i] = eventNames[i].AsRedisValue();
-            return arr;
-        }
-
         public Task<long> LatencyResetAsync(string[]? eventNames = null, CommandFlags flags = CommandFlags.None)
-            => Context.Diagnostics.LatencyResetAsync(LatencyEventNames(eventNames), flags).AsTask(asyncState, flags);
+            => Context.Diagnostics.LatencyResetAsync(eventNames, flags).AsTask(asyncState, flags);
 
         public long LatencyReset(string[]? eventNames = null, CommandFlags flags = CommandFlags.None)
-            => Wait(Context.Diagnostics.LatencyResetAsync(LatencyEventNames(eventNames), flags));
+            => Wait(Context.Diagnostics.LatencyResetAsync(eventNames, flags));
 
         public Task<LatencyHistoryEntry[]> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None)
             => Context.Diagnostics.LatencyHistoryAsync(eventName.AsRedisValue(), flags).AsTask(asyncState, flags);
