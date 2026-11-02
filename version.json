@@ -4,7 +4,8 @@
   "assemblyVersion": "2.0",
   "publicReleaseRefSpec": [
     "^refs/heads/main$",
-    "^refs/tags/v\\d+\\.\\d+"
+    "^refs/heads/v[0-9]+$",
+    "^refs/tags/v?\\d+\\.\\d+"
   ],
   "nugetPackageVersion": {
     "semVer": 2
