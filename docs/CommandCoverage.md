@@ -2,7 +2,7 @@
 
 Which server commands StackExchange.Redis does not expose as typed APIs, and why. Anything not listed here is either implemented or disposed of by one of the rules below. Any command, listed or not, can be sent with [`Execute`/`ExecuteAsync`](Execute).
 
-Upstream: redis/redis@6a5fee67583480de1fec323649f43fd000001b49 (`src/commands`, unstable, 2026-10-30). Maintained by the `audit-command-coverage` skill under `.claude/skills/`, which re-diffs this file against upstream and reports only what changed.
+Upstream: redis/redis@6a5fee67583480de1fec323649f43fd000001b49 (`src/commands`, unstable, 2026-11-01). Maintained by the `audit-command-coverage` skill under `.claude/skills/`, which re-diffs this file against upstream and reports only what changed.
 
 This supersedes the hand-maintained list in [#2055](https://github.com/StackExchange/StackExchange.Redis/issues/2055).
 
@@ -45,6 +45,7 @@ Statuses: `policy` (excluded by design), `not-applicable` (not meaningful for a 
 | `RESET` | 6.2.0 | `not-applicable` | Discards the per-connection state the multiplexer negotiated (`HELLO`, `CLIENT SETNAME`, `SELECT`, subscriptions). Dispose and reconnect instead. |
 | `CLIENT REPLY` | 3.2.0 | `not-applicable` | Suppressing replies breaks the request/response pairing the multiplexer relies on; `CommandFlags.FireAndForget` is the client-side equivalent. |
 | `CLIENT UNBLOCK` | 5.0.0 | `not-applicable` | Unblocks a client parked in a blocking command, which this library does not issue. |
+| `CLIENT SETNAME` | 2.6.9 | `not-applicable` | Issued by the handshake on every connection from `ConfigurationOptions.ClientName`; connections are the multiplexer's, so there is no per-call API to name one. |
 | `CLIENT GETNAME` | 2.6.9 | `not-applicable` | The library sets the name itself (`ConfigurationOptions.ClientName`) and knows it; `ClientList` shows every connection's name. |
 | `CLIENT INFO` | 6.2.0 | `not-applicable` | The current connection's own `CLIENT LIST` row; connections are an internal detail of the multiplexer, and `ClientList` covers the server-wide view. |
 | `HIMPORT DISCARDALL` | 8.10.0 | `not-applicable` | Drops every field-set on the connection. The library tracks field-sets individually and discards each on dispose; a blanket discard on a shared connection would invalidate other callers' live field-sets. See [HImport](HImport). |
@@ -191,12 +192,11 @@ Listed for reference; the rule excludes them without an entry.
 
 ## Implemented, invisible to the audit script
 
-Subcommands written by a hand-rolled `Message` rather than a `RedisLiterals` token, which the coverage script cannot detect. Listed so the script does not report them; delete a row if the implementation moves to a literal.
+Subcommands the coverage script cannot see: written without a `RedisLiterals`/`RespLiterals` token, or issued only from the connection core (`Contexts/`), which the script deliberately ignores because the library sending a command for itself is not exposure. Listed so the script does not report them; the script reports a row here as RESOLVED once it can see the implementation, and the row is then deleted.
 
 | Command | Since | Status | Notes |
 |---|---|---|---|
-| `HOTKEYS START` | 8.6.0 | `implemented` | `HotKeys.StartMessage` writes the token raw. See [Hot keys](HotKeys). |
-| `SCRIPT LOAD` | 2.6.0 | `implemented` | `RedisDatabase.ScriptLoadMessage`; `IServer.ScriptLoad`. |
+| `CLIENT SETINFO` | 7.2.0 | `implemented` | The handshake sends `lib-name`/`lib-ver` from `ConfigurationOptions.SetClientLibrary`/`LibraryName`, and `IConnectionMultiplexer.AddLibraryNameSuffix` re-issues `lib-name` on every live connection. The server accepts only those two attributes, so that is the whole command; both use sites are in the connection core. |
 
 ## In the enum, not in the spec
 
