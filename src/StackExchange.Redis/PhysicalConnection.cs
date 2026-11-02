@@ -44,6 +44,12 @@ namespace StackExchange.Redis
         // things sent to this physical, but not yet received
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 
+        // Set (under the _writtenAwaitingResponse lock) when teardown begins. From then on the queue belongs to
+        // RecordConnectionFailed, which drains it one message at a time, completing each outside the lock; if the
+        // read loop kept dequeuing in parallel, a reply already in the buffer would be matched to the message
+        // *after* the one it belongs to, and a caller would get another command's result as a success (#3329).
+        private volatile bool _isShutdown;
+
         private Message? _awaitingToken;
 
         private readonly string _physicalName;
@@ -285,6 +291,7 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times", Justification = "Trust me yo")]
         internal void Shutdown(ConnectionFailureType failureType = ConnectionFailureType.ConnectionDisposed)
         {
+            _isShutdown = true; // *before* discarding the pipe; see the field
             var ioPipe = Interlocked.Exchange(ref _ioPipe, null); // compare to the critical read
             var socket = Interlocked.Exchange(ref _socket, null);
 
@@ -388,6 +395,13 @@ namespace StackExchange.Redis
             bool isInitialConnect = false,
             IDuplexPipe? connectingPipe = null)
         {
+            // Hand the response queue to this method before anything else: the read loop checks this flag under
+            // the same lock before it dequeues, so no reply can be matched once the drain below has started.
+            lock (_writtenAwaitingResponse)
+            {
+                _isShutdown = true;
+            }
+
             bool weAskedForThis;
             Exception? outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
@@ -1904,6 +1918,13 @@ namespace StackExchange.Redis
                 if (msg is not null)
                 {
                     _awaitingToken = null;
+                }
+
+                if (_isShutdown)
+                {
+                    // teardown owns the queue now (see the field); the messages these bytes answer are being failed,
+                    // and matching them here would hand each reply to the wrong caller - drop them with the connection
+                    return;
                 }
 
                 if (!_writtenAwaitingResponse.TryDequeue(out msg))
