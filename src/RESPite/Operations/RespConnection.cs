@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using RESPite.Buffers;
@@ -56,6 +57,21 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
 
     /// <summary>Operations written and awaiting a reply, in wire order.</summary>
     private readonly ConcurrentQueue<PendingEntry> _pending = new();
+
+    /// <summary>
+    /// Serialises the two things that take from <see cref="_pending"/>: the reader matching a reply, and
+    /// <see cref="Close"/> failing what is left.
+    /// </summary>
+    /// <remarks>
+    /// <b>Concurrent is not the same as coordinated.</b> The queue itself is safe to dequeue from two threads; what
+    /// it cannot promise is which entry each gets. Close draining it while the reader was still matching replies
+    /// from the receive buffer took entry N, and the reader then took entry N+1 for reply N: that command completed,
+    /// successfully, with another command's answer, and every reply after it was off by one - 24% of the in-flight
+    /// commands on a <c>CloseAsync(allowCommandsToComplete: false)</c> (#3329). So: the reader checks closed and
+    /// dequeues as one step under this lock, Close sets closed and then empties the queue under it, and from then
+    /// on a reply that arrives has nothing to match and dies with the connection.
+    /// </remarks>
+    private readonly object _pendingLock = new();
 
     /// <summary>A queued operation, and WHICH life of it was written.</summary>
     /// <remarks>
@@ -1391,47 +1407,48 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
                 continue;
             }
 
-            if (_pending.TryDequeue(out var entry))
+            if (!TryTakePending(out var entry, out var closed))
             {
-                // offered first: a redirect is an instruction, not an answer, and completing the
-                // operation with it would report a failure for something routine. Only to the life that was
-                // written: a stale entry's frame is simply consumed (see PendingEntry)
-                if (!(entry.IsCurrent && TryHandOff(frame, entry.Message)))
-                {
-                    if (entry.SequenceChecked)
-                    {
-                        // a checked reply waits for its check; a stale life has nobody waiting, so its frame is
-                        // simply consumed and only the check is validated
-                        switch (entry.IsCurrent ? LookAhead(in entry, frame, buffer) : LookAheadResult.NotYet)
-                        {
-                            case LookAheadResult.Closed: return;
-                            case LookAheadResult.Delivered: break;
-                            default:
-                                if (entry.IsCurrent) Park(in entry, frame, buffer);
-                                _awaitingSequenceCheck = true;
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        // the buffer goes along with the bytes, so a message whose result IS the frame can
-                        // retain it rather than copy it out
-                        entry.Message.TrySetResult(entry.Token, frame, buffer);
-                    }
-                }
-                else if (entry.SequenceChecked)
-                {
-                    // handed off (a redirect, a receipt): nothing to hold, but the check still follows
-                    _awaitingSequenceCheck = true;
-                }
-            }
+                // Close owns the queue now and is failing what was in it (see _pendingLock); matching anything
+                // here would hand a reply to the wrong command
+                if (closed) return;
 
-            // a reply with nothing pending is a protocol break; there is no correct recovery, and
-            // pretending otherwise would mis-address every reply after it
-            else
-            {
+                // a reply with nothing pending is a protocol break; there is no correct recovery, and
+                // pretending otherwise would mis-address every reply after it
                 Close(new InvalidOperationException("A reply arrived with no operation pending."));
                 return;
+            }
+
+            // offered first: a redirect is an instruction, not an answer, and completing the
+            // operation with it would report a failure for something routine. Only to the life that was
+            // written: a stale entry's frame is simply consumed (see PendingEntry)
+            if (!(entry.IsCurrent && TryHandOff(frame, entry.Message)))
+            {
+                if (entry.SequenceChecked)
+                {
+                    // a checked reply waits for its check; a stale life has nobody waiting, so its frame is
+                    // simply consumed and only the check is validated
+                    switch (entry.IsCurrent ? LookAhead(in entry, frame, buffer) : LookAheadResult.NotYet)
+                    {
+                        case LookAheadResult.Closed: return;
+                        case LookAheadResult.Delivered: break;
+                        default:
+                            if (entry.IsCurrent) Park(in entry, frame, buffer);
+                            _awaitingSequenceCheck = true;
+                            break;
+                    }
+                }
+                else
+                {
+                    // the buffer goes along with the bytes, so a message whose result IS the frame can
+                    // retain it rather than copy it out
+                    entry.Message.TrySetResult(entry.Token, frame, buffer);
+                }
+            }
+            else if (entry.SequenceChecked)
+            {
+                // handed off (a redirect, a receipt): nothing to hold, but the check still follows
+                _awaitingSequenceCheck = true;
             }
         }
 
@@ -1447,6 +1464,23 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         // anyone else is holding the buffer before it moves anything.
     }
 
+    /// <summary>Take the next unanswered operation for the reply in hand; see <see cref="_pendingLock"/>.</summary>
+    /// <returns>False with <paramref name="closed"/> set when the connection is closed, false when nothing is pending.</returns>
+    private bool TryTakePending(out PendingEntry entry, out bool closed)
+    {
+        lock (_pendingLock)
+        {
+            closed = Volatile.Read(ref _closed) != 0;
+            if (closed)
+            {
+                entry = default;
+                return false;
+            }
+
+            return _pending.TryDequeue(out entry);
+        }
+    }
+
     private void Close(Exception? fault)
     {
         if (Interlocked.Exchange(ref _closed, 1) != 0) return;
@@ -1458,12 +1492,27 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
         var buffer = Interlocked.Exchange(ref _inbound, null);
         buffer?.Release();
 
+        // Taken under the reader's lock (see _pendingLock): with _closed already set, the reader takes nothing
+        // once we hold it, and what we take is everything still unanswered. Failed outside the lock, since a
+        // completion can run whatever continuation is waiting on it.
+        List<PendingEntry>? unanswered = null;
+        lock (_pendingLock)
+        {
+            while (_pending.TryDequeue(out var entry))
+            {
+                (unanswered ??= new()).Add(entry);
+            }
+        }
+
         // INDEFINITE, and this is the case that distinction exists for: a write may have reached the
         // server and had its reply lost with the connection, so these operations are not provably
         // unapplied and their instances must not go back to a pool
-        while (_pending.TryDequeue(out var entry))
+        if (unanswered is not null)
         {
-            entry.Message.TrySetException(entry.Token, reason, definite: false);
+            foreach (var entry in unanswered)
+            {
+                entry.Message.TrySetException(entry.Token, reason, definite: false);
+            }
         }
 
         // a reply held for a check that will now never arrive is pending in the same sense: answered, unverified
@@ -1504,8 +1553,15 @@ internal class RespConnection : TransportReceiver, IAsyncDisposable
     /// <returns>The exception pending commands fail with.</returns>
     protected virtual Exception CreateRemoteClosedFault() => new System.IO.IOException("The connection was closed by the remote end.");
 
+    /// <summary>The fault for commands failed by a close this side asked for (dispose), when no other fault is recorded.</summary>
+    /// <remarks>
+    /// The counterpart of <see cref="CreateRemoteClosedFault"/> for our own close: a host whose callers expect a
+    /// particular type for "the connection went away under my command" (as StackExchange.Redis's do) overrides both.
+    /// </remarks>
+    protected virtual Exception CreateClosedFault() => new InvalidOperationException("The connection is closed.");
+
     private Exception ClosedFault()
-        => _fault ?? new InvalidOperationException("The connection is closed.");
+        => _fault ?? CreateClosedFault();
 
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
