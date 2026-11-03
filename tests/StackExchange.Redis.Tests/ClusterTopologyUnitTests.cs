@@ -101,6 +101,23 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
         Assert.Contains(new DnsEndPoint(Hostname, port), node.Identities);
     }
 
+    [Theory]
+    [InlineData(ClusterEndpointType.Ip)]
+    [InlineData(ClusterEndpointType.Hostname)]
+    public async Task PreferredDialEndPointFollowsAnnouncedForm(ClusterEndpointType preferred)
+    {
+        using var server = CreateServer(log, preferred);
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
+
+        var node = Assert.Single((await GetShadowAsync(conn, server.DefaultEndPoint)).Nodes);
+        GetHost(server.DefaultEndPoint, out var port);
+        EndPoint expected = preferred == ClusterEndpointType.Hostname
+            ? new DnsEndPoint(Hostname, port)
+            : new IPEndPoint(IPAddress.Loopback, port);
+        Assert.Equal(expected, node.PreferredDialEndPoint);
+        Assert.Equal(node.Identities[0], node.PreferredDialEndPoint);
+    }
+
     [Fact]
     public async Task ShadowTopologyAgreesWithTheRoutingView()
     {
@@ -173,18 +190,24 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
     [Fact]
     public async Task HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints()
     {
-        // the case the flip exists for: SLOTS names every node by hostname while NODES names them by
-        // address, so a slot map fed from SLOTS must still resolve to the servers we already hold
+        // Discover the new shard from a single seed. SLOTS names it by hostname, while NODES reports its
+        // companion IP; routing and registration must use the hostname and retain the IP only as an alias.
         using var server = CreateServer(log, ClusterEndpointType.Hostname);
         GetHost(server.DefaultEndPoint, out var port);
         var other = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
         server.SetHostname(other, "host-2.redis.example.com");
         server.Migrate((RedisKey)"hostname-routed-key", other);
 
-        await using var conn = await server.ConnectAsync();
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
         var db = conn.GetDatabase();
         await db.StringSetAsync("hostname-routed-key", "value");
         Assert.Equal("value", await db.StringGetAsync("hostname-routed-key"));
+
+        var hostnameEndpoint = new DnsEndPoint("host-2.redis.example.com", port + 1);
+        var companionIp = new IPEndPoint(IPAddress.Loopback, port + 1);
+        Assert.Contains(hostnameEndpoint, conn.GetEndPoints());
+        Assert.DoesNotContain(companionIp, conn.GetEndPoints());
+        Assert.Equal(hostnameEndpoint, conn.GetServer(companionIp).EndPoint);
 
         foreach (var ep in conn.GetEndPoints())
         {

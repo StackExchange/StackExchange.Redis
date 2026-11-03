@@ -110,6 +110,12 @@ internal sealed class ClusterTopologyNode
     /// </summary>
     public IReadOnlyList<EndPoint> Identities => _identities ?? [];
 
+    /// <summary>
+    /// The announced endpoint form to use for dialing. Companion identities such as an IP address must not be
+    /// registered as separate dialable servers when this preferred endpoint is a hostname.
+    /// </summary>
+    public EndPoint? PreferredDialEndPoint => Identities.Count > 0 ? Identities[0] : null;
+
     /// <summary>The slots this node serves as primary; empty for a replica.</summary>
     public IReadOnlyList<SlotRange> Slots => _slots ?? [];
 
