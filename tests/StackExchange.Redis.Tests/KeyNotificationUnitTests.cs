@@ -486,6 +486,8 @@ public class KeyNotificationUnitTests(ITestOutputHelper log)
     [InlineData("zrangestore", KeyNotificationType.ZRangeStore)]
     [InlineData("sunionstore", KeyNotificationType.SUnionStore)]
     [InlineData("sdiffstore", KeyNotificationType.SDiffStore)]
+    [InlineData("bless", KeyNotificationType.Bless)]
+    [InlineData("unbless", KeyNotificationType.Unbless)]
     [InlineData("keymiss", KeyNotificationType.KeyMiss)]
     [InlineData("expired", KeyNotificationType.Expired)]
     [InlineData("evicted", KeyNotificationType.Evicted)]

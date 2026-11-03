@@ -144,6 +144,10 @@ public enum KeyNotificationType
     SUnionStore = 64,
     [AsciiHash("sdiffstore")]
     SDiffStore = 65,
+    [AsciiHash("bless")]
+    Bless = 66,
+    [AsciiHash("unbless")]
+    Unbless = 67,
 
     // side-effect notifications
     [AsciiHash("expired")]

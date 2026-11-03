@@ -323,6 +323,27 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task KeyBlessAsync()
+        {
+            await prefixed.KeyBlessAsync("key", BlessFlags.NoEvict, CommandFlags.None);
+            await mock.Received().KeyBlessAsync("prefix:key", BlessFlags.NoEvict, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task KeyUnblessAsync()
+        {
+            await prefixed.KeyUnblessAsync("key", BlessFlags.NoEvict, CommandFlags.None);
+            await mock.Received().KeyUnblessAsync("prefix:key", BlessFlags.NoEvict, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task KeyBlessFlagsAsync()
+        {
+            await prefixed.KeyBlessFlagsAsync("key", CommandFlags.None);
+            await mock.Received().KeyBlessFlagsAsync("prefix:key", CommandFlags.None);
+        }
+
+        [Fact]
         public Task KeyRandomAsync()
         {
             return Assert.ThrowsAsync<NotSupportedException>(() => prefixed.KeyRandomAsync());

@@ -1139,6 +1139,53 @@ namespace StackExchange.Redis
         bool KeyMove(RedisKey key, int database, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Turns on the specified protection flags for an existing key; with <see cref="BlessFlags.NoEvict"/>, the key is never
+        /// chosen as an eviction victim under any <c>maxmemory-policy</c>.
+        /// </summary>
+        /// <param name="key">The key to protect; the key must exist.</param>
+        /// <param name="bless">The flags to turn on.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the key's flags changed; <see langword="false"/> if they were already set.</returns>
+        /// <remarks>
+        /// <para>
+        /// The flags are server metadata rather than part of the value: they survive overwrites of the value, and travel with
+        /// the key through replication, persistence, <c>COPY</c>, <c>MOVE</c>, <c>RENAME</c> and slot migration, but are
+        /// <b>not</b> carried by <c>DUMP</c>/<c>RESTORE</c>. A missing key is a server error, not <see langword="false"/>.
+        /// </para>
+        /// <para>
+        /// This operation is rejected with an <c>OOM</c> error when the server is over <c>maxmemory</c> and cannot evict;
+        /// <see cref="KeyUnbless(RedisKey, BlessFlags, CommandFlags)"/> is always permitted.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/bless-set"/></para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        bool KeyBless(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Turns off the specified protection flags for an existing key.
+        /// </summary>
+        /// <param name="key">The key to unprotect; the key must exist.</param>
+        /// <param name="bless">The flags to turn off.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the key's flags changed; <see langword="false"/> if they were already clear.</returns>
+        /// <remarks>
+        /// <para>Unlike <see cref="KeyBless(RedisKey, BlessFlags, CommandFlags)"/>, this is permitted while the server is over <c>maxmemory</c>.</para>
+        /// <para><seealso href="https://redis.io/commands/bless-clear"/></para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        bool KeyUnbless(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the protection flags currently set on an existing key.
+        /// </summary>
+        /// <param name="key">The key to query; the key must exist.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The active flags; <see cref="BlessFlags.None"/> for an unblessed key. A missing key is a server error.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/bless-get"/></remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        BlessFlags KeyBlessFlags(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Remove the existing timeout on key, turning the key from volatile (a key with an expiry set) to persistent (a key that will never expire as no timeout is associated).
         /// </summary>
         /// <param name="key">The key to persist.</param>
