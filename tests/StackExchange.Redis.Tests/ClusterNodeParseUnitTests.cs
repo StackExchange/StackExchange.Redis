@@ -46,6 +46,18 @@ public class ClusterNodeParseUnitTests(ITestOutputHelper log)
         Assert.Empty(node.AuxFields);
     }
 
+    [Theory]
+    [InlineData("abc 2a06:4e80:3:a::a:7000@17000")]
+    [InlineData("abc 2a06:4e80:3:a::a:7000")] // pre-4.0 form, no bus port
+    public void UnbracketedIPv6AddressIsParsed(string prefix)
+    {
+        // CLUSTER NODES does not bracket IPv6 addresses, so the port is the text after the *last* colon (#1422);
+        // before the fix this parsed as the (valid!) address 2a06:4e80:3:a::a:7000 with port 0
+        var node = Parse(prefix + Flags);
+
+        Assert.Equal(new IPEndPoint(IPAddress.Parse("2a06:4e80:3:a::a"), 7000), node.EndPoint);
+    }
+
     [Fact]
     public void HostnameIsParsed()
     {

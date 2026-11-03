@@ -741,17 +741,18 @@ internal sealed partial class PhysicalConnection
                 _awaitingToken = null;
             }
 
+            // A failure can race bytes that were already in the socket or read buffer. Once shutdown has
+            // started, no new command can enter this queue, and RecordConnectionFailed is draining it one
+            // message at a time (completing each outside the lock); if we kept dequeuing here, every reply
+            // we matched would be handed to the message *after* the one it belongs to (#3329). Drop the
+            // bytes with the dead connection instead - those messages are being failed anyway.
+            if (_isShutdown)
+            {
+                return;
+            }
+
             if (!_writtenAwaitingResponse.TryDequeue(out msg))
             {
-                // A failure can race bytes that were already in the socket or read buffer. Once shutdown has
-                // started, no new command can enter this queue, so these are replies to commands the failure
-                // path has already completed. Drop them with the dead connection instead of reporting a fresh
-                // protocol failure.
-                if (_isShutdown)
-                {
-                    return;
-                }
-
                 Throw(frame, connectionType, _protocol);
 
                 [DoesNotReturn]

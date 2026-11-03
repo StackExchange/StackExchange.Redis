@@ -13,7 +13,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -2629,11 +2628,7 @@ namespace StackExchange.Redis
 
             if (server != null)
             {
-                var profilingSession = _profilingSessionProvider?.Invoke();
-                if (profilingSession != null)
-                {
-                    message.SetProfileStorage(ProfiledCommand.NewWithContext(profilingSession, server));
-                }
+                AttachProfiling(message, server);
 
                 if (message.Db >= 0)
                 {
