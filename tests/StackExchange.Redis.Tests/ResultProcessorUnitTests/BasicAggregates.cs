@@ -55,10 +55,10 @@ public class BasicAggregates(ITestOutputHelper log) : ResultProcessorUnitTest(lo
     [InlineData(ATTRIB_FOO_BAR + "*2\r\n$1\r\na\r\n:1\r\n", "a,1")]
     public void RedisValueArray(string resp, string expected) => Assert.Equal(expected, Join(Execute(resp, RespHandlers.Values)));
 
-    // SUSPECTED REGRESSION, kept at the shipped expectation and skipped rather than weakened: the old
-    // processor deliberately accepted a scalar "pretending to be an array" (its example: SPOP {key} 1), and
-    // a nil scalar as empty. The new array handler throws "This operation requires an aggregate element"
-    // for both, so a server that answers SPOP/SRANDMEMBER-with-count that way now fails the call.
+    // The old processor deliberately accepted a scalar "pretending to be an array" (its example:
+    // SPOP {key} 1), and a nil scalar as empty. The new array handler was briefly a regression here
+    // (throwing "This operation requires an aggregate element" for both) and now does the same
+    // (RespHandlers: "a SCALAR reads as a one-element array (nil as none), as v3's processor did").
     [Theory]
     [InlineData("$3\r\nfoo\r\n", "foo")] // single bulk string treated as array
     [InlineData("$-1\r\n", "")] // null bulk string treated as empty array

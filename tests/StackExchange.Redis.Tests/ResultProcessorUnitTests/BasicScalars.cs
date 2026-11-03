@@ -186,9 +186,9 @@ public class BasicScalars(ITestOutputHelper log) : ResultProcessorUnitTest(log)
     [InlineData(ATTRIB_FOO_BAR + "$6\r\nstring\r\n", Redis.RedisType.String)]
     public void RedisType(string resp, RedisType value) => Assert.Equal(value, Execute(resp, RespHandlers.Inbuilt<RedisType>.Require()));
 
-    // SUSPECTED REGRESSION, kept at the shipped expectation and skipped rather than weakened: the old
-    // processor mapped a nil or empty TYPE reply to None explicitly ("RESP null values and empty strings
-    // should map to None rather than Unknown"); the new handler reports Unknown for them.
+    // The old processor mapped a nil or empty TYPE reply to None explicitly ("RESP null values and empty
+    // strings should map to None rather than Unknown"); the new handler was briefly a regression here and
+    // now does the same (RespHandlers: "nil or empty is 'no such key', as v3 read it").
     [Theory]
     [InlineData("$-1\r\n", Redis.RedisType.None)]
     [InlineData("_\r\n", Redis.RedisType.None)]
