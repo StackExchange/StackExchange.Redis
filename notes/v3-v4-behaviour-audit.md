@@ -44,10 +44,21 @@ Ordered roughly by how likely a v3 user is to notice.
 
 ### Values and parsing
 
-- **Nil array replies now come back as empty arrays, not null** — pervasively (string/value/key/
-  double/hash-entry/sorted-set-entry/geo/latency/… array results). Matches the non-nullable arrays the
-  public surface declares; `== null` checks on those results behave differently. Deliberate exceptions
-  keep null where absence is meaningful (e.g. `ListRightPopLeftPush`-style multi-move, lease results).
+- **Nil array replies now come back as empty arrays, not null** — uniformly across the array handlers
+  (string/value/key/double/hash-entry/sorted-set-entry/geo/latency/…). **In practice this is almost
+  unobservable against genuine Redis**, which answers these commands with *empty* arrays, not nil, for
+  missing keys (verified live: SMEMBERS/SORT/S·Z·HRANDMEMBER-with-count/GEOPOS/LATENCY all send `*0`;
+  the HEXPIRE family answers per-field `-2`): v3 already returned empty arrays there, so `== null`
+  checks on them were already dead code, and the missing-vs-empty distinction was never available
+  through these APIs. The two commands that do send nil were already normalised or are untouched:
+  XREAD's no-data nil was mapped to an empty array by v3 itself, and EXEC's nil is the transaction
+  machinery (unchanged). `RedisResult` (scripts, `Execute`) keeps `IsNull` and null casts; inner
+  element nils (MGET) remain `RedisValue.Null`; deliberately-nullable surfaces (multi-move, leases)
+  keep null. The residual exposure is third-party RESP servers/proxies/modules that answer `*-1`
+  where Redis answers `*0` — those now read as empty instead of returning null into a non-nullable
+  `T[]` (in v3 usually a latent NRE at the iteration site), which is the fail-safe direction. Worth a
+  release-note line mainly for contract honesty: behaviour now matches the declared non-nullable
+  arrays.
 - **`SentinelGetReplicaAddresses` returns an empty array instead of throwing** when a primary has no
   replicas (arguably a v3 bug).
 - **Protocol-mismatch errors surface as a different exception.** v3 threw `RedisConnectionException`
