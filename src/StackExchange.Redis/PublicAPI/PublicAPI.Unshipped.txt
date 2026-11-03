@@ -1,1 +1,4 @@
 ﻿#nullable enable
+[SER011]StackExchange.Redis.IDatabaseAsync.StringBitPositionsAsync(StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.StringIndexType indexType = StackExchange.Redis.StringIndexType.Byte, long? limit = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<long[]!>!
+[SER011]StackExchange.Redis.IDatabase.StringBitPositions(StackExchange.Redis.RedisKey key, bool bit, long start = 0, long end = -1, StackExchange.Redis.StringIndexType indexType = StackExchange.Redis.StringIndexType.Byte, long? limit = null, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> long[]!
+StackExchange.Redis.RedisFeatures.StringBitPositions.get -> bool

@@ -853,6 +853,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitPositionAsync(ToInner(key), bit, start, end, indexType, flags);
 
+        public Task<long[]> StringBitPositionsAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, long? limit = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitPositionsAsync(ToInner(key), bit, start, end, indexType, limit, flags);
+
         public Task<bool> StringDeleteAsync(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDeleteAsync(ToInner(key), when, flags);
 
