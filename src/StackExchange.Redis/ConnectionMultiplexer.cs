@@ -2286,12 +2286,12 @@ namespace StackExchange.Redis
                     else if (listedInSlots!.Contains(node.EndPoint))
                     {
                         // SLOTS lists it, so it is in clusterEndpoints and we are about to connect to it and
-                        // wait for it. Only the *existence* of a server was ever checked here, which a node
-                        // in this state fails - a replica of a shard we have not reached yet is created by
-                        // its primary's genealogy pass, and that has not run. Registering it inert then left
-                        // it waited on but undialled, for the whole ConnectTimeout (#3232)
-                        log?.LogInformationRegisteringSlotMapNode(new(node.EndPoint));
-                        GetServerEndPoint(node.EndPoint, ServerProvenance.ClusterTopology, log);
+                        // wait for it. Prefer the SLOTS hostname over its companion IP from NODES: that IP
+                        // may be an unreachable pod address using the ingress client port.
+                        var dialEndPoint = FindPreferredDialEndPoint(topology, node.EndPoint) ?? node.EndPoint;
+                        log?.LogInformationRegisteringSlotMapNode(new(dialEndPoint));
+                        GetServerEndPoint(dialEndPoint, ServerProvenance.ClusterTopology, log);
+                        if (!Equals(dialEndPoint, node.EndPoint)) RegisterServerIdentities(topology);
                     }
                     else
                     {
@@ -2320,16 +2320,42 @@ namespace StackExchange.Redis
                 return null;
             }
 
-            // an identity we already hold if there is one - otherwise the form the answering node advertised,
-            // which is what Identities is ordered by, and which is the form TLS can validate
             EndPoint? SelectIdentity(ClusterTopologyNode node)
             {
+                var preferred = node.PreferredDialEndPoint;
+                ServerEndPoint? preferredKnown = null, dnsKnown = null, anyKnown = null;
+
                 foreach (var identity in node.Identities)
                 {
-                    if (TryResolveServerEndPoint(identity) is { } known) return known.EndPoint;
+                    if (TryResolveServerEndPoint(identity) is not { } known) continue;
+                    anyKnown ??= known;
+                    if (preferred is not null && Equals(known.EndPoint, preferred)) preferredKnown = known;
+                    if (known.EndPoint is DnsEndPoint) dnsKnown ??= known;
                 }
-                return node.Identities.Count > 0 ? node.Identities[0] : null;
+
+                if (preferred is DnsEndPoint)
+                {
+                    return (preferredKnown ?? dnsKnown)?.EndPoint ?? preferred;
+                }
+
+                return (preferredKnown ?? anyKnown)?.EndPoint ?? preferred;
             }
+        }
+
+        /// <summary>
+        /// Finds the SLOTS preferred dial endpoint for a node that also answers at <paramref name="identity"/>
+        /// (typically the IP form from <c>CLUSTER NODES</c>).
+        /// </summary>
+        private static EndPoint? FindPreferredDialEndPoint(ClusterTopology topology, EndPoint identity)
+        {
+            foreach (var node in topology.Nodes)
+            {
+                foreach (var id in node.Identities)
+                {
+                    if (Equals(id, identity)) return node.PreferredDialEndPoint;
+                }
+            }
+            return null;
         }
 
         private void ResetAllNonConnected()
@@ -2552,8 +2578,8 @@ namespace StackExchange.Redis
             {
                 if (node.IsReplica || node.Slots.Count == 0) continue;
 
-                // resolve by *any* identity the node answers to before falling back to the form this reply
-                // happened to use; that is what keeps one node from becoming two ServerEndPoints
+                // Resolve the preferred server first, and do not adopt a companion IP server when hostnames
+                // are preferred.
                 var server = ResolveOrCreate(node);
                 if (server is null) continue;
 
@@ -2565,15 +2591,36 @@ namespace StackExchange.Redis
 
             ServerEndPoint? ResolveOrCreate(ClusterTopologyNode node)
             {
+                var preferred = node.PreferredDialEndPoint;
+                ServerEndPoint? preferredKnown = null, dnsKnown = null, anyKnown = null;
+
                 foreach (var identity in node.Identities)
                 {
-                    if (TryResolveServerEndPoint(identity) is { } known) return known;
+                    if (TryResolveServerEndPoint(identity) is not { } known) continue;
+                    anyKnown ??= known;
+                    if (preferred is not null && Equals(known.EndPoint, preferred)) preferredKnown = known;
+                    if (known.EndPoint is DnsEndPoint) dnsKnown ??= known;
                 }
 
-                // unknown node: dial the form the answering node *advertised*, which Identities is ordered by.
-                // Not the address by preference: a certificate validates against a name, and where hostnames
-                // are preferred the advertised address may not even be routable (#2826)
-                return node.Identities.Count > 0 ? GetServerEndPoint(node.Identities[0], ServerProvenance.ClusterTopology) : null;
+                if (preferred is DnsEndPoint)
+                {
+                    // Hostname-routed TLS/SNI clusters: never adopt a companion IP ServerEndPoint for
+                    // the slot map. That IP is often the pod address with the ingress client port and
+                    // does not survive pod restart.
+                    if (preferredKnown is not null) return preferredKnown;
+                    if (dnsKnown is not null) return dnsKnown;
+                    return preferred is not null
+                        ? GetServerEndPoint(preferred, ServerProvenance.ClusterTopology)
+                        : null;
+                }
+
+                if (preferredKnown is not null) return preferredKnown;
+                if (anyKnown is not null) return anyKnown;
+
+                // Unknown node: dial the form the answering node advertised (#2826).
+                return preferred is not null
+                    ? GetServerEndPoint(preferred, ServerProvenance.ClusterTopology)
+                    : null;
             }
         }
 
