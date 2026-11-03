@@ -120,6 +120,36 @@ public class FormatTests(ITestOutputHelper output) : TestBase(output)
         Assert.Equal(expectedFormat, s);
     }
 
+    public static IEnumerable<object?[]> ServerEndpointData()
+    {
+        // what the server writes in CLUSTER NODES / MOVED / CLIENT LIST: IPv6 is *not* bracketed, and
+        // a port always follows, so the port is whatever comes after the last colon (#1422)
+        yield return new object?[] { "2a06:4e80:3:a::a:7000", new IPEndPoint(IPAddress.Parse("2a06:4e80:3:a::a"), 7000) };
+        yield return new object?[] { "fd40:8017:11:7032:7011:600:ac18:bc:54265", new IPEndPoint(IPAddress.Parse("fd40:8017:11:7032:7011:600:ac18:bc"), 54265) };
+        yield return new object?[] { "::1:6379", new IPEndPoint(IPAddress.IPv6Loopback, 6379) }; // contrast with EndpointData
+        // everything else is exactly as TryParseEndPoint sees it
+        yield return new object?[] { "[::1]:6379", new IPEndPoint(IPAddress.IPv6Loopback, 6379) };
+        yield return new object?[] { "127.0.0.1:6379", new IPEndPoint(IPAddress.Loopback, 6379) };
+        yield return new object?[] { "host.example.com:6379", new DnsEndPoint("host.example.com", 6379) };
+        yield return new object?[] { "?", new DnsEndPoint("?", 0) };
+    }
+
+    [Theory]
+    [MemberData(nameof(ServerEndpointData))]
+    public void ParseServerEndPoint(string data, EndPoint expected)
+    {
+        Assert.True(Format.TryParseServerEndPoint(data, out var result));
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ParseServerEndPointWithOutOfRangePortDoesNotThrow()
+    {
+        // not a port, so not an unbracketed IPv6 + port; whatever this is, it must not throw
+        Assert.True(Format.TryParseServerEndPoint("::1:99999", out var result));
+        Assert.IsType<DnsEndPoint>(result);
+    }
+
     // UDS endpoints live outside EndpointData because UnixDomainSocketEndPoint does not implement
     // value equality — these compare via ToString instead.
 #if NET

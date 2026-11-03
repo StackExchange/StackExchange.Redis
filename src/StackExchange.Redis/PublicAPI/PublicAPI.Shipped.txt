@@ -80,6 +80,8 @@ StackExchange.Redis.Availability.ConnectionGroupMember.ConnectionGroupMember(Sta
 StackExchange.Redis.Availability.ConnectionGroupMember.ConnectionGroupMember(string! configuration, string! name = "") -> void
 StackExchange.Redis.Availability.ConnectionGroupMember.FailbackDelay.get -> System.TimeSpan?
 StackExchange.Redis.Availability.ConnectionGroupMember.FailbackDelay.set -> void
+StackExchange.Redis.Availability.ConnectionGroupMember.FailbackHealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
+StackExchange.Redis.Availability.ConnectionGroupMember.FailbackHealthCheck.set -> void
 StackExchange.Redis.Availability.ConnectionGroupMember.HealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
 StackExchange.Redis.Availability.ConnectionGroupMember.HealthCheck.set -> void
 StackExchange.Redis.Availability.ConnectionGroupMember.IsConnected.get -> bool
@@ -136,6 +138,7 @@ StackExchange.Redis.Availability.HealthCheck.CheckHealthAsync(StackExchange.Redi
 StackExchange.Redis.Availability.HealthCheck.CheckHealthAsync(StackExchange.Redis.IServer! server) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheckResult>!
 static StackExchange.Redis.Availability.HealthCheck.Default.get -> StackExchange.Redis.Availability.HealthCheck!
 StackExchange.Redis.Availability.HealthCheck.IsEnabled.get -> bool
+static StackExchange.Redis.Availability.HealthCheck.LagAware(StackExchange.Redis.Availability.LagAwareOptions! options) -> StackExchange.Redis.Availability.HealthCheck!
 static StackExchange.Redis.Availability.HealthCheck.None.get -> StackExchange.Redis.Availability.HealthCheck!
 StackExchange.Redis.Availability.HealthCheck.Probe.get -> StackExchange.Redis.Availability.HealthCheckProbe!
 StackExchange.Redis.Availability.HealthCheck.ProbeCount.get -> int
@@ -156,8 +159,10 @@ StackExchange.Redis.Availability.HealthCheckProbe.HealthCheckProbe() -> void
 static StackExchange.Redis.Availability.HealthCheckProbe.HealthyTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheckResult>!
 static StackExchange.Redis.Availability.HealthCheckProbe.InconclusiveTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheckResult>!
 static StackExchange.Redis.Availability.HealthCheckProbe.IsConnected.get -> StackExchange.Redis.Availability.HealthCheckProbe!
+static StackExchange.Redis.Availability.HealthCheckProbe.LagAware(StackExchange.Redis.Availability.LagAwareOptions! options) -> StackExchange.Redis.Availability.HealthCheckProbe!
 static StackExchange.Redis.Availability.HealthCheckProbe.None.get -> StackExchange.Redis.Availability.HealthCheckProbe!
 static StackExchange.Redis.Availability.HealthCheckProbe.Ping.get -> StackExchange.Redis.Availability.HealthCheckProbe!
+virtual StackExchange.Redis.Availability.HealthCheckProbe.Scope.get -> StackExchange.Redis.Availability.HealthCheckProbeScope
 static StackExchange.Redis.Availability.HealthCheckProbe.StringSet.get -> StackExchange.Redis.Availability.HealthCheckProbe!
 static StackExchange.Redis.Availability.HealthCheckProbe.UnhealthyTask.get -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheckResult>!
 StackExchange.Redis.Availability.HealthCheckProbeContext
@@ -175,6 +180,9 @@ static StackExchange.Redis.Availability.HealthCheckProbePolicy.AnySuccess.get ->
 abstract StackExchange.Redis.Availability.HealthCheckProbePolicy.Evaluate(in StackExchange.Redis.Availability.HealthCheckProbeContext context) -> StackExchange.Redis.Availability.HealthCheckResult
 StackExchange.Redis.Availability.HealthCheckProbePolicy.HealthCheckProbePolicy() -> void
 static StackExchange.Redis.Availability.HealthCheckProbePolicy.MajoritySuccess.get -> StackExchange.Redis.Availability.HealthCheckProbePolicy!
+StackExchange.Redis.Availability.HealthCheckProbeScope
+StackExchange.Redis.Availability.HealthCheckProbeScope.Endpoint = 0 -> StackExchange.Redis.Availability.HealthCheckProbeScope
+StackExchange.Redis.Availability.HealthCheckProbeScope.Member = 1 -> StackExchange.Redis.Availability.HealthCheckProbeScope
 StackExchange.Redis.Availability.HealthCheckResult
 StackExchange.Redis.Availability.HealthCheckResult.Healthy = 1 -> StackExchange.Redis.Availability.HealthCheckResult
 StackExchange.Redis.Availability.HealthCheckResult.Inconclusive = 0 -> StackExchange.Redis.Availability.HealthCheckResult
@@ -191,6 +199,29 @@ StackExchange.Redis.Availability.KeyWriteHealthCheckProbe
 override sealed StackExchange.Redis.Availability.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheckContext context) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheckResult>!
 abstract StackExchange.Redis.Availability.KeyWriteHealthCheckProbe.CheckHealthAsync(StackExchange.Redis.Availability.HealthCheckContext context, StackExchange.Redis.IDatabaseAsync! database, StackExchange.Redis.RedisKey key) -> System.Threading.Tasks.Task<StackExchange.Redis.Availability.HealthCheckResult>!
 StackExchange.Redis.Availability.KeyWriteHealthCheckProbe.KeyWriteHealthCheckProbe() -> void
+StackExchange.Redis.Availability.LagAwareOptions
+StackExchange.Redis.Availability.LagAwareOptions.CertificateValidation.get -> System.Net.Security.RemoteCertificateValidationCallback?
+StackExchange.Redis.Availability.LagAwareOptions.CertificateValidation.set -> void
+StackExchange.Redis.Availability.LagAwareOptions.ClientCertificate.get -> System.Security.Cryptography.X509Certificates.X509Certificate2?
+StackExchange.Redis.Availability.LagAwareOptions.ClientCertificate.set -> void
+StackExchange.Redis.Availability.LagAwareOptions.Credentials.get -> System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<System.Net.NetworkCredential!>>?
+StackExchange.Redis.Availability.LagAwareOptions.Credentials.set -> void
+StackExchange.Redis.Availability.LagAwareOptions.DatabaseId.get -> int?
+StackExchange.Redis.Availability.LagAwareOptions.DatabaseId.set -> void
+StackExchange.Redis.Availability.LagAwareOptions.LagAwareOptions() -> void
+StackExchange.Redis.Availability.LagAwareOptions.LagCheck.get -> StackExchange.Redis.Availability.LagCheckMode
+StackExchange.Redis.Availability.LagAwareOptions.LagCheck.set -> void
+StackExchange.Redis.Availability.LagAwareOptions.LagTolerance.get -> System.TimeSpan?
+StackExchange.Redis.Availability.LagAwareOptions.LagTolerance.set -> void
+StackExchange.Redis.Availability.LagAwareOptions.RestEndpoint.get -> System.Uri?
+StackExchange.Redis.Availability.LagAwareOptions.RestEndpoint.set -> void
+StackExchange.Redis.Availability.LagAwareOptions.SetUserPfxCertificate(string! userCertificatePath, string? password = null) -> void
+StackExchange.Redis.Availability.LagAwareOptions.TrustIssuer(System.Security.Cryptography.X509Certificates.X509Certificate2! issuer) -> void
+StackExchange.Redis.Availability.LagAwareOptions.TrustIssuer(string! issuerCertificatePath) -> void
+StackExchange.Redis.Availability.LagCheckMode
+StackExchange.Redis.Availability.LagCheckMode.Auto = 0 -> StackExchange.Redis.Availability.LagCheckMode
+StackExchange.Redis.Availability.LagCheckMode.Disabled = 2 -> StackExchange.Redis.Availability.LagCheckMode
+StackExchange.Redis.Availability.LagCheckMode.Enabled = 1 -> StackExchange.Redis.Availability.LagCheckMode
 StackExchange.Redis.Availability.MultiGroupOptions
 StackExchange.Redis.Availability.MultiGroupOptions.Builder
 StackExchange.Redis.Availability.MultiGroupOptions.Builder.Builder() -> void
@@ -200,6 +231,8 @@ StackExchange.Redis.Availability.MultiGroupOptions.Builder.CircuitBreaker.set ->
 StackExchange.Redis.Availability.MultiGroupOptions.Builder.Create() -> StackExchange.Redis.Availability.MultiGroupOptions!
 StackExchange.Redis.Availability.MultiGroupOptions.Builder.FailbackDelay.get -> System.TimeSpan
 StackExchange.Redis.Availability.MultiGroupOptions.Builder.FailbackDelay.set -> void
+StackExchange.Redis.Availability.MultiGroupOptions.Builder.FailbackHealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
+StackExchange.Redis.Availability.MultiGroupOptions.Builder.FailbackHealthCheck.set -> void
 StackExchange.Redis.Availability.MultiGroupOptions.Builder.HealthCheck.get -> StackExchange.Redis.Availability.HealthCheck!
 StackExchange.Redis.Availability.MultiGroupOptions.Builder.HealthCheck.set -> void
 StackExchange.Redis.Availability.MultiGroupOptions.Builder.HealthCheckInterval.get -> System.TimeSpan
@@ -210,6 +243,7 @@ static StackExchange.Redis.Availability.MultiGroupOptions.Builder.implicit opera
 StackExchange.Redis.Availability.MultiGroupOptions.CircuitBreaker.get -> StackExchange.Redis.Availability.CircuitBreaker!
 static StackExchange.Redis.Availability.MultiGroupOptions.Default.get -> StackExchange.Redis.Availability.MultiGroupOptions!
 StackExchange.Redis.Availability.MultiGroupOptions.FailbackDelay.get -> System.TimeSpan
+StackExchange.Redis.Availability.MultiGroupOptions.FailbackHealthCheck.get -> StackExchange.Redis.Availability.HealthCheck?
 StackExchange.Redis.Availability.MultiGroupOptions.HealthCheck.get -> StackExchange.Redis.Availability.HealthCheck!
 StackExchange.Redis.Availability.MultiGroupOptions.HealthCheckInterval.get -> System.TimeSpan
 StackExchange.Redis.Availability.MultiGroupOptions.RetryPolicy.get -> StackExchange.Redis.Availability.RetryPolicy!
@@ -537,7 +571,7 @@ StackExchange.Redis.ConditionResult
 StackExchange.Redis.ConditionResult.WasSatisfied.get -> bool
 StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider
 override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.AbortOnConnectFail.get -> bool
-override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.AfterConnectAsync(StackExchange.Redis.ConnectionMultiplexer! muxer, System.Action<string!>! log) -> System.Threading.Tasks.Task!
+override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.AfterConnectAsync(StackExchange.Redis.ConnectionMultiplexer! multiplexer, System.Action<string!>! log) -> System.Threading.Tasks.Task!
 StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.AzureManagedRedisOptionsProvider() -> void
 override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.ConfigurationChannel.get -> string!
 override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.DefaultVersion.get -> System.Version!
@@ -548,7 +582,7 @@ override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.Name
 override StackExchange.Redis.Configuration.AzureManagedRedisOptionsProvider.Protocol.get -> StackExchange.Redis.RedisProtocol?
 StackExchange.Redis.Configuration.AzureOptionsProvider
 override StackExchange.Redis.Configuration.AzureOptionsProvider.AbortOnConnectFail.get -> bool
-override StackExchange.Redis.Configuration.AzureOptionsProvider.AfterConnectAsync(StackExchange.Redis.ConnectionMultiplexer! muxer, System.Action<string!>! log) -> System.Threading.Tasks.Task!
+override StackExchange.Redis.Configuration.AzureOptionsProvider.AfterConnectAsync(StackExchange.Redis.ConnectionMultiplexer! multiplexer, System.Action<string!>! log) -> System.Threading.Tasks.Task!
 StackExchange.Redis.Configuration.AzureOptionsProvider.AzureOptionsProvider() -> void
 override StackExchange.Redis.Configuration.AzureOptionsProvider.DefaultVersion.get -> System.Version!
 override StackExchange.Redis.Configuration.AzureOptionsProvider.GetDefaultSsl(StackExchange.Redis.EndPointCollection! endPoints) -> bool
@@ -2082,6 +2116,10 @@ StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.Append = 1 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ArDel = 51 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ArDelRange = 52 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ArInsert = 55 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ArMSet = 56 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ArRing = 57 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ArSeek = 58 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ArSet = 53 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.Copy = 2 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.Del = 3 -> StackExchange.Redis.KeyNotificationType
@@ -2097,6 +2135,7 @@ StackExchange.Redis.KeyNotificationType.HPersist = 9 -> StackExchange.Redis.KeyN
 StackExchange.Redis.KeyNotificationType.HSet = 10 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.IncrBy = 12 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.IncrByFloat = 11 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.KeyMiss = 1005 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.LInsert = 13 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.LPop = 14 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.LPush = 15 -> StackExchange.Redis.KeyNotificationType
@@ -2108,15 +2147,22 @@ StackExchange.Redis.KeyNotificationType.MoveTo = 20 -> StackExchange.Redis.KeyNo
 StackExchange.Redis.KeyNotificationType.New = 1002 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.Overwritten = 1003 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.Persist = 21 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.PfAdd = 59 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.RPop = 25 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.RPush = 26 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.RenameFrom = 22 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.RenameTo = 23 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.Restore = 24 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.SAdd = 27 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SDiffStore = 65 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SExpire = 60 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SInterStore = 62 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SPersist = 61 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.SPop = 32 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.SRem = 31 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SUnionStore = 64 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.Set = 28 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.SetBit = 54 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.SetRange = 29 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.SortStore = 30 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.TypeChanged = 1004 -> StackExchange.Redis.KeyNotificationType
@@ -2134,6 +2180,7 @@ StackExchange.Redis.KeyNotificationType.ZAdd = 42 -> StackExchange.Redis.KeyNoti
 StackExchange.Redis.KeyNotificationType.ZDiffStore = 43 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ZIncr = 46 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ZInterStore = 44 -> StackExchange.Redis.KeyNotificationType
+StackExchange.Redis.KeyNotificationType.ZRangeStore = 63 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ZRem = 49 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ZRemByRank = 47 -> StackExchange.Redis.KeyNotificationType
 StackExchange.Redis.KeyNotificationType.ZRemByScore = 48 -> StackExchange.Redis.KeyNotificationType
@@ -2653,6 +2700,7 @@ StackExchange.Redis.RedisTimeoutException.RedisTimeoutException(StackExchange.Re
 StackExchange.Redis.RedisTimeoutException.RedisTimeoutException(string! message, StackExchange.Redis.CommandStatus commandStatus) -> void
 StackExchange.Redis.RedisType
 StackExchange.Redis.RedisType.Array = 9 -> StackExchange.Redis.RedisType
+StackExchange.Redis.RedisType.Bitmap = 10 -> StackExchange.Redis.RedisType
 StackExchange.Redis.RedisType.Hash = 5 -> StackExchange.Redis.RedisType
 StackExchange.Redis.RedisType.List = 2 -> StackExchange.Redis.RedisType
 StackExchange.Redis.RedisType.None = 0 -> StackExchange.Redis.RedisType

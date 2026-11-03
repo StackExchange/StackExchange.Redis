@@ -72,7 +72,7 @@ namespace StackExchange.Redis
             /// </summary>
 #pragma warning disable RS0016, RS0026
             public ConnectionGroupMember(string configuration, string name = "") : this(
-                ConfigurationOptions.Parse(configuration))
+                ConfigurationOptions.Parse(configuration), name)
 #pragma warning restore RS0016, RS0026
             {
             }

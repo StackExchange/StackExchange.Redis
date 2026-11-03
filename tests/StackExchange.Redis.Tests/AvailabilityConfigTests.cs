@@ -306,6 +306,19 @@ public class AvailabilityConfigTests
         Assert.Null(config.CircuitBreaker);
     }
 
+    // ---- member naming ----
+    [Fact]
+    public void Member_NameIsPreservedByBothConstructors()
+    {
+        // the string overload chains to the ConfigurationOptions one; it used to drop the name on the way,
+        // so every member built from a configuration string ended up named after its endpoint
+        Assert.Equal("East", new ConnectionGroupMember("localhost:6379", name: "East").Name);
+        Assert.Equal("West", new ConnectionGroupMember(ConfigurationOptions.Parse("localhost:6380"), name: "West").Name);
+
+        // no name is still no name here; the endpoint fallback is applied when the member joins a group
+        Assert.Equal("", new ConnectionGroupMember("localhost:6379").Name);
+    }
+
     // ---- WithRetry() policy resolution ----
     [Fact]
     public async Task WithRetry_UsesConfiguredPolicyForASingleConnection()

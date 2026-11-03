@@ -48,7 +48,7 @@ public partial class ConnectionMultiplexer
                 {
                     string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     // We don't care about the result of this - we're just trying
-                    _ = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]), out var switchBlame);
+                    _ = Format.TryParseEndPoint(messageParts[1], messageParts[2], out var switchBlame);
 
                     // Resolve the child under the lock, but run the (potentially multi-second,
                     // blocking) SwitchPrimary reconfigure OUTSIDE it: otherwise a failover for one

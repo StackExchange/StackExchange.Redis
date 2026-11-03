@@ -14,4 +14,18 @@ public partial class ConnectionMultiplexer
     /// </summary>
     /// <param name="profilingSessionProvider">The session provider to register.</param>
     public void RegisterProfiler(Func<ProfilingSession?> profilingSessionProvider) => _profilingSessionProvider = profilingSessionProvider;
+
+    /// <summary>
+    /// Gives the message somewhere to record its timings, if a profiler is registered and has a session for the
+    /// calling context. Every path that hands a message to a server calls this once the server is known: single
+    /// commands via <c>PrepareToPushMessageToBridge</c>, and batches, which go to the bridge directly (#2175).
+    /// </summary>
+    internal void AttachProfiling(Message message, ServerEndPoint server)
+    {
+        var profilingSession = _profilingSessionProvider?.Invoke();
+        if (profilingSession != null)
+        {
+            message.SetProfileStorage(ProfiledCommand.NewWithContext(profilingSession, server));
+        }
+    }
 }
