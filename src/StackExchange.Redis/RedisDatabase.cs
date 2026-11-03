@@ -5857,7 +5857,7 @@ namespace StackExchange.Redis
 
         private static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
-            bool reverseLimits = (order == Order.Ascending) == (stop != default && start.CompareTo(stop) > 0);
+            bool reverseLimits = (order == Order.Ascending) == (stop != default && CompareLexBounds(start, stop) > 0);
             if (reverseLimits)
             {
                 var tmp = start;
@@ -5870,6 +5870,23 @@ namespace StackExchange.Redis
                 }
             }
         }
+
+        // Redis orders a lex range by raw bytes (memcmp, shorter prefix first). RedisValue.CompareTo can't be used
+        // here: it treats numeric-looking text as a number, so "0123" would be compared as 123.
+        private static int CompareLexBounds(in RedisValue x, in RedisValue y)
+        {
+            byte[]? xLease = null, yLease = null;
+            try
+            {
+                return x.AsMemory(out xLease).Span.SequenceCompareTo(y.AsMemory(out yLease).Span);
+            }
+            finally
+            {
+                if (xLease is not null) ArrayPool<byte>.Shared.Return(xLease);
+                if (yLease is not null) ArrayPool<byte>.Shared.Return(yLease);
+            }
+        }
+
         public RedisValue[] SortedSetRangeByValue(
             RedisKey key,
             RedisValue min = default,

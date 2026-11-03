@@ -1836,7 +1836,9 @@ namespace StackExchange.Redis
             }
         }
 
-        private ReadOnlyMemory<byte> AsMemory(out byte[]? leased)
+        // the value's bytes, for any storage kind; a non-null 'leased' came from ArrayPool<byte>.Shared, and
+        // the caller must return it once done with the memory
+        internal ReadOnlyMemory<byte> AsMemory(out byte[]? leased)
         {
             switch (Type)
             {

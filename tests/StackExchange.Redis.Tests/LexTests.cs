@@ -57,6 +57,110 @@ public class LexTests(ITestOutputHelper output, SharedConnectionFixture fixture)
     }
 
     [Fact]
+    public async Task QueryRangeByLexWithNumericPrefix()
+    {
+        await using var conn = Create();
+
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        db.SortedSetAdd(
+            key,
+            [
+                    new SortedSetEntry("0122", 0),
+                    new SortedSetEntry("0123", 0),
+                    new SortedSetEntry("0123abc", 0),
+                    new SortedSetEntry("0123xyz", 0),
+                    new SortedSetEntry("0124", 0),
+                    new SortedSetEntry("123abc", 0),
+            ],
+            CommandFlags.FireAndForget);
+
+        // prefix + '\xff' is the usual autocomplete upper bound; "0123" on its own looks like the number 123 (#1302)
+        var set = db.SortedSetRangeByValue(key, "0123", "0123\xff");
+        var count = db.SortedSetLengthByValue(key, "0123", "0123\xff");
+        Equate(set, count, "0123", "0123abc", "0123xyz");
+
+        set = await db.SortedSetRangeByValueAsync(key, "0123", "0123\xff");
+        Equate(set, set.Length, "0123", "0123abc", "0123xyz");
+
+        set = db.SortedSetRangeByValue(key, "0123", "0123\xff", Exclude.None, Order.Descending);
+        Equate(set, set.Length, "0123xyz", "0123abc", "0123");
+
+        set = await db.SortedSetRangeByValueAsync(key, "0123", "0123\xff", Exclude.None, Order.Descending);
+        Equate(set, set.Length, "0123xyz", "0123abc", "0123");
+    }
+
+    [Fact]
+    public async Task QueryRangeByLexWithNumericPrefixAndExclude()
+    {
+        await using var conn = Create();
+
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        db.SortedSetAdd(
+            key,
+            [
+                    new SortedSetEntry("0122", 0),
+                    new SortedSetEntry("0123", 0),
+                    new SortedSetEntry("0123abc", 0),
+                    new SortedSetEntry("0123xyz", 0),
+                    new SortedSetEntry("0124", 0),
+            ],
+            CommandFlags.FireAndForget);
+
+        var set = db.SortedSetRangeByValue(key, "0123", "0123xyz", Exclude.Start);
+        var count = db.SortedSetLengthByValue(key, "0123", "0123xyz", Exclude.Start);
+        Equate(set, count, "0123abc", "0123xyz");
+
+        set = db.SortedSetRangeByValue(key, "0123", "0123xyz", Exclude.Stop);
+        count = db.SortedSetLengthByValue(key, "0123", "0123xyz", Exclude.Stop);
+        Equate(set, count, "0123", "0123abc");
+
+        set = db.SortedSetRangeByValue(key, "0123", "0123xyz", Exclude.Start, Order.Descending);
+        Equate(set, set.Length, "0123xyz", "0123abc");
+
+        set = db.SortedSetRangeByValue(key, "0123", "0123xyz", Exclude.Stop, Order.Descending);
+        Equate(set, set.Length, "0123abc", "0123");
+    }
+
+    [Fact]
+    public async Task QueryRangeByLexWithDigitOnlyBounds()
+    {
+        await using var conn = Create();
+
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+
+        db.SortedSetAdd(
+            key,
+            [
+                    new SortedSetEntry("1", 0),
+                    new SortedSetEntry("10", 0),
+                    new SortedSetEntry("15", 0),
+                    new SortedSetEntry("2", 0),
+                    new SortedSetEntry("20", 0),
+                    new SortedSetEntry("3", 0),
+            ],
+            CommandFlags.FireAndForget);
+
+        // as text "10" sorts before "2", so the bounds are ordered the way redis orders them
+        var set = db.SortedSetRangeByValue(key, "2", "10");
+        var raw = (RedisValue[]?)db.Execute("ZRANGEBYLEX", [key, "[10", "[2"]);
+        Assert.Equal(raw, set);
+        Equate(set, set.Length, "10", "15", "2");
+
+        set = db.SortedSetRangeByValue(key, "2", "10", Exclude.None, Order.Descending);
+        raw = (RedisValue[]?)db.Execute("ZREVRANGEBYLEX", [key, "[2", "[10"]);
+        Assert.Equal(raw, set);
+        Equate(set, set.Length, "2", "15", "10");
+    }
+
+    [Fact]
     public async Task RemoveRangeByLex()
     {
         await using var conn = Create();
