@@ -626,7 +626,7 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         }
         finally { owner.ReleaseReconfigureClaim(); }
         await update;
-        await UntilAsync(() => owner.GetServer(SecondSentinelEndPoint).IsConnected, "pending reconfigure did not connect the peer");
+        await UntilAsync(() => owner.TryResolveServerEndPoint(SecondSentinelEndPoint)?.IsConnected == true, "pending reconfigure did not connect the peer");
     }
 
     [Fact]
@@ -748,7 +748,8 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         await using var child = await first;
         Assert.Same(child, await second);
         Assert.Single(owner.sentinelConnectionChildren);
-        await UntilAsync(() => data.ClientCount == 2, "losing managed connection was not disposed");
+        // only the winner's connections are left: the interactive one, and a dedicated subscription one if it was opened
+        await UntilAsync(() => data.ClientCount == ConnectionsTo(child, PrimaryA), "losing managed connection was not disposed");
     }
 
     [Fact]
@@ -810,6 +811,12 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
     }
 
     private static TaskCompletionSource<bool> NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // the dedicated subscription connection is opened on demand, so it may not exist at all
+    private static int ConnectionsTo(ConnectionMultiplexer conn, EndPoint endpoint)
+        => conn.TryResolveServerEndPoint(endpoint) is { } server
+            ? (server.IsConnected ? 1 : 0) + (!server.SharesSubscriptionConnection() && server.IsSubscriberConnected ? 1 : 0)
+            : 0;
 
     private static async Task AwaitSignalAsync(Task signal)
         => Assert.Same(signal, await Task.WhenAny(signal, Task.Delay(10000)));
