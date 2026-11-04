@@ -471,13 +471,21 @@ internal sealed partial class ServerEndPoint
     }
 
     /// <summary>
-    /// Lets in-flight caller work finish, then replaces the connections.
+    /// Holds new caller work back, lets what has already been written finish, then replaces the connections.
     /// </summary>
     /// <remarks>
     /// Draining first because the socket is still working: anything already written may still be answered, and
     /// dropping it would fail commands that were about to succeed. Bounded by what is left of the window,
     /// because the server closes the socket at the end of it regardless - so anything not drained by then was
     /// going to fail either way, and draining strictly dominates.
+    /// <para>
+    /// Holding new work back is what makes the drain finish. Measured live on a connection carrying about 450
+    /// operations a second: there was always something in flight, so a drain that waited for "no caller work"
+    /// waited out the entire 15s window and then recycled at the deadline - failing the eight commands in flight
+    /// at that instant, with no time left to establish the replacement. That is the exact outcome the handoff
+    /// exists to avoid. With new work held in the backlog, the written commands complete within a round trip, the
+    /// recycle follows, and the held work is written to the replacement once it is established.
+    /// </para>
     /// <para>
     /// Both bridges, not just the one that was told. The measured blast radius is the *node*: four connections
     /// to one proxy, differing only in handshake, all closed simultaneously, and only the ones that had opted in
@@ -487,18 +495,30 @@ internal sealed partial class ServerEndPoint
     private async Task DrainThenRecycleAsync(TimeSpan budget, string reason)
     {
         var watch = ValueStopwatch.StartNew();
-        while (HasCallerWork() && watch.ElapsedMilliseconds < budget.TotalMilliseconds)
+        interactive?.BeginQuiesce();
+        subscription?.BeginQuiesce();
+        try
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
-        }
+            while (HasCallerWorkInFlight() && watch.ElapsedMilliseconds < budget.TotalMilliseconds)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
+            }
 
-        var drained = !HasCallerWork();
-        var recycled = (interactive?.RecycleConnection(reason) == true) | (subscription?.RecycleConnection(reason) == true);
-        if (recycled) Interlocked.Increment(ref _handoffRecycles);
-        Multiplexer.Trace(
-            $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
-            + (drained ? " (drained)" : " (still busy; the window ran out)"),
-            ToString());
+            var drained = !HasCallerWorkInFlight();
+            var recycled = (interactive?.RecycleConnection(reason) == true) | (subscription?.RecycleConnection(reason) == true);
+            if (recycled) Interlocked.Increment(ref _handoffRecycles);
+            Multiplexer.Trace(
+                $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
+                + (drained ? " (drained)" : " (still busy; the window ran out)"),
+                ToString());
+        }
+        finally
+        {
+            // the recycle has already nulled the old connection, so releasing the hold cannot write to it; the
+            // held work waits in the backlog for the replacement, as it would across any reconnect
+            interactive?.EndQuiesce();
+            subscription?.EndQuiesce();
+        }
     }
 
     /// <summary>

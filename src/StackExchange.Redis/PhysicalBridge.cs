@@ -132,6 +132,42 @@ namespace StackExchange.Redis
         /// </summary>
         internal void MarkNeedsReconnect() => Volatile.Write(ref _needsReconnect, true);
 
+        private volatile bool _quiescing;
+
+        /// <summary>
+        /// Starts holding caller work back from the current connection while a maintenance handoff lets what has
+        /// already been written complete; see <see cref="ServerEndPoint.DrainThenRecycleAsync"/>.
+        /// </summary>
+        /// <remarks>
+        /// Held work goes to the backlog rather than the socket, and is written to the replacement connection once
+        /// that is established. Without this the drain could never finish under steady traffic: there was always
+        /// something in flight, so the recycle waited for the end of the announced window and then failed whatever
+        /// was in flight at that instant.
+        /// </remarks>
+        internal void BeginQuiesce() => _quiescing = true;
+
+        internal void EndQuiesce()
+        {
+            _quiescing = false;
+            if (BacklogHasItems)
+            {
+                // the processor may be lingering between passes, or may have exited; either way, get the held work moving
+                _backlogAutoReset.Set();
+                StartBacklogProcessor();
+            }
+        }
+
+        /// <summary>
+        /// Queue a caller's message for the replacement connection during a handoff, regardless of the backlog policy:
+        /// the connection is live and the message would have been written, so failing it would be a regression.
+        /// </summary>
+        private WriteResult HoldForHandoff(Message message)
+        {
+            message.SetEnqueued(null);
+            BacklogEnqueue(message);
+            return WriteResult.Success;
+        }
+
         public void Dispose()
         {
             isDisposed = true;
@@ -212,6 +248,7 @@ namespace StackExchange.Redis
         public WriteResult TryWriteSync(Message message, bool isReplica)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
+            if (_quiescing && !message.IsInternalCall) return HoldForHandoff(message);
             if (!IsConnected || NeedsReconnect) return QueueOrFailMessage(message);
 
             var physical = this.physical;
@@ -236,6 +273,7 @@ namespace StackExchange.Redis
         public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica, bool bypassBacklog = false)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
+            if (_quiescing && !bypassBacklog && !message.IsInternalCall) return new ValueTask<WriteResult>(HoldForHandoff(message));
             if ((!IsConnected || NeedsReconnect) && !bypassBacklog) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
 
             var physical = this.physical;
@@ -477,8 +515,9 @@ namespace StackExchange.Redis
                 Multiplexer.Logger?.LogErrorConnectionIssue(innerException, innerException.Message);
             }
             Trace($"OnConnectionFailed: {connection}");
-            // If we're configured to, fail all pending backlogged messages
-            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true)
+            // If we're configured to, fail all pending backlogged messages - but not for a maintenance handoff, which
+            // is a replacement we chose, and whose backlog is work deliberately held for the replacement connection
+            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff)
             {
                 AbandonPendingBacklog(innerException, connection);
             }
@@ -775,6 +814,16 @@ namespace StackExchange.Redis
             if (messages == null || messages.Count == 0) return true;
 
             if (isDisposed) throw new ObjectDisposedException(Name);
+
+            if (_quiescing)
+            {
+                // a maintenance handoff is draining the connection: hold the batch for the replacement
+                foreach (var message in messages)
+                {
+                    HoldForHandoff(message);
+                }
+                return true;
+            }
 
             if (!IsConnected || NeedsReconnect)
             {
@@ -1073,6 +1122,13 @@ namespace StackExchange.Redis
         /// and pruning it accordingly (these messages will get timeout exceptions).
         /// </summary>
         /// <summary>
+        /// Whether a caller is waiting on something that has actually been written to the current connection, as
+        /// opposed to queued in the backlog. This is what a handoff drains: backlogged work is held for the
+        /// replacement rather than abandoned, so it must not keep the old connection alive.
+        /// </summary>
+        internal bool HasCallerWorkInFlight() => physical?.HasCallerMessagesAwaitingResponse() == true;
+
+        /// <summary>
         /// Whether this bridge owes a *caller* anything, ignoring our own internal traffic.
         /// </summary>
         internal bool HasCallerWork()
@@ -1272,7 +1328,7 @@ namespace StackExchange.Redis
                 // Timeouts are handled above, so we're exclusively into backlog items eligible to write at this point.
                 // If we can't write them, abort and wait for the next heartbeat or activation to try this again.
                 bool flush = false;
-                while (IsConnected)
+                while (IsConnected && !_quiescing) // not while a handoff is holding work back for the replacement
                 {
                     // Snapshot the connection for the whole of this message: OnDisconnected nulls the field
                     // without waiting for the write lock, so re-reading it (as the loop guard used to) can hand

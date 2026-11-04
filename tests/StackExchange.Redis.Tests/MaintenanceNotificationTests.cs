@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Maintenance;
@@ -839,6 +840,75 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
 
             // let the server answer normally again, so teardown is not fighting the latency
             server.SetLatency(TimeSpan.Zero);
+        }
+    }
+
+    [Fact]
+    public async Task MovingUnderSteadyLoadRecyclesPromptlyAndFailsNothing()
+    {
+        // The drain used to wait for "no caller work", which under steady traffic never comes: measured live at
+        // about 450 ops/s, the recycle arrived at the end of the 15s window and failed the eight commands in
+        // flight at that instant, with no time left to establish the replacement. Holding new work back lets the
+        // written commands finish, so the recycle follows within a round trip and nothing fails: the held work is
+        // written to the replacement.
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs);
+        using (server)
+        await using (conn)
+        {
+            // every reply is held briefly, so with several workers something is always in flight
+            server.SetLatency(TimeSpan.FromMilliseconds(40));
+            var db = conn.GetDatabase();
+            using var stop = new CancellationTokenSource();
+            long completed = 0;
+            var failures = new List<Exception>();
+            var workers = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await db.PingAsync();
+                        Interlocked.Increment(ref completed);
+                    }
+                    catch (Exception ex)
+                    {
+                        lock (failures) failures.Add(ex);
+                    }
+                }
+            })).ToArray();
+            Assert.True(await Poll.UntilAsync(() => Volatile.Read(ref completed) > 20), "the load should be flowing before the handoff");
+
+            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+            var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            server.SendMoving(null, timeSeconds: 10, newEndpoint: successor, sequenceId: 0);
+            var moving = await events.NextAsync();
+            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+
+            Assert.True(
+                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 8_000),
+                "the handoff should have replaced the connection");
+            var recycledAfter = watch.Elapsed;
+            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms of a 10s window");
+
+            // jitter is at most a tenth of the window and the drain is one round trip; recycling at the deadline is the bug
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(4), $"recycled after {recycledAfter}: that is waiting for the window, not draining");
+
+            // the replacement carries the held work and whatever follows
+            var before = Volatile.Read(ref completed);
+            Assert.True(
+                await Poll.UntilAsync(() => Volatile.Read(ref completed) > before + 20, timeoutMilliseconds: 10_000),
+                "traffic should resume on the replacement connection");
+
+            stop.Cancel();
+            await Task.WhenAll(workers);
+            lock (failures)
+            {
+                log.WriteLine($"completed: {Volatile.Read(ref completed)}; failed: {failures.Count}");
+                Assert.Empty(failures.Select(f => f.Message));
+            }
+            Assert.DoesNotContain(logs.Lines, l => l.Contains("did not establish a replacement", StringComparison.Ordinal));
         }
     }
 
