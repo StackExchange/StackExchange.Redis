@@ -407,6 +407,34 @@ namespace StackExchange.Redis
             return x.UnsafeRawSpan(out xScratch).SequenceCompareTo(y.UnsafeRawSpan(out yScratch));
         }
 
+        // byte-wise ordinal comparison of any two values by their raw bytes, which is how redis orders a lex range;
+        // unlike CompareTo, numbers compare as their text ("10" and 10 both sort before "2", and "0123" is not 123),
+        // and null and empty are both no bytes, so they sort first
+        internal static int LexCompare(in RedisValue x, in RedisValue y)
+        {
+            try
+            {
+                if (IsBlob(x.Type) && IsBlob(y.Type)) return BlobCompareTo(x, y); // both byte-backed: no copies
+
+                byte[]? xLease = null, yLease = null;
+                try
+                {
+                    return x.AsMemory(out xLease).Span.SequenceCompareTo(y.AsMemory(out yLease).Span);
+                }
+                finally
+                {
+                    if (xLease is not null) ArrayPool<byte>.Shared.Return(xLease);
+                    if (yLease is not null) ArrayPool<byte>.Shared.Return(yLease);
+                }
+            }
+            catch (Exception ex)
+            {
+                // never throws: like CompareTo, a value that can't be read as bytes is treated as equal
+                ConnectionMultiplexer.TraceWithoutContext(ex.Message);
+                return 0;
+            }
+        }
+
         // true if 'whole' starts with the bytes of 'prefix', for any combination of byte-backed kinds
         private static bool BlobStartsWith(in RedisValue whole, in RedisValue prefix)
         {
