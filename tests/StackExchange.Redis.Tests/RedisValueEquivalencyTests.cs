@@ -970,4 +970,103 @@ public class RedisValueEquivalencyUnitTests
         Assert.Equal("two", dictionary["beta"]);
         Assert.False(dictionary.ContainsKey("gamma"));
     }
+
+    [Fact]
+    // LexCompare orders values by the bytes they are sent as, which is how redis orders a lex range (#1302).
+    // CompareTo reads numeric-looking text as a number, so the two are expected to disagree on digits.
+    public void LexCompare_OrdersByRawBytes()
+    {
+        // digits are text: "10" sorts before "2", and "0123" is not the number 123
+        Assert.True(RedisValue.LexCompare("10", "2") < 0, LineNumber());
+        Assert.True(RedisValue.LexCompare("2", "10") > 0, LineNumber());
+        Assert.True(RedisValue.LexCompare("0123", "0123\xff") < 0, LineNumber());
+        Assert.True(RedisValue.LexCompare("0123\xff", "0123") > 0, LineNumber());
+        Assert.True(((RedisValue)"0123").CompareTo("0123\xff") > 0, LineNumber()); // CompareTo: 123 vs text
+
+        // integers compare as their text too, where CompareTo compares them as numbers
+        Assert.True(RedisValue.LexCompare(10L, 2L) < 0, LineNumber());
+        Assert.True(RedisValue.LexCompare(2L, 10L) > 0, LineNumber());
+        Assert.True(((RedisValue)10L).CompareTo(2L) > 0, LineNumber());
+
+        // a shorter prefix sorts first, and equal bytes are equal
+        Assert.True(RedisValue.LexCompare("ab", "abc") < 0, LineNumber());
+        Assert.Equal(0, RedisValue.LexCompare("abc", "abc"));
+
+        // bytes, not UTF-16: U+FFFD is EF BF BD and U+1F600 is F0 9F 98 80, the opposite of their char order
+        Assert.True(RedisValue.LexCompare("\uFFFD", "\U0001F600") < 0, LineNumber());
+        Assert.True(string.CompareOrdinal("\uFFFD", "\U0001F600") > 0, LineNumber());
+
+        // a byte[] against a string answers as the two strings would
+        int expected = Math.Sign(RedisValue.LexCompare("0123", "0123\xff"));
+        Assert.Equal(expected, Math.Sign(RedisValue.LexCompare(Encoding.UTF8.GetBytes("0123"), "0123\xff")));
+        Assert.Equal(expected, Math.Sign(RedisValue.LexCompare("0123", Encoding.UTF8.GetBytes("0123\xff"))));
+        Assert.Equal(0, RedisValue.LexCompare(Encoding.UTF8.GetBytes("\U0001F600"), "\U0001F600"));
+
+        // null and empty are both no bytes: equal to each other, and before anything else
+        RedisValue[] nothing = [RedisValue.Null, RedisValue.EmptyString, Array.Empty<byte>()];
+        RedisValue[] something = ["a", 0, Bytes("a"u8), RedisValue.FromRaw("a"u8), "\0"];
+        foreach (var x in nothing)
+        {
+            foreach (var y in nothing)
+            {
+                Assert.Equal(0, RedisValue.LexCompare(x, y));
+            }
+            foreach (var y in something)
+            {
+                Assert.True(RedisValue.LexCompare(x, y) < 0, $"{x.Type} vs {y.Type}");
+                Assert.True(RedisValue.LexCompare(y, x) > 0, $"{y.Type} vs {x.Type}");
+            }
+        }
+    }
+
+    [Fact]
+    // The answer cannot depend on how a value is stored: two byte-backed values are compared in place, anything
+    // else is turned into bytes first, and the two routes must agree. Each pair below is the other way round as
+    // numbers, so a numeric reading anywhere would show.
+    public void LexCompare_DoesNotDependOnHowAValueIsStored()
+    {
+        var kinds = new HashSet<RedisValue.StorageType>();
+
+        Check(
+            [100, "100", RedisValue.FromRaw("100"u8), Bytes("100"u8), Bytes("10"u8, "0"u8), Managed("100"u8)],
+            [20, "20", RedisValue.FromRaw("20"u8), Bytes("20"u8), Bytes("2"u8, "0"u8), Managed("20"u8)]);
+
+        // the numeric kinds those can't reach: a double that isn't whole, and a ulong above long.MaxValue
+        Check([100.5, "100.5", Bytes("100.5"u8)], [20.5, "20.5", Bytes("20.5"u8)]);
+        Check([ulong.MaxValue, "18446744073709551615", Bytes("18446744073709551615"u8)], [2, "2", Bytes("2"u8)]);
+
+        RedisValue.StorageType[] expected =
+        [
+            RedisValue.StorageType.Int64,
+            RedisValue.StorageType.UInt64,
+            RedisValue.StorageType.Double,
+            RedisValue.StorageType.String,
+            RedisValue.StorageType.ShortBlob,
+            RedisValue.StorageType.ByteArray,
+            RedisValue.StorageType.Sequence,
+            RedisValue.StorageType.MemoryManager,
+        ];
+        foreach (var kind in expected)
+        {
+            Assert.Contains(kind, kinds);
+        }
+
+        void Check(RedisValue[] lower, RedisValue[] higher)
+        {
+            foreach (var x in lower)
+            {
+                kinds.Add(x.Type);
+                foreach (var y in higher)
+                {
+                    kinds.Add(y.Type);
+                    Assert.True(RedisValue.LexCompare(x, y) < 0, $"{x} ({x.Type}) vs {y} ({y.Type})");
+                    Assert.True(RedisValue.LexCompare(y, x) > 0, $"{y} ({y.Type}) vs {x} ({x.Type})");
+                }
+                foreach (var y in lower)
+                {
+                    Assert.True(RedisValue.LexCompare(x, y) == 0, $"{x} ({x.Type}) vs {y} ({y.Type})");
+                }
+            }
+        }
+    }
 }
