@@ -198,10 +198,38 @@ internal sealed partial class ServerEndPoint
     /// </remarks>
     internal int GetEffectiveTimeoutMilliseconds(int configuredMilliseconds)
     {
-        if (GetRelaxedRemaining() <= 0) return configuredMilliseconds;
+        var result = configuredMilliseconds;
+        if (GetRelaxedRemaining() > 0)
+        {
+            var relaxed = (int)Multiplexer.RawConfig.MaintenanceRelaxedTimeout.TotalMilliseconds;
+            if (relaxed > result) result = relaxed;
+        }
 
-        var relaxed = (int)Multiplexer.RawConfig.MaintenanceRelaxedTimeout.TotalMilliseconds;
-        return relaxed > configuredMilliseconds ? relaxed : configuredMilliseconds;
+        // a handoff hold diverts commands off a live connection into the backlog; whatever the relaxation setting
+        // (zero disables it), those commands must not be timed out by the hold itself, so the hold imposes its
+        // own floor on the effective timeout for as long as it, and the reconnect after it, can take
+        var cover = Volatile.Read(ref _holdCoverDeadlineTicks);
+        if (cover != 0 && unchecked(cover - Environment.TickCount) > 0)
+        {
+            var floor = Volatile.Read(ref _holdCoverMilliseconds);
+            if (floor > result) result = floor;
+        }
+        return result;
+    }
+
+    private int _holdCoverDeadlineTicks, _holdCoverMilliseconds;
+
+    /// <summary>
+    /// For the duration of a handoff hold plus the reconnect that follows it, commands against this server time out
+    /// no sooner than that whole span. Independent of relaxation: a relaxed timeout of zero is the documented way to
+    /// turn relaxation off, and a sub-second configured timeout with the hold's one-second floor would otherwise
+    /// time out exactly the work the hold is protecting.
+    /// </summary>
+    private void SetHoldCover(TimeSpan span)
+    {
+        var ms = (int)span.TotalMilliseconds;
+        Volatile.Write(ref _holdCoverMilliseconds, ms);
+        Volatile.Write(ref _holdCoverDeadlineTicks, NudgeFromZero(unchecked(Environment.TickCount + ms)));
     }
 
     /// <summary>
@@ -422,6 +450,10 @@ internal sealed partial class ServerEndPoint
                 resolve: Multiplexer.AddressResolver,
                 log: message => Multiplexer.Trace(message, ToString())).ForAwait();
 
+            // the decision may have spent a good part of the window polling DNS (4 to 19 seconds of a 15 second
+            // window has been measured); what the drain has to work with is what is actually left
+            remaining = Remaining(window, watch);
+
             Multiplexer.Trace($"MOVING: {decision}", ToString());
             _lastHandoffOutcome = decision.ToString();
 
@@ -440,7 +472,7 @@ internal sealed partial class ServerEndPoint
                     // go on. Half of the *announced* window, less whatever the jitter already spent.
                     var half = TimeSpan.FromTicks(window.Ticks / 2) - jitter;
                     if (half > TimeSpan.Zero) await Task.Delay(half).ForAwait();
-                    await DrainThenRecycleAsync(window - jitter - (half > TimeSpan.Zero ? half : TimeSpan.Zero), decision.Reason).ForAwait();
+                    await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason).ForAwait();
                     replaced = true;
                     break;
                 case HandoffAction.MoveTo when decision.Target is { } target:
@@ -470,6 +502,13 @@ internal sealed partial class ServerEndPoint
         }
     }
 
+    /// <summary>What is left of an announced window; never negative.</summary>
+    private static TimeSpan Remaining(TimeSpan window, ValueStopwatch watch)
+    {
+        var left = window - TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
+        return left > TimeSpan.Zero ? left : TimeSpan.Zero;
+    }
+
     /// <summary>
     /// How long a handoff holds new work and waits for in-flight commands before replacing the connections
     /// regardless: half the relaxed timeout (five seconds by default), bounded by what is left of the window.
@@ -481,9 +520,10 @@ internal sealed partial class ServerEndPoint
     /// Half the relaxed timeout lets a blocking command with a timeout up to that complete, keeps the hold well
     /// inside the relaxed timeout that applies to the held work for the duration (so nothing held times out
     /// because of the hold), and follows the one setting an application already uses to say how patient it is
-    /// prepared to be during maintenance. A cap derived from the window alone would be wrong in both directions: a
-    /// 15s window is not a reason to hold traffic for 15s, and a 2s window is not a reason to fail a 3s BLPOP that
-    /// the server would have answered.
+    /// prepared to be during maintenance. The window still bounds it, because the server closes the socket when
+    /// the window ends whatever we do: a command that cannot finish inside the window fails either way, and holding
+    /// past it would only delay everything else. A cap derived from the window alone would be wrong the other way:
+    /// a 15s window is not a reason to hold traffic for 15s.
     /// </remarks>
     private TimeSpan DrainCap(TimeSpan budget)
     {
@@ -529,10 +569,16 @@ internal sealed partial class ServerEndPoint
     private async Task DrainThenRecycleAsync(TimeSpan budget, string reason)
     {
         var watch = ValueStopwatch.StartNew();
-        var cap = DrainCap(budget);
+        // With less than the floor left of the window there is no hold worth having: the server is about to close
+        // the socket regardless, so the connections are replaced at once (still under the lock) and the replacement
+        // gets what little time remains. Otherwise the hold lasts up to the cap.
+        var cap = budget < DrainFloor ? TimeSpan.Zero : DrainCap(budget);
 
-        // the held work, and any blocking command being waited for, must not be timed out by the hold itself
+        // the held work, and any blocking command being waited for, must not be timed out by the hold itself, nor
+        // by the reconnect that follows it; the relaxed window covers it where relaxation is on, and the cover below
+        // covers it regardless
         ExtendRelaxedWindow(cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout, "MOVING handoff");
+        SetHoldCover(cap + LockGrace + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout));
 
         // snapshots: Dispose nulls the fields, and a handoff in progress must not fault on a server going away
         var interactiveBridge = interactive;
