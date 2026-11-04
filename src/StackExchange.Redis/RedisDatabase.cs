@@ -5848,6 +5848,7 @@ namespace StackExchange.Redis
 
         public long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
         {
+            ReverseLimits(Order.Ascending, ref exclude, ref min, ref max); // count what SortedSetRangeByValue would return
             var msg = GetLexMessage(RedisCommand.ZLEXCOUNT, key, min, max, exclude, 0, -1, flags, Order.Ascending);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
@@ -5888,12 +5889,15 @@ namespace StackExchange.Redis
 
         public long SortedSetRemoveRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
         {
+            // deliberately not reordered (unlike range/length): bounds the wrong way round remove nothing, rather than
+            // everything between them as text - "2" and "10" would otherwise also remove "15" and "100"
             var msg = GetLexMessage(RedisCommand.ZREMRANGEBYLEX, key, min, max, exclude, 0, -1, flags, Order.Ascending);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
         {
+            ReverseLimits(Order.Ascending, ref exclude, ref min, ref max); // count what SortedSetRangeByValueAsync would return
             var msg = GetLexMessage(RedisCommand.ZLEXCOUNT, key, min, max, exclude, 0, -1, flags, Order.Ascending);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
@@ -5918,6 +5922,7 @@ namespace StackExchange.Redis
 
         public Task<long> SortedSetRemoveRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
         {
+            // deliberately not reordered; see SortedSetRemoveRangeByValue
             var msg = GetLexMessage(RedisCommand.ZREMRANGEBYLEX, key, min, max, exclude, 0, -1, flags, Order.Ascending);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
