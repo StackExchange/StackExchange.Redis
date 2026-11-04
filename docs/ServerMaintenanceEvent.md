@@ -111,9 +111,11 @@ or `ServerDefault` to ask for nothing at all, which is what earlier versions did
 | `MIGRATING`, `FAILING_OVER`, `SMIGRATING` | relaxes command timeouts for that server while the disruption lasts |
 | `MIGRATED`, `FAILED_OVER` | ends the window, but keeps timeouts relaxed for a short tail while things settle |
 | `SMIGRATED` | as above, and re-reads the cluster topology, and re-subscribes any sharded channels whose slots moved |
-| `MOVING` | works out the replacement address, lets in-flight work finish, then replaces the connections |
+| `MOVING` | works out the replacement address, holds new commands back for up to a second while in-flight ones finish, then replaces the connections and sends the held commands on the replacement |
 
 So an application that does nothing at all still benefits: commands that would have timed out during a migration are given more room, a moved slot is learned without waiting to be redirected, and a `MOVING` is acted on before the server closes the socket.
+
+During that handoff, commands the application issues are not written to the connection being retired: they wait in the backlog, for up to about a second, and are sent on the replacement once it is established. This happens whatever the `backlogPolicy`, because the connection is live and the command would otherwise have been written; and a `FailFast` policy does not abandon that held work when the old connection is closed, since a handoff is a replacement the client chose rather than a failure. A command still in flight when the second is up, such as a blocking read, is failed by the replacement, as the server's close would have failed it; the hold is bounded so that one such command cannot stall everything else for the rest of the window.
 
 ### Notifications that arrive as you connect
 

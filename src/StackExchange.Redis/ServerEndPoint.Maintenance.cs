@@ -471,13 +471,18 @@ internal sealed partial class ServerEndPoint
     }
 
     /// <summary>
+    /// How long a handoff waits for in-flight commands before replacing the connections regardless. Ordinary
+    /// commands clear in a round trip; anything still in flight after this is a blocking or stuck command that will
+    /// not finish inside the window either, and holding everyone else's work for it would be a regression.
+    /// </summary>
+    private static readonly TimeSpan DrainCap = TimeSpan.FromSeconds(1);
+
+    /// <summary>
     /// Holds new caller work back, lets what has already been written finish, then replaces the connections.
     /// </summary>
     /// <remarks>
     /// Draining first because the socket is still working: anything already written may still be answered, and
-    /// dropping it would fail commands that were about to succeed. Bounded by what is left of the window,
-    /// because the server closes the socket at the end of it regardless - so anything not drained by then was
-    /// going to fail either way, and draining strictly dominates.
+    /// dropping it would fail commands that were about to succeed.
     /// <para>
     /// Holding new work back is what makes the drain finish. Measured live on a connection carrying about 450
     /// operations a second: there was always something in flight, so a drain that waited for "no caller work"
@@ -485,6 +490,12 @@ internal sealed partial class ServerEndPoint
     /// at that instant, with no time left to establish the replacement. That is the exact outcome the handoff
     /// exists to avoid. With new work held in the backlog, the written commands complete within a round trip, the
     /// recycle follows, and the held work is written to the replacement once it is established.
+    /// </para>
+    /// <para>
+    /// The wait is bounded by <see cref="DrainCap"/> as well as by the window: a blocking read in flight would
+    /// otherwise hold every other caller's work for the whole window and still be failed at the end of it. Past
+    /// the cap the connections are replaced regardless, and whatever was still in flight fails as the server's
+    /// close would have failed it.
     /// </para>
     /// <para>
     /// Both bridges, not just the one that was told. The measured blast radius is the *node*: four connections
@@ -495,21 +506,34 @@ internal sealed partial class ServerEndPoint
     private async Task DrainThenRecycleAsync(TimeSpan budget, string reason)
     {
         var watch = ValueStopwatch.StartNew();
+        var cap = budget < DrainCap ? budget : DrainCap;
         interactive?.BeginQuiesce();
         subscription?.BeginQuiesce();
         try
         {
-            while (HasCallerWorkInFlight() && watch.ElapsedMilliseconds < budget.TotalMilliseconds)
+            bool drained, recycled;
+            while (true)
             {
+                var attempt = await TryRecycleWhenDrainedAsync(reason).ForAwait();
+                if (attempt is { } done)
+                {
+                    drained = true;
+                    recycled = done;
+                    break;
+                }
+                if (watch.ElapsedMilliseconds >= cap.TotalMilliseconds)
+                {
+                    drained = false;
+                    recycled = (interactive?.RecycleConnection(reason) == true) | (subscription?.RecycleConnection(reason) == true);
+                    break;
+                }
                 await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
             }
 
-            var drained = !HasCallerWorkInFlight();
-            var recycled = (interactive?.RecycleConnection(reason) == true) | (subscription?.RecycleConnection(reason) == true);
             if (recycled) Interlocked.Increment(ref _handoffRecycles);
             Multiplexer.Trace(
                 $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
-                + (drained ? " (drained)" : " (still busy; the window ran out)"),
+                + (drained ? " (drained)" : " (still busy at the drain cap)"),
                 ToString());
         }
         finally
@@ -519,6 +543,29 @@ internal sealed partial class ServerEndPoint
             interactive?.EndQuiesce();
             subscription?.EndQuiesce();
         }
+    }
+
+    /// <summary>
+    /// Each bridge in turn, under its write lock: <c>null</c> as soon as one still has caller work in flight,
+    /// otherwise whether anything was recycled. A bridge recycled on an earlier pass has nothing left to recycle,
+    /// so a partial pass is safe to repeat.
+    /// </summary>
+    private async ValueTask<bool?> TryRecycleWhenDrainedAsync(string reason)
+    {
+        bool recycled = false;
+        if (interactive is { } i)
+        {
+            var result = await i.TryRecycleWhenDrainedAsync(reason).ForAwait();
+            if (result is null) return null;
+            recycled |= result.Value;
+        }
+        if (subscription is { } s)
+        {
+            var result = await s.TryRecycleWhenDrainedAsync(reason).ForAwait();
+            if (result is null) return null;
+            recycled |= result.Value;
+        }
+        return recycled;
     }
 
     /// <summary>

@@ -913,6 +913,63 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public async Task MovingWithSlowCommandsInFlightRecyclesAtTheDrainCap()
+    {
+        // A blocking or very slow command must not hold everyone else's work in the backlog for the whole window:
+        // the drain waits a bounded time for in-flight commands and then recycles regardless. The slow commands are
+        // failed by the recycle, as the server's close would have failed them; everything issued afterwards flows.
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs);
+        using (server)
+        await using (conn)
+        {
+            server.SetLatency(TimeSpan.FromSeconds(3)); // every command now outlasts the drain cap
+            var db = conn.GetDatabase();
+            var slow = Enumerable.Range(0, 3).Select(_ => db.PingAsync()).ToArray();
+            await Task.Delay(250); // let them be written
+
+            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+            var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            server.SendMoving(null, timeSeconds: 10, newEndpoint: successor, sequenceId: 0);
+            var moving = await events.NextAsync();
+            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+
+            Assert.True(
+                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 8_000),
+                "the handoff should have replaced the connection");
+            var recycledAfter = watch.Elapsed;
+            server.SetLatency(TimeSpan.Zero); // so the replacement's handshake is not slowed too
+            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with slow commands in flight");
+
+            // jitter is at most a tenth of the window, the cap one second: well short of the 3s the commands need
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(3), $"recycled after {recycledAfter}: the drain waited for the slow commands instead of capping");
+
+            // the in-flight commands were failed by the recycle, which is what the server's close would have done
+            foreach (var pending in slow)
+            {
+                await Assert.ThrowsAnyAsync<RedisException>(async () => await pending);
+            }
+
+            Assert.True(
+                await Poll.UntilAsync(
+                    () =>
+                    {
+                        try
+                        {
+                            return conn.IsConnected && conn.GetDatabase().Ping() >= TimeSpan.Zero;
+                        }
+                        catch (Exception ex) when (ex is RedisException or TimeoutException)
+                        {
+                            return false;
+                        }
+                    },
+                    timeoutMilliseconds: 30_000),
+                "the client should be serving commands on the replacement connection");
+        }
+    }
+
+    [Fact]
     public async Task MovingRecyclesTheConnectionBeforeTheServerCloses()
     {
         // The point of D6: today a MOVING is survivable because the socket eventually closes and we reconnect,
