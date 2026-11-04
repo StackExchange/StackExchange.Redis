@@ -27,13 +27,15 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     /// </summary>
     private static async Task<(InProcessTestServer Server, ConnectionMultiplexer Connection, EventCollector Events)> ConnectAsync(
         ITestOutputHelper log,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        Action<ConfigurationOptions>? configure = null)
     {
         var server = new InProcessTestServer(log);
         var config = server.GetClientConfig(defaultOnly: true);
         config.Protocol = RedisProtocol.Resp3;
         config.MaintenanceNotifications = MaintenanceNotificationMode.Enabled; // must be live, or the test is vacuous
         config.LoggerFactory = loggerFactory;
+        configure?.Invoke(config);
 
         var conn = await ConnectionMultiplexer.ConnectAsync(config);
         return (server, conn, new EventCollector(conn));
@@ -844,7 +846,15 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public async Task MovingUnderSteadyLoadRecyclesPromptlyAndFailsNothing()
+    public Task MovingUnderSteadyLoadRecyclesPromptlyAndFailsNothing() => SteadyLoadHandoffAsync(configure: null);
+
+    [Fact]
+    public Task MovingUnderSteadyLoadWithRelaxationDisabledStillDrains()
+        // a relaxed timeout of zero is the documented way to turn relaxation off; the drain cap is derived from it,
+        // and must keep a floor rather than recycle at once with commands still in flight
+        => SteadyLoadHandoffAsync(configure: c => c.MaintenanceRelaxedTimeout = TimeSpan.Zero);
+
+    private async Task SteadyLoadHandoffAsync(Action<ConfigurationOptions>? configure)
     {
         // The drain used to wait for "no caller work", which under steady traffic never comes: measured live at
         // about 450 ops/s, the recycle arrived at the end of the 15s window and failed the eight commands in
@@ -852,7 +862,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         // written commands finish, so the recycle follows within a round trip and nothing fails: the held work is
         // written to the replacement.
         var logs = new CapturingLoggerFactory();
-        var (server, conn, events) = await ConnectAsync(log, logs);
+        var (server, conn, events) = await ConnectAsync(log, logs, configure);
         using (server)
         await using (conn)
         {

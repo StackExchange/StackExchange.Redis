@@ -488,8 +488,12 @@ internal sealed partial class ServerEndPoint
     private TimeSpan DrainCap(TimeSpan budget)
     {
         var half = TimeSpan.FromTicks(Multiplexer.RawConfig.MaintenanceRelaxedTimeout.Ticks / 2);
+        if (half < DrainFloor) half = DrainFloor; // a relaxed timeout of zero disables relaxation; it must not disable the drain
         return budget < half ? budget : half;
     }
+
+    /// <summary>The least the drain waits for in-flight commands, whatever the relaxed timeout: one round trip on any network, with room to spare.</summary>
+    private static readonly TimeSpan DrainFloor = TimeSpan.FromSeconds(1);
 
     /// <summary>How much longer than the cap the forced pass may wait for the write lock before giving the connection up to the server's close.</summary>
     private static readonly TimeSpan LockGrace = TimeSpan.FromSeconds(1);
@@ -530,20 +534,25 @@ internal sealed partial class ServerEndPoint
         // the held work, and any blocking command being waited for, must not be timed out by the hold itself
         ExtendRelaxedWindow(cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout, "MOVING handoff");
 
-        interactive?.BeginQuiesce();
-        subscription?.BeginQuiesce();
+        // snapshots: Dispose nulls the fields, and a handoff in progress must not fault on a server going away
+        var interactiveBridge = interactive;
+        var subscriptionBridge = subscription;
+        interactiveBridge?.BeginQuiesce();
+        subscriptionBridge?.BeginQuiesce();
         try
         {
             using var lockDeadline = new CancellationTokenSource(cap + LockGrace);
-            bool? interactiveResult = interactive is null ? false : null;
-            bool? subscriptionResult = subscription is null ? false : null;
+            bool? interactiveResult = interactiveBridge is null ? false : null;
+            bool? subscriptionResult = subscriptionBridge is null ? false : null;
             bool forced = false;
             while (true)
             {
                 var force = watch.ElapsedMilliseconds >= cap.TotalMilliseconds;
                 forced |= force;
-                if (interactiveResult is null) interactiveResult = await interactive!.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait();
-                if (subscriptionResult is null) subscriptionResult = await subscription!.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait();
+                // each bridge is released the moment its own connection is settled: the interactive bridge usually
+                // drains in a round trip, and must not keep holding work while the subscription bridge takes longer
+                if (interactiveResult is null && (interactiveResult = await interactiveBridge!.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait()) is not null) Release(interactiveBridge);
+                if (subscriptionResult is null && (subscriptionResult = await subscriptionBridge!.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait()) is not null) Release(subscriptionBridge);
                 if (interactiveResult is not null && subscriptionResult is not null) break;
                 if (lockDeadline.IsCancellationRequested)
                 {
@@ -565,9 +574,22 @@ internal sealed partial class ServerEndPoint
         }
         finally
         {
-            // each bridge is released on its own: a failure releasing one must not leave the other holding work
-            try { interactive?.EndQuiesce(); } catch (Exception ex) { Multiplexer.OnInternalError(ex, EndPoint); }
-            try { subscription?.EndQuiesce(); } catch (Exception ex) { Multiplexer.OnInternalError(ex, EndPoint); }
+            // whatever was not released in the loop (the lock-not-obtained exit, an exception): EndQuiesce is idempotent
+            Release(interactiveBridge);
+            Release(subscriptionBridge);
+        }
+
+        void Release(PhysicalBridge? bridge)
+        {
+            if (bridge is null) return;
+            try
+            {
+                bridge.EndQuiesce();
+            }
+            catch (Exception ex)
+            {
+                Multiplexer.OnInternalError(ex, EndPoint); // one bridge failing to release must not leave the other holding work
+            }
         }
     }
 

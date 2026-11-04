@@ -158,6 +158,7 @@ namespace StackExchange.Redis
         /// </remarks>
         internal void BeginQuiesce()
         {
+            _recycledForHandoff = null; // the previous handoff's marker; any writer parked across two handoffs is on its own
             _quiesceTarget = physical;
             _quiesceRecycled = false;
             _quiescing = true;
@@ -165,9 +166,13 @@ namespace StackExchange.Redis
 
         internal void EndQuiesce()
         {
+            if (!_quiescing) return;
             _quiescing = false;
             _quiesceTarget = null;
-            if (BacklogHasItems) KickBacklogProcessor();
+            // Unconditionally, not only when the backlog has items: an enqueuer that read the flag just before it
+            // flipped did not kick, and neither side's volatile access orders its store before the other's load. A
+            // kick with nothing queued costs one idle pass of the processor.
+            KickBacklogProcessor();
         }
 
         /// <summary>Gets held or queued work moving: the processor may be lingering between passes, or may have exited.</summary>
@@ -203,7 +208,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="force">Replace the connection even if caller work is still in flight on it.</param>
         /// <param name="reason">Why; for the trace.</param>
-        /// <param name="lockDeadline">Bounds the wait for the write lock: the drain decides how long, not the mutex timeout.</param>
+        /// <param name="lockDeadline">Bounds the wait for the write lock (together with the mutex's own timeout, whichever
+        /// ends first); the drain re-waits until this deadline, so it is the deadline that decides how long overall.</param>
         /// <returns><c>null</c> if the connection could not be retired yet - caller work in flight, or the lock not
         /// obtained inside the deadline - so the drain should try again; otherwise whether this call, or an earlier
         /// one, replaced it.</returns>
@@ -221,6 +227,10 @@ namespace StackExchange.Redis
             catch (OperationCanceledException)
             {
                 gotLock = false;
+            }
+            catch (ObjectDisposedException)
+            {
+                return false; // the bridge was disposed mid-handoff; there is nothing left to retire
             }
             if (!gotLock) return null;
             try
@@ -249,7 +259,14 @@ namespace StackExchange.Redis
             }
             finally
             {
-                _singleWriter.Release();
+                try
+                {
+                    _singleWriter.Release();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // disposed while we held it; nobody is waiting on a disposed mutex
+                }
             }
         }
 
@@ -690,7 +707,6 @@ namespace StackExchange.Redis
             {
                 reportNextFailure = reconfigureNextFailure = true;
                 LastException = null;
-                _recycledForHandoff = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection, source);
 
@@ -904,10 +920,11 @@ namespace StackExchange.Redis
 
             if (isDisposed) throw new ObjectDisposedException(Name);
 
-            if (_quiescing && IsConnected && !NeedsReconnect && messages.Exists(m => !m.IsInternalCall && m.Command != RedisCommand.QUIT))
+            if (_quiescing && IsConnected && !NeedsReconnect && messages.Exists(m => !m.IsInternalCall) && !messages.Exists(m => m.Command == RedisCommand.QUIT))
             {
                 // a maintenance handoff is draining the connection: hold the batch for the replacement. A batch is
-                // written as a unit, so it is held as a unit; a batch of purely internal traffic is not held at all
+                // written as a unit, so it is held as a unit; a batch of purely internal traffic is not held at all,
+                // and nor is one carrying a QUIT, which is never queued - the whole batch goes to the live connection
                 foreach (var message in messages)
                 {
                     QueueOrFailMessage(message, holdForHandoff: true);
@@ -1174,10 +1191,16 @@ namespace StackExchange.Redis
         {
             Interlocked.Increment(ref _backlogCurrentEnqueued);
             Interlocked.Increment(ref _backlogTotalEnqueued);
-            _backlogFront.Enqueue(message);
+            // Under the dequeuers' lock: CheckBacklogForTimeouts peeks, then dequeues and compares under this lock,
+            // and an insert at the head between the two would hand it a different message - which it treats as a
+            // threading bug, and the dequeued message would be dropped uncompleted. Only locked parties change the head.
+            lock (_backlog)
+            {
+                _backlogFront.Enqueue(message);
+            }
             message.SetBacklogged();
-            // the hold may already have been released, in which case nothing else would pick this up before the heartbeat
-            if (!_quiescing) KickBacklogProcessor();
+            // unconditionally: the hold may be released concurrently, and a kick with the hold still on costs one idle pass
+            KickBacklogProcessor();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1558,7 +1581,10 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The connection most recently replaced by a maintenance handoff, so that a writer which was headed for it
-        /// can tell a planned replacement from an ordinary closure. Written and read under the write lock.
+        /// can tell a planned replacement from an ordinary closure. Set under the write lock when the connection is
+        /// retired, read under it by the writer, and cleared only when the next hold begins: the writer may have
+        /// been waiting for the lock long enough for the replacement to be fully established, since the lock is not
+        /// fair and the backlog processor may keep taking it to flush held work.
         /// </summary>
         private PhysicalConnection? _recycledForHandoff;
 
