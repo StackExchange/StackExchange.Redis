@@ -393,13 +393,6 @@ namespace StackExchange.Redis
             => interactive?.HasCallerWork() == true || subscription?.HasCallerWork() == true;
 
         /// <summary>
-        /// Whether a caller is waiting on something already written to a current connection; backlogged work does
-        /// not count. See <see cref="PhysicalBridge.HasCallerWorkInFlight"/>.
-        /// </summary>
-        internal bool HasCallerWorkInFlight()
-            => interactive?.HasCallerWorkInFlight() == true || subscription?.HasCallerWorkInFlight() == true;
-
-        /// <summary>
         /// Work this server still owes an answer on: written-and-awaiting-response, plus anything queued in
         /// the backlog. Zero means a retirement can complete without abandoning anyone.
         /// </summary>

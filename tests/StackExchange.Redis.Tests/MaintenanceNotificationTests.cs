@@ -913,20 +913,20 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     }
 
     [Fact]
-    public async Task MovingWithSlowCommandsInFlightRecyclesAtTheDrainCap()
+    public async Task MovingWaitsForSlowCommandsThatFitInsideTheDrainCap()
     {
-        // A blocking or very slow command must not hold everyone else's work in the backlog for the whole window:
-        // the drain waits a bounded time for in-flight commands and then recycles regardless. The slow commands are
-        // failed by the recycle, as the server's close would have failed them; everything issued afterwards flows.
+        // A slow or blocking command that will finish inside the drain cap (half the relaxed timeout, 5s by default)
+        // is allowed to: the hold waits for it, timeouts are relaxed meanwhile, and the recycle follows its reply.
+        // The server's close would have let it finish too, so failing it would be a regression.
         var logs = new CapturingLoggerFactory();
         var (server, conn, events) = await ConnectAsync(log, logs);
         using (server)
         await using (conn)
         {
-            server.SetLatency(TimeSpan.FromSeconds(3)); // every command now outlasts the drain cap
+            server.SetLatency(TimeSpan.FromSeconds(3)); // the in-process server answers one request at a time, so one slow command, not several
             var db = conn.GetDatabase();
-            var slow = Enumerable.Range(0, 3).Select(_ => db.PingAsync()).ToArray();
-            await Task.Delay(250); // let them be written
+            var slow = new[] { db.PingAsync() };
+            await Task.Delay(250); // let it be written
 
             var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
             var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
@@ -936,17 +936,54 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
 
             Assert.True(
-                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 8_000),
+                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 10_000),
+                "the handoff should have replaced the connection");
+            var recycledAfter = watch.Elapsed;
+            server.SetLatency(TimeSpan.Zero);
+            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with a 3s command in flight");
+
+            // the slow command was answered, not failed: the recycle waited for it
+            foreach (var pending in slow) Assert.True(await pending >= TimeSpan.Zero);
+            Assert.True(recycledAfter >= TimeSpan.FromSeconds(2), $"recycled after {recycledAfter}: before the in-flight command could have been answered");
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(6), $"recycled after {recycledAfter}: later than the cap plus jitter");
+        }
+    }
+
+    [Fact]
+    public async Task MovingWithBlockingCommandsInFlightRecyclesAtTheDrainCap()
+    {
+        // A command that will not finish inside the cap - a long blocking read - must not hold everyone else's work
+        // in the backlog for the whole window: at the cap the connection is replaced regardless. The blocking command
+        // is failed by the recycle, as the server's close would have failed it; everything issued afterwards flows.
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs);
+        using (server)
+        await using (conn)
+        {
+            server.SetLatency(TimeSpan.FromSeconds(9)); // longer than the 5s cap; shorter than the relaxed 10s timeout
+            var db = conn.GetDatabase();
+            var blocking = Enumerable.Range(0, 3).Select(_ => db.PingAsync()).ToArray();
+            await Task.Delay(250); // let them be written
+
+            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+            var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            server.SendMoving(null, timeSeconds: 15, newEndpoint: successor, sequenceId: 0);
+            var moving = await events.NextAsync();
+            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+
+            Assert.True(
+                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 12_000),
                 "the handoff should have replaced the connection");
             var recycledAfter = watch.Elapsed;
             server.SetLatency(TimeSpan.Zero); // so the replacement's handshake is not slowed too
-            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with slow commands in flight");
+            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with 9s commands in flight");
 
-            // jitter is at most a tenth of the window, the cap one second: well short of the 3s the commands need
-            Assert.True(recycledAfter < TimeSpan.FromSeconds(3), $"recycled after {recycledAfter}: the drain waited for the slow commands instead of capping");
+            // the cap (5s) plus at most a second of jitter: well short of the 9s the commands need
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(7), $"recycled after {recycledAfter}: the drain waited for the blocking commands instead of capping");
 
             // the in-flight commands were failed by the recycle, which is what the server's close would have done
-            foreach (var pending in slow)
+            foreach (var pending in blocking)
             {
                 await Assert.ThrowsAnyAsync<RedisException>(async () => await pending);
             }
@@ -964,7 +1001,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                             return false;
                         }
                     },
-                    timeoutMilliseconds: 30_000),
+                    timeoutMilliseconds: 40_000),
                 "the client should be serving commands on the replacement connection");
         }
     }

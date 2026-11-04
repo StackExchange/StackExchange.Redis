@@ -471,11 +471,28 @@ internal sealed partial class ServerEndPoint
     }
 
     /// <summary>
-    /// How long a handoff waits for in-flight commands before replacing the connections regardless. Ordinary
-    /// commands clear in a round trip; anything still in flight after this is a blocking or stuck command that will
-    /// not finish inside the window either, and holding everyone else's work for it would be a regression.
+    /// How long a handoff holds new work and waits for in-flight commands before replacing the connections
+    /// regardless: half the relaxed timeout (five seconds by default), bounded by what is left of the window.
     /// </summary>
-    private static readonly TimeSpan DrainCap = TimeSpan.FromSeconds(1);
+    /// <remarks>
+    /// Two things pull in opposite directions. A blocking command in flight - BLPOP, XREAD BLOCK, WAIT - is failed
+    /// by the replacement if the wait is too short, when the server's close would have let it finish; but every
+    /// command the application issues during the wait is held, so a long wait is a latency spike for everyone.
+    /// Half the relaxed timeout lets a blocking command with a timeout up to that complete, keeps the hold well
+    /// inside the relaxed timeout that applies to the held work for the duration (so nothing held times out
+    /// because of the hold), and follows the one setting an application already uses to say how patient it is
+    /// prepared to be during maintenance. A cap derived from the window alone would be wrong in both directions: a
+    /// 15s window is not a reason to hold traffic for 15s, and a 2s window is not a reason to fail a 3s BLPOP that
+    /// the server would have answered.
+    /// </remarks>
+    private TimeSpan DrainCap(TimeSpan budget)
+    {
+        var half = TimeSpan.FromTicks(Multiplexer.RawConfig.MaintenanceRelaxedTimeout.Ticks / 2);
+        return budget < half ? budget : half;
+    }
+
+    /// <summary>How much longer than the cap the forced pass may wait for the write lock before giving the connection up to the server's close.</summary>
+    private static readonly TimeSpan LockGrace = TimeSpan.FromSeconds(1);
 
     /// <summary>
     /// Holds new caller work back, lets what has already been written finish, then replaces the connections.
@@ -492,10 +509,12 @@ internal sealed partial class ServerEndPoint
     /// recycle follows, and the held work is written to the replacement once it is established.
     /// </para>
     /// <para>
-    /// The wait is bounded by <see cref="DrainCap"/> as well as by the window: a blocking read in flight would
-    /// otherwise hold every other caller's work for the whole window and still be failed at the end of it. Past
-    /// the cap the connections are replaced regardless, and whatever was still in flight fails as the server's
-    /// close would have failed it.
+    /// The wait is bounded by <see cref="DrainCap"/>, and timeouts are relaxed for the hold so that neither the
+    /// held work nor a blocking command being waited for is timed out by the hold itself. Past the cap the
+    /// connections are replaced regardless, and whatever was still in flight fails as the server's close would
+    /// have failed it. Every replacement happens under the bridge's write lock, and only ever to the connection the
+    /// hold began on: a replacement established meanwhile is never touched, and if the lock cannot be had at all
+    /// the connection is left to the server's close rather than recycled around a writer.
     /// </para>
     /// <para>
     /// Both bridges, not just the one that was told. The measured blast radius is the *node*: four connections
@@ -506,66 +525,50 @@ internal sealed partial class ServerEndPoint
     private async Task DrainThenRecycleAsync(TimeSpan budget, string reason)
     {
         var watch = ValueStopwatch.StartNew();
-        var cap = budget < DrainCap ? budget : DrainCap;
+        var cap = DrainCap(budget);
+
+        // the held work, and any blocking command being waited for, must not be timed out by the hold itself
+        ExtendRelaxedWindow(cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout, "MOVING handoff");
+
         interactive?.BeginQuiesce();
         subscription?.BeginQuiesce();
         try
         {
-            bool drained, recycled;
+            using var lockDeadline = new CancellationTokenSource(cap + LockGrace);
+            bool? interactiveResult = interactive is null ? false : null;
+            bool? subscriptionResult = subscription is null ? false : null;
+            bool forced = false;
             while (true)
             {
-                var attempt = await TryRecycleWhenDrainedAsync(reason).ForAwait();
-                if (attempt is { } done)
+                var force = watch.ElapsedMilliseconds >= cap.TotalMilliseconds;
+                forced |= force;
+                if (interactiveResult is null) interactiveResult = await interactive!.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait();
+                if (subscriptionResult is null) subscriptionResult = await subscription!.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait();
+                if (interactiveResult is not null && subscriptionResult is not null) break;
+                if (lockDeadline.IsCancellationRequested)
                 {
-                    drained = true;
-                    recycled = done;
-                    break;
-                }
-                if (watch.ElapsedMilliseconds >= cap.TotalMilliseconds)
-                {
-                    drained = false;
-                    recycled = (interactive?.RecycleConnection(reason) == true) | (subscription?.RecycleConnection(reason) == true);
+                    // the write lock could not be had even for the forced pass: something is stuck on it. Recycling
+                    // without the lock would reopen the mid-write loss the lock exists to prevent, so the connection
+                    // is left to the server's close, which is where things stood before handoffs existed
                     break;
                 }
                 await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
             }
 
+            var recycled = interactiveResult == true || subscriptionResult == true;
             if (recycled) Interlocked.Increment(ref _handoffRecycles);
             Multiplexer.Trace(
                 $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
-                + (drained ? " (drained)" : " (still busy at the drain cap)"),
+                + (forced ? " (still busy at the drain cap)" : " (drained)")
+                + (interactiveResult is null || subscriptionResult is null ? " (write lock not obtained; left to the server)" : ""),
                 ToString());
         }
         finally
         {
-            // the recycle has already nulled the old connection, so releasing the hold cannot write to it; the
-            // held work waits in the backlog for the replacement, as it would across any reconnect
-            interactive?.EndQuiesce();
-            subscription?.EndQuiesce();
+            // each bridge is released on its own: a failure releasing one must not leave the other holding work
+            try { interactive?.EndQuiesce(); } catch (Exception ex) { Multiplexer.OnInternalError(ex, EndPoint); }
+            try { subscription?.EndQuiesce(); } catch (Exception ex) { Multiplexer.OnInternalError(ex, EndPoint); }
         }
-    }
-
-    /// <summary>
-    /// Each bridge in turn, under its write lock: <c>null</c> as soon as one still has caller work in flight,
-    /// otherwise whether anything was recycled. A bridge recycled on an earlier pass has nothing left to recycle,
-    /// so a partial pass is safe to repeat.
-    /// </summary>
-    private async ValueTask<bool?> TryRecycleWhenDrainedAsync(string reason)
-    {
-        bool recycled = false;
-        if (interactive is { } i)
-        {
-            var result = await i.TryRecycleWhenDrainedAsync(reason).ForAwait();
-            if (result is null) return null;
-            recycled |= result.Value;
-        }
-        if (subscription is { } s)
-        {
-            var result = await s.TryRecycleWhenDrainedAsync(reason).ForAwait();
-            if (result is null) return null;
-            recycled |= result.Value;
-        }
-        return recycled;
     }
 
     /// <summary>
