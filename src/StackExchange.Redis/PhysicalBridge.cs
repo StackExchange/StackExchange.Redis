@@ -155,9 +155,10 @@ namespace StackExchange.Redis
         /// when a connection is fully established, or by the deadline if none is.
         /// </summary>
         internal void SetHandoffPending(TimeSpan span)
-            => Volatile.Write(ref _handoffPendingDeadlineTicks, NonZero(unchecked(Environment.TickCount + (int)span.TotalMilliseconds)));
+            => Volatile.Write(ref _handoffPendingDeadlineTicks, ServerEndPoint.NudgeFromZeroTicks(unchecked(Environment.TickCount + (int)span.TotalMilliseconds)));
 
-        private static int NonZero(int ticks) => ticks == 0 ? 1 : ticks;
+        /// <summary>The handoff gave up, or found nothing of its own to replace: the pending marker no longer applies.</summary>
+        internal void ClearHandoffPending() => Volatile.Write(ref _handoffPendingDeadlineTicks, 0);
 
         private bool HandoffPending
         {
@@ -167,6 +168,21 @@ namespace StackExchange.Redis
                 return deadline != 0 && unchecked(deadline - Environment.TickCount) > 0;
             }
         }
+
+        /// <summary>
+        /// Whether a connection failure belongs to a maintenance handoff in progress: the connection it retired, or an
+        /// attempt to bring up the replacement that did not get as far as a working connection. An established
+        /// replacement that then fails is an ordinary failure, and a FailFast policy applies to it as usual, even
+        /// while the handoff's pending marker is still set.
+        /// </summary>
+        private bool IsHandoffOwnFailure(PhysicalConnection connection, ConnectionFailureType failureType)
+            => HandoffPending
+               && (connection.RetiredForHandoff
+                   || failureType is ConnectionFailureType.UnableToConnect
+                       or ConnectionFailureType.UnableToResolvePhysicalConnection
+                       or ConnectionFailureType.AuthenticationFailure
+                       or ConnectionFailureType.ProtocolFailure
+                       or ConnectionFailureType.Loading);
 
         /// <summary>
         /// Starts holding caller work back from the current connection while a maintenance handoff lets what has
@@ -245,13 +261,16 @@ namespace StackExchange.Redis
         /// queues for the replacement instead (see <see cref="TryRequeueForHandoff"/>).
         /// </summary>
         /// <param name="force">Replace the connection even if caller work is still in flight on it.</param>
+        /// <param name="retireCurrentIfTargetGone">When the connection the hold began on has gone away by itself, replace
+        /// whatever is current instead of declaring there is nothing to do: with no successor to pin the reconnect to,
+        /// the ordinary reconnect may have landed straight back on the node being retired.</param>
         /// <param name="reason">Why; for the trace.</param>
         /// <param name="lockDeadline">Bounds the wait for the write lock (together with the mutex's own timeout, whichever
         /// ends first); the drain re-waits until this deadline, so it is the deadline that decides how long overall.</param>
         /// <returns><c>null</c> if the connection could not be retired yet - caller work in flight, or the lock not
         /// obtained inside the deadline - so the drain should try again; otherwise whether this call, or an earlier
         /// one, replaced it.</returns>
-        internal async ValueTask<bool?> TryRetireQuiesceTargetAsync(bool force, string reason, CancellationToken lockDeadline)
+        internal async ValueTask<bool?> TryRetireQuiesceTargetAsync(bool force, bool retireCurrentIfTargetGone, string reason, CancellationToken lockDeadline)
         {
             var target = _quiesceTarget;
             if (target is null) return false; // nothing was connected when the hold began
@@ -275,12 +294,20 @@ namespace StackExchange.Redis
             try
             {
                 if (_quiesceRecycled) return true;
-                if (!ReferenceEquals(physical, target))
+                var current = physical;
+                if (!ReferenceEquals(current, target))
                 {
-                    // it went away by itself (the server closed it, or it faulted) and the ordinary reconnect owns
-                    // what happens next; there is nothing left for the handoff to retire
-                    _quiesceRecycled = true;
-                    return false;
+                    if (!retireCurrentIfTargetGone || current is null)
+                    {
+                        // it went away by itself (the server closed it, or it faulted) and the reconnect, pinned to
+                        // the named successor, owns what happens next; there is nothing left for the handoff to retire
+                        _quiesceRecycled = true;
+                        return false;
+                    }
+                    // it went away by itself and the ordinary reconnect, with no successor to pin to, may well have
+                    // landed back on the node being retired: what is current now is what the handoff replaces
+                    target = current;
+                    _quiesceTarget = current;
                 }
                 if (!force && target.HasCallerMessagesAwaitingResponse()) return null;
 
@@ -676,7 +703,8 @@ namespace StackExchange.Redis
             // is a replacement we chose, and not while a handoff is holding work back: that backlog is work diverted
             // off a live connection, which would have been written and answered, so a death of the old connection
             // during the hold (the window expiring, a blip) must leave it for the replacement to flush
-            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff && !_quiescing && !HandoffPending)
+            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff && !_quiescing
+                && !IsHandoffOwnFailure(connection, failureType))
             {
                 AbandonPendingBacklog(innerException, connection);
             }
@@ -1251,6 +1279,20 @@ namespace StackExchange.Redis
         private bool BacklogTryPeek([NotNullWhen(true)] out Message? message)
             => _backlogFront.TryPeek(out message) || _backlog.TryPeek(out message);
 
+        /// <summary>Whether either queue holds a caller's message; snapshot enumeration, which a concurrent queue allows.</summary>
+        private bool AnyCallerFacingQueued()
+        {
+            foreach (var message in _backlogFront)
+            {
+                if (message.IsCallerFacing) return true;
+            }
+            foreach (var message in _backlog)
+            {
+                if (message.IsCallerFacing) return true;
+            }
+            return false;
+        }
+
         /// <summary>
         /// Requeues, ahead of what is still queued, a caller's message that lost its connection to a maintenance
         /// handoff while waiting for the write lock: it has not been written, and the work the hold queued while it
@@ -1335,15 +1377,7 @@ namespace StackExchange.Redis
         {
             if (physical?.HasCallerMessagesAwaitingResponse() == true) return true;
 
-            foreach (var message in _backlogFront) // snapshot enumeration; a concurrent queue is fine to walk
-            {
-                if (message.IsCallerFacing) return true;
-            }
-            foreach (var message in _backlog)
-            {
-                if (message.IsCallerFacing) return true;
-            }
-            return false;
+            return AnyCallerFacingQueued();
         }
 
         /// <summary>
@@ -1639,17 +1673,7 @@ namespace StackExchange.Redis
 
         public bool HasPendingCallerFacingItems()
         {
-            if (BacklogHasItems)
-            {
-                foreach (var item in _backlogFront) // non-consuming, thread-safe, etc
-                {
-                    if (item.IsCallerFacing) return true;
-                }
-                foreach (var item in _backlog)
-                {
-                    if (item.IsCallerFacing) return true;
-                }
-            }
+            if (BacklogHasItems && AnyCallerFacingQueued()) return true;
             return physical?.HasPendingCallerFacingItems() ?? false;
         }
 
@@ -1663,20 +1687,28 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// For a writer that has just taken the write lock: if the connection it was headed for was replaced by a
-        /// maintenance handoff while it waited, the message - not yet written - is queued for the replacement at the
-        /// head of the backlog, since it was issued before anything the hold has queued since. The connection itself
-        /// says whether a handoff retired it (<see cref="PhysicalConnection.RetiredForHandoff"/>), so a writer starved
-        /// across any number of later handoffs still recognises its own. Only the handoff case: a write that loses its
-        /// connection to an ordinary closure is still reported as a closure (#3167), a message bypassing the backlog is
-        /// never queued, and internal traffic is exempt because the handshake writes to a connection before it is current.
+        /// For a writer that has just taken the write lock: if the connection it was headed for was retired by a
+        /// maintenance handoff while it waited, nothing is written to it - its teardown follows the lock release. A
+        /// caller's message is queued for the replacement at the head of the backlog, since it was issued before
+        /// anything the hold has queued since; internal traffic and a message bypassing the backlog are failed as
+        /// having no connection, as they would be on a disconnected bridge. The connection itself says whether a
+        /// handoff retired it (<see cref="PhysicalConnection.RetiredForHandoff"/>), so a writer starved across any
+        /// number of later handoffs still recognises its own. Only the handoff case: a write that loses its connection
+        /// to an ordinary closure is still reported as a closure (#3167).
         /// </summary>
         private bool TryRequeueForHandoff(PhysicalConnection physical, Message message, bool bypassBacklog, out WriteResult result)
         {
-            if (bypassBacklog || message.IsInternalCall || !physical.RetiredForHandoff)
+            if (!physical.RetiredForHandoff)
             {
                 result = default;
                 return false;
+            }
+            if (bypassBacklog || message.IsInternalCall)
+            {
+                // not queued, but not written to a connection whose teardown is under way either: a keep-alive or a
+                // backlog-bypassing message that reached the lock after the retire simply has no connection
+                result = FailDueToNoConnection(message);
+                return true;
             }
             BacklogRequeueFront(message);
             result = WriteResult.Success; // queued counts as success

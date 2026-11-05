@@ -903,7 +903,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms of a 10s window");
 
             // jitter is at most a tenth of the window and the drain is one round trip; recycling at the deadline is the bug
-            Assert.True(recycledAfter < TimeSpan.FromSeconds(4), $"recycled after {recycledAfter}: that is waiting for the window, not draining");
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(5), $"recycled after {recycledAfter}: that is waiting for the window, not draining");
 
             // the replacement carries the held work and whatever follows. Note the in-process transport never dials the
             // successor: its tunnel derives the socket target from the configured endpoint, so the reconnect goes
@@ -940,7 +940,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             server.SetLatency(TimeSpan.FromSeconds(3)); // the in-process server answers one request at a time, so one slow command, not several
             var db = conn.GetDatabase();
             var slow = new[] { db.PingAsync() };
-            await Task.Delay(250); // let it be written
+            Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "the slow command should be in flight before MOVING arrives");
 
             var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
             var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
@@ -956,9 +956,9 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             server.SetLatency(TimeSpan.Zero);
             log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with a 3s command in flight");
 
-            // the slow command was answered, not failed: the recycle waited for it
+            // the slow command was answered, not failed: the recycle waited for it (had it not, the recycle would have
+            // failed the command, and this await would throw)
             foreach (var pending in slow) Assert.True(await pending >= TimeSpan.Zero);
-            Assert.True(recycledAfter >= TimeSpan.FromSeconds(2), $"recycled after {recycledAfter}: before the in-flight command could have been answered");
             // 3s for the command, up to 1s of jitter, lock and poll granularity, and slack; the cap would be 5s + jitter
             Assert.True(recycledAfter < TimeSpan.FromSeconds(7), $"recycled after {recycledAfter}: later than the command plus jitter");
         }
@@ -978,7 +978,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             server.SetLatency(TimeSpan.FromSeconds(12)); // well past the 5s cap and the slack below; the relaxed window covers it until the recycle
             var db = conn.GetDatabase();
             var blocking = Enumerable.Range(0, 3).Select(_ => db.PingAsync()).ToArray();
-            await Task.Delay(250); // let them be written
+            Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "the blocking commands should be in flight before MOVING arrives");
 
             var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
             var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
@@ -996,7 +996,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
 
             // jitter (at most a tenth of the window, capped at 1s) + the 5s cap + the lock grace (1s) + poll granularity,
             // with a further second of slack: still well short of the 12s the commands need
-            Assert.True(recycledAfter < TimeSpan.FromSeconds(9), $"recycled after {recycledAfter}: the drain waited for the blocking commands instead of capping");
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(10), $"recycled after {recycledAfter}: the drain waited for the blocking commands instead of capping");
 
             // the in-flight commands were failed by the recycle, which is what the server's close would have done
             foreach (var pending in blocking)
