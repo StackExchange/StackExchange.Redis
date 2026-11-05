@@ -35,17 +35,7 @@ namespace StackExchange.Redis
         /// </remarks>
         private readonly ConcurrentQueue<Message> _backlog = new();
 
-        /// <summary>
-        /// Messages that go out before anything in <see cref="_backlog"/>: a writer that lost its connection to a
-        /// maintenance handoff while waiting for the write lock is requeued here rather than appended, so that it
-        /// goes ahead of work the hold queued while it waited. This is a best effort at the ordering the writer
-        /// would have had, not a guarantee: a writer starved past the point where the replacement has begun
-        /// flushing held work lands behind what was already flushed, and nothing here orders a batch that straddles
-        /// the recycle - which is no more than the write path promised before. Every backlog operation drains this first.
-        /// </summary>
-        private readonly ConcurrentQueue<Message> _backlogFront = new();
-
-        private bool BacklogHasItems => !_backlogFront.IsEmpty || !_backlog.IsEmpty;
+        private bool BacklogHasItems => !_backlog.IsEmpty;
         private int _backlogProcessorIsRunning = 0;
         private int _backlogCurrentEnqueued = 0;
         private long _backlogTotalEnqueued = 0;
@@ -173,14 +163,15 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Whether a connection failure belongs to a maintenance handoff in progress: the connection it retired, or an
+        /// Whether a connection failure belongs to a maintenance handoff in progress: the connection the hold is
+        /// draining or has retired (whose death, natural or not, must not abandon the work diverted off it), or an
         /// attempt to bring up the replacement that never completed its handshake - whatever the failure type, since
         /// a reset mid-handshake reports as a socket failure like any other. A replacement that was fully established
         /// and then failed is an ordinary failure, and a FailFast policy applies to it as usual, even while the
         /// handoff's protection is still up.
         /// </summary>
         private bool IsHandoffOwnFailure(PhysicalConnection connection)
-            => HandoffPending && (connection.RetiredForHandoff || !connection.EverFullyEstablished);
+            => HandoffPending && (connection.RetiredForHandoff || ReferenceEquals(connection, _quiesceTarget) || !connection.EverFullyEstablished);
 
         /// <summary>
         /// Starts holding caller work back from the current connection while a maintenance handoff lets what has
@@ -265,16 +256,22 @@ namespace StackExchange.Redis
         /// <param name="retireCurrentIfTargetGone">When the connection the hold began on has gone away by itself, replace
         /// whatever is current instead of declaring there is nothing to do: with no successor to pin the reconnect to,
         /// the ordinary reconnect may have landed straight back on the node being retired.</param>
+        /// <param name="retiringAddress">The address of the node being retired, if known, so that a replacement which
+        /// landed somewhere else is left alone.</param>
         /// <param name="reason">Why; for the trace.</param>
         /// <param name="lockDeadline">Bounds the wait for the write lock (together with the mutex's own timeout, whichever
         /// ends first); the drain re-waits until this deadline, so it is the deadline that decides how long overall.</param>
         /// <returns><c>null</c> if the connection could not be retired yet - caller work in flight, or the lock not
         /// obtained inside the deadline - so the drain should try again; otherwise whether this call, or an earlier
         /// one, replaced it.</returns>
-        internal async ValueTask<bool?> TryRetireQuiesceTargetAsync(bool force, bool retireCurrentIfTargetGone, string reason, CancellationToken lockDeadline)
+        internal async ValueTask<bool?> TryRetireQuiesceTargetAsync(bool force, bool retireCurrentIfTargetGone, System.Net.IPAddress? retiringAddress, string reason, CancellationToken lockDeadline)
         {
             var target = _quiesceTarget;
-            if (target is null) return false; // nothing was connected when the hold began
+            if (target is null)
+            {
+                ClearHandoffPending(); // nothing was connected when the hold began: nothing to retire, nothing to protect
+                return false;
+            }
             if (_quiesceRecycled) return true;
             bool retire = false;
 
@@ -305,8 +302,16 @@ namespace StackExchange.Redis
                         _quiesceRecycled = true;
                         return false;
                     }
-                    // it went away by itself and the ordinary reconnect, with no successor to pin to, may well have
-                    // landed back on the node being retired: what is current now is what the handoff replaces
+                    // it went away by itself and the ordinary reconnect, with no successor to pin to, may have landed
+                    // back on the node being retired - in which case what is current now is what the handoff replaces.
+                    // If it demonstrably landed somewhere else (DNS had already moved), it is the replacement, and
+                    // retiring it would only force a second connect cycle.
+                    var landedOn = (current.VolatileSocket?.RemoteEndPoint as System.Net.IPEndPoint)?.Address;
+                    if (retiringAddress is not null && landedOn is not null && !landedOn.Equals(retiringAddress))
+                    {
+                        _quiesceRecycled = true;
+                        return false;
+                    }
                     target = current;
                     _quiesceTarget = current;
                 }
@@ -572,7 +577,7 @@ namespace StackExchange.Redis
             MessagesSinceLastHeartbeat = (int)(Volatile.Read(ref operationCount) - Volatile.Read(ref profileLastLog)),
             ConnectedAt = ConnectedAt,
             IsWriterActive = !_singleWriter.IsAvailable,
-            BacklogMessagesPending = _backlogFront.Count + _backlog.Count,
+            BacklogMessagesPending = _backlog.Count,
             BacklogMessagesPendingCounter = Volatile.Read(ref _backlogCurrentEnqueued),
             BacklogStatus = _backlogStatus,
             TotalBacklogMessagesQueued = _backlogTotalEnqueued,
@@ -704,7 +709,7 @@ namespace StackExchange.Redis
             // is a replacement we chose, and not while a handoff is holding work back: that backlog is work diverted
             // off a live connection, which would have been written and answered, so a death of the old connection
             // during the hold (the window expiring, a blip) must leave it for the replacement to flush
-            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff && !_quiescing
+            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff
                 && !IsHandoffOwnFailure(connection))
             {
                 AbandonPendingBacklog(innerException, connection);
@@ -778,7 +783,7 @@ namespace StackExchange.Redis
                 Message? next;
                 if (locked)
                 {
-                    lock (_backlog) // only locked parties change the head: the timeout sweep peeks, then dequeues and compares under this lock
+                    lock (_backlog) // the timeout sweep peeks, then dequeues and compares under this lock; a concurrent dequeue here would trip it
                     {
                         if (!BacklogTryDequeue(out next)) break;
                     }
@@ -1272,7 +1277,7 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool BacklogTryDequeue([NotNullWhen(true)] out Message? message)
         {
-            if (_backlogFront.TryDequeue(out message) || _backlog.TryDequeue(out message))
+            if (_backlog.TryDequeue(out message))
             {
                 Interlocked.Decrement(ref _backlogCurrentEnqueued);
                 return true;
@@ -1280,16 +1285,9 @@ namespace StackExchange.Redis
             return false;
         }
 
-        private bool BacklogTryPeek([NotNullWhen(true)] out Message? message)
-            => _backlogFront.TryPeek(out message) || _backlog.TryPeek(out message);
-
-        /// <summary>Whether either queue holds a caller's message; snapshot enumeration, which a concurrent queue allows.</summary>
+        /// <summary>Whether the backlog holds a caller's message; snapshot enumeration, which a concurrent queue allows.</summary>
         private bool AnyCallerFacingQueued()
         {
-            foreach (var message in _backlogFront)
-            {
-                if (message.IsCallerFacing) return true;
-            }
             foreach (var message in _backlog)
             {
                 if (message.IsCallerFacing) return true;
@@ -1298,25 +1296,17 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Requeues, ahead of what is still queued, a caller's message that lost its connection to a maintenance
-        /// handoff while waiting for the write lock: it has not been written, and the work the hold queued while it
-        /// waited has not gone out either, so it goes first. See <see cref="TryRequeueForHandoff"/> and the note on
-        /// <see cref="_backlogFront"/> about what this does and does not order.
+        /// Requeues a caller's message that lost its connection to a maintenance handoff while waiting for the write
+        /// lock: it has not been written, so it goes to the backlog for the replacement like the work the hold queued.
+        /// It is appended, not inserted at the head: a head insert would buy only a best effort at the order the
+        /// writer would have had (a writer starved past the start of the flush lands behind flushed work anyway), at
+        /// the price of a second queue and a head-mutation discipline across every backlog operation. The write path
+        /// never promised more than this in the same races. See <see cref="TryRequeueForHandoff"/>.
         /// </summary>
-        private void BacklogRequeueFront(Message message)
+        private void RequeueForHandoff(Message message)
         {
-            bool wasEmpty = !BacklogHasItems;
-            Interlocked.Increment(ref _backlogCurrentEnqueued);
-            Interlocked.Increment(ref _backlogTotalEnqueued);
-            // Under the dequeuers' lock: CheckBacklogForTimeouts peeks, then dequeues and compares under this lock,
-            // and an insert at the head between the two would hand it a different message - which it treats as a
-            // threading bug, and the dequeued message would be dropped uncompleted. Only locked parties change the head.
-            lock (_backlog)
-            {
-                _backlogFront.Enqueue(message);
-            }
-            message.SetBacklogged();
-            if (wasEmpty) Multiplexer.Root(); // as BacklogEnqueue: a backlog with a caller's task in it must pin the multiplexer
+            message.SetEnqueued(null);
+            BacklogEnqueue(message);
             Interlocked.MemoryBarrier(); // paired with EndQuiesce: one side or the other sees that the hold is off and the queue is not empty
             if (!_quiescing) StartBacklogProcessor();
         }
@@ -1401,7 +1391,7 @@ namespace StackExchange.Redis
             // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
             // But we reduce contention by only locking if we see something that looks timed out.
-            while (BacklogTryPeek(out Message? message))
+            while (_backlog.TryPeek(out Message? message))
             {
                 // See if the message has pass our async timeout threshold
                 // Note: All timed out messages must be dequeued, even when no completion is needed, to be able to dequeue and complete other timed out messages.
@@ -1410,7 +1400,7 @@ namespace StackExchange.Redis
                 {
                     // Peek again since we didn't have lock before...
                     // and rerun the exact same checks as above, note that it may be a different message now
-                    if (!BacklogTryPeek(out message)) break;
+                    if (!_backlog.TryPeek(out message)) break;
                     if (!message.HasTimedOut(now, timeout, out var _)) break;
 
                     if (!BacklogTryDequeue(out var message2) || (message != message2)) // consume it for real
@@ -1693,9 +1683,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// For a writer that has just taken the write lock: if the connection it was headed for was retired by a
         /// maintenance handoff while it waited, nothing is written to it - its teardown follows the lock release. A
-        /// caller's message is queued for the replacement at the head of the backlog, since it was issued before
-        /// anything the hold has queued since; internal traffic and a message bypassing the backlog are failed as
-        /// having no connection, as they would be on a disconnected bridge. The connection itself says whether a
+        /// caller's message is queued for the replacement with the rest of the held work; internal traffic and a
+        /// message bypassing the backlog are failed as having no connection, as they would be on a disconnected bridge. The connection itself says whether a
         /// handoff retired it (<see cref="PhysicalConnection.RetiredForHandoff"/>), so a writer starved across any
         /// number of later handoffs still recognises its own. Only the handoff case: a write that loses its connection
         /// to an ordinary closure is still reported as a closure (#3167).
@@ -1714,7 +1703,7 @@ namespace StackExchange.Redis
                 result = FailDueToNoConnection(message);
                 return true;
             }
-            BacklogRequeueFront(message);
+            RequeueForHandoff(message);
             result = WriteResult.Success; // queued counts as success
             return true;
         }

@@ -484,7 +484,7 @@ internal sealed partial class ServerEndPoint
             switch (decision.Action)
             {
                 case HandoffAction.Recycle:
-                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: false).ForAwait();
+                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: false, currentAddress).ForAwait();
                     replaced = true;
                     break;
                 case HandoffAction.RecycleAtHalfWindow:
@@ -492,7 +492,7 @@ internal sealed partial class ServerEndPoint
                     // go on. Half of the *announced* window, less whatever the jitter already spent.
                     var half = TimeSpan.FromTicks(window.Ticks / 2) - jitter;
                     if (half > TimeSpan.Zero) await Task.Delay(half).ForAwait();
-                    await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason, successorPinned: false).ForAwait();
+                    await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason, successorPinned: false, currentAddress).ForAwait();
                     replaced = true;
                     break;
                 case HandoffAction.MoveTo when decision.Target is { } target:
@@ -501,7 +501,7 @@ internal sealed partial class ServerEndPoint
                     // at +6.2s, landed back on the node being retired because DNS had not moved yet, and were
                     // closed at +21.6s anyway - exactly the outcome the handoff exists to avoid.
                     SetHandoffTarget(target, remaining);
-                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: true).ForAwait();
+                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: true, currentAddress).ForAwait();
                     replaced = true;
                     break;
                 default:
@@ -595,7 +595,9 @@ internal sealed partial class ServerEndPoint
     /// <param name="successorPinned">Whether reconnection is pinned to a named successor. If not, a connection that
     /// went away by itself during the hold may have been replaced by one on the very node being retired, and that
     /// replacement is retired instead; see <see cref="PhysicalBridge.TryRetireQuiesceTargetAsync"/>.</param>
-    private async Task DrainThenRecycleAsync(TimeSpan budget, string reason, bool successorPinned)
+    /// <param name="retiringAddress">The address of the node being retired, as seen from the connection that was told,
+    /// so that a replacement which landed elsewhere is recognised as such.</param>
+    private async Task DrainThenRecycleAsync(TimeSpan budget, string reason, bool successorPinned, IPAddress? retiringAddress)
     {
         var watch = ValueStopwatch.StartNew();
         // With less than the floor left of the window there is no hold worth having: the server is about to close
@@ -605,7 +607,7 @@ internal sealed partial class ServerEndPoint
 
         // The held work, and any blocking command being waited for, must not be timed out by the hold itself, nor
         // by the reconnect that follows it; the relaxed window covers it where relaxation is on, and the cover below
-        // covers it regardless, until the interactive connection is established again or this span runs out. The
+        // covers it regardless, until every bridge's replacement is established or this span runs out. The
         // reconnect can take until the end of the window plus one connect attempt: a MoveTo pins the socket target
         // to the named successor for the rest of the window, and a successor that does not answer is tried until
         // that expires before the endpoint is resolved the ordinary way.
@@ -627,8 +629,8 @@ internal sealed partial class ServerEndPoint
         // One loop per bridge, each with its own lock deadline, run side by side: a writer wedged on one bridge's
         // lock must not spend the other's time, and the other's idle connection must still be retired before the
         // server closes it. Each bridge is released the moment its own connection is settled.
-        var interactiveTask = RetireBridgeAsync(interactiveBridge, watch, cap, reason, retireCurrentIfTargetGone: !successorPinned);
-        var subscriptionTask = RetireBridgeAsync(subscriptionBridge, watch, cap, reason, retireCurrentIfTargetGone: !successorPinned);
+        var interactiveTask = RetireBridgeAsync(interactiveBridge, watch, cap, reason, retireCurrentIfTargetGone: !successorPinned, retiringAddress);
+        var subscriptionTask = RetireBridgeAsync(subscriptionBridge, watch, cap, reason, retireCurrentIfTargetGone: !successorPinned, retiringAddress);
         var interactiveResult = await interactiveTask.ForAwait();
         var subscriptionResult = await subscriptionTask.ForAwait();
 
@@ -656,7 +658,7 @@ internal sealed partial class ServerEndPoint
     /// Retires one bridge's connection once drained, or at the cap regardless, and releases its hold; see
     /// <see cref="DrainThenRecycleAsync"/>.
     /// </summary>
-    private async Task<BridgeRetirement> RetireBridgeAsync(PhysicalBridge? bridge, ValueStopwatch watch, TimeSpan cap, string reason, bool retireCurrentIfTargetGone)
+    private async Task<BridgeRetirement> RetireBridgeAsync(PhysicalBridge? bridge, ValueStopwatch watch, TimeSpan cap, string reason, bool retireCurrentIfTargetGone, IPAddress? retiringAddress)
     {
         if (bridge is null) return new(false, false);
         bool forced = false;
@@ -667,7 +669,7 @@ internal sealed partial class ServerEndPoint
             {
                 var force = watch.ElapsedMilliseconds >= cap.TotalMilliseconds;
                 forced |= force;
-                var result = await bridge.TryRetireQuiesceTargetAsync(force, retireCurrentIfTargetGone, reason, lockDeadline.Token).ForAwait();
+                var result = await bridge.TryRetireQuiesceTargetAsync(force, retireCurrentIfTargetGone, retiringAddress, reason, lockDeadline.Token).ForAwait();
                 if (result is { } done)
                 {
                     // whether we replaced the connection or it went away by itself, a replacement is now on its way,

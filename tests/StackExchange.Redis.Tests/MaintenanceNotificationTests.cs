@@ -984,6 +984,9 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             server.SendMoving(null, timeSeconds: 15, newEndpoint: successor, sequenceId: 0);
+            // the commands already accepted keep their delay; everything after this - the replacement's handshake
+            // above all, which the serve-one-at-a-time server would otherwise queue behind them - is answered at once
+            server.SetLatency(TimeSpan.Zero);
             var moving = await events.NextAsync();
             Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
 
@@ -991,7 +994,6 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 12_000),
                 "the handoff should have replaced the connection");
             var recycledAfter = watch.Elapsed;
-            server.SetLatency(TimeSpan.Zero); // so the replacement's handshake is not slowed too
             log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with 12s commands in flight");
 
             // jitter (at most a tenth of the window, capped at 1s) + the 5s cap + the lock grace (1s) + poll granularity,
