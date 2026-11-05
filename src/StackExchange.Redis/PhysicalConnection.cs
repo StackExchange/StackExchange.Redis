@@ -316,6 +316,7 @@ namespace StackExchange.Redis
             {
                 Trace($"handoff: connecting to {Format.ToString(handoffTarget)} in place of {Format.ToString(endpoint)}");
                 connectTo = handoffTarget;
+                _connectedViaHandoffTarget = true;
             }
             if (tunnel is not null)
             {
@@ -988,18 +989,7 @@ namespace StackExchange.Redis
 
         // volatile: each is written on one thread and read on others as part of the handoff's identity test, in the
         // very races that test exists for; a plain field could be read stale exactly then
-        private volatile bool _retiredForHandoff, _wasHandoffTarget, _everFullyEstablished, _knownReplacement;
-
-        /// <summary>
-        /// Latched once this connection, fully established, has been found to be a bona fide replacement for one a
-        /// maintenance handoff retired (see <c>PhysicalBridge.IsBonaFideReplacement</c>): the answer is stable once
-        /// true, and the test behind it reads the socket's remote address, which is not something to repeat on every
-        /// write. Cleared if the connection later becomes a handoff's target itself. A failure of a connection that is
-        /// *not* a known replacement, while a handoff's protection is up, is the handoff's own.
-        /// </summary>
-        internal bool KnownReplacement => _knownReplacement;
-
-        internal void MarkKnownReplacement() => _knownReplacement = true;
+        private volatile bool _retiredForHandoff, _wasHandoffTarget, _everFullyEstablished, _connectedViaHandoffTarget;
 
         /// <summary>
         /// Whether this connection was ever the one a maintenance handoff held work back from. A durable fact about the
@@ -1009,17 +999,19 @@ namespace StackExchange.Redis
         /// </summary>
         internal bool WasHandoffTarget => _wasHandoffTarget;
 
-        /// <summary>Target status dominates: a connection that was a replacement for an earlier handoff and is now the one being retired is a target, not a replacement.</summary>
-        internal void MarkHandoffTarget()
-        {
-            _knownReplacement = false;
-            _wasHandoffTarget = true;
-        }
+        internal void MarkHandoffTarget() => _wasHandoffTarget = true;
+
+        /// <summary>
+        /// Whether this connection was made to the successor a <c>MOVING</c> named (see
+        /// <see cref="ServerEndPoint.HandoffTarget"/>) rather than to the endpoint as resolved: recorded as the socket
+        /// is pointed there, so a handoff judging the connection later does not have to infer it from whether the pin
+        /// is still in force. Such a connection is where the server said to go, which is not the node being retired.
+        /// </summary>
+        internal bool ConnectedViaHandoffTarget => _connectedViaHandoffTarget;
 
         /// <summary>
         /// The socket's remote address and port, or <c>null</c> if the socket is not connected yet, is already gone, or
-        /// there is no socket. Cached once read: a connected socket's remote endpoint never changes, and the handoff's
-        /// bona fide test asks on every write while a hold is unresolved.
+        /// there is no socket. Cached once read: a connected socket's remote endpoint never changes.
         /// </summary>
         internal System.Net.IPEndPoint? TryGetRemoteEndPoint()
         {
@@ -1104,7 +1096,7 @@ namespace StackExchange.Redis
                         // Those sync timeouts happen in ConnectionMultiplexer.ExecuteSyncImpl() via Monitor.Wait.
                         // A command a maintenance handoff held, now written to the replacement, is covered by the
                         // handoff for as long as that stands; every other command keeps the timeout above.
-                        var effective = msg.HeldForHandoff ? server.GetEffectiveTimeoutMilliseconds(multiplexer.AsyncTimeoutMilliseconds, msg) : timeout;
+                        var effective = msg.HeldForHandoff ? ServerEndPoint.GetEffectiveTimeoutMilliseconds(timeout, msg) : timeout;
                         if (msg.HasTimedOut(now, effective, out var elapsed))
                         {
                             if (msg.ResultBoxIsAsync)

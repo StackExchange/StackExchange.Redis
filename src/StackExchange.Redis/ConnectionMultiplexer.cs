@@ -2739,12 +2739,16 @@ namespace StackExchange.Redis
                         //
                         // Waiting in slices is what makes that re-read reachable: a single wait for the whole budget
                         // that nothing pulses (a genuinely slow command) would time out at the original deadline and
-                        // never see a relaxation, or a handoff's cover, that began after we parked.
-                        const int sliceMilliseconds = 1000;
+                        // never see a relaxation, or a handoff's cover, that began after we parked. Only where the
+                        // budget can change at all, though: with maintenance notifications disabled for the server
+                        // nothing ever relaxes or covers it, and one wait for the whole budget is enough.
+                        var sliceMilliseconds = server is not null && server.MaintenanceMayChangeTimeouts ? 1000 : int.MaxValue;
                         var startedAt = Environment.TickCount;
                         while (true)
                         {
-                            var budget = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds, message) ?? TimeoutMilliseconds;
+                            var budget = server is null
+                                ? TimeoutMilliseconds
+                                : ServerEndPoint.GetEffectiveTimeoutMilliseconds(server.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds), message);
                             var remaining = budget - unchecked(Environment.TickCount - startedAt);
                             if (remaining <= 0)
                             {

@@ -47,6 +47,13 @@ internal sealed partial class ServerEndPoint
             : Multiplexer.RawConfig.MaintenanceNotifications;
 
     /// <summary>
+    /// Whether anything can change a command's timeout against this server while it waits: relaxation and the
+    /// handoff cover both come from notifications, so with the feature disabled a sync waiter can take its whole
+    /// budget in one wait rather than re-reading it.
+    /// </summary>
+    internal bool MaintenanceMayChangeTimeouts => MaintenanceMode != MaintenanceNotificationMode.Disabled;
+
+    /// <summary>
     /// Whether to ask this server for maintenance notifications during handshake.
     /// </summary>
     /// <remarks>
@@ -213,44 +220,24 @@ internal sealed partial class ServerEndPoint
 
     /// <summary>
     /// The effective timeout for a particular command: as <see cref="GetEffectiveTimeoutMilliseconds(int)"/>, and
-    /// for a command that a maintenance handoff diverted into the backlog (<see cref="Message.HeldForHandoff"/>) no
-    /// less than the handoff's cover, for as long as the command lives: the cover is a property of the held command,
-    /// not of a window on the server, so it cannot be withdrawn between the replacement establishing and the held
-    /// work being written to it. Only such a command: an ordinary command on the same
-    /// server, including one issued by an application that has turned relaxation off and runs short timeouts, keeps
-    /// its configured timeout. The sweeps stop at the first command that has not timed out, so a held command at the
-    /// head can delay (never lose) the timeout of an ordinary one behind it, by at most the cover.
-    /// </summary>
-    internal int GetEffectiveTimeoutMilliseconds(int configuredMilliseconds, Message message)
-    {
-        var result = GetEffectiveTimeoutMilliseconds(configuredMilliseconds);
-        if (message.HeldForHandoff)
-        {
-            var floor = Volatile.Read(ref _holdCoverMilliseconds);
-            if (floor > result) result = floor;
-        }
-        return result;
-    }
-
-    private int _holdCoverMilliseconds;
-
-    /// <summary>
-    /// The timeout the commands a handoff hold diverts are entitled to: the hold, the rest of the window (for which a
-    /// MoveTo pins reconnection to the named successor) and one connect attempt, whatever the relaxation setting - a
+    /// for a command a maintenance handoff held (<see cref="Message.HeldForHandoff"/>) no sooner than the handoff's
+    /// deadline - the hold, the rest of the window and one connect attempt, whatever the relaxation setting: a
     /// relaxed timeout of zero is the documented way to turn relaxation off, and a sub-second configured timeout with
-    /// the hold's one-second floor would otherwise time out exactly the work the hold is protecting. Applies to held
-    /// commands only, for as long as they live; see <see cref="GetEffectiveTimeoutMilliseconds(int, Message)"/>.
-    /// Extends, never shortens: a handoff beginning while an earlier one's held work is still queued must not cut
-    /// that work's cover short.
+    /// the hold's one-second floor would otherwise time out exactly the work the hold is protecting. The deadline is
+    /// stamped on the command when it is held, so it holds for as long as the command lives and nothing that happens
+    /// to the handoff afterwards can withdraw it. Only such a command: an ordinary command on the same server,
+    /// including one issued by an application that has turned relaxation off and runs short timeouts, keeps its
+    /// configured timeout.
     /// </summary>
-    private void SetHoldCover(TimeSpan span)
+    internal static int GetEffectiveTimeoutMilliseconds(int effectiveMilliseconds, Message message)
     {
-        var ms = TickDeadline.Clamp(span);
-        while (true)
+        var deadline = message.HoldCoverDeadlineTicks;
+        if (deadline != 0)
         {
-            var current = Volatile.Read(ref _holdCoverMilliseconds);
-            if (current >= ms || Interlocked.CompareExchange(ref _holdCoverMilliseconds, ms, current) == current) return;
+            var floor = unchecked(deadline - message.GetWriteTime());
+            if (floor > effectiveMilliseconds) effectiveMilliseconds = floor;
         }
+        return effectiveMilliseconds;
     }
 
     /// <summary>
@@ -322,14 +309,12 @@ internal sealed partial class ServerEndPoint
         var tail = Multiplexer.RawConfig.MaintenancePostEventRelaxedDuration;
         if (tail <= TimeSpan.Zero)
         {
-            _relaxedDeadline.Clear();
-            Volatile.Write(ref _relaxedEndedTicks, NudgeFromZeroTicks(Environment.TickCount));
+            _relaxedDeadline.SetIn(TimeSpan.Zero); // ended now, and recorded as such for fault attribution
             Multiplexer.Trace($"{type}: relaxation ended", ToString());
             return;
         }
 
         _relaxedDeadline.SetIn(tail);
-        Volatile.Write(ref _relaxedEndedTicks, _relaxedDeadline.Ticks);
         Multiplexer.Trace($"{type}: relaxation continues for {tail.TotalSeconds}s (post-event)", ToString());
     }
 
@@ -351,7 +336,9 @@ internal sealed partial class ServerEndPoint
     /// Expires, and that is not decoration. Without it, a server that named an address which turns out to be
     /// unreachable would pin this endpoint to it for the lifetime of the multiplexer, because every reconnect
     /// would keep trying the same dead target. On expiry we fall back to resolving the endpoint normally, which
-    /// is what we would have done anyway.
+    /// is what we would have done anyway. Until then it stays, whatever establishes: both bridges reconnect
+    /// through it, and the second one's reconnect must not be sent back to DNS - still naming the node being
+    /// retired - because the first one's replacement happened to establish first.
     /// </para>
     /// </remarks>
     internal EndPoint? HandoffTarget
@@ -380,15 +367,6 @@ internal sealed partial class ServerEndPoint
         _handoffTarget = target;
     }
 
-    /// <summary>
-    /// Forgets any handoff target, once a connection has been established.
-    /// </summary>
-    /// <remarks>
-    /// Called on full establishment rather than on the connect attempt: if the attempt fails we want the next
-    /// one to try the target again, within its window. Once a connection is up, normal resolution resumes -
-    /// by then DNS has usually caught up anyway.
-    /// </remarks>
-    internal void ClearHandoffTarget() => _handoffTarget = null;
     private volatile string? _lastHandoffOutcome;
 
     /// <summary>
@@ -474,7 +452,8 @@ internal sealed partial class ServerEndPoint
             switch (decision.Action)
             {
                 case HandoffAction.Recycle:
-                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: false, currentEndPoint).ForAwait();
+                    // DNS has moved to a new address, so a reconnect reporting the old one is back on the retiring node
+                    await DrainThenRecycleAsync(remaining, decision.Reason, replacementAddressSeen: true, currentEndPoint).ForAwait();
                     replaced = true;
                     break;
                 case HandoffAction.RecycleAtHalfWindow:
@@ -482,7 +461,8 @@ internal sealed partial class ServerEndPoint
                     // go on. Half of the *announced* window, less whatever the jitter already spent.
                     var half = TimeSpan.FromTicks(window.Ticks / 2) - jitter;
                     if (half > TimeSpan.Zero) await Task.Delay(half).ForAwait();
-                    await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason, successorPinned: false, currentEndPoint).ForAwait();
+                    // nothing to re-resolve, or nothing known to compare against: no second address has been seen
+                    await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason, replacementAddressSeen: false, currentEndPoint).ForAwait();
                     replaced = true;
                     break;
                 case HandoffAction.MoveTo when decision.Target is { } target:
@@ -491,7 +471,7 @@ internal sealed partial class ServerEndPoint
                     // at +6.2s, landed back on the node being retired because DNS had not moved yet, and were
                     // closed at +21.6s anyway - exactly the outcome the handoff exists to avoid.
                     SetHandoffTarget(target, remaining);
-                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: true, currentEndPoint).ForAwait();
+                    await DrainThenRecycleAsync(remaining, decision.Reason, replacementAddressSeen: true, currentEndPoint).ForAwait();
                     replaced = true;
                     break;
                 default:
@@ -589,12 +569,13 @@ internal sealed partial class ServerEndPoint
     /// </remarks>
     /// <param name="budget">What is left of the announced window.</param>
     /// <param name="reason">Why; for the trace.</param>
-    /// <param name="successorPinned">Whether reconnection is pinned to a named successor. If not, a connection that
-    /// went away by itself during the hold may have been replaced by one on the very node being retired, and that
-    /// replacement is retired instead; see <see cref="PhysicalBridge.TryRetireQuiesceTargetAsync"/>.</param>
+    /// <param name="replacementAddressSeen">Whether the handoff has seen a second address - the server named a
+    /// successor, or DNS moved to a new address - so that a reconnect reporting the retiring address is known to be
+    /// back on the retiring node, and is retired in its turn; see <see cref="PhysicalBridge.TryRetireTargetAsync"/>.
+    /// Where no second address was ever involved, the address says nothing and only time tells.</param>
     /// <param name="retiringEndPoint">The address and port of the node being retired, as seen from the connection that
     /// was told, so that a replacement which landed elsewhere is recognised as such.</param>
-    private async Task DrainThenRecycleAsync(TimeSpan budget, string reason, bool successorPinned, IPEndPoint? retiringEndPoint)
+    private async Task DrainThenRecycleAsync(TimeSpan budget, string reason, bool replacementAddressSeen, IPEndPoint? retiringEndPoint)
     {
         var watch = ValueStopwatch.StartNew();
         // With less than the floor left of the window there is no hold worth having: the server is about to close
@@ -603,11 +584,11 @@ internal sealed partial class ServerEndPoint
         var cap = budget < DrainFloor ? TimeSpan.Zero : DrainCap(budget);
 
         // The held work, and any blocking command being waited for, must not be timed out by the hold itself, nor
-        // by the reconnect that follows it; the relaxed window covers it where relaxation is on, and the cover below
-        // covers it regardless, until every bridge's replacement is established or this span runs out. The
-        // reconnect can take until the end of the window plus one connect attempt: a MoveTo pins the socket target
-        // to the named successor for the rest of the window, and a successor that does not answer is tried until
-        // that expires before the endpoint is resolved the ordinary way.
+        // by the reconnect that follows it; the relaxed window covers it where relaxation is on, and the handoff's
+        // deadline below covers it regardless, stamped on each held command. The reconnect can take until the end
+        // of the window plus one connect attempt: a MoveTo pins the socket target to the named successor for the
+        // rest of the window, and a successor that does not answer is tried until that expires before the endpoint
+        // is resolved the ordinary way.
         var relax = cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout;
         if (relax > Multiplexer.RawConfig.MaintenanceRelaxedWindowMax) relax = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax; // the user's ceiling applies here as on the notification path
         ExtendRelaxedWindow(relax, "MOVING handoff");
@@ -621,24 +602,20 @@ internal sealed partial class ServerEndPoint
         var ceiling = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax;
         if (ceiling < drainSpan) ceiling = drainSpan;
         if (cover > ceiling) cover = ceiling;
-        SetHoldCover(cover);
 
         // snapshots: Dispose nulls the fields, and a handoff in progress must not fault on a server going away
         var interactiveBridge = interactive;
         var subscriptionBridge = subscription;
 
-        // one lifecycle for the protection: raised here with the hold, on each bridge (the FailFast shield) and on the
-        // server (the timeout cover); lowered only when a replacement establishes, when the handoff gives up on a
-        // bridge, or when this span runs out - never on a local idea of "done" along the way
-        // Whether a socket's remote endpoint says anything about *which node* it reached. Behind a Tunnel, or when
-        // the configured endpoint is itself a fixed address (a load balancer or VIP in front of the cluster), every
-        // connection reports the intermediary's address, and comparing it with the retiring one would make the
-        // genuine replacement look like a return to the retiring node forever. Then only time can tell: a connection
-        // established after the retire resolved is the replacement.
-        var identityMeaningful = Multiplexer.RawConfig.Tunnel is null
-            && !(EndPoint is IPEndPoint configured && retiringEndPoint is not null && configured.Equals(retiringEndPoint));
-        interactiveBridge?.BeginQuiesce(cover, retiringEndPoint, successorPinned, identityMeaningful);
-        subscriptionBridge?.BeginQuiesce(cover, retiringEndPoint, successorPinned, identityMeaningful);
+        // Whether a socket's remote address says anything about *which node* it reached: only when this handoff has
+        // itself seen a second address, and there is no tunnel in the way. Behind a Tunnel every connection reports
+        // the tunnel's address; and where the only address ever involved is the one in front of the cluster (a load
+        // balancer or VIP) comparing it with the retiring one would make the genuine replacement look like a return
+        // to the retiring node forever. Then only time can tell: once the target is gone, what is current is the
+        // replacement.
+        var addressIdentifiesNode = replacementAddressSeen && Multiplexer.RawConfig.Tunnel is null;
+        interactiveBridge?.BeginHold(cover, retiringEndPoint, addressIdentifiesNode);
+        subscriptionBridge?.BeginHold(cover, retiringEndPoint, addressIdentifiesNode);
 
         // One loop per bridge, each with its own lock deadline, run side by side: a writer wedged on one bridge's
         // lock must not spend the other's time, and the other's idle connection must still be retired before the
@@ -683,7 +660,7 @@ internal sealed partial class ServerEndPoint
             {
                 var force = watch.ElapsedMilliseconds >= cap.TotalMilliseconds;
                 forced |= force;
-                var result = await bridge.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait();
+                var result = await bridge.TryRetireTargetAsync(force, reason, lockDeadline.Token).ForAwait();
                 if (result is { } done)
                 {
                     // whether we replaced the connection or it went away by itself, a replacement is now on its way,
@@ -697,7 +674,7 @@ internal sealed partial class ServerEndPoint
                     // dark for the reconnect - the whole window's traffic, to protect at most one wedged writer's
                     // message from a write fault. So, as a last resort, retire without the lock, which is what every
                     // recycle did before handoffs existed. The protection stays up for the diverted work either way.
-                    return new(bridge.RetireQuiesceTargetWithoutLock(reason) ? true : null, forced);
+                    return new(bridge.RetireTargetWithoutLock(reason) ? true : null, forced);
                 }
                 await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
             }
@@ -712,7 +689,7 @@ internal sealed partial class ServerEndPoint
         {
             try
             {
-                bridge.EndQuiesce(); // idempotent; one bridge failing to release must not affect the other
+                bridge.EndDrain(); // idempotent; one bridge failing to release must not affect the other
             }
             catch (Exception ex)
             {
@@ -768,22 +745,11 @@ internal sealed partial class ServerEndPoint
     {
         // a new notification never shortens an existing window: a FAILING_OVER arriving inside a longer
         // MIGRATING window must not cut it short
-        if (_relaxedDeadline.TryExtendBy(duration, out var deadline))
+        if (_relaxedDeadline.TryExtendBy(duration, out _))
         {
-            Volatile.Write(ref _relaxedEndedTicks, deadline);
             Multiplexer.Trace($"timeouts relaxed: {cause}", ToString());
         }
     }
-
-    /// <summary>
-    /// When the most recent window was due to end, whether or not it has; zero if there has never been one.
-    /// </summary>
-    /// <remarks>
-    /// A mirror of the deadline rather than a record of when it was cleared, which is what makes it cheap:
-    /// expiry is lazy (it happens on the next read), so there is no single moment at which to stamp "the
-    /// window closed", and the deadline already *is* that moment.
-    /// </remarks>
-    private int _relaxedEndedTicks;
 
     /// <summary>How long after a window closes a fault may still be attributed to it, at minimum.</summary>
     /// <remarks>
@@ -816,7 +782,9 @@ internal sealed partial class ServerEndPoint
         var active = ActiveMaintenanceType;
         if (active != MaintenanceNotificationType.None) return active;
 
-        var ended = Volatile.Read(ref _relaxedEndedTicks);
+        // the deadline is kept after it passes (see TickDeadline), so it is also the record of when the most recent
+        // window ended: there is no single moment at which to stamp "the window closed", and the deadline is it
+        var ended = _relaxedDeadline.Ticks;
         if (ended == 0) return MaintenanceNotificationType.None; // never had a window at all
 
         var since = unchecked(Environment.TickCount - ended);

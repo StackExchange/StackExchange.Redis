@@ -6,10 +6,13 @@ namespace StackExchange.Redis.Maintenance;
 /// <summary>
 /// A deadline expressed in <see cref="Environment.TickCount"/> terms, where zero means "unset". One place for the
 /// three invariants every such field needs: a genuine zero tick count is nudged to one so it cannot read as unset;
-/// an observed expiry is cleared (by compare-exchange, so a concurrent extension is not undone), so that a tick count
-/// wrapping ~24.8 days later cannot bring a stale deadline back to life; and extension is monotonic, never shortening
-/// a deadline that is already later. Used for the relaxed-timeout window, the handoff hold cover and the per-bridge
-/// handoff protection, which all had their own copies of this before.
+/// a long-passed deadline is cleared (by compare-exchange, so a concurrent extension is not undone), so that a tick
+/// count wrapping ~24.8 days later cannot bring it back to life; and extension is monotonic, never shortening a
+/// deadline that is already later. A deadline that has merely passed is kept, readable through <see cref="Ticks"/>,
+/// so it also records <em>when</em> it passed: fault attribution asks how recently the relaxed window closed, and a
+/// held command's cover is stamped from the handoff deadline whether or not the handoff is still running. Used for
+/// the relaxed-timeout window, the successor pin and the per-bridge handoff deadline, which all had their own copies
+/// of this before.
 /// </summary>
 internal struct TickDeadline
 {
@@ -23,7 +26,7 @@ internal struct TickDeadline
     /// </summary>
     private const int MaxMilliseconds = int.MaxValue / 4;
 
-    /// <summary>The raw deadline, or zero when unset. For callers that record *when* a window was due to end.</summary>
+    /// <summary>The raw deadline, passed or not, or zero when unset (or so long passed that it has been cleared).</summary>
     public int Ticks => Volatile.Read(ref _ticks);
 
     public void SetIn(TimeSpan span) => Volatile.Write(ref _ticks, NudgeFromZero(unchecked(Environment.TickCount + Clamp(span))));
@@ -63,7 +66,10 @@ internal struct TickDeadline
         }
     }
 
-    /// <summary>Milliseconds until the deadline, or zero if unset or passed; a passed deadline is cleared.</summary>
+    /// <summary>
+    /// Milliseconds until the deadline, or zero if unset or passed. A passed deadline is kept (see <see cref="Ticks"/>)
+    /// until it is so long past that a wrapping tick count could make it look future again, and then cleared.
+    /// </summary>
     public int RemainingMilliseconds()
     {
         var deadline = Volatile.Read(ref _ticks);
@@ -71,12 +77,13 @@ internal struct TickDeadline
         var remaining = unchecked(deadline - Environment.TickCount);
         if (remaining > 0) return remaining;
 
-        // expired: clear it, but only if nobody has moved it on in the meantime
-        Interlocked.CompareExchange(ref _ticks, 0, deadline);
+        // long passed: clear it, but only if nobody has moved it on in the meantime
+        if (remaining < -MaxMilliseconds) Interlocked.CompareExchange(ref _ticks, 0, deadline);
         return 0;
     }
 
     public bool IsActive => RemainingMilliseconds() > 0;
 
-    private static int NudgeFromZero(int ticks) => ticks == 0 ? 1 : ticks;
+    /// <summary>Zero means "unset" (or "never"), so a tick count that lands on it moves by one.</summary>
+    public static int NudgeFromZero(int ticks) => ticks == 0 ? 1 : ticks;
 }

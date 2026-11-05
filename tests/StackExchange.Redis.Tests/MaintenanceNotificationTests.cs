@@ -1096,7 +1096,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             Assert.True(
                 await Poll.UntilAsync(() => endpoint.HandoffTarget is not null || endpoint.HandoffRecycles > 0, timeoutMilliseconds: 10_000),
                 "the handoff should have taken the named successor");
-            log.WriteLine($"handoff target: {endpoint.HandoffTarget?.ToString() ?? "(cleared after reconnect)"}; recycles={endpoint.HandoffRecycles}");
+            log.WriteLine($"handoff target: {endpoint.HandoffTarget?.ToString() ?? "(expired with the window)"}; recycles={endpoint.HandoffRecycles}");
 
             // a fresh connection re-sends the opt-in, which is how a recycle is visible from the server's side
             Assert.True(
