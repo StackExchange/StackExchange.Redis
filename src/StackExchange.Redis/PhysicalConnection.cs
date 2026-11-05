@@ -316,7 +316,9 @@ namespace StackExchange.Redis
             {
                 Trace($"handoff: connecting to {Format.ToString(handoffTarget)} in place of {Format.ToString(endpoint)}");
                 connectTo = handoffTarget;
-                _handoffTargetDialed = handoffTarget;
+                // only where the socket below really dials it: a tunnel connects to the configured endpoint on its
+                // own terms, and recording a dial that never happened would be false evidence for the handoff
+                if (tunnel is null) _handoffTargetDialed = handoffTarget;
             }
             if (tunnel is not null)
             {

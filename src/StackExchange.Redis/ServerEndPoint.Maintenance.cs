@@ -54,7 +54,15 @@ internal sealed partial class ServerEndPoint
     /// budget that has since grown simply continues - so a server with nothing in progress costs a sync caller
     /// nothing, however long its calls.
     /// </summary>
-    internal bool MaintenanceMayChangeTimeouts => GetRelaxedRemaining() > 0 || Volatile.Read(ref _handoffInFlight) != 0;
+    internal bool MaintenanceMayChangeTimeouts => GetRelaxedRemaining() > 0 || HandoffLive;
+
+    /// <summary>
+    /// Whether a handoff is in progress on either bridge, in any phase but done - from the hold beginning until the
+    /// held work has been written to the replacement or the deadline passed. This, not the drain's one-at-a-time
+    /// claim, is what "a handoff exists" means to anything outside the drain: the claim covers the decision and the
+    /// drain, which is a shorter span than the handoff, and the two had been confused for each other.
+    /// </summary>
+    internal bool HandoffLive => interactive?.HandoffLive == true || subscription?.HandoffLive == true;
 
     /// <summary>
     /// Whether to ask this server for maintenance notifications during handshake.
@@ -310,11 +318,12 @@ internal sealed partial class ServerEndPoint
         Volatile.Write(ref _relaxedType, (int)type);
         var tail = Multiplexer.RawConfig.MaintenancePostEventRelaxedDuration;
 
-        // While a handoff is in flight, the drain depends on the relaxation it extended: a completion for some other
-        // operation arriving mid-drain (a MIGRATED for a shard move) must not pull the deadline back under the drain's
-        // cap and have the sweep fail the very commands the drain is waiting for. So during a handoff a close can
+        // While a handoff is live - from the hold beginning until the held work has reached the replacement - the
+        // drain and the reconnect depend on the relaxation the handoff extended: a completion for some other
+        // operation arriving meanwhile (a MIGRATED for a shard move) must not pull the deadline back under it and
+        // have the sweep fail the very commands the handoff is carrying across. So during a handoff a close can
         // lengthen the window but not shorten it; the replace semantics above apply the rest of the time.
-        var handoffInFlight = Volatile.Read(ref _handoffInFlight) != 0;
+        var handoffInFlight = HandoffLive;
         if (tail <= TimeSpan.Zero)
         {
             if (!handoffInFlight) _relaxedDeadline.SetIn(TimeSpan.Zero); // ended now, and recorded as such for fault attribution
@@ -422,19 +431,21 @@ internal sealed partial class ServerEndPoint
     /// </remarks>
     internal void OnMovingAnnounced(TimeSpan? window, EndPoint? successor, PhysicalConnection connection)
     {
-        // One at a time per server. A rolling operation delivers one MOVING per connection, so a second one
-        // arriving while a handoff is in flight is a repeat or a much later event; either way, starting a
-        // second poll against the same endpoint achieves nothing.
-        if (Interlocked.CompareExchange(ref _handoffInFlight, 1, 0) != 0)
-        {
-            Multiplexer.Trace("MOVING: a handoff is already in flight", ToString());
-            return;
-        }
-
         var budget = window is { } value && value > TimeSpan.Zero
             ? value
             : Multiplexer.RawConfig.MaintenanceRelaxedTimeout; // no window given: use the relaxation floor
         if (budget > MaxHandoffWindow) budget = MaxHandoffWindow; // an absurd announced window must not overflow a delay or a deadline
+
+        // One decision-and-drain at a time per server: two drains on the same bridges would end each other's holds.
+        // A MOVING arriving while one is in flight (which can be most of a window: the jitter, the DNS poll, the
+        // drain) is not dropped, though - the handoff in flight will replace the connections, and what this one adds
+        // is where the reconnect should go, if it says: the pin is updated, and the next dial takes it.
+        if (Interlocked.CompareExchange(ref _handoffInFlight, 1, 0) != 0)
+        {
+            if (successor is not null) SetHandoffTarget(successor, budget);
+            Multiplexer.Trace(successor is null ? "MOVING: a handoff is already in flight" : "MOVING: a handoff is already in flight; successor noted", ToString());
+            return;
+        }
         var current = connection.TryGetRemoteEndPoint(); // null if the socket is gone or not connected: nothing to compare against
 
         _ = HandoffAsync(budget, successor, current);

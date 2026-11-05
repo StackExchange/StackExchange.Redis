@@ -235,12 +235,20 @@ namespace StackExchange.Redis
 
             public HandoffPhase Phase => (HandoffPhase)Volatile.Read(ref _phase);
 
-            /// <summary>Advances the phase, if it is still where the caller saw it.</summary>
+            /// <summary>Advances the phase, if it is still where the caller saw it. Done lets go of the target: a finished handoff must not root a retired connection.</summary>
             public bool TryAdvance(HandoffPhase from, HandoffPhase to)
-                => Interlocked.CompareExchange(ref _phase, (int)to, (int)from) == (int)from;
+            {
+                if (Interlocked.CompareExchange(ref _phase, (int)to, (int)from) != (int)from) return false;
+                if (to == HandoffPhase.Done) Volatile.Write(ref _target, null);
+                return true;
+            }
 
             /// <summary>Ends the handoff whatever its phase: the deadline passed, or the bridge was disposed.</summary>
-            public void Finish() => Volatile.Write(ref _phase, (int)HandoffPhase.Done);
+            public void Finish()
+            {
+                Volatile.Write(ref _phase, (int)HandoffPhase.Done);
+                Volatile.Write(ref _target, null);
+            }
         }
 
         private volatile Handoff? _handoff;
@@ -445,7 +453,7 @@ namespace StackExchange.Redis
         /// </summary>
         private void ReevaluateHandoff()
         {
-            if (!TryGetHandoff(out var handoff) || handoff.Phase is HandoffPhase.Flushing or HandoffPhase.Done) return;
+            if (!TryGetHandoff(out var handoff)) return;
             if (physical is { EverFullyEstablished: true, RetiredForHandoff: false } current) Judge(handoff, current);
         }
 
@@ -456,7 +464,10 @@ namespace StackExchange.Redis
         /// the lock or faulted. The retire takes the write lock, so it runs apart from the caller (an establishment
         /// callback, or the heartbeat), one at a time and idempotent under the lock: a heartbeat that finds the
         /// previous attempt still waiting does not pile on, and one that finds it failed tries again. While the target
-        /// is still being drained, the drain loop owns the judgement.
+        /// is still being drained, the drain loop owns the judgement. Doomed is doomed in every phase after that: a
+        /// replacement that dropped mid-flush and a reconnect that landed back on the retiring node puts the hold back
+        /// in force (Flushing to AwaitingReplacement) before it is retired - the phase changes what release means, not
+        /// what doomed means.
         /// </summary>
         private void Judge(Handoff handoff, PhysicalConnection connection)
         {
@@ -465,7 +476,8 @@ namespace StackExchange.Redis
                 case Replacement.Yes:
                     OnReplacementEstablished(handoff);
                     break;
-                case Replacement.Doomed when handoff.Phase == HandoffPhase.AwaitingReplacement:
+                case Replacement.Doomed when handoff.Phase is HandoffPhase.AwaitingReplacement or HandoffPhase.Flushing:
+                    handoff.TryAdvance(HandoffPhase.Flushing, HandoffPhase.AwaitingReplacement);
                     if ((ReferenceEquals(connection, handoff.Target) || handoff.TryAdopt(connection)) && handoff.TryBeginRetire())
                     {
                         _ = RetireTargetAsync(handoff);
@@ -473,6 +485,9 @@ namespace StackExchange.Redis
                     break;
             }
         }
+
+        /// <summary>Whether a handoff is in progress on this bridge, in any phase but Done; see <see cref="ServerEndPoint.HandoffLive"/>.</summary>
+        internal bool HandoffLive => TryGetHandoff(out _);
 
         /// <summary>
         /// The retire outside the drain loop. Forced: the loop's own forced pass has come and gone by the time this
@@ -1178,6 +1193,14 @@ namespace StackExchange.Redis
             connection.ReportAttemptOutcome(isSuccess: true, ConnectionFailureType.None, null);
             connection.MarkFullyEstablished();
             connection.SetIdle();
+            // Before the state changes to established, not after: a doomed connection becoming current while the
+            // held work is flushing must put the hold back in force before the processor can see a connected bridge
+            // with no hold and write to it. The judgement proper (adopt, retire) follows below, once established.
+            if (TryGetHandoff(out var early) && early.Phase == HandoffPhase.Flushing && physical == connection
+                && Classify(early, connection) == Replacement.Doomed)
+            {
+                early.TryAdvance(HandoffPhase.Flushing, HandoffPhase.AwaitingReplacement);
+            }
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
                 reportNextFailure = reconfigureNextFailure = true;
@@ -1652,22 +1675,22 @@ namespace StackExchange.Redis
         {
             // the same handoff decides the gate and the stamp: a message gated on one handoff must not carry the
             // deadline of the one before it (a diverted message after the hold resolved takes the last handoff's)
+            // A diverted message whose hold has gone by the time it is enqueued is ordinary work: it is flushed with the
+            // rest, and a stamp from a finished handoff would mark it held with no cover behind it.
             var live = TryGetHandoff(out var handoff);
             var holdable = !message.IsInternalCall;
-            if ((diverted || live) && holdable && (handoff ?? _handoff) is { } stamp) message.MarkHeldForHandoff(stamp.Deadline.Ticks);
+            if (live && holdable) message.MarkHeldForHandoff(handoff!.Deadline.Ticks); // live: TryGetHandoff said so
             bool wasEmpty = !BacklogHasItems;
             // important that this *precedes* enqueue, to play well with HasPendingCallerFacingItems
             Interlocked.Increment(ref _backlogCurrentEnqueued);
-            Interlocked.Increment(ref _backlogTotalEnqueued);
             _backlog.Enqueue(message);
             message.SetBacklogged();
-            if (holdable && !live)
-            {
-                // enqueue, fence, re-read: a hold that began between the read above and the enqueue has walked the
-                // queue without this message, or is about to walk it with it; either way it ends up stamped
-                Interlocked.MemoryBarrier();
-                if (TryGetHandoff(out var late)) message.MarkHeldForHandoff(late.Deadline.Ticks);
-            }
+            // The total is counted after the enqueue, deliberately: an interlocked increment is a full fence, and the
+            // re-read below needs one after the enqueue's store. Enqueue, fence, re-read: a hold that began between
+            // the read above and the enqueue has walked the queue without this message, or is about to walk it with
+            // it; either way it ends up stamped. A bridge that has never seen a handoff pays one null read for this.
+            Interlocked.Increment(ref _backlogTotalEnqueued);
+            if (holdable && !live && _handoff is not null && TryGetHandoff(out var late)) message.MarkHeldForHandoff(late.Deadline.Ticks);
 
             if (wasEmpty)
             {
