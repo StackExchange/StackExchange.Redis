@@ -887,6 +887,8 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                     }
                 }
             })).ToArray();
+            try
+            {
             Assert.True(await Poll.UntilAsync(() => Volatile.Read(ref completed) > 20), "the load should be flowing before the handoff");
 
             var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
@@ -923,6 +925,11 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 Assert.Empty(failures.Select(f => f.Message));
             }
             Assert.DoesNotContain(logs.Lines, l => l.Contains("did not establish a replacement", StringComparison.Ordinal));
+            }
+            finally
+            {
+                stop.Cancel(); // on any exit: a failed assertion must not leave four workers hot-looping on a disposed multiplexer
+            }
         }
     }
 

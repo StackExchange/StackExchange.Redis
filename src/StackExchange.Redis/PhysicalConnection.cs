@@ -1016,18 +1016,28 @@ namespace StackExchange.Redis
             _wasHandoffTarget = true;
         }
 
-        /// <summary>The socket's remote address and port, or <c>null</c> if the socket is not connected yet, is already gone, or there is no socket.</summary>
+        /// <summary>
+        /// The socket's remote address and port, or <c>null</c> if the socket is not connected yet, is already gone, or
+        /// there is no socket. Cached once read: a connected socket's remote endpoint never changes, and the handoff's
+        /// bona fide test asks on every write while a hold is unresolved.
+        /// </summary>
         internal System.Net.IPEndPoint? TryGetRemoteEndPoint()
         {
+            var cached = _remoteEndPoint;
+            if (cached is not null) return cached;
             try
             {
-                return VolatileSocket?.RemoteEndPoint as System.Net.IPEndPoint;
+                cached = VolatileSocket?.RemoteEndPoint as System.Net.IPEndPoint;
             }
             catch (Exception ex) when (ex is System.Net.Sockets.SocketException or ObjectDisposedException or InvalidOperationException)
             {
                 return null;
             }
+            if (cached is not null) _remoteEndPoint = cached;
+            return cached;
         }
+
+        private volatile System.Net.IPEndPoint? _remoteEndPoint;
 
         /// <summary>
         /// Whether this connection ever completed its handshake. A failure on a connection that never did is a failed
@@ -1036,7 +1046,11 @@ namespace StackExchange.Redis
         /// </summary>
         internal bool EverFullyEstablished => _everFullyEstablished;
 
-        internal void MarkFullyEstablished() => _everFullyEstablished = true;
+        internal void MarkFullyEstablished()
+        {
+            _everFullyEstablished = true;
+            _ = TryGetRemoteEndPoint(); // cache it now, while the socket is certainly connected
+        }
 
         /// <summary>
         /// Whether any message awaiting a response was issued by a *caller* rather than by us.
@@ -1088,14 +1102,17 @@ namespace StackExchange.Redis
                     {
                         // We only handle async timeouts here, synchronous timeouts are handled upstream.
                         // Those sync timeouts happen in ConnectionMultiplexer.ExecuteSyncImpl() via Monitor.Wait.
-                        if (msg.HasTimedOut(now, timeout, out var elapsed))
+                        // A command a maintenance handoff held, now written to the replacement, is covered by the
+                        // handoff for as long as that stands; every other command keeps the timeout above.
+                        var effective = msg.HeldForHandoff ? server.GetEffectiveTimeoutMilliseconds(multiplexer.AsyncTimeoutMilliseconds, msg) : timeout;
+                        if (msg.HasTimedOut(now, effective, out var elapsed))
                         {
                             if (msg.ResultBoxIsAsync)
                             {
                                 bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
                                 var baseErrorMessage = haveDeltas
-                                    ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
-                                    : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)";
+                                    ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {effective}ms)"
+                                    : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {effective}ms)";
                                 var timeoutEx = ExceptionFactory.Timeout(multiplexer, baseErrorMessage, msg, server);
                                 multiplexer.OnMessageFaulted(msg, timeoutEx);
                                 msg.SetExceptionAndComplete(timeoutEx, this); // tell the message that it is doomed

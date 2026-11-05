@@ -133,7 +133,7 @@ namespace StackExchange.Redis
         /// </summary>
         internal void MarkNeedsReconnect() => Volatile.Write(ref _needsReconnect, true);
 
-        private volatile bool _quiescing, _quiesceRecycled, _quiesceSuccessorPinned, _quiesceDiverted;
+        private volatile bool _quiescing, _quiesceRecycled, _quiesceSuccessorPinned, _quiesceDiverted, _quiesceEndpointIdentityMeaningful;
         private PhysicalConnection? _quiesceTarget;
         private System.Net.IPEndPoint? _quiesceRetiringEndPoint;
 
@@ -211,6 +211,13 @@ namespace StackExchange.Redis
             {
                 bonaFide = true; // pinned to a named successor: any connection other than the target is the replacement
             }
+            else if (!_quiesceEndpointIdentityMeaningful)
+            {
+                // behind a tunnel or a fixed front address every connection reports the same remote endpoint, so where
+                // it landed cannot be read off the socket; the discriminator is temporal instead - a connection that
+                // is not the target and came up after the retire resolved is the replacement
+                bonaFide = _quiesceRecycled && !ReferenceEquals(connection, _quiesceTarget);
+            }
             else
             {
                 // Before *and* after the retire: with no successor to pin to, DNS can keep naming the node being
@@ -267,13 +274,16 @@ namespace StackExchange.Redis
         /// that was told, if known; see <see cref="IsBonaFideReplacement"/>.</param>
         /// <param name="successorPinned">Whether reconnection is pinned to a named successor, in which case any
         /// connection other than the target is a replacement.</param>
-        internal void BeginQuiesce(TimeSpan protection, System.Net.IPEndPoint? retiringEndPoint, bool successorPinned)
+        /// <param name="endpointIdentityMeaningful">Whether a socket's remote endpoint identifies the node it reached;
+        /// behind a tunnel or a fixed front address it does not, and only time tells a replacement apart.</param>
+        internal void BeginQuiesce(TimeSpan protection, System.Net.IPEndPoint? retiringEndPoint, bool successorPinned, bool endpointIdentityMeaningful)
         {
             var target = physical;
             target?.MarkHandoffTarget();
             _quiesceTarget = target;
             _quiesceRetiringEndPoint = retiringEndPoint;
             _quiesceSuccessorPinned = successorPinned;
+            _quiesceEndpointIdentityMeaningful = endpointIdentityMeaningful;
             _quiesceRecycled = false;
             // a hold that begins while an earlier handoff's protection is still up (the bridge still reconnecting from
             // it, with that handoff's diverted work queued) extends it rather than replacing it, and remembers that
@@ -289,8 +299,9 @@ namespace StackExchange.Redis
             if (!_quiescing) return;
             _quiescing = false;
             _quiesceTarget = null;
-            // Store the flag, fence, then load the queue - the mirror image of EnqueueHeldAndWakeIfReleased, which is
-            // the only enqueue-side half of this pairing. StartBacklogProcessor wakes a processor that is already running.
+            // Store the flag, fence, then load the queue - the mirror image of WakeIfHoldReleased, which every held
+            // enqueue (single, batch, requeue) goes through and which is the only enqueue-side half of this pairing.
+            // StartBacklogProcessor wakes a processor that is already running.
             Interlocked.MemoryBarrier();
             if (BacklogHasItems) StartBacklogProcessor();
         }
@@ -1425,11 +1436,11 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Queues work held for a maintenance handoff - diverted at the gate, or requeued by a writer that reached the
-        /// lock to find its connection retired - and makes sure it is not stranded if the hold is released
-        /// concurrently: the queue is stored, then a full fence, then the flag is loaded - the mirror image of
-        /// <see cref="EndQuiesce"/>, which stores the flag, fences, then loads the queue. With a full fence on both
-        /// sides at least one of them sees the other's store, so one side or the other starts the processor; neither
-        /// starts one for an empty backlog. This is the only place the enqueue side of that pairing lives.
+        /// lock to find its connection retired - and, through <see cref="WakeIfHoldReleased"/>, makes sure it is not
+        /// stranded if the hold is released concurrently: the queue is stored, then a full fence, then the flag is
+        /// loaded - the mirror image of <see cref="EndQuiesce"/>, which stores the flag, fences, then loads the queue.
+        /// With a full fence on both sides at least one of them sees the other's store, so one side or the other starts
+        /// the processor; neither starts one for an empty backlog.
         /// </summary>
         /// <remarks>
         /// A requeued message is appended, not inserted at the head: a head insert would buy only a best effort at the
@@ -1442,25 +1453,33 @@ namespace StackExchange.Redis
         /// it keeps its write time, since the budget it has spent still counts, and only forgets that connection.</param>
         private void EnqueueHeldAndWakeIfReleased(Message message, bool requeue = false)
         {
+            // before the enqueue, not after: a drain pass deciding whether there is anything to protect must not see
+            // the message in the backlog and the flag still off (it is monotonic within a hold, so early is harmless)
+            _quiesceDiverted = true;
+            message.MarkHeldForHandoff();
             if (requeue) message.SetRequeued();
             else message.SetEnqueued(null);
             BacklogEnqueue(message);
-            _quiesceDiverted = true; // there is now work the handoff's protection must stand for
             WakeIfHoldReleased();
         }
 
         /// <summary>A batch held as a unit: every member queued, then one fence and one check for the batch.</summary>
         private void EnqueueHeldBatchAndWakeIfReleased(List<Message> messages)
         {
+            _quiesceDiverted = true;
             foreach (var message in messages)
             {
+                message.MarkHeldForHandoff();
                 message.SetEnqueued(null);
                 BacklogEnqueue(message);
             }
-            _quiesceDiverted = true;
             WakeIfHoldReleased();
         }
 
+        /// <summary>
+        /// The enqueue side of the pairing with <see cref="EndQuiesce"/>, and the only one: the queue has been stored
+        /// (by whichever helper called this), then a full fence here, then the flag is loaded.
+        /// </summary>
         private void WakeIfHoldReleased()
         {
             Interlocked.MemoryBarrier();
@@ -1547,17 +1566,21 @@ namespace StackExchange.Redis
             // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
             // But we reduce contention by only locking if we see something that looks timed out.
+            // a command a maintenance handoff diverted here is covered by the handoff for as long as that stands; an
+            // ordinary command keeps the timeout above (a held one at the head delays, never loses, the one behind it)
+            int TimeoutFor(Message m) => m.HeldForHandoff ? ServerEndPoint.GetEffectiveTimeoutMilliseconds(Multiplexer.TimeoutMilliseconds, m) : timeout;
+
             while (_backlog.TryPeek(out Message? message))
             {
                 // See if the message has pass our async timeout threshold
                 // Note: All timed out messages must be dequeued, even when no completion is needed, to be able to dequeue and complete other timed out messages.
-                if (!message.HasTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
+                if (!message.HasTimedOut(now, TimeoutFor(message), out var _)) break; // not a timeout - we can stop looking
                 lock (_backlog)
                 {
                     // Peek again since we didn't have lock before...
                     // and rerun the exact same checks as above, note that it may be a different message now
                     if (!_backlog.TryPeek(out message)) break;
-                    if (!message.HasTimedOut(now, timeout, out var _)) break;
+                    if (!message.HasTimedOut(now, TimeoutFor(message), out var _)) break;
 
                     if (!BacklogTryDequeue(out var message2) || (message != message2)) // consume it for real
                     {

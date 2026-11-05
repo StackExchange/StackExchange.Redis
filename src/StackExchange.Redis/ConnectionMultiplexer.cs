@@ -2737,7 +2737,7 @@ namespace StackExchange.Redis
                         // its async neighbour is relaxed. It can shrink back too: when a window closes the
                         // effective timeout drops to the configured value, and we stop at that.
                         var startedAt = Environment.TickCount;
-                        var remaining = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
+                        var remaining = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds, message) ?? TimeoutMilliseconds;
                         while (true)
                         {
                             if (!Monitor.Wait(source, remaining))
@@ -2751,7 +2751,7 @@ namespace StackExchange.Redis
                                 Trace("Timely response to " + message);
                                 break;
                             }
-                            var budget = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
+                            var budget = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds, message) ?? TimeoutMilliseconds;
                             remaining = budget - unchecked(Environment.TickCount - startedAt);
                             if (remaining <= 0)
                             {

@@ -206,9 +206,23 @@ internal sealed partial class ServerEndPoint
         }
 
         // a handoff hold diverts commands off a live connection into the backlog; whatever the relaxation setting
-        // (zero disables it), those commands must not be timed out by the hold itself, so the hold imposes its
-        // own floor on the effective timeout for as long as it, and the reconnect after it, can take
-        if (_holdCover.IsActive)
+        // (zero disables it), those commands must not be timed out by the hold itself - see the overload taking
+        // the message, which applies the hold's cover to them and to them alone
+        return result;
+    }
+
+    /// <summary>
+    /// The effective timeout for a particular command: as <see cref="GetEffectiveTimeoutMilliseconds(int)"/>, and
+    /// for a command that a maintenance handoff diverted into the backlog (<see cref="Message.HeldForHandoff"/>) no
+    /// less than the handoff's cover for as long as that stands. Only such a command: an ordinary command on the same
+    /// server, including one issued by an application that has turned relaxation off and runs short timeouts, keeps
+    /// its configured timeout. The sweeps stop at the first command that has not timed out, so a held command at the
+    /// head can delay (never lose) the timeout of an ordinary one behind it, by at most the cover.
+    /// </summary>
+    internal int GetEffectiveTimeoutMilliseconds(int configuredMilliseconds, Message message)
+    {
+        var result = GetEffectiveTimeoutMilliseconds(configuredMilliseconds);
+        if (message.HeldForHandoff && _holdCover.IsActive)
         {
             var floor = Volatile.Read(ref _holdCoverMilliseconds);
             if (floor > result) result = floor;
@@ -335,7 +349,7 @@ internal sealed partial class ServerEndPoint
     }
 
     private volatile EndPoint? _handoffTarget;
-    private int _handoffTargetExpiryTicks;
+    private TickDeadline _handoffTargetExpiry;
     private int _handoffInFlight, _handoffRecycles;
 
     /// <summary>
@@ -362,7 +376,7 @@ internal sealed partial class ServerEndPoint
             var target = _handoffTarget;
             if (target is null) return null;
 
-            if (unchecked(Environment.TickCount - Volatile.Read(ref _handoffTargetExpiryTicks)) >= 0)
+            if (!_handoffTargetExpiry.IsActive)
             {
                 _handoffTarget = null; // expired; resolve the endpoint the usual way from here on
                 return null;
@@ -377,7 +391,7 @@ internal sealed partial class ServerEndPoint
     /// </summary>
     internal void SetHandoffTarget(EndPoint target, TimeSpan window)
     {
-        Volatile.Write(ref _handoffTargetExpiryTicks, unchecked(Environment.TickCount + (int)Math.Max(window.TotalMilliseconds, 1000)));
+        _handoffTargetExpiry.SetIn(window < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : window);
         _handoffTarget = target;
     }
 
@@ -615,8 +629,10 @@ internal sealed partial class ServerEndPoint
         var drainSpan = cap + LockGrace + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout);
         var pinned = cap + LockGrace > budget ? cap + LockGrace : budget;
         var cover = pinned + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout);
-        // the user's ceiling on relaxation bounds the cover too - a huge announced window must not floor every timeout
-        // for its whole length - but the cover always spans at least the drain itself and one connect attempt
+        // the user's ceiling on relaxation bounds the cover too - a huge announced window must not floor the held
+        // commands' timeouts for its whole length - but the cover always spans at least the drain itself and one
+        // connect attempt, which is what the held commands need; it applies to them alone, so an application that
+        // has turned relaxation off keeps its short timeouts for everything else
         var ceiling = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax;
         if (ceiling < drainSpan) ceiling = drainSpan;
         if (cover > ceiling) cover = ceiling;
@@ -629,8 +645,15 @@ internal sealed partial class ServerEndPoint
         // one lifecycle for the protection: raised here with the hold, on each bridge (the FailFast shield) and on the
         // server (the timeout cover); lowered only when a replacement establishes, when the handoff gives up on a
         // bridge, or when this span runs out - never on a local idea of "done" along the way
-        interactiveBridge?.BeginQuiesce(cover, retiringEndPoint, successorPinned);
-        subscriptionBridge?.BeginQuiesce(cover, retiringEndPoint, successorPinned);
+        // Whether a socket's remote endpoint says anything about *which node* it reached. Behind a Tunnel, or when
+        // the configured endpoint is itself a fixed address (a load balancer or VIP in front of the cluster), every
+        // connection reports the intermediary's address, and comparing it with the retiring one would make the
+        // genuine replacement look like a return to the retiring node forever. Then only time can tell: a connection
+        // established after the retire resolved is the replacement.
+        var identityMeaningful = Multiplexer.RawConfig.Tunnel is null
+            && !(EndPoint is IPEndPoint configured && retiringEndPoint is not null && configured.Equals(retiringEndPoint));
+        interactiveBridge?.BeginQuiesce(cover, retiringEndPoint, successorPinned, identityMeaningful);
+        subscriptionBridge?.BeginQuiesce(cover, retiringEndPoint, successorPinned, identityMeaningful);
 
         // One loop per bridge, each with its own lock deadline, run side by side: a writer wedged on one bridge's
         // lock must not spend the other's time, and the other's idle connection must still be retired before the
@@ -798,7 +821,7 @@ internal sealed partial class ServerEndPoint
     /// So a window that closed no longer ago than the command could have been waiting still counts. That is
     /// the tightest bound that catches every genuine case, and it is deliberately a bound rather than a
     /// certainty: without per-message state - which the timeout sweeps rule out, see
-    /// <see cref="GetEffectiveTimeoutMilliseconds"/> - a client cannot know whether *this* command overlapped
+    /// <see cref="GetEffectiveTimeoutMilliseconds(int)"/> - a client cannot know whether *this* command overlapped
     /// the window, only whether it could have.
     /// </para>
     /// </remarks>

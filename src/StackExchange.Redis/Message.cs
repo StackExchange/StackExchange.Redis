@@ -905,6 +905,18 @@ namespace StackExchange.Redis
             _queuedStampSent = _queuedStampReceived = -1;
         }
 
+        /// <summary>
+        /// Whether a maintenance handoff diverted this message off a live connection into the backlog (or requeued it
+        /// after retiring the connection it was headed for). Such a message is waiting on the client's own choice, not
+        /// on the server, so the handoff's timeout cover applies to it - and only to it: an ordinary command on the same
+        /// server keeps its configured timeout.
+        /// </summary>
+        internal bool HeldForHandoff => _heldForHandoff;
+
+        internal void MarkHeldForHandoff() => _heldForHandoff = true;
+
+        private volatile bool _heldForHandoff;
+
         private int _writeTickCount;
 
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);
