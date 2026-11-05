@@ -1091,7 +1091,6 @@ namespace StackExchange.Redis
         }
 
         /// <summary>Zero means "never", so a tick count that lands on it moves by one.</summary>
-        /// <summary>Zero is the "unset" sentinel for tick-count fields; a genuine zero tick count is nudged to one.</summary>
         internal static int NudgeFromZeroTicks(int ticks) => ticks == 0 ? 1 : ticks;
 
         /// <summary>
@@ -1130,9 +1129,9 @@ namespace StackExchange.Redis
                     // whatever a handoff pointed us at, we are connected now: resume normal resolution
                     ClearHandoffTarget();
 
-                    // and the hold cover has done its job once both connections are up again: the subscription bridge
-                    // holds caller work too (subscribes), and must not be timed out while it is still reconnecting
-                    if (IsConnected && IsSubscriberConnectedOrNotRequired) ClearHoldCover();
+                    // and a handoff's timeout cover stands down with the last bridge that still needed it: a bridge
+                    // that has not yet retired its connection, or is still reconnecting, keeps it up
+                    OnHandoffProtectionLowered();
 
                     // is *this specific* connection using RESP3? (without reference to config preferences)
                     bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;

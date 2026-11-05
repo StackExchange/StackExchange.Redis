@@ -240,6 +240,18 @@ internal sealed partial class ServerEndPoint
     /// </summary>
     private void ClearHoldCover() => Volatile.Write(ref _holdCoverDeadlineTicks, 0);
 
+    /// <summary>Whether either bridge still has a handoff's protection up; see <see cref="PhysicalBridge.HandoffPending"/>.</summary>
+    internal bool AnyHandoffPending => interactive?.HandoffPending == true || subscription?.HandoffPending == true;
+
+    /// <summary>
+    /// A bridge's handoff protection has just stood down (its replacement established, or the handoff gave up on it);
+    /// the server's timeout cover follows the same lifecycle and stands down once no bridge needs it.
+    /// </summary>
+    internal void OnHandoffProtectionLowered()
+    {
+        if (!AnyHandoffPending) ClearHoldCover();
+    }
+
     /// <summary>
     /// Milliseconds of relaxation left, or zero if none; clears an expired window as a side-effect.
     /// </summary>
@@ -606,12 +618,11 @@ internal sealed partial class ServerEndPoint
         var interactiveBridge = interactive;
         var subscriptionBridge = subscription;
 
-        // held work must also survive the reconnect under a FailFast policy, for as long as the cover lasts or until
-        // the replacement is up, whichever is first
-        interactiveBridge?.SetHandoffPending(cover);
-        subscriptionBridge?.SetHandoffPending(cover);
-        interactiveBridge?.BeginQuiesce();
-        subscriptionBridge?.BeginQuiesce();
+        // one lifecycle for the protection: raised here with the hold, on each bridge (the FailFast shield) and on the
+        // server (the timeout cover); lowered only when a replacement establishes, when the handoff gives up on a
+        // bridge, or when this span runs out - never on a local idea of "done" along the way
+        interactiveBridge?.BeginQuiesce(cover);
+        subscriptionBridge?.BeginQuiesce(cover);
 
         // One loop per bridge, each with its own lock deadline, run side by side: a writer wedged on one bridge's
         // lock must not spend the other's time, and the other's idle connection must still be retired before the
@@ -659,9 +670,8 @@ internal sealed partial class ServerEndPoint
                 var result = await bridge.TryRetireQuiesceTargetAsync(force, retireCurrentIfTargetGone, reason, lockDeadline.Token).ForAwait();
                 if (result is { } done)
                 {
-                    // nothing of the handoff's own is pending if nothing was replaced: the pending marker must not
-                    // then shield a coincidental failure from a FailFast policy
-                    if (!done) bridge.ClearHandoffPending();
+                    // whether we replaced the connection or it went away by itself, a replacement is now on its way,
+                    // and the protection stays up for it until it establishes or the span runs out
                     return new(done, forced);
                 }
                 if (lockDeadline.IsCancellationRequested)
@@ -807,10 +817,6 @@ internal sealed partial class ServerEndPoint
             ? (MaintenanceNotificationType)Volatile.Read(ref _relaxedType)
             : MaintenanceNotificationType.None;
     }
-
-    /// <summary>
-    /// Zero is the "no window" sentinel, so a deadline that lands on it moves by a tick.
-    /// </summary>
 
     /// <summary>
     /// Whether this notification is new, per the conservative dedup described on <see cref="_lastSequenceIds"/>.

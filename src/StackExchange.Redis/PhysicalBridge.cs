@@ -146,21 +146,24 @@ namespace StackExchange.Redis
         private volatile bool _quiescing;
         private PhysicalConnection? _quiesceTarget;
         private volatile bool _quiesceRecycled;
-        private int _handoffPendingDeadlineTicks;
 
         /// <summary>
-        /// Marks that a maintenance handoff is replacing this bridge's connection, for the given span at most, so that
-        /// work the hold diverted into the backlog survives the reconnect under a FailFast policy as well as the hold
-        /// itself: a connect attempt that fails on the way to the replacement is not a reason to abandon it. Cleared
-        /// when a connection is fully established, or by the deadline if none is.
+        /// While set, a maintenance handoff is replacing this bridge's connection, and work the hold diverted into the
+        /// backlog survives the reconnect under a FailFast policy as well as the hold itself: a failure on the way to
+        /// the replacement is not a reason to abandon it. Raised in <see cref="BeginQuiesce"/>; lowered when a
+        /// replacement is fully established, when the handoff gives up on this bridge, or by the deadline. The server's
+        /// timeout cover shares exactly this lifecycle, across both bridges.
         /// </summary>
-        internal void SetHandoffPending(TimeSpan span)
-            => Volatile.Write(ref _handoffPendingDeadlineTicks, ServerEndPoint.NudgeFromZeroTicks(unchecked(Environment.TickCount + (int)span.TotalMilliseconds)));
+        private int _handoffPendingDeadlineTicks;
 
-        /// <summary>The handoff gave up, or found nothing of its own to replace: the pending marker no longer applies.</summary>
-        internal void ClearHandoffPending() => Volatile.Write(ref _handoffPendingDeadlineTicks, 0);
+        /// <summary>The handoff has given up on this bridge: its protection stands down.</summary>
+        internal void ClearHandoffPending()
+        {
+            Volatile.Write(ref _handoffPendingDeadlineTicks, 0);
+            ServerEndPoint.OnHandoffProtectionLowered();
+        }
 
-        private bool HandoffPending
+        internal bool HandoffPending
         {
             get
             {
@@ -171,18 +174,13 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Whether a connection failure belongs to a maintenance handoff in progress: the connection it retired, or an
-        /// attempt to bring up the replacement that did not get as far as a working connection. An established
-        /// replacement that then fails is an ordinary failure, and a FailFast policy applies to it as usual, even
-        /// while the handoff's pending marker is still set.
+        /// attempt to bring up the replacement that never completed its handshake - whatever the failure type, since
+        /// a reset mid-handshake reports as a socket failure like any other. A replacement that was fully established
+        /// and then failed is an ordinary failure, and a FailFast policy applies to it as usual, even while the
+        /// handoff's protection is still up.
         /// </summary>
-        private bool IsHandoffOwnFailure(PhysicalConnection connection, ConnectionFailureType failureType)
-            => HandoffPending
-               && (connection.RetiredForHandoff
-                   || failureType is ConnectionFailureType.UnableToConnect
-                       or ConnectionFailureType.UnableToResolvePhysicalConnection
-                       or ConnectionFailureType.AuthenticationFailure
-                       or ConnectionFailureType.ProtocolFailure
-                       or ConnectionFailureType.Loading);
+        private bool IsHandoffOwnFailure(PhysicalConnection connection)
+            => HandoffPending && (connection.RetiredForHandoff || !connection.EverFullyEstablished);
 
         /// <summary>
         /// Starts holding caller work back from the current connection while a maintenance handoff lets what has
@@ -196,10 +194,13 @@ namespace StackExchange.Redis
         /// something in flight, so the recycle waited for the end of the announced window and then failed whatever
         /// was in flight at that instant.
         /// </remarks>
-        internal void BeginQuiesce()
+        /// <param name="protection">For how long at most the handoff's protection stands - the FailFast shield here and
+        /// the timeout cover on the server - if no replacement establishes first.</param>
+        internal void BeginQuiesce(TimeSpan protection)
         {
             _quiesceTarget = physical;
             _quiesceRecycled = false;
+            Volatile.Write(ref _handoffPendingDeadlineTicks, ServerEndPoint.NudgeFromZeroTicks(unchecked(Environment.TickCount + (int)protection.TotalMilliseconds)));
             _quiescing = true;
         }
 
@@ -704,7 +705,7 @@ namespace StackExchange.Redis
             // off a live connection, which would have been written and answered, so a death of the old connection
             // during the hold (the window expiring, a blip) must leave it for the replacement to flush
             if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff && !_quiescing
-                && !IsHandoffOwnFailure(connection, failureType))
+                && !IsHandoffOwnFailure(connection))
             {
                 AbandonPendingBacklog(innerException, connection);
             }
@@ -800,12 +801,15 @@ namespace StackExchange.Redis
             Trace("OnFullyEstablished");
             // the attempt itself succeeded (handshake complete), even if this bridge has since moved on and discards it below
             connection.ReportAttemptOutcome(isSuccess: true, ConnectionFailureType.None, null);
+            connection.MarkFullyEstablished();
             connection.SetIdle();
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
                 reportNextFailure = reconfigureNextFailure = true;
                 LastException = null;
-                Volatile.Write(ref _handoffPendingDeadlineTicks, 0); // the replacement is up; held work is flowing to it
+                // a connection establishing after the hold began is the handoff's replacement: the protection stands
+                // down for this bridge (ServerEndPoint.OnFullyEstablished lowers the shared cover once no bridge needs it)
+                Volatile.Write(ref _handoffPendingDeadlineTicks, 0);
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection, source);
 

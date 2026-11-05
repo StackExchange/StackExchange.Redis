@@ -987,6 +987,15 @@ namespace StackExchange.Redis
         internal void MarkRetiredForHandoff() => RetiredForHandoff = true;
 
         /// <summary>
+        /// Whether this connection ever completed its handshake. A failure on a connection that never did is a failed
+        /// attempt to bring a connection up, which is how a maintenance handoff tells "the replacement is not up yet"
+        /// from "the replacement was up and then failed" without enumerating failure types.
+        /// </summary>
+        internal bool EverFullyEstablished { get; private set; }
+
+        internal void MarkFullyEstablished() => EverFullyEstablished = true;
+
+        /// <summary>
         /// Whether any message awaiting a response was issued by a *caller* rather than by us.
         /// </summary>
         /// <remarks>
