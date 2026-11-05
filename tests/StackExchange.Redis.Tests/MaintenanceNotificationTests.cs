@@ -908,43 +908,43 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             })).ToArray();
             try
             {
-            // 20 completions can take a while when the workload is deliberately slow and served one at a time
-            Assert.True(await Poll.UntilAsync(() => Volatile.Read(ref completed) > 20, timeoutMilliseconds: 30_000), "the load should be flowing before the handoff");
+                // 20 completions can take a while when the workload is deliberately slow and served one at a time
+                Assert.True(await Poll.UntilAsync(() => Volatile.Read(ref completed) > 20, timeoutMilliseconds: 30_000), "the load should be flowing before the handoff");
 
-            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
-            var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
-            var watch = System.Diagnostics.Stopwatch.StartNew();
-            server.SendMoving(null, timeSeconds: 10, newEndpoint: successor, sequenceId: 0);
-            var moving = await events.NextAsync();
-            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+                var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+                var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                server.SendMoving(null, timeSeconds: 10, newEndpoint: successor, sequenceId: 0);
+                var moving = await events.NextAsync();
+                Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
 
-            Assert.True(
-                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 8_000),
-                "the handoff should have replaced the connection");
-            var recycledAfter = watch.Elapsed;
-            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms of a 10s window");
+                Assert.True(
+                    await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 8_000),
+                    "the handoff should have replaced the connection");
+                var recycledAfter = watch.Elapsed;
+                log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms of a 10s window");
 
-            // jitter is at most a tenth of the window and the drain is one round trip; recycling at the deadline is the bug
-            Assert.True(recycledAfter < TimeSpan.FromSeconds(5), $"recycled after {recycledAfter}: that is waiting for the window, not draining");
+                // jitter is at most a tenth of the window and the drain is one round trip; recycling at the deadline is the bug
+                Assert.True(recycledAfter < TimeSpan.FromSeconds(5), $"recycled after {recycledAfter}: that is waiting for the window, not draining");
 
-            // the replacement carries the held work and whatever follows. Note the in-process transport never dials the
-            // successor: its tunnel derives the socket target from the configured endpoint, so the reconnect goes
-            // straight back to this server; the timing here is the hold and the handshake, not a refused address.
-            var resumeWatch = System.Diagnostics.Stopwatch.StartNew();
-            var before = Volatile.Read(ref completed);
-            Assert.True(
-                await Poll.UntilAsync(() => Volatile.Read(ref completed) > before + 20, timeoutMilliseconds: 20_000),
-                "traffic should resume on the replacement connection");
-            log.WriteLine($"traffic resumed {resumeWatch.ElapsedMilliseconds}ms after the recycle was observed");
+                // the replacement carries the held work and whatever follows. Note the in-process transport never dials the
+                // successor: its tunnel derives the socket target from the configured endpoint, so the reconnect goes
+                // straight back to this server; the timing here is the hold and the handshake, not a refused address.
+                var resumeWatch = System.Diagnostics.Stopwatch.StartNew();
+                var before = Volatile.Read(ref completed);
+                Assert.True(
+                    await Poll.UntilAsync(() => Volatile.Read(ref completed) > before + 20, timeoutMilliseconds: 20_000),
+                    "traffic should resume on the replacement connection");
+                log.WriteLine($"traffic resumed {resumeWatch.ElapsedMilliseconds}ms after the recycle was observed");
 
-            stop.Cancel();
-            await Task.WhenAll(workerTasks);
-            lock (failures)
-            {
-                log.WriteLine($"completed: {Volatile.Read(ref completed)}; failed: {failures.Count}");
-                Assert.Empty(failures.Select(f => f.Message));
-            }
-            Assert.DoesNotContain(logs.Lines, l => l.Contains("did not establish a replacement", StringComparison.Ordinal));
+                stop.Cancel();
+                await Task.WhenAll(workerTasks);
+                lock (failures)
+                {
+                    log.WriteLine($"completed: {Volatile.Read(ref completed)}; failed: {failures.Count}");
+                    Assert.Empty(failures.Select(f => f.Message));
+                }
+                Assert.DoesNotContain(logs.Lines, l => l.Contains("did not establish a replacement", StringComparison.Ordinal));
             }
             finally
             {

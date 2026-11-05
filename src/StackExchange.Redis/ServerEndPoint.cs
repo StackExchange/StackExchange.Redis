@@ -1235,6 +1235,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
+                    ExpireHandoffTargetIfDue();
                     interactive?.OnHeartbeat(false);
                     subscription?.OnHeartbeat(false);
                 }

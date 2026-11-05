@@ -47,11 +47,17 @@ internal sealed partial class ServerEndPoint
             : Multiplexer.RawConfig.MaintenanceNotifications;
 
     /// <summary>
-    /// Whether anything can change a command's timeout against this server while it waits: relaxation and the
-    /// handoff cover both come from notifications, so with the feature disabled a sync waiter can take its whole
-    /// budget in one wait rather than re-reading it.
+    /// Whether anything can change a command's timeout against this server while it waits, so that a sync waiter
+    /// knows whether to re-read its budget or take it in one wait. Relaxation and the handoff cover both come from
+    /// notifications, so: a server that has ever accepted the opt-in (the negotiation record, kept across handshakes
+    /// because the current connection's is cleared at the start of each one and a notification can arrive the moment
+    /// a handshake completes), a window already open (which can still close, shrinking the budget back), or a handoff
+    /// in flight. A server that refused, or was never asked, cannot change anything.
     /// </summary>
-    internal bool MaintenanceMayChangeTimeouts => MaintenanceMode != MaintenanceNotificationMode.Disabled;
+    internal bool MaintenanceMayChangeTimeouts
+        => _maintenanceNotificationsEverAccepted || GetRelaxedRemaining() > 0 || Volatile.Read(ref _handoffInFlight) != 0;
+
+    private volatile bool _maintenanceNotificationsEverAccepted;
 
     /// <summary>
     /// Whether to ask this server for maintenance notifications during handshake.
@@ -109,7 +115,7 @@ internal sealed partial class ServerEndPoint
 
     internal void OnMaintenanceNotificationsAccepted(PhysicalConnection connection)
     {
-        _maintenanceNotificationsActive = true;
+        _maintenanceNotificationsActive = _maintenanceNotificationsEverAccepted = true;
         Multiplexer.Logger?.LogInformationMaintenanceNotificationsAccepted(new(this));
     }
 
@@ -379,6 +385,14 @@ internal sealed partial class ServerEndPoint
     /// very one now being retired, and a reconnect dialled through the stale pin would land on it.
     /// </summary>
     private void ClearHandoffTarget() => _handoffTarget = null;
+
+    /// <summary>
+    /// Reads the pin on every heartbeat so that its expiry is noticed while it is fresh. Expiry is lazy, on read,
+    /// and the connect path is the only other reader: a server that stays connected for weeks after a handoff would
+    /// otherwise carry a months-old expiry into its next reconnect, where a wrapped tick count could read it as in
+    /// force again.
+    /// </summary>
+    internal void ExpireHandoffTargetIfDue() => _ = HandoffTarget;
 
     private volatile string? _lastHandoffOutcome;
 
