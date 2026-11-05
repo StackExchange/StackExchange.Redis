@@ -2742,10 +2742,12 @@ namespace StackExchange.Redis
                         // never see a relaxation, or a handoff's cover, that began after we parked. Only where the
                         // budget can change at all, though: with maintenance notifications disabled for the server
                         // nothing ever relaxes or covers it, and one wait for the whole budget is enough.
-                        var sliceMilliseconds = server is not null && server.MaintenanceMayChangeTimeouts ? 1000 : int.MaxValue;
                         var startedAt = Environment.TickCount;
                         while (true)
                         {
+                            // per wait, not once: a window that opens after we park puts us on slices (so we notice it
+                            // close again), and one that closes takes us off them
+                            var sliceMilliseconds = server is not null && server.MaintenanceMayChangeTimeouts ? 1000 : int.MaxValue;
                             var budget = server is null
                                 ? TimeoutMilliseconds
                                 : ServerEndPoint.GetEffectiveTimeoutMilliseconds(server.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds), message);

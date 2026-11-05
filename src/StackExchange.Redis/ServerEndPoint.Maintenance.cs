@@ -261,13 +261,12 @@ internal sealed partial class ServerEndPoint
 
         var config = Multiplexer.RawConfig;
         var floor = config.MaintenanceRelaxedTimeout;
-        var cap = config.MaintenanceRelaxedWindowMax;
 
         // no time, or a time at or below zero, means "act now" rather than "ignore this": a connection that
         // arrives mid-window is told what is left of it, and that can legitimately be negative
         var duration = time is { } value && value > TimeSpan.Zero ? value : floor;
         if (duration < floor) duration = floor;
-        if (duration > cap) duration = cap;
+        duration = ClampToRelaxationCeiling(duration, TimeSpan.Zero);
 
         Volatile.Write(ref _relaxedType, (int)type);
         ExtendRelaxedWindow(duration, $"{type} for {duration.TotalSeconds}s");
@@ -445,6 +444,7 @@ internal sealed partial class ServerEndPoint
     {
         var watch = ValueStopwatch.StartNew();
         var replaced = false;
+        var claimed = true; // the one-at-a-time claim taken by OnMovingAnnounced; released once, by whoever holds it
         try
         {
             // Spread the fleet, but only by a fraction of the window - see MaintenanceHandoff.GetJitter for why
@@ -514,6 +514,7 @@ internal sealed partial class ServerEndPoint
             // The one-at-a-time guard covers the decision and the drain, not the warning: that is observability, and
             // holding the guard through its wait would drop a genuine second MOVING inside the first window outright -
             // no pin, no hold - which is the pre-handoff failure for the second window.
+            claimed = false;
             Volatile.Write(ref _handoffInFlight, 0);
             if (replaced) await WarnIfNotEstablishedInTimeAsync(watch, window).ForAwait();
         }
@@ -523,7 +524,9 @@ internal sealed partial class ServerEndPoint
         }
         finally
         {
-            Volatile.Write(ref _handoffInFlight, 0);
+            // only if still ours: after the early release the claim may belong to a second handoff, which must not
+            // find its guard gone and a third MOVING racing it
+            if (claimed) Volatile.Write(ref _handoffInFlight, 0);
         }
     }
 
@@ -562,10 +565,20 @@ internal sealed partial class ServerEndPoint
         // the relaxation the drain depends on is itself bounded by the user's ceiling: holding for longer than the
         // sweep will relax would pay the hold's latency and still fail the command. The floor still applies, as for a
         // relaxed timeout of zero: a sub-second ceiling says "do not relax", not "do not drain".
-        var ceiling = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax;
-        if (ceiling < DrainFloor) ceiling = DrainFloor;
-        if (cap > ceiling) cap = ceiling;
+        cap = ClampToRelaxationCeiling(cap, DrainFloor);
         return cap > budget ? budget : cap;
+    }
+
+    /// <summary>
+    /// The one statement of what <see cref="ConfigurationOptions.MaintenanceRelaxedWindowMax"/> bounds: a span of
+    /// relaxation, or of anything that depends on relaxation, never exceeds it - except that a span may carry its own
+    /// floor, below which the ceiling does not cut (the drain's floor, the cover's drain-plus-connect).
+    /// </summary>
+    private TimeSpan ClampToRelaxationCeiling(TimeSpan span, TimeSpan floor)
+    {
+        var ceiling = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax;
+        if (ceiling < floor) ceiling = floor;
+        return span > ceiling ? ceiling : span;
     }
 
     /// <summary>The least the drain waits for in-flight commands, whatever the relaxed timeout: one round trip on any network, with room to spare.</summary>
@@ -634,19 +647,14 @@ internal sealed partial class ServerEndPoint
         // of the window plus one connect attempt: a MoveTo pins the socket target to the named successor for the
         // rest of the window, and a successor that does not answer is tried until that expires before the endpoint
         // is resolved the ordinary way.
-        var relax = cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout;
-        if (relax > Multiplexer.RawConfig.MaintenanceRelaxedWindowMax) relax = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax; // the user's ceiling applies here as on the notification path
-        ExtendRelaxedWindow(relax, "MOVING handoff");
-        var drainSpan = cap + LockGrace + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout);
+        ExtendRelaxedWindow(ClampToRelaxationCeiling(cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout, TimeSpan.Zero), "MOVING handoff");
+        var connect = TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout);
         var pinned = cap + LockGrace > budget ? cap + LockGrace : budget;
-        var cover = pinned + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout);
         // the user's ceiling on relaxation bounds the cover too - a huge announced window must not floor the held
         // commands' timeouts for its whole length - but the cover always spans at least the drain itself and one
         // connect attempt, which is what the held commands need; it applies to them alone, so an application that
         // has turned relaxation off keeps its short timeouts for everything else
-        var ceiling = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax;
-        if (ceiling < drainSpan) ceiling = drainSpan;
-        if (cover > ceiling) cover = ceiling;
+        var cover = ClampToRelaxationCeiling(pinned + connect, cap + LockGrace + connect);
 
         // snapshots: Dispose nulls the fields, and a handoff in progress must not fault on a server going away
         var interactiveBridge = interactive;

@@ -319,9 +319,11 @@ namespace StackExchange.Redis
         /// and anywhere else is the replacement. Where the address identifies nothing (a tunnel, a fixed front
         /// address, a successor at the same address) only time tells: while the target is still being drained a
         /// different current connection cannot be judged; once the target is gone, nothing else will arrive, so what is
-        /// current is the replacement. What is left is an address that could not be read yet, which is unknown and
-        /// defers to a later pass (rule b) - unless there is nothing to compare it against anyway, in which case the
-        /// connection is taken at its word rather than held to the deadline with nothing ever able to judge it.
+        /// current is the replacement. What is left - an address that could not be read yet, or nothing to compare it
+        /// against because the connection that was told had no readable address - is unknown and defers to a later
+        /// pass (rule b): a verdict of replacement needs positive evidence, never a default, since the alternative is
+        /// flushing held work onto a stale-DNS reconnect to the node being retired. The cost is that a connection
+        /// nothing can ever judge is held to the deadline.
         /// </summary>
         private static Replacement Classify(Handoff handoff, PhysicalConnection connection)
         {
@@ -339,22 +341,26 @@ namespace StackExchange.Redis
             {
                 return handoff.Phase == HandoffPhase.Holding ? Replacement.Unknown : Replacement.Yes;
             }
-            return retiring is null ? Replacement.Yes : Replacement.Unknown;
+            return Replacement.Unknown;
         }
 
         /// <summary>
         /// Whether the backlog still holds work a handoff diverted, including a message the processor has dequeued but
-        /// not yet written; the protection stands until it has been written (rule a). The in-hand message is read
-        /// before and after the queue, so a dequeue that lands between the two is seen either in the queue or in hand.
+        /// not yet written; the protection stands until it has been written (rule a). Under the backlog lock, which is
+        /// where the processor moves a message from the queue to its hand, so the message is seen in one place or the
+        /// other. Only the termination path asks this, never the per-message path.
         /// </summary>
         private bool AnyHeldQueued()
         {
-            if (_backlogInHand is { HeldForHandoff: true }) return true;
-            foreach (var message in _backlog)
+            lock (_backlog)
             {
-                if (message.HeldForHandoff) return true;
+                if (_backlogInHand is { HeldForHandoff: true }) return true;
+                foreach (var message in _backlog)
+                {
+                    if (message.HeldForHandoff) return true;
+                }
+                return false;
             }
-            return _backlogInHand is { HeldForHandoff: true };
         }
 
         /// <summary>The message the backlog processor has taken off the queue and not yet finished writing; see <see cref="AnyHeldQueued"/>.</summary>
@@ -401,8 +407,21 @@ namespace StackExchange.Redis
             // cannot complete, and its held work - which belongs to the bridge's backlog, not to a handoff - keeps its
             // stamped cover and is flushed with this handoff's.
             var previous = _handoff;
-            _handoff = new Handoff(target, retiringEndPoint, successor, addressIdentifiesNode, protection);
+            var handoff = new Handoff(target, retiringEndPoint, successor, addressIdentifiesNode, protection);
+            _handoff = handoff;
             previous?.Finish();
+
+            // Work already in the backlog when the hold begins is delayed by it exactly as diverted work is (the
+            // processor does not flush while the hold is unresolved), so it gets the same cover: without this, a
+            // queue that predates the MOVING would be timed out by the hold itself under short timeouts with
+            // relaxation off. Store the handoff, fence, then walk the queue - paired with BacklogEnqueue, which
+            // enqueues, fences, then re-reads the handoff - so a message enqueued concurrently is stamped by one side
+            // or the other.
+            Interlocked.MemoryBarrier();
+            foreach (var queued in _backlog)
+            {
+                if (!queued.IsInternalCall) queued.MarkHeldForHandoff(handoff.Deadline.Ticks);
+            }
         }
 
         /// <summary>
@@ -558,10 +577,29 @@ namespace StackExchange.Redis
             if (!TryGetHandoff(out var handoff)) return false;
             if (handoff.Phase is HandoffPhase.Flushing or HandoffPhase.Done) return handoff.Retired;
 
-            // Lock-free first: the drain polls this every 20ms, and the in-flight question only needs the connection's
-            // own lock. The write lock is taken only for a pass that is likely to retire, where it has to be held
-            // across the check and the marking.
-            if (!force && handoff.Target is { } busy && ReferenceEquals(physical, busy) && busy.HasCallerMessagesAwaitingResponse()) return null;
+            // Lock-free first: the drain polls this every 20ms, and only a pass that is going to retire needs the write
+            // lock (held across the check and the marking). The in-flight question needs only the connection's own
+            // lock; and with the target gone, finding the bridge disconnected, a replacement current, or a connection
+            // not yet classifiable settles the pass without a retire, so without the lock. The locked pass below
+            // repeats the judgement on what is current then, which is the one that counts.
+            var current = physical;
+            if (handoff.Target is { } drainTarget && ReferenceEquals(current, drainTarget))
+            {
+                if (!force && drainTarget.HasCallerMessagesAwaitingResponse()) return null;
+            }
+            else
+            {
+                handoff.TryAdvance(HandoffPhase.Holding, HandoffPhase.AwaitingReplacement);
+                if (current is null) return false;
+                switch (Classify(handoff, current))
+                {
+                    case Replacement.Yes:
+                        if (current.EverFullyEstablished) OnReplacementEstablished(handoff);
+                        return false;
+                    case Replacement.Unknown:
+                        return null;
+                }
+            }
 
             PhysicalConnection toRetire;
             bool gotLock;
@@ -583,7 +621,7 @@ namespace StackExchange.Redis
             try
             {
                 if (handoff.Phase is HandoffPhase.Flushing or HandoffPhase.Done) return handoff.Retired;
-                var current = physical;
+                current = physical;
                 if (handoff.Target is { } target && ReferenceEquals(current, target))
                 {
                     toRetire = target;
@@ -1615,13 +1653,21 @@ namespace StackExchange.Redis
             // the same handoff decides the gate and the stamp: a message gated on one handoff must not carry the
             // deadline of the one before it (a diverted message after the hold resolved takes the last handoff's)
             var live = TryGetHandoff(out var handoff);
-            if ((diverted || live) && !message.IsInternalCall && (handoff ?? _handoff) is { } stamp) message.MarkHeldForHandoff(stamp.Deadline.Ticks);
+            var holdable = !message.IsInternalCall;
+            if ((diverted || live) && holdable && (handoff ?? _handoff) is { } stamp) message.MarkHeldForHandoff(stamp.Deadline.Ticks);
             bool wasEmpty = !BacklogHasItems;
             // important that this *precedes* enqueue, to play well with HasPendingCallerFacingItems
             Interlocked.Increment(ref _backlogCurrentEnqueued);
             Interlocked.Increment(ref _backlogTotalEnqueued);
             _backlog.Enqueue(message);
             message.SetBacklogged();
+            if (holdable && !live)
+            {
+                // enqueue, fence, re-read: a hold that began between the read above and the enqueue has walked the
+                // queue without this message, or is about to walk it with it; either way it ends up stamped
+                Interlocked.MemoryBarrier();
+                if (TryGetHandoff(out var late)) message.MarkHeldForHandoff(late.Deadline.Ticks);
+            }
 
             if (wasEmpty)
             {
