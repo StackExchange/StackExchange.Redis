@@ -209,10 +209,18 @@ internal sealed partial class ServerEndPoint
         // (zero disables it), those commands must not be timed out by the hold itself, so the hold imposes its
         // own floor on the effective timeout for as long as it, and the reconnect after it, can take
         var cover = Volatile.Read(ref _holdCoverDeadlineTicks);
-        if (cover != 0 && unchecked(cover - Environment.TickCount) > 0)
+        if (cover != 0)
         {
-            var floor = Volatile.Read(ref _holdCoverMilliseconds);
-            if (floor > result) result = floor;
+            if (unchecked(cover - Environment.TickCount) > 0)
+            {
+                var floor = Volatile.Read(ref _holdCoverMilliseconds);
+                if (floor > result) result = floor;
+            }
+            else
+            {
+                // expired: clear it, as GetRelaxedRemaining does, so a wrapped tick count cannot re-arm a stale floor
+                Interlocked.CompareExchange(ref _holdCoverDeadlineTicks, 0, cover);
+            }
         }
         return result;
     }

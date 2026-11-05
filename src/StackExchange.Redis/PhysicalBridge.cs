@@ -158,20 +158,26 @@ namespace StackExchange.Redis
             get
             {
                 var deadline = Volatile.Read(ref _handoffPendingDeadlineTicks);
-                return deadline != 0 && unchecked(deadline - Environment.TickCount) > 0;
+                if (deadline == 0) return false;
+                if (unchecked(deadline - Environment.TickCount) > 0) return true;
+                // expired: clear it, as GetRelaxedRemaining does, so that a tick count wrapping ~24.8 days later cannot
+                // bring a stale deadline back to life
+                Interlocked.CompareExchange(ref _handoffPendingDeadlineTicks, 0, deadline);
+                return false;
             }
         }
 
         /// <summary>
-        /// Whether a connection failure belongs to a maintenance handoff in progress: the connection the hold is
-        /// draining or has retired (whose death, natural or not, must not abandon the work diverted off it), or an
-        /// attempt to bring up the replacement that never completed its handshake - whatever the failure type, since
-        /// a reset mid-handshake reports as a socket failure like any other. A replacement that was fully established
-        /// and then failed is an ordinary failure, and a FailFast policy applies to it as usual, even while the
-        /// handoff's protection is still up.
+        /// Whether a connection failure belongs to a maintenance handoff in progress. Two durable facts about the
+        /// connection decide it, not where the handoff's flow happens to stand: it was ever the connection a hold
+        /// diverted work off (retired by the drain, closed by the server at the end of the window, or dropped by
+        /// itself - its death must not abandon that work), or it never completed its handshake (an attempt to bring
+        /// up the replacement, whatever the failure type, since a reset mid-handshake reports as a socket failure like
+        /// any other). A replacement that was fully established and then failed is an ordinary failure, and a FailFast
+        /// policy applies to it as usual, even while the handoff's protection is still up.
         /// </summary>
         private bool IsHandoffOwnFailure(PhysicalConnection connection)
-            => HandoffPending && (connection.RetiredForHandoff || ReferenceEquals(connection, _quiesceTarget) || !connection.EverFullyEstablished);
+            => HandoffPending && (connection.WasHandoffTarget || !connection.EverFullyEstablished);
 
         /// <summary>
         /// Starts holding caller work back from the current connection while a maintenance handoff lets what has
@@ -189,7 +195,9 @@ namespace StackExchange.Redis
         /// the timeout cover on the server - if no replacement establishes first.</param>
         internal void BeginQuiesce(TimeSpan protection)
         {
-            _quiesceTarget = physical;
+            var target = physical;
+            target?.MarkHandoffTarget();
+            _quiesceTarget = target;
             _quiesceRecycled = false;
             Volatile.Write(ref _handoffPendingDeadlineTicks, ServerEndPoint.NudgeFromZeroTicks(unchecked(Environment.TickCount + (int)protection.TotalMilliseconds)));
             _quiescing = true;
@@ -274,6 +282,11 @@ namespace StackExchange.Redis
             }
             if (_quiesceRecycled) return true;
 
+            // Lock-free first: the drain polls this every 20ms, and the in-flight question only needs the connection's
+            // own lock. The write lock is taken only for a pass that is likely to retire, where it has to be held
+            // across the check and the marking.
+            if (!force && target is not null && ReferenceEquals(physical, target) && target.HasCallerMessagesAwaitingResponse()) return null;
+
             PhysicalConnection toRetire;
             bool gotLock;
             try
@@ -306,10 +319,12 @@ namespace StackExchange.Redis
                     // faulted), or there was none when the hold began because it had already dropped.
                     if (!retireCurrentIfTargetGone || current is null)
                     {
-                        // the reconnect, pinned to the named successor, owns what happens next; there is nothing left
-                        // for the handoff to retire, and with no connection at all nothing to protect either
+                        // The reconnect, pinned to the named successor, owns what happens next; there is nothing left
+                        // for the handoff to retire. The protection stays up for whatever the hold diverted off the
+                        // target before it went: the next failed reconnect attempt must not abandon it. Only a hold
+                        // that never had a target can have diverted nothing, and only then is there nothing to protect.
                         _quiesceRecycled = true;
-                        if (current is null) ClearHandoffPending();
+                        if (target is null) ClearHandoffPending();
                         return false;
                     }
                     // With no successor to pin to, the ordinary reconnect may have landed back on the node being
@@ -332,6 +347,7 @@ namespace StackExchange.Redis
                         return false;
                     }
                     toRetire = current;
+                    current.MarkHandoffTarget();
                     _quiesceTarget = current;
                 }
                 if (!force && toRetire.HasCallerMessagesAwaitingResponse()) return null;
@@ -825,9 +841,12 @@ namespace StackExchange.Redis
             {
                 reportNextFailure = reconfigureNextFailure = true;
                 LastException = null;
-                // a connection establishing after the hold began is the handoff's replacement: the protection stands
-                // down for this bridge (ServerEndPoint.OnFullyEstablished lowers the shared cover once no bridge needs it)
-                Volatile.Write(ref _handoffPendingDeadlineTicks, 0);
+                // a connection establishing after the hold began is the handoff's replacement - unless it is the very
+                // connection the hold is draining, completing a handshake it was in the middle of when the hold began,
+                // in which case the hold is active and nothing has been replaced yet. For a replacement the protection
+                // stands down for this bridge (ServerEndPoint.OnFullyEstablished lowers the shared cover once no bridge
+                // needs it).
+                if (!connection.WasHandoffTarget) Volatile.Write(ref _handoffPendingDeadlineTicks, 0);
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection, source);
 
@@ -1309,22 +1328,19 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Requeues a caller's message that lost its connection to a maintenance handoff while waiting for the write
-        /// lock: it has not been written, so it goes to the backlog for the replacement like the work the hold queued.
-        /// It is appended, not inserted at the head: a head insert would buy only a best effort at the order the
-        /// writer would have had (a writer starved past the start of the flush lands behind flushed work anyway), at
-        /// the price of a second queue and a head-mutation discipline across every backlog operation. The write path
-        /// never promised more than this in the same races. See <see cref="TryRequeueForHandoff"/>.
-        /// </summary>
-        private void RequeueForHandoff(Message message) => EnqueueHeldAndWakeIfReleased(message);
-
-        /// <summary>
-        /// Queues work held for a maintenance handoff, and makes sure it is not stranded if the hold is released
+        /// Queues work held for a maintenance handoff - diverted at the gate, or requeued by a writer that reached the
+        /// lock to find its connection retired - and makes sure it is not stranded if the hold is released
         /// concurrently: the queue is stored, then a full fence, then the flag is loaded - the mirror image of
         /// <see cref="EndQuiesce"/>, which stores the flag, fences, then loads the queue. With a full fence on both
         /// sides at least one of them sees the other's store, so one side or the other starts the processor; neither
         /// starts one for an empty backlog. This is the only place the enqueue side of that pairing lives.
         /// </summary>
+        /// <remarks>
+        /// A requeued message is appended, not inserted at the head: a head insert would buy only a best effort at the
+        /// order the writer would have had (a writer starved past the start of the flush lands behind flushed work
+        /// anyway), at the price of a second queue and a head-mutation discipline across every backlog operation. The
+        /// write path never promised more than this in the same races.
+        /// </remarks>
         private void EnqueueHeldAndWakeIfReleased(Message message)
         {
             message.SetEnqueued(null);
@@ -1705,8 +1721,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// For a writer that has just taken the write lock: if the connection it was headed for was retired by a
         /// maintenance handoff while it waited, nothing is written to it - its teardown follows the lock release. A
-        /// caller's message is queued for the replacement with the rest of the held work; internal traffic and a
-        /// message bypassing the backlog are failed as having no connection, as they would be on a disconnected bridge. The connection itself says whether a
+        /// caller's message is queued for the replacement with the rest of the held work (appended, see
+        /// <see cref="EnqueueHeldAndWakeIfReleased"/>); internal traffic and a message bypassing the backlog are failed
+        /// as having no connection, as they would be on a disconnected bridge. The connection itself says whether a
         /// handoff retired it (<see cref="PhysicalConnection.RetiredForHandoff"/>), so a writer starved across any
         /// number of later handoffs still recognises its own. Only the handoff case: a write that loses its connection
         /// to an ordinary closure is still reported as a closure (#3167).
@@ -1725,7 +1742,7 @@ namespace StackExchange.Redis
                 result = FailDueToNoConnection(message);
                 return true;
             }
-            RequeueForHandoff(message);
+            EnqueueHeldAndWakeIfReleased(message);
             result = WriteResult.Success; // queued counts as success
             return true;
         }

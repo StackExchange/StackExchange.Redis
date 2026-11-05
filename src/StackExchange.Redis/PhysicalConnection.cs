@@ -987,6 +987,16 @@ namespace StackExchange.Redis
         internal void MarkRetiredForHandoff() => RetiredForHandoff = true;
 
         /// <summary>
+        /// Whether this connection was ever the one a maintenance handoff held work back from. A durable fact about the
+        /// connection rather than about where the handoff's flow stands: whatever happens to it afterwards - retired by
+        /// the drain, closed by the server at the end of the window, dropped by itself - its failure is the handoff's
+        /// own, and work diverted off it must not be abandoned on that account. Never reset.
+        /// </summary>
+        internal bool WasHandoffTarget { get; private set; }
+
+        internal void MarkHandoffTarget() => WasHandoffTarget = true;
+
+        /// <summary>
         /// Whether this connection ever completed its handshake. A failure on a connection that never did is a failed
         /// attempt to bring a connection up, which is how a maintenance handoff tells "the replacement is not up yet"
         /// from "the replacement was up and then failed" without enumerating failure types.
