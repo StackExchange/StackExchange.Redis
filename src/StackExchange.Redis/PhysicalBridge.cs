@@ -275,7 +275,7 @@ namespace StackExchange.Redis
         internal bool RetireTargetWithoutLock(string reason)
         {
             if (!TryGetHandoff(out var handoff) || handoff.Target is not { } target || !ReferenceEquals(physical, target)) return false;
-            target.MarkRetiredForHandoff();
+            if (!target.TryMarkRetiredForHandoff()) return false; // a retire under the lock got there first; its teardown follows
             handoff.Retired = true;
             handoff.TryAdvance(HandoffPhase.Holding, HandoffPhase.AwaitingReplacement);
             RetireConnection(target, reason + " (without the write lock: last resort)");
@@ -309,29 +309,31 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Classifies a connection against a handoff, from the connection's own facts (rule c), doomed dominating. The
-        /// target, or a reconnect adopted as one, is doomed whatever else is true of it. Where the remote address
-        /// identifies the node and could be read, it decides: back on the retiring address is doomed - including a
-        /// connection dialled through a stale pin that still named that node - and anywhere else is the replacement.
-        /// Otherwise a connection dialled through <em>this</em> handoff's successor pin went where the server said,
-        /// which is not the node being retired. Where the address identifies nothing (a tunnel, a fixed front address)
-        /// only time tells: while the target is still being drained a different current connection cannot be judged;
-        /// once the target is gone, nothing else will arrive, so what is current is the replacement. What is left is
-        /// an address that could not be read yet, which is unknown and defers to a later pass (rule b) - unless there
-        /// is nothing to compare it against anyway, in which case the connection is taken at its word rather than
-        /// held to the deadline with nothing ever able to judge it.
+        /// Classifies a connection against a handoff, from the connection's own facts (rule c). The target, or a
+        /// reconnect adopted as one, is doomed whatever else is true of it. A connection dialled through <em>this</em>
+        /// handoff's successor pin went where the server said to go, and is the replacement even if it reports the
+        /// retiring address: a proxy restarted in place keeps its address, and the server naming it as the successor
+        /// is the authority on that. (A stale pin from an earlier handoff confers nothing, since it is matched against
+        /// this handoff's successor; and a handoff that names no successor drops any earlier pin.) Otherwise, where the
+        /// remote address identifies the node and could be read, it decides: back on the retiring address is doomed
+        /// and anywhere else is the replacement. Where the address identifies nothing (a tunnel, a fixed front
+        /// address, a successor at the same address) only time tells: while the target is still being drained a
+        /// different current connection cannot be judged; once the target is gone, nothing else will arrive, so what is
+        /// current is the replacement. What is left is an address that could not be read yet, which is unknown and
+        /// defers to a later pass (rule b) - unless there is nothing to compare it against anyway, in which case the
+        /// connection is taken at its word rather than held to the deadline with nothing ever able to judge it.
         /// </summary>
         private static Replacement Classify(Handoff handoff, PhysicalConnection connection)
         {
             if (connection.WasHandoffTarget) return Replacement.Doomed;
+            if (connection.HandoffTargetDialed is { } dialed && handoff.Successor is { } successor && dialed.Equals(successor))
+            {
+                return Replacement.Yes;
+            }
             var retiring = handoff.RetiringEndPoint;
             if (handoff.AddressIdentifiesNode && retiring is not null && connection.TryGetRemoteEndPoint() is { } landedOn)
             {
                 return landedOn.Equals(retiring) ? Replacement.Doomed : Replacement.Yes;
-            }
-            if (connection.HandoffTargetDialed is { } dialed && handoff.Successor is { } successor && dialed.Equals(successor))
-            {
-                return Replacement.Yes;
             }
             if (!handoff.AddressIdentifiesNode)
             {
@@ -340,15 +342,23 @@ namespace StackExchange.Redis
             return retiring is null ? Replacement.Yes : Replacement.Unknown;
         }
 
-        /// <summary>Whether the backlog still holds work a handoff diverted; the protection stands until it has been written (rule a).</summary>
+        /// <summary>
+        /// Whether the backlog still holds work a handoff diverted, including a message the processor has dequeued but
+        /// not yet written; the protection stands until it has been written (rule a). The in-hand message is read
+        /// before and after the queue, so a dequeue that lands between the two is seen either in the queue or in hand.
+        /// </summary>
         private bool AnyHeldQueued()
         {
+            if (_backlogInHand is { HeldForHandoff: true }) return true;
             foreach (var message in _backlog)
             {
                 if (message.HeldForHandoff) return true;
             }
-            return false;
+            return _backlogInHand is { HeldForHandoff: true };
         }
+
+        /// <summary>The message the backlog processor has taken off the queue and not yet finished writing; see <see cref="AnyHeldQueued"/>.</summary>
+        private volatile Message? _backlogInHand;
 
         /// <summary>
         /// Whether a connection failure belongs to a maintenance handoff in progress: the target (retired by the
@@ -616,8 +626,10 @@ namespace StackExchange.Redis
 
                 // Under the lock only the marking: from here no writer that takes the lock writes to the connection (see
                 // TryRequeueForHandoff), and the backlog processor skips it too, so the teardown itself can happen
-                // after the release rather than stalling every writer behind event handlers and socket shutdown.
-                toRetire.MarkRetiredForHandoff();
+                // after the release rather than stalling every writer behind event handlers and socket shutdown. The
+                // marking is a compare-exchange, so of this and a lockless last-resort retire racing it, exactly one
+                // tears the connection down.
+                if (!toRetire.TryMarkRetiredForHandoff()) return handoff.Retired;
                 handoff.Retired = true;
                 handoff.TryAdvance(HandoffPhase.Holding, HandoffPhase.AwaitingReplacement);
             }
@@ -1587,6 +1599,11 @@ namespace StackExchange.Redis
         /// spent counts) behind heads with newer ones, so where its own timeout rather than the shared deadline is the
         /// later of the two it can be reported late - by at most the heads' remaining budget - never early, and never
         /// lost.
+        /// <para>
+        /// Internal traffic (keep-alives, probes) is not held: a stale probe has nothing to gain from lingering to the
+        /// handoff's deadline, and it is never diverted in the first place. An internal message behind held heads is
+        /// at worst reported late, which costs nothing.
+        /// </para>
         /// </summary>
         /// <param name="message">The message to queue.</param>
         /// <param name="diverted">The message was diverted by a handoff's hold (or requeued after the retire): held
@@ -1595,7 +1612,10 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void BacklogEnqueue(Message message, bool diverted = false)
         {
-            if (_handoff is { } handoff && (diverted || TryGetHandoff(out _))) message.MarkHeldForHandoff(handoff.Deadline.Ticks);
+            // the same handoff decides the gate and the stamp: a message gated on one handoff must not carry the
+            // deadline of the one before it (a diverted message after the hold resolved takes the last handoff's)
+            var live = TryGetHandoff(out var handoff);
+            if ((diverted || live) && !message.IsInternalCall && (handoff ?? _handoff) is { } stamp) message.MarkHeldForHandoff(stamp.Deadline.Ticks);
             bool wasEmpty = !BacklogHasItems;
             // important that this *precedes* enqueue, to play well with HasPendingCallerFacingItems
             Interlocked.Increment(ref _backlogCurrentEnqueued);
@@ -1961,6 +1981,7 @@ namespace StackExchange.Redis
                         {
                             break;
                         }
+                        _backlogInHand = message; // still "queued" as far as a handoff's flush is concerned, until written
                     }
 
                     try
@@ -1986,6 +2007,7 @@ namespace StackExchange.Redis
                     }
                     finally
                     {
+                        _backlogInHand = null;
                         UnmarkActiveMessage(message);
                     }
                 }

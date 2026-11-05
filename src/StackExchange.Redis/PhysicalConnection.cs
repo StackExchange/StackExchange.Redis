@@ -983,13 +983,16 @@ namespace StackExchange.Redis
         /// reached the write lock afterwards can tell a planned replacement from an ordinary closure. Set under the
         /// bridge's write lock; the report and dispose follow once the lock is released. Never reset.
         /// </summary>
-        internal bool RetiredForHandoff => _retiredForHandoff;
+        internal bool RetiredForHandoff => Volatile.Read(ref _retiredForHandoff) != 0;
 
-        internal void MarkRetiredForHandoff() => _retiredForHandoff = true;
+        /// <summary>Marks the connection retired, once: only the caller that marked it tears it down.</summary>
+        internal bool TryMarkRetiredForHandoff() => Interlocked.CompareExchange(ref _retiredForHandoff, 1, 0) == 0;
+
+        private int _retiredForHandoff;
 
         // volatile: each is written on one thread and read on others as part of the handoff's identity test, in the
         // very races that test exists for; a plain field could be read stale exactly then
-        private volatile bool _retiredForHandoff, _wasHandoffTarget, _everFullyEstablished;
+        private volatile bool _wasHandoffTarget, _everFullyEstablished;
         private volatile System.Net.EndPoint? _handoffTargetDialed;
 
         /// <summary>
@@ -1127,6 +1130,12 @@ namespace StackExchange.Redis
                                     Shutdown(ConnectionFailureType.UnableToConnect);
                                 }
                             }
+                        }
+                        else if (msg.HeldForHandoff)
+                        {
+                            // a command a handoff held carries a longer cover than the ordinary ones written behind it on
+                            // the replacement, so it says nothing about them: look past it
+                            continue;
                         }
                         else
                         {

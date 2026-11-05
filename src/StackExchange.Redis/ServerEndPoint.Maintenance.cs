@@ -47,17 +47,14 @@ internal sealed partial class ServerEndPoint
             : Multiplexer.RawConfig.MaintenanceNotifications;
 
     /// <summary>
-    /// Whether anything can change a command's timeout against this server while it waits, so that a sync waiter
-    /// knows whether to re-read its budget or take it in one wait. Relaxation and the handoff cover both come from
-    /// notifications, so: a server that has ever accepted the opt-in (the negotiation record, kept across handshakes
-    /// because the current connection's is cleared at the start of each one and a notification can arrive the moment
-    /// a handshake completes), a window already open (which can still close, shrinking the budget back), or a handoff
-    /// in flight. A server that refused, or was never asked, cannot change anything.
+    /// Whether a command's timeout against this server can <em>shrink</em> while a sync caller waits, so that the
+    /// caller knows whether to wake and re-read its budget in slices or take it in one wait: a relaxed window is
+    /// open (it can close, and the budget drops back to the configured value), or a handoff is in flight. An
+    /// extension needs no slicing - the budget is re-read after the wait either way, and a wait that ended under a
+    /// budget that has since grown simply continues - so a server with nothing in progress costs a sync caller
+    /// nothing, however long its calls.
     /// </summary>
-    internal bool MaintenanceMayChangeTimeouts
-        => _maintenanceNotificationsEverAccepted || GetRelaxedRemaining() > 0 || Volatile.Read(ref _handoffInFlight) != 0;
-
-    private volatile bool _maintenanceNotificationsEverAccepted;
+    internal bool MaintenanceMayChangeTimeouts => GetRelaxedRemaining() > 0 || Volatile.Read(ref _handoffInFlight) != 0;
 
     /// <summary>
     /// Whether to ask this server for maintenance notifications during handshake.
@@ -115,7 +112,7 @@ internal sealed partial class ServerEndPoint
 
     internal void OnMaintenanceNotificationsAccepted(PhysicalConnection connection)
     {
-        _maintenanceNotificationsActive = _maintenanceNotificationsEverAccepted = true;
+        _maintenanceNotificationsActive = true;
         Multiplexer.Logger?.LogInformationMaintenanceNotificationsAccepted(new(this));
     }
 
@@ -501,7 +498,11 @@ internal sealed partial class ServerEndPoint
                     // at +6.2s, landed back on the node being retired because DNS had not moved yet, and were
                     // closed at +21.6s anyway - exactly the outcome the handoff exists to avoid.
                     SetHandoffTarget(target, remaining);
-                    await DrainThenRecycleAsync(remaining, decision.Reason, target, replacementAddressSeen: true, currentEndPoint).ForAwait();
+                    // A successor at the very address being retired - a proxy restarted in place - means the address
+                    // identifies nothing for this handoff: every connection, doomed or replacement, reports it. The
+                    // pin-dialled test then governs, and after that only time.
+                    var sameAddress = target is IPEndPoint successorAddress && currentEndPoint is not null && successorAddress.Equals(currentEndPoint);
+                    await DrainThenRecycleAsync(remaining, decision.Reason, target, replacementAddressSeen: !sameAddress, currentEndPoint).ForAwait();
                     replaced = true;
                     break;
                 default:
@@ -510,6 +511,10 @@ internal sealed partial class ServerEndPoint
                     break;
             }
 
+            // The one-at-a-time guard covers the decision and the drain, not the warning: that is observability, and
+            // holding the guard through its wait would drop a genuine second MOVING inside the first window outright -
+            // no pin, no hold - which is the pre-handoff failure for the second window.
+            Volatile.Write(ref _handoffInFlight, 0);
             if (replaced) await WarnIfNotEstablishedInTimeAsync(watch, window).ForAwait();
         }
         catch (Exception ex)
@@ -609,9 +614,10 @@ internal sealed partial class ServerEndPoint
     /// <param name="successor">The successor the server named and reconnection is pinned to, if any: a connection
     /// dialled through it is the replacement.</param>
     /// <param name="replacementAddressSeen">Whether the handoff has seen a second address - the server named a
-    /// successor, or DNS moved to a new address - so that a reconnect reporting the retiring address is known to be
-    /// back on the retiring node, and is retired in its turn; see <see cref="PhysicalBridge.TryRetireTargetAsync"/>.
-    /// Where no second address was ever involved, the address says nothing and only time tells.</param>
+    /// successor at a different address, or DNS moved to a new address - so that a reconnect reporting the retiring
+    /// address is known to be back on the retiring node, and is retired in its turn; see
+    /// <see cref="PhysicalBridge.TryRetireTargetAsync"/>. Where no second address was ever involved (including a
+    /// successor at the same address), the address says nothing and only time tells.</param>
     /// <param name="retiringEndPoint">The address and port of the node being retired, as seen from the connection that
     /// was told, so that a replacement which landed elsewhere is recognised as such.</param>
     private async Task DrainThenRecycleAsync(TimeSpan budget, string reason, EndPoint? successor, bool replacementAddressSeen, IPEndPoint? retiringEndPoint)
