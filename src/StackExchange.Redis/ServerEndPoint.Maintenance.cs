@@ -678,11 +678,13 @@ internal sealed partial class ServerEndPoint
                 }
                 if (lockDeadline.IsCancellationRequested)
                 {
-                    // the write lock could not be had even for the forced pass: something is stuck on it. Recycling
+                    // The write lock could not be had even for the forced pass: something is stuck on it. Recycling
                     // without the lock would reopen the mid-write loss the lock exists to prevent, so the connection
-                    // is left to the server's close, which is where things stood before handoffs existed - and the
-                    // handoff has given up on this bridge, so its pending marker goes too
-                    bridge.ClearHandoffPending();
+                    // is left to the server's close, which is where things stood before handoffs existed. The hold on
+                    // *new* work ends (the finally below); the protection stays up for the work already diverted,
+                    // which was queued off a live connection whatever the policy on the promise of a replacement -
+                    // the server's close and the reconnect after it are that replacement arriving late, and the
+                    // protection lowers when it establishes or its span runs out, as always.
                     return new(null, forced);
                 }
                 await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
@@ -690,8 +692,8 @@ internal sealed partial class ServerEndPoint
         }
         catch (Exception ex)
         {
+            // as the give-up above: stop holding new work, keep protecting what was already diverted
             Multiplexer.OnInternalError(ex, EndPoint);
-            bridge.ClearHandoffPending();
             return new(null, forced);
         }
         finally

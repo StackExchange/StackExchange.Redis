@@ -977,16 +977,15 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         {
             server.SetLatency(TimeSpan.FromSeconds(12)); // well past the 5s cap and the slack below; the relaxed window covers it until the recycle
             var db = conn.GetDatabase();
-            var blocking = Enumerable.Range(0, 3).Select(_ => db.PingAsync()).ToArray();
-            Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "the blocking commands should be in flight before MOVING arrives");
+            // one, not several: the test server answers one request at a time, so each extra 12s command would hold the
+            // replacement's handshake behind it as well
+            var blocking = new[] { db.PingAsync() };
+            Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "the blocking command should be in flight before MOVING arrives");
 
             var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
             var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             server.SendMoving(null, timeSeconds: 15, newEndpoint: successor, sequenceId: 0);
-            // the commands already accepted keep their delay; everything after this - the replacement's handshake
-            // above all, which the serve-one-at-a-time server would otherwise queue behind them - is answered at once
-            server.SetLatency(TimeSpan.Zero);
             var moving = await events.NextAsync();
             Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
 
@@ -994,13 +993,17 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 12_000),
                 "the handoff should have replaced the connection");
             var recycledAfter = watch.Elapsed;
-            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with 12s commands in flight");
+            // Only now: the server reads its latency when it *executes* a request, and zeroing it any earlier races the
+            // one command this test needs to stay slow (it was observed answered at once, and then nothing was in
+            // flight to cap on). From here the replacement's handshake waits behind at most that one 12s reply.
+            server.SetLatency(TimeSpan.Zero);
+            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with a 12s command in flight");
 
             // jitter (at most a tenth of the window, capped at 1s) + the 5s cap + the lock grace (1s) + poll granularity,
-            // with a further second of slack: still well short of the 12s the commands need
-            Assert.True(recycledAfter < TimeSpan.FromSeconds(10), $"recycled after {recycledAfter}: the drain waited for the blocking commands instead of capping");
+            // with a further second of slack: still well short of the 12s the command needs
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(10), $"recycled after {recycledAfter}: the drain waited for the blocking command instead of capping");
 
-            // the in-flight commands were failed by the recycle, which is what the server's close would have done
+            // the in-flight command was failed by the recycle, which is what the server's close would have done
             foreach (var pending in blocking)
             {
                 await Assert.ThrowsAnyAsync<RedisException>(async () => await pending);

@@ -200,10 +200,8 @@ namespace StackExchange.Redis
             if (!_quiescing) return;
             _quiescing = false;
             _quiesceTarget = null;
-            // Store the flag, fence, then load the queue; an enqueuer stores the queue, fences, then loads the flag.
-            // With full fences on both sides at least one of them sees the other's store, so a message that lands
-            // as the hold is released is started by one side or the other, without spawning a processor for an
-            // empty backlog. StartBacklogProcessor wakes a processor that is already running.
+            // Store the flag, fence, then load the queue - the mirror image of EnqueueHeldAndWakeIfReleased, which is
+            // the only enqueue-side half of this pairing. StartBacklogProcessor wakes a processor that is already running.
             Interlocked.MemoryBarrier();
             if (BacklogHasItems) StartBacklogProcessor();
         }
@@ -267,14 +265,16 @@ namespace StackExchange.Redis
         internal async ValueTask<bool?> TryRetireQuiesceTargetAsync(bool force, bool retireCurrentIfTargetGone, System.Net.IPAddress? retiringAddress, string reason, CancellationToken lockDeadline)
         {
             var target = _quiesceTarget;
-            if (target is null)
+            if (target is null && !retireCurrentIfTargetGone)
             {
-                ClearHandoffPending(); // nothing was connected when the hold began: nothing to retire, nothing to protect
+                // nothing was connected when the hold began, and the reconnect (pinned to the named successor) owns
+                // what happens next: nothing to retire, nothing to protect
+                ClearHandoffPending();
                 return false;
             }
             if (_quiesceRecycled) return true;
-            bool retire = false;
 
+            PhysicalConnection toRetire;
             bool gotLock;
             try
             {
@@ -286,43 +286,61 @@ namespace StackExchange.Redis
             }
             catch (ObjectDisposedException)
             {
-                return false; // the bridge was disposed mid-handoff; there is nothing left to retire
+                // the bridge was disposed mid-handoff: nothing left to retire, and no replacement is coming that the
+                // protection could be waiting for
+                ClearHandoffPending();
+                return false;
             }
             if (!gotLock) return null;
             try
             {
                 if (_quiesceRecycled) return true;
                 var current = physical;
-                if (!ReferenceEquals(current, target))
+                if (target is not null && ReferenceEquals(current, target))
                 {
+                    toRetire = target;
+                }
+                else
+                {
+                    // The connection the hold began on is gone - it went away by itself (the server closed it, or it
+                    // faulted), or there was none when the hold began because it had already dropped.
                     if (!retireCurrentIfTargetGone || current is null)
                     {
-                        // it went away by itself (the server closed it, or it faulted) and the reconnect, pinned to
-                        // the named successor, owns what happens next; there is nothing left for the handoff to retire
+                        // the reconnect, pinned to the named successor, owns what happens next; there is nothing left
+                        // for the handoff to retire, and with no connection at all nothing to protect either
                         _quiesceRecycled = true;
+                        if (current is null) ClearHandoffPending();
                         return false;
                     }
-                    // it went away by itself and the ordinary reconnect, with no successor to pin to, may have landed
-                    // back on the node being retired - in which case what is current now is what the handoff replaces.
-                    // If it demonstrably landed somewhere else (DNS had already moved), it is the replacement, and
-                    // retiring it would only force a second connect cycle.
-                    var landedOn = (current.VolatileSocket?.RemoteEndPoint as System.Net.IPEndPoint)?.Address;
+                    // With no successor to pin to, the ordinary reconnect may have landed back on the node being
+                    // retired - in which case what is current now is what the handoff replaces. If it demonstrably
+                    // landed somewhere else (DNS had already moved), it is the replacement, and retiring it would only
+                    // force a second connect cycle. An address that cannot be read yet (the socket is still connecting,
+                    // or is being torn down concurrently) counts as unknown, and unknown is retired.
+                    System.Net.IPAddress? landedOn = null;
+                    try
+                    {
+                        landedOn = (current.VolatileSocket?.RemoteEndPoint as System.Net.IPEndPoint)?.Address;
+                    }
+                    catch (Exception ex) when (ex is System.Net.Sockets.SocketException or ObjectDisposedException or InvalidOperationException)
+                    {
+                        // not connected yet, or already gone: unknown
+                    }
                     if (retiringAddress is not null && landedOn is not null && !landedOn.Equals(retiringAddress))
                     {
                         _quiesceRecycled = true;
                         return false;
                     }
-                    target = current;
+                    toRetire = current;
                     _quiesceTarget = current;
                 }
-                if (!force && target.HasCallerMessagesAwaitingResponse()) return null;
+                if (!force && toRetire.HasCallerMessagesAwaitingResponse()) return null;
 
-                // Under the lock only the marking: from here no writer that takes the lock writes to the target (see
+                // Under the lock only the marking: from here no writer that takes the lock writes to the connection (see
                 // TryRequeueForHandoff), and the backlog processor skips it too, so the teardown itself can happen
                 // after the release rather than stalling every writer behind event handlers and socket shutdown.
-                target.MarkRetiredForHandoff();
+                toRetire.MarkRetiredForHandoff();
                 _quiesceRecycled = true;
-                retire = true;
             }
             finally
             {
@@ -336,17 +354,14 @@ namespace StackExchange.Redis
                 }
             }
 
-            if (retire)
-            {
-                Trace($"recycling {ConnectionType} connection: {reason}");
+            Trace($"recycling {ConnectionType} connection: {reason}");
 
-                // Report *before* tearing down, and in this order for a reason: RecordConnectionFailed only raises
-                // the public event while the pipe is still live ("if *we* didn't burn the pipe: flag it"), and
-                // Dispose runs Shutdown first - which is exactly why an ordinary dispose is silent. Recording first
-                // also performs the disconnect, so the Dispose below is cleanup.
-                target.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
-                target.Dispose();
-            }
+            // Report *before* tearing down, and in this order for a reason: RecordConnectionFailed only raises
+            // the public event while the pipe is still live ("if *we* didn't burn the pipe: flag it"), and
+            // Dispose runs Shutdown first - which is exactly why an ordinary dispose is silent. Recording first
+            // also performs the disconnect, so the Dispose below is cleanup.
+            toRetire.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
+            toRetire.Dispose();
             return true;
         }
 
@@ -404,16 +419,14 @@ namespace StackExchange.Redis
                 // Let's just never ever queue a QUIT message
                 if (message.Command != RedisCommand.QUIT)
                 {
-                    message.SetEnqueued(null);
-                    BacklogEnqueue(message);
-                    // Note: we don't start a worker on each message here - except for held work that lands just after
-                    // the hold was released, which nothing else would pick up until the heartbeat; see EndQuiesce for
-                    // the fence pairing
                     if (holdForHandoff)
                     {
-                        Interlocked.MemoryBarrier();
-                        if (!_quiescing) StartBacklogProcessor();
+                        EnqueueHeldAndWakeIfReleased(message);
+                        return WriteResult.Success;
                     }
+                    message.SetEnqueued(null);
+                    BacklogEnqueue(message);
+                    // Note: we don't start a worker on each message here
                     return WriteResult.Success; // Successfully queued, so indicate success
                 }
             }
@@ -1303,11 +1316,20 @@ namespace StackExchange.Redis
         /// the price of a second queue and a head-mutation discipline across every backlog operation. The write path
         /// never promised more than this in the same races. See <see cref="TryRequeueForHandoff"/>.
         /// </summary>
-        private void RequeueForHandoff(Message message)
+        private void RequeueForHandoff(Message message) => EnqueueHeldAndWakeIfReleased(message);
+
+        /// <summary>
+        /// Queues work held for a maintenance handoff, and makes sure it is not stranded if the hold is released
+        /// concurrently: the queue is stored, then a full fence, then the flag is loaded - the mirror image of
+        /// <see cref="EndQuiesce"/>, which stores the flag, fences, then loads the queue. With a full fence on both
+        /// sides at least one of them sees the other's store, so one side or the other starts the processor; neither
+        /// starts one for an empty backlog. This is the only place the enqueue side of that pairing lives.
+        /// </summary>
+        private void EnqueueHeldAndWakeIfReleased(Message message)
         {
             message.SetEnqueued(null);
             BacklogEnqueue(message);
-            Interlocked.MemoryBarrier(); // paired with EndQuiesce: one side or the other sees that the hold is off and the queue is not empty
+            Interlocked.MemoryBarrier();
             if (!_quiescing) StartBacklogProcessor();
         }
 
