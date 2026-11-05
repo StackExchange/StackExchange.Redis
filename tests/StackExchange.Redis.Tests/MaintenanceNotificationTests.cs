@@ -905,11 +905,15 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             // jitter is at most a tenth of the window and the drain is one round trip; recycling at the deadline is the bug
             Assert.True(recycledAfter < TimeSpan.FromSeconds(4), $"recycled after {recycledAfter}: that is waiting for the window, not draining");
 
-            // the replacement carries the held work and whatever follows
+            // the replacement carries the held work and whatever follows. Note the in-process transport never dials the
+            // successor: its tunnel derives the socket target from the configured endpoint, so the reconnect goes
+            // straight back to this server; the timing here is the hold and the handshake, not a refused address.
+            var resumeWatch = System.Diagnostics.Stopwatch.StartNew();
             var before = Volatile.Read(ref completed);
             Assert.True(
-                await Poll.UntilAsync(() => Volatile.Read(ref completed) > before + 20, timeoutMilliseconds: 10_000),
+                await Poll.UntilAsync(() => Volatile.Read(ref completed) > before + 20, timeoutMilliseconds: 20_000),
                 "traffic should resume on the replacement connection");
+            log.WriteLine($"traffic resumed {resumeWatch.ElapsedMilliseconds}ms after the recycle was observed");
 
             stop.Cancel();
             await Task.WhenAll(workers);

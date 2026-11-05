@@ -990,6 +990,15 @@ namespace StackExchange.Redis
         /// of walking a queue that a stalled server can leave thousands of entries long.
         /// </para>
         /// </remarks>
+        /// <summary>
+        /// Whether a maintenance handoff retired this connection, so that a writer which was headed for it and only
+        /// reached the write lock afterwards can tell a planned replacement from an ordinary closure. Set under the
+        /// bridge's write lock, immediately before the connection is disposed; never reset.
+        /// </summary>
+        internal bool RetiredForHandoff { get; private set; }
+
+        internal void MarkRetiredForHandoff() => RetiredForHandoff = true;
+
         internal bool HasCallerMessagesAwaitingResponse()
         {
             lock (_writtenAwaitingResponse)

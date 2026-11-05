@@ -220,8 +220,9 @@ internal sealed partial class ServerEndPoint
     private int _holdCoverDeadlineTicks, _holdCoverMilliseconds;
 
     /// <summary>
-    /// For the duration of a handoff hold plus the reconnect that follows it, commands against this server time out
-    /// no sooner than that whole span. Independent of relaxation: a relaxed timeout of zero is the documented way to
+    /// For the duration of a handoff hold plus the reconnect that follows it - including the rest of the window, for
+    /// which a MoveTo pins reconnection to the named successor - commands against this server time out no sooner
+    /// than that whole span. Independent of relaxation: a relaxed timeout of zero is the documented way to
     /// turn relaxation off, and a sub-second configured timeout with the hold's one-second floor would otherwise
     /// time out exactly the work the hold is protecting.
     /// </summary>
@@ -511,7 +512,8 @@ internal sealed partial class ServerEndPoint
 
     /// <summary>
     /// How long a handoff holds new work and waits for in-flight commands before replacing the connections
-    /// regardless: half the relaxed timeout (five seconds by default), bounded by what is left of the window.
+    /// regardless: half the relaxed timeout (five seconds by default), never more than half of what is left of the
+    /// window, never less than <see cref="DrainFloor"/>, and never more than the window.
     /// </summary>
     /// <remarks>
     /// Two things pull in opposite directions. A blocking command in flight - BLPOP, XREAD BLOCK, WAIT - is failed
@@ -522,14 +524,17 @@ internal sealed partial class ServerEndPoint
     /// because of the hold), and follows the one setting an application already uses to say how patient it is
     /// prepared to be during maintenance. The window still bounds it, because the server closes the socket when
     /// the window ends whatever we do: a command that cannot finish inside the window fails either way, and holding
-    /// past it would only delay everything else. A cap derived from the window alone would be wrong the other way:
-    /// a 15s window is not a reason to hold traffic for 15s.
+    /// past it would only delay everything else. Half of what is left of the window is an absolute ceiling as well,
+    /// whatever the relaxed timeout: a generous relaxed timeout must not turn the hold into a full-window stall that
+    /// recycles at the deadline with work in flight, which is the failure this whole mechanism exists to remove.
     /// </remarks>
     private TimeSpan DrainCap(TimeSpan budget)
     {
-        var half = TimeSpan.FromTicks(Multiplexer.RawConfig.MaintenanceRelaxedTimeout.Ticks / 2);
-        if (half < DrainFloor) half = DrainFloor; // a relaxed timeout of zero disables relaxation; it must not disable the drain
-        return budget < half ? budget : half;
+        var cap = TimeSpan.FromTicks(Multiplexer.RawConfig.MaintenanceRelaxedTimeout.Ticks / 2);
+        var halfWindow = TimeSpan.FromTicks(budget.Ticks / 2);
+        if (cap > halfWindow) cap = halfWindow;
+        if (cap < DrainFloor) cap = DrainFloor; // a relaxed timeout of zero disables relaxation; it must not disable the drain
+        return cap > budget ? budget : cap;
     }
 
     /// <summary>The least the drain waits for in-flight commands, whatever the relaxed timeout: one round trip on any network, with room to spare.</summary>
@@ -574,11 +579,14 @@ internal sealed partial class ServerEndPoint
         // gets what little time remains. Otherwise the hold lasts up to the cap.
         var cap = budget < DrainFloor ? TimeSpan.Zero : DrainCap(budget);
 
-        // the held work, and any blocking command being waited for, must not be timed out by the hold itself, nor
+        // The held work, and any blocking command being waited for, must not be timed out by the hold itself, nor
         // by the reconnect that follows it; the relaxed window covers it where relaxation is on, and the cover below
-        // covers it regardless
+        // covers it regardless. The reconnect can take until the end of the window plus one connect attempt: a
+        // MoveTo pins the socket target to the named successor for the rest of the window, and a successor that
+        // does not answer is tried until that expires before the endpoint is resolved the ordinary way.
         ExtendRelaxedWindow(cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout, "MOVING handoff");
-        SetHoldCover(cap + LockGrace + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout));
+        var pinned = cap + LockGrace > budget ? cap + LockGrace : budget;
+        SetHoldCover(pinned + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout));
 
         // snapshots: Dispose nulls the fields, and a handoff in progress must not fault on a server going away
         var interactiveBridge = interactive;
