@@ -1129,10 +1129,6 @@ namespace StackExchange.Redis
                     // whatever a handoff pointed us at, we are connected now: resume normal resolution
                     ClearHandoffTarget();
 
-                    // and a handoff's timeout cover stands down with the last bridge that still needed it: a bridge
-                    // that has not yet retired its connection, or is still reconnecting, keeps it up
-                    OnHandoffProtectionLowered();
-
                     // is *this specific* connection using RESP3? (without reference to config preferences)
                     bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
                     // and if so, is pub/sub sharing it? (if not, subscriptions live on a dedicated connection)

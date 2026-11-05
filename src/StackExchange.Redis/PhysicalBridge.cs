@@ -133,7 +133,7 @@ namespace StackExchange.Redis
         /// </summary>
         internal void MarkNeedsReconnect() => Volatile.Write(ref _needsReconnect, true);
 
-        private volatile bool _quiescing, _quiesceRecycled, _quiesceSuccessorPinned, _quiesceDiverted, _quiesceEndpointIdentityMeaningful;
+        private volatile bool _quiescing, _quiesceRecycled, _quiesceSuccessorPinned, _quiesceDiverted, _quiesceEndpointIdentityMeaningful, _lowerProtectionAfterFlush;
         private PhysicalConnection? _quiesceTarget;
         private System.Net.IPEndPoint? _quiesceRetiringEndPoint;
 
@@ -148,11 +148,7 @@ namespace StackExchange.Redis
         private Maintenance.TickDeadline _handoffProtection;
 
         /// <summary>The handoff has nothing left to protect on this bridge: its protection stands down.</summary>
-        internal void ClearHandoffPending()
-        {
-            _handoffProtection.Clear();
-            ServerEndPoint.OnHandoffProtectionLowered();
-        }
+        internal void ClearHandoffPending() => _handoffProtection.Clear();
 
         internal bool HandoffPending => _handoffProtection.IsActive;
 
@@ -168,81 +164,89 @@ namespace StackExchange.Redis
         {
             var target = _quiesceTarget;
             if (target is null || _quiesceRecycled || !ReferenceEquals(physical, target)) return false;
-            Trace($"recycling {ConnectionType} connection without the write lock (last resort): {reason}");
             target.MarkRetiredForHandoff();
             _quiesceRecycled = true;
-            try
-            {
-                target.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
-            }
-            catch (Exception ex)
-            {
-                OnInternalError(ex);
-            }
-            finally
-            {
-                try
-                {
-                    target.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    OnInternalError(ex);
-                }
-            }
+            RetireConnection(target, reason + " (without the write lock: last resort)");
             return true;
         }
 
         /// <summary>
-        /// Whether a connection is a bona fide replacement for the one a handoff is retiring: not that connection
-        /// itself (target status dominates, even over an earlier handoff having latched it as a replacement), and -
-        /// where reconnection is not pinned to a named successor, so the ordinary reconnect may have landed straight
-        /// back on the node being retired, before or after our retire - demonstrably somewhere else, by address *and*
-        /// port, since Redis Enterprise regularly rebinds to another port on the same host. A connection whose address
-        /// cannot be read yet is not known to be a replacement. Only a bona fide replacement establishing lowers the
-        /// protection, releases the hold on new work, and receives the held backlog.
+        /// The rules the handoff's protection state machine keeps, stated once so that the next edit is checked
+        /// against them rather than against the last edit:
+        /// <list type="bullet">
+        /// <item>(a) protection stands down only when the held work is <em>safe</em> - written to a bona fide
+        /// replacement, or carrying its own cover - never merely because a replacement exists;</item>
+        /// <item>(b) classifying a connection has three outcomes, replacement, doomed or unknown, and unknown always
+        /// defers to a later pass - it is never acted on as either of the others;</item>
+        /// <item>(c) every trust snapshot taken at <see cref="BeginQuiesce"/> - the pin, the retiring endpoint,
+        /// whether endpoint identity is meaningful - is validated where it is used, not assumed from capture.</item>
+        /// </list>
         /// </summary>
-        private bool IsBonaFideReplacement(PhysicalConnection connection)
+        private enum Replacement
         {
-            if (connection.WasHandoffTarget) return false; // target status dominates, including over an earlier handoff's latch
-            if (connection.KnownReplacement) return true; // stable once true; latched so the hot path does not re-derive it
-            bool bonaFide;
-            if (_quiesceSuccessorPinned)
+            /// <summary>A bona fide replacement: not the target, and demonstrably not back on the node being retired.</summary>
+            Yes,
+
+            /// <summary>The target, or a reconnect that landed back on the node being retired: the server will close it.</summary>
+            Doomed,
+
+            /// <summary>Not classifiable yet (its address cannot be read, or only time can tell and it has not yet): defer.</summary>
+            Unknown,
+        }
+
+        /// <summary>
+        /// Classifies a connection against the handoff in progress. Target status dominates, including over an earlier
+        /// handoff's latch. A successor pin is trusted only while it is still in force (rule c): the first bridge's
+        /// replacement establishing clears the pin, after which the other bridge's retry resolves the endpoint again
+        /// and may land anywhere. Where endpoint identity is meaningless (a tunnel, a fixed front address) only time
+        /// tells: once the retire has resolved or the drain has let go, nothing else will arrive, so what is current is
+        /// the replacement; until then, unknown. Otherwise the landed-on endpoint decides, before and after the
+        /// retire, with an unreadable address meaning unknown. A verdict of replacement is latched on an established
+        /// connection so the hot path does not re-derive it.
+        /// </summary>
+        private Replacement Classify(PhysicalConnection connection)
+        {
+            if (connection.WasHandoffTarget) return Replacement.Doomed;
+            if (connection.KnownReplacement) return Replacement.Yes;
+            Replacement verdict;
+            if (_quiesceSuccessorPinned && ServerEndPoint.HandoffTarget is not null)
             {
-                bonaFide = true; // pinned to a named successor: any connection other than the target is the replacement
+                verdict = Replacement.Yes;
             }
             else if (!_quiesceEndpointIdentityMeaningful)
             {
-                // behind a tunnel or a fixed front address every connection reports the same remote endpoint, so where
-                // it landed cannot be read off the socket; the discriminator is temporal instead - a connection that
-                // is not the target and came up after the retire resolved is the replacement
-                bonaFide = _quiesceRecycled && !ReferenceEquals(connection, _quiesceTarget);
+                verdict = _quiesceRecycled || !_quiescing ? Replacement.Yes : Replacement.Unknown;
             }
             else
             {
-                // Before *and* after the retire: with no successor to pin to, DNS can keep naming the node being
-                // retired for 4 to 19 seconds (measured), so a reconnect - whether it replaced a target that died by
-                // itself or followed our own retire - may have landed straight back on it. Such a connection is not a
-                // replacement: the hold keeps new work and the held backlog off it rather than flushing onto a socket
-                // the server is about to close, and its close is the handoff's own failure. One whose address cannot be
-                // read yet is not classifiable yet, and is not latched either way.
                 var retiring = _quiesceRetiringEndPoint;
                 if (retiring is null)
                 {
-                    // nothing to compare against: the connection that was told had no readable address. Deferring
-                    // forever would hold traffic until the protection expires, so the replacement is taken at its word
-                    bonaFide = true;
+                    // nothing to compare against: the connection that was told had no readable address. Deferring would
+                    // hold traffic until the protection expired with nothing ever able to classify, so the replacement
+                    // is taken at its word
+                    verdict = Replacement.Yes;
                 }
                 else
                 {
                     var landedOn = connection.TryGetRemoteEndPoint();
-                    bonaFide = landedOn is not null && !landedOn.Equals(retiring);
+                    if (landedOn is null) verdict = Replacement.Unknown;
+                    else if (landedOn.Equals(retiring)) verdict = Replacement.Doomed;
+                    else verdict = Replacement.Yes;
                 }
             }
-            // latched only once established: a still-connecting successor that then fails must still count as the
-            // handoff's own failure, which the latch would deny
-            if (bonaFide && connection.EverFullyEstablished) connection.MarkKnownReplacement();
-            return bonaFide;
+            if (verdict == Replacement.Yes && connection.EverFullyEstablished) connection.MarkKnownReplacement();
+            return verdict;
+        }
+
+        /// <summary>Whether the backlog still holds work a handoff diverted; the protection stands until it has been written (rule a).</summary>
+        private bool AnyHeldQueued()
+        {
+            foreach (var message in _backlog)
+            {
+                if (message.HeldForHandoff) return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -271,7 +275,7 @@ namespace StackExchange.Redis
         /// <param name="protection">For how long at most the handoff's protection stands - the FailFast shield here and
         /// the timeout cover on the server - if no bona fide replacement establishes first.</param>
         /// <param name="retiringEndPoint">The address and port of the node being retired, as seen from the connection
-        /// that was told, if known; see <see cref="IsBonaFideReplacement"/>.</param>
+        /// that was told, if known; see <see cref="Classify"/>.</param>
         /// <param name="successorPinned">Whether reconnection is pinned to a named successor, in which case any
         /// connection other than the target is a replacement.</param>
         /// <param name="endpointIdentityMeaningful">Whether a socket's remote endpoint identifies the node it reached;
@@ -290,6 +294,7 @@ namespace StackExchange.Redis
             // there is older work to protect even if this hold itself diverts nothing
             var inheritedProtection = _handoffProtection.IsActive;
             _quiesceDiverted = inheritedProtection; // older work still queued counts as diverted work to protect
+            _lowerProtectionAfterFlush = false;
             _handoffProtection.TryExtendBy(protection, out _);
             _quiescing = true;
         }
@@ -315,26 +320,20 @@ namespace StackExchange.Redis
         private bool ShouldHoldForHandoff(Message message) => HoldActive && IsHoldable(message);
 
         /// <summary>
-        /// A handoff's hold is in force: whatever is current is not a bona fide replacement - it is the target still, or
-        /// a reconnect that landed back on the node being retired - and the server is going to close it. While it
-        /// holds, new work is queued and the backlog does not flush, because writing to that connection would only
-        /// hand the server work to fail. The moment a bona fide replacement is current (or the protection has expired),
-        /// the hold is over and the backlog flushes to it.
+        /// A handoff's hold is in force: whatever is current is not known to be a bona fide replacement - it is the
+        /// target still, a reconnect that landed back on the node being retired, or one not classifiable yet - and
+        /// the server is going to close it, or might. While it holds, new work is queued and the backlog does not
+        /// flush, because writing to that connection would only hand the server work to fail. The moment a bona fide
+        /// replacement is current (or the protection has expired), the hold is over and the backlog flushes to it.
         /// </summary>
         private bool HoldUnresolved
         {
             get
             {
+                if (!((_quiescing && !_quiesceRecycled) || HandoffPending)) return false;
                 var current = physical;
-                if (_quiescing && !_quiesceRecycled)
-                {
-                    // the retire has not happened: hold unless a bona fide replacement is already current
-                    return !(current is { } c && !ReferenceEquals(c, _quiesceTarget) && IsBonaFideReplacement(c));
-                }
-                // after the retire (or after the drain let go), the protection may still be up and what is current may
-                // be a reconnect that landed back on the node being retired: nothing is flushed onto that, and new work
-                // is not written to it, until a bona fide replacement is current or the protection expires
-                return HandoffPending && current is { } c2 && !IsBonaFideReplacement(c2);
+                if (current is null || ReferenceEquals(current, _quiesceTarget)) return true;
+                return Classify(current) != Replacement.Yes;
             }
         }
 
@@ -418,28 +417,38 @@ namespace StackExchange.Redis
                     // faulted), or there was none when the hold began because it had already dropped.
                     if (current is null)
                     {
-                        // Nothing to retire. Whatever the hold diverted - off the target, or off a reconnect that
-                        // landed back on the retiring node and then dropped too - stays protected for the reconnect
-                        // that is coming; only a hold that diverted nothing (and inherited no earlier handoff's work)
-                        // has nothing to protect.
+                        // Nothing to retire. Whatever the hold diverted stays protected for the reconnect that is
+                        // coming; only a hold that diverted nothing (and inherited no earlier handoff's work) has
+                        // nothing to protect.
                         _quiesceRecycled = true;
                         if (!_quiesceDiverted) ClearHandoffPending();
                         return false;
                     }
-                    if (IsBonaFideReplacement(current))
+                    switch (Classify(current))
                     {
-                        // the reconnect went somewhere else (a pinned successor, or DNS had already moved): it is the
-                        // replacement, and retiring it would only force a second connect cycle. If it is already up, the
-                        // protection stands down now; if it is still connecting, its establishment will do that.
-                        _quiesceRecycled = true;
-                        if (current.EverFullyEstablished) ClearHandoffPending();
-                        return false;
+                        case Replacement.Yes:
+                            // the reconnect is the replacement (a pinned successor, or demonstrably another node):
+                            // retiring it would only force a second connect cycle. If it is already up, the
+                            // protection stands down once the held work has reached it; if it is still connecting,
+                            // its establishment will see to that.
+                            _quiesceRecycled = true;
+                            if (current.EverFullyEstablished)
+                            {
+                                if (AnyHeldQueued()) _lowerProtectionAfterFlush = true;
+                                else ClearHandoffPending();
+                            }
+                            return false;
+                        case Replacement.Unknown:
+                            // not classifiable yet - a socket still connecting, say (rule b): never retired on a guess,
+                            // never branded a target; the next pass looks again, and the drain's deadline bounds this
+                            return null;
+                        default:
+                            // back on the node being retired: what is current now is what the handoff replaces
+                            toRetire = current;
+                            current.MarkHandoffTarget();
+                            _quiesceTarget = current;
+                            break;
                     }
-                    // back on the node being retired (or not yet known to be anywhere else): what is current now is
-                    // what the handoff replaces
-                    toRetire = current;
-                    current.MarkHandoffTarget();
-                    _quiesceTarget = current;
                 }
                 if (!force && toRetire.HasCallerMessagesAwaitingResponse()) return null;
 
@@ -461,16 +470,23 @@ namespace StackExchange.Redis
                 }
             }
 
-            Trace($"recycling {ConnectionType} connection: {reason}");
+            RetireConnection(toRetire, reason);
+            return true;
+        }
 
-            // Report *before* tearing down, and in this order for a reason: RecordConnectionFailed only raises
-            // the public event while the pipe is still live ("if *we* didn't burn the pipe: flag it"), and
-            // Dispose runs Shutdown first - which is exactly why an ordinary dispose is silent. Recording first
-            // also performs the disconnect, so the Dispose below is cleanup. A user handler that throws must not
-            // leak the connection, nor make the retire look as if it had not happened.
+        /// <summary>
+        /// Tears down a connection a handoff has marked retired. Report <em>before</em> tearing down, and in this
+        /// order for a reason: <c>RecordConnectionFailed</c> only raises the public event while the pipe is still live
+        /// ("if *we* didn't burn the pipe: flag it"), and <c>Dispose</c> runs <c>Shutdown</c> first - which is exactly
+        /// why an ordinary dispose is silent. Recording first also performs the disconnect, so the dispose is cleanup.
+        /// A user handler that throws must not leak the connection, nor make the retire look as if it had not happened.
+        /// </summary>
+        private void RetireConnection(PhysicalConnection connection, string reason)
+        {
+            Trace($"recycling {ConnectionType} connection: {reason}");
             try
             {
-                toRetire.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
+                connection.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
             }
             catch (Exception ex)
             {
@@ -480,14 +496,13 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    toRetire.Dispose();
+                    connection.Dispose();
                 }
                 catch (Exception ex)
                 {
                     OnInternalError(ex);
                 }
             }
-            return true;
         }
 
         public void Dispose()
@@ -952,11 +967,16 @@ namespace StackExchange.Redis
             {
                 reportNextFailure = reconfigureNextFailure = true;
                 LastException = null;
-                // only a bona fide replacement establishing lowers the protection for this bridge (and then
-                // ServerEndPoint.OnFullyEstablished lowers the shared cover once no bridge needs it): not the very
-                // connection the hold is draining completing a handshake it was in the middle of, and not a reconnect
-                // that landed back on the node being retired, which the drain is about to retire in its turn
-                if (IsBonaFideReplacement(connection)) _handoffProtection.Clear(); // latches, since the connection is established by now
+                // only a bona fide replacement establishing lowers the protection for this bridge - not the very
+                // connection the hold is draining completing a handshake it was in the middle of when the hold began,
+                // and not a reconnect that landed back on the node being retired - and even then only once the work
+                // the hold diverted has been written to it (rule a): until the backlog processor has flushed the held
+                // messages, a failure would still abandon them under a FailFast policy
+                if (Classify(connection) == Replacement.Yes)
+                {
+                    if (AnyHeldQueued()) _lowerProtectionAfterFlush = true;
+                    else _handoffProtection.Clear();
+                }
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection, source);
 
@@ -1373,6 +1393,13 @@ namespace StackExchange.Redis
                 return false;
             }
 
+            if (_quiescing)
+            {
+                // the backlog this lands in is holding for a handoff (it passed the gate just before the hold rose, or
+                // is parking behind held work): it sits out the hold like the rest, and gets the same cover
+                _quiesceDiverted = true;
+                message.MarkHeldForHandoff();
+            }
             BacklogEnqueue(message);
 
             // The correct way to decide to start backlog process is not based on previously empty
@@ -1800,6 +1827,13 @@ namespace StackExchange.Redis
                     // at least one message wants flushing
                     _backlogStatus = BacklogStatus.Flushing;
                     physical?.Flush();
+                }
+
+                // the held work has reached the replacement: the handoff's protection may stand down now (rule a)
+                if (_lowerProtectionAfterFlush && !AnyHeldQueued())
+                {
+                    _lowerProtectionAfterFlush = false;
+                    _handoffProtection.Clear();
                 }
 
                 _backlogStatus = BacklogStatus.SettingIdle;

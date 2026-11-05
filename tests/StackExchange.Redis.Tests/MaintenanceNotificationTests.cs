@@ -854,7 +854,26 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         // and must keep a floor rather than recycle at once with commands still in flight
         => SteadyLoadHandoffAsync(configure: c => c.MaintenanceRelaxedTimeout = TimeSpan.Zero);
 
-    private async Task SteadyLoadHandoffAsync(Action<ConfigurationOptions>? configure)
+    [Fact]
+    public Task MovingUnderSteadyLoadWithShortTimeoutsAndRelaxationOffKeepsHeldWork()
+        // The sharp case for the hold's cover: relaxation off, and a timeout shorter than the time a held command spends
+        // waiting (the drain of the in-flight ones, the replacement's handshake, then its own turn). The held commands
+        // must keep their cover until they are answered on the replacement - not only until it establishes - or the
+        // sweep fails them in the gap; everything else keeps the short timeout. Only the workload is slow: the test
+        // server answers one request at a time, so slowing the handshake too would push *it* past the timeout and
+        // nothing could ever resume, which is a harness limit and not the behaviour under test.
+        => SteadyLoadHandoffAsync(
+            configure: c =>
+            {
+                c.MaintenanceRelaxedTimeout = TimeSpan.Zero;
+                c.AsyncTimeout = 1000;
+                c.SyncTimeout = 1000;
+            },
+            serverLatencyMilliseconds: 300,
+            latencyOnlyFor: RedisCommand.PING,
+            workers: 2); // two in flight at most: serially served, their ordinary wait stays inside the timeout
+
+    private async Task SteadyLoadHandoffAsync(Action<ConfigurationOptions>? configure, int serverLatencyMilliseconds = 40, RedisCommand? latencyOnlyFor = null, int workers = 4)
     {
         // The drain used to wait for "no caller work", which under steady traffic never comes: measured live at
         // about 450 ops/s, the recycle arrived at the end of the 15s window and failed the eight commands in
@@ -867,12 +886,12 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         await using (conn)
         {
             // every reply is held briefly, so with several workers something is always in flight
-            server.SetLatency(TimeSpan.FromMilliseconds(40));
+            server.SetLatency(TimeSpan.FromMilliseconds(serverLatencyMilliseconds), latencyOnlyFor);
             var db = conn.GetDatabase();
             using var stop = new CancellationTokenSource();
             long completed = 0;
             var failures = new List<Exception>();
-            var workers = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+            var workerTasks = Enumerable.Range(0, workers).Select(_ => Task.Run(async () =>
             {
                 while (!stop.IsCancellationRequested)
                 {
@@ -889,7 +908,8 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             })).ToArray();
             try
             {
-            Assert.True(await Poll.UntilAsync(() => Volatile.Read(ref completed) > 20), "the load should be flowing before the handoff");
+            // 20 completions can take a while when the workload is deliberately slow and served one at a time
+            Assert.True(await Poll.UntilAsync(() => Volatile.Read(ref completed) > 20, timeoutMilliseconds: 30_000), "the load should be flowing before the handoff");
 
             var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
             var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
@@ -918,7 +938,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             log.WriteLine($"traffic resumed {resumeWatch.ElapsedMilliseconds}ms after the recycle was observed");
 
             stop.Cancel();
-            await Task.WhenAll(workers);
+            await Task.WhenAll(workerTasks);
             lock (failures)
             {
                 log.WriteLine($"completed: {Volatile.Read(ref completed)}; failed: {failures.Count}");

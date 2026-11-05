@@ -214,7 +214,9 @@ internal sealed partial class ServerEndPoint
     /// <summary>
     /// The effective timeout for a particular command: as <see cref="GetEffectiveTimeoutMilliseconds(int)"/>, and
     /// for a command that a maintenance handoff diverted into the backlog (<see cref="Message.HeldForHandoff"/>) no
-    /// less than the handoff's cover for as long as that stands. Only such a command: an ordinary command on the same
+    /// less than the handoff's cover, for as long as the command lives: the cover is a property of the held command,
+    /// not of a window on the server, so it cannot be withdrawn between the replacement establishing and the held
+    /// work being written to it. Only such a command: an ordinary command on the same
     /// server, including one issued by an application that has turned relaxation off and runs short timeouts, keeps
     /// its configured timeout. The sweeps stop at the first command that has not timed out, so a held command at the
     /// head can delay (never lose) the timeout of an ordinary one behind it, by at most the cover.
@@ -222,7 +224,7 @@ internal sealed partial class ServerEndPoint
     internal int GetEffectiveTimeoutMilliseconds(int configuredMilliseconds, Message message)
     {
         var result = GetEffectiveTimeoutMilliseconds(configuredMilliseconds);
-        if (message.HeldForHandoff && _holdCover.IsActive)
+        if (message.HeldForHandoff)
         {
             var floor = Volatile.Read(ref _holdCoverMilliseconds);
             if (floor > result) result = floor;
@@ -230,42 +232,25 @@ internal sealed partial class ServerEndPoint
         return result;
     }
 
-    private TickDeadline _holdCover;
     private int _holdCoverMilliseconds;
 
     /// <summary>
-    /// For the duration of a handoff hold plus the reconnect that follows it - including the rest of the window, for
-    /// which a MoveTo pins reconnection to the named successor - commands against this server time out no sooner
-    /// than that whole span. Independent of relaxation: a relaxed timeout of zero is the documented way to
-    /// turn relaxation off, and a sub-second configured timeout with the hold's one-second floor would otherwise
-    /// time out exactly the work the hold is protecting.
+    /// The timeout the commands a handoff hold diverts are entitled to: the hold, the rest of the window (for which a
+    /// MoveTo pins reconnection to the named successor) and one connect attempt, whatever the relaxation setting - a
+    /// relaxed timeout of zero is the documented way to turn relaxation off, and a sub-second configured timeout with
+    /// the hold's one-second floor would otherwise time out exactly the work the hold is protecting. Applies to held
+    /// commands only, for as long as they live; see <see cref="GetEffectiveTimeoutMilliseconds(int, Message)"/>.
+    /// Extends, never shortens: a handoff beginning while an earlier one's held work is still queued must not cut
+    /// that work's cover short.
     /// </summary>
     private void SetHoldCover(TimeSpan span)
     {
-        // extend, never shorten: a handoff beginning while an earlier one's cover is up must not cut that one short
         var ms = TickDeadline.Clamp(span);
-        if (_holdCover.IsActive) ms = Math.Max(ms, Volatile.Read(ref _holdCoverMilliseconds));
-        Volatile.Write(ref _holdCoverMilliseconds, ms);
-        _holdCover.TryExtendBy(span, out _);
-    }
-
-    /// <summary>
-    /// Ends the hold cover early: both connections are fully established again, so the held work is flowing and
-    /// ordinary timeouts - including a deliberately short one, with relaxation turned off - apply once more. The
-    /// deadline set by <see cref="SetHoldCover"/> is only the bound for the case where that never happens.
-    /// </summary>
-    private void ClearHoldCover() => _holdCover.Clear();
-
-    /// <summary>Whether either bridge still has a handoff's protection up; see <see cref="PhysicalBridge.HandoffPending"/>.</summary>
-    internal bool AnyHandoffPending => interactive?.HandoffPending == true || subscription?.HandoffPending == true;
-
-    /// <summary>
-    /// A bridge's handoff protection has just stood down (its replacement established, or the handoff gave up on it);
-    /// the server's timeout cover follows the same lifecycle and stands down once no bridge needs it.
-    /// </summary>
-    internal void OnHandoffProtectionLowered()
-    {
-        if (!AnyHandoffPending) ClearHoldCover();
+        while (true)
+        {
+            var current = Volatile.Read(ref _holdCoverMilliseconds);
+            if (current >= ms || Interlocked.CompareExchange(ref _holdCoverMilliseconds, ms, current) == current) return;
+        }
     }
 
     /// <summary>

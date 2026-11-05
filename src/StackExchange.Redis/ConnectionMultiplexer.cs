@@ -2736,27 +2736,26 @@ namespace StackExchange.Redis
                         // sync caller in flight when a MIGRATING arrives times out at the strict timeout while
                         // its async neighbour is relaxed. It can shrink back too: when a window closes the
                         // effective timeout drops to the configured value, and we stop at that.
+                        //
+                        // Waiting in slices is what makes that re-read reachable: a single wait for the whole budget
+                        // that nothing pulses (a genuinely slow command) would time out at the original deadline and
+                        // never see a relaxation, or a handoff's cover, that began after we parked.
+                        const int sliceMilliseconds = 1000;
                         var startedAt = Environment.TickCount;
-                        var remaining = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds, message) ?? TimeoutMilliseconds;
                         while (true)
                         {
-                            if (!Monitor.Wait(source, remaining))
-                            {
-                                Trace("Timeout performing " + message);
-                                timeout = true;
-                                break;
-                            }
-                            if (source.IsCompleted)
-                            {
-                                Trace("Timely response to " + message);
-                                break;
-                            }
                             var budget = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds, message) ?? TimeoutMilliseconds;
-                            remaining = budget - unchecked(Environment.TickCount - startedAt);
+                            var remaining = budget - unchecked(Environment.TickCount - startedAt);
                             if (remaining <= 0)
                             {
                                 Trace("Timeout performing " + message);
                                 timeout = true;
+                                break;
+                            }
+                            Monitor.Wait(source, remaining < sliceMilliseconds ? remaining : sliceMilliseconds);
+                            if (source.IsCompleted)
+                            {
+                                Trace("Timely response to " + message);
                                 break;
                             }
                         }
