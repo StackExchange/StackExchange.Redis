@@ -234,6 +234,13 @@ internal sealed partial class ServerEndPoint
     }
 
     /// <summary>
+    /// Ends the hold cover early: the interactive connection is fully established again, so the held work is
+    /// flowing and ordinary timeouts - including a deliberately short one, with relaxation turned off - apply once
+    /// more. The deadline set by <see cref="SetHoldCover"/> is only the bound for the case where it never is.
+    /// </summary>
+    private void ClearHoldCover() => Volatile.Write(ref _holdCoverDeadlineTicks, 0);
+
+    /// <summary>
     /// Milliseconds of relaxation left, or zero if none; clears an expired window as a side-effect.
     /// </summary>
     private int GetRelaxedRemaining()
@@ -581,68 +588,95 @@ internal sealed partial class ServerEndPoint
 
         // The held work, and any blocking command being waited for, must not be timed out by the hold itself, nor
         // by the reconnect that follows it; the relaxed window covers it where relaxation is on, and the cover below
-        // covers it regardless. The reconnect can take until the end of the window plus one connect attempt: a
-        // MoveTo pins the socket target to the named successor for the rest of the window, and a successor that
-        // does not answer is tried until that expires before the endpoint is resolved the ordinary way.
+        // covers it regardless, until the interactive connection is established again or this span runs out. The
+        // reconnect can take until the end of the window plus one connect attempt: a MoveTo pins the socket target
+        // to the named successor for the rest of the window, and a successor that does not answer is tried until
+        // that expires before the endpoint is resolved the ordinary way.
         ExtendRelaxedWindow(cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout, "MOVING handoff");
         var pinned = cap + LockGrace > budget ? cap + LockGrace : budget;
-        SetHoldCover(pinned + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout));
+        var cover = pinned + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout);
+        SetHoldCover(cover);
 
         // snapshots: Dispose nulls the fields, and a handoff in progress must not fault on a server going away
         var interactiveBridge = interactive;
         var subscriptionBridge = subscription;
+
+        // held work must also survive the reconnect under a FailFast policy, for as long as the cover lasts or until
+        // the replacement is up, whichever is first
+        interactiveBridge?.SetHandoffPending(cover);
+        subscriptionBridge?.SetHandoffPending(cover);
         interactiveBridge?.BeginQuiesce();
         subscriptionBridge?.BeginQuiesce();
+
+        // One loop per bridge, each with its own lock deadline, run side by side: a writer wedged on one bridge's
+        // lock must not spend the other's time, and the other's idle connection must still be retired before the
+        // server closes it. Each bridge is released the moment its own connection is settled.
+        var interactiveTask = RetireBridgeAsync(interactiveBridge, watch, cap, reason);
+        var subscriptionTask = RetireBridgeAsync(subscriptionBridge, watch, cap, reason);
+        var interactiveResult = await interactiveTask.ForAwait();
+        var subscriptionResult = await subscriptionTask.ForAwait();
+
+        var recycled = interactiveResult.Recycled == true || subscriptionResult.Recycled == true;
+        if (recycled) Interlocked.Increment(ref _handoffRecycles);
+        Multiplexer.Trace(
+            $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
+            + (interactiveResult.Forced || subscriptionResult.Forced ? " (still busy at the drain cap)" : " (drained)")
+            + (interactiveResult.Recycled is null || subscriptionResult.Recycled is null ? " (write lock not obtained; left to the server)" : ""),
+            ToString());
+    }
+
+    /// <summary>
+    /// What <see cref="RetireBridgeAsync"/> did: whether the connection was recycled (<c>null</c>: the write lock
+    /// could not be had, and the connection was left to the server's close), and whether the cap was reached with
+    /// work still in flight. A struct rather than a tuple: the library does not reference System.ValueTuple.
+    /// </summary>
+    private readonly struct BridgeRetirement(bool? recycled, bool forced)
+    {
+        public bool? Recycled { get; } = recycled;
+        public bool Forced { get; } = forced;
+    }
+
+    /// <summary>
+    /// Retires one bridge's connection once drained, or at the cap regardless, and releases its hold; see
+    /// <see cref="DrainThenRecycleAsync"/>.
+    /// </summary>
+    private async Task<BridgeRetirement> RetireBridgeAsync(PhysicalBridge? bridge, ValueStopwatch watch, TimeSpan cap, string reason)
+    {
+        if (bridge is null) return new(false, false);
+        bool forced = false;
         try
         {
             using var lockDeadline = new CancellationTokenSource(cap + LockGrace);
-            bool? interactiveResult = interactiveBridge is null ? false : null;
-            bool? subscriptionResult = subscriptionBridge is null ? false : null;
-            bool forced = false;
             while (true)
             {
                 var force = watch.ElapsedMilliseconds >= cap.TotalMilliseconds;
                 forced |= force;
-                // each bridge is released the moment its own connection is settled: the interactive bridge usually
-                // drains in a round trip, and must not keep holding work while the subscription bridge takes longer
-                if (interactiveResult is null && (interactiveResult = await interactiveBridge!.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait()) is not null) Release(interactiveBridge);
-                if (subscriptionResult is null && (subscriptionResult = await subscriptionBridge!.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait()) is not null) Release(subscriptionBridge);
-                if (interactiveResult is not null && subscriptionResult is not null) break;
+                var result = await bridge.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait();
+                if (result is { } done) return new(done, forced);
                 if (lockDeadline.IsCancellationRequested)
                 {
                     // the write lock could not be had even for the forced pass: something is stuck on it. Recycling
                     // without the lock would reopen the mid-write loss the lock exists to prevent, so the connection
                     // is left to the server's close, which is where things stood before handoffs existed
-                    break;
+                    return new(null, forced);
                 }
                 await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
             }
-
-            var recycled = interactiveResult == true || subscriptionResult == true;
-            if (recycled) Interlocked.Increment(ref _handoffRecycles);
-            Multiplexer.Trace(
-                $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
-                + (forced ? " (still busy at the drain cap)" : " (drained)")
-                + (interactiveResult is null || subscriptionResult is null ? " (write lock not obtained; left to the server)" : ""),
-                ToString());
+        }
+        catch (Exception ex)
+        {
+            Multiplexer.OnInternalError(ex, EndPoint);
+            return new(null, forced);
         }
         finally
         {
-            // whatever was not released in the loop (the lock-not-obtained exit, an exception): EndQuiesce is idempotent
-            Release(interactiveBridge);
-            Release(subscriptionBridge);
-        }
-
-        void Release(PhysicalBridge? bridge)
-        {
-            if (bridge is null) return;
             try
             {
-                bridge.EndQuiesce();
+                bridge.EndQuiesce(); // idempotent; one bridge failing to release must not affect the other
             }
             catch (Exception ex)
             {
-                Multiplexer.OnInternalError(ex, EndPoint); // one bridge failing to release must not leave the other holding work
+                Multiplexer.OnInternalError(ex, EndPoint);
             }
         }
     }

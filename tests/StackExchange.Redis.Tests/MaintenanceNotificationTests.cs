@@ -959,7 +959,8 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             // the slow command was answered, not failed: the recycle waited for it
             foreach (var pending in slow) Assert.True(await pending >= TimeSpan.Zero);
             Assert.True(recycledAfter >= TimeSpan.FromSeconds(2), $"recycled after {recycledAfter}: before the in-flight command could have been answered");
-            Assert.True(recycledAfter < TimeSpan.FromSeconds(6), $"recycled after {recycledAfter}: later than the cap plus jitter");
+            // 3s for the command, up to 1s of jitter, lock and poll granularity, and slack; the cap would be 5s + jitter
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(7), $"recycled after {recycledAfter}: later than the command plus jitter");
         }
     }
 
@@ -974,7 +975,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
         using (server)
         await using (conn)
         {
-            server.SetLatency(TimeSpan.FromSeconds(9)); // longer than the 5s cap; shorter than the relaxed 10s timeout
+            server.SetLatency(TimeSpan.FromSeconds(12)); // well past the 5s cap and the slack below; the relaxed window covers it until the recycle
             var db = conn.GetDatabase();
             var blocking = Enumerable.Range(0, 3).Select(_ => db.PingAsync()).ToArray();
             await Task.Delay(250); // let them be written
@@ -991,10 +992,11 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 "the handoff should have replaced the connection");
             var recycledAfter = watch.Elapsed;
             server.SetLatency(TimeSpan.Zero); // so the replacement's handshake is not slowed too
-            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with 9s commands in flight");
+            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with 12s commands in flight");
 
-            // the cap (5s) plus at most a second of jitter: well short of the 9s the commands need
-            Assert.True(recycledAfter < TimeSpan.FromSeconds(7), $"recycled after {recycledAfter}: the drain waited for the blocking commands instead of capping");
+            // jitter (at most a tenth of the window, capped at 1s) + the 5s cap + the lock grace (1s) + poll granularity,
+            // with a further second of slack: still well short of the 12s the commands need
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(9), $"recycled after {recycledAfter}: the drain waited for the blocking commands instead of capping");
 
             // the in-flight commands were failed by the recycle, which is what the server's close would have done
             foreach (var pending in blocking)

@@ -1129,6 +1129,9 @@ namespace StackExchange.Redis
                     // whatever a handoff pointed us at, we are connected now: resume normal resolution
                     ClearHandoffTarget();
 
+                    // and the hold cover has done its job once the connection that carries commands is up again
+                    if (bridge.ConnectionType == ConnectionType.Interactive) ClearHoldCover();
+
                     // is *this specific* connection using RESP3? (without reference to config preferences)
                     bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
                     // and if so, is pub/sub sharing it? (if not, subscriptions live on a dedicated connection)

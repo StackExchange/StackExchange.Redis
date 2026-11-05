@@ -37,8 +37,11 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Messages that go out before anything in <see cref="_backlog"/>: a writer that lost its connection to a
-        /// maintenance handoff while waiting for the write lock was issued before anything the hold has queued
-        /// since, so it is requeued here rather than appended. Every backlog operation drains this first.
+        /// maintenance handoff while waiting for the write lock is requeued here rather than appended, so that it
+        /// goes ahead of work the hold queued while it waited. This is a best effort at the ordering the writer
+        /// would have had, not a guarantee: a writer starved past the point where the replacement has begun
+        /// flushing held work lands behind what was already flushed, and nothing here orders a batch that straddles
+        /// the recycle - which is no more than the write path promised before. Every backlog operation drains this first.
         /// </summary>
         private readonly ConcurrentQueue<Message> _backlogFront = new();
 
@@ -143,6 +146,27 @@ namespace StackExchange.Redis
         private volatile bool _quiescing;
         private PhysicalConnection? _quiesceTarget;
         private volatile bool _quiesceRecycled;
+        private int _handoffPendingDeadlineTicks;
+
+        /// <summary>
+        /// Marks that a maintenance handoff is replacing this bridge's connection, for the given span at most, so that
+        /// work the hold diverted into the backlog survives the reconnect under a FailFast policy as well as the hold
+        /// itself: a connect attempt that fails on the way to the replacement is not a reason to abandon it. Cleared
+        /// when a connection is fully established, or by the deadline if none is.
+        /// </summary>
+        internal void SetHandoffPending(TimeSpan span)
+            => Volatile.Write(ref _handoffPendingDeadlineTicks, NonZero(unchecked(Environment.TickCount + (int)span.TotalMilliseconds)));
+
+        private static int NonZero(int ticks) => ticks == 0 ? 1 : ticks;
+
+        private bool HandoffPending
+        {
+            get
+            {
+                var deadline = Volatile.Read(ref _handoffPendingDeadlineTicks);
+                return deadline != 0 && unchecked(deadline - Environment.TickCount) > 0;
+            }
+        }
 
         /// <summary>
         /// Starts holding caller work back from the current connection while a maintenance handoff lets what has
@@ -168,25 +192,12 @@ namespace StackExchange.Redis
             if (!_quiescing) return;
             _quiescing = false;
             _quiesceTarget = null;
-            // Unconditionally, not only when the backlog has items: an enqueuer that read the flag just before it
-            // flipped did not kick, and neither side's volatile access orders its store before the other's load. A
-            // kick with nothing queued costs one idle pass of the processor.
-            KickBacklogProcessor();
-        }
-
-        /// <summary>Gets held or queued work moving: the processor may be lingering between passes, or may have exited.</summary>
-        private void KickBacklogProcessor()
-        {
-            try
-            {
-                _backlogAutoReset.Set();
-            }
-            catch (ObjectDisposedException)
-            {
-                // disposed: nothing to wake, but fall through - a processor started now runs the disposed-drain that
-                // fails whatever is queued, which is the only thing that will, since the heartbeat has stopped
-            }
-            StartBacklogProcessor();
+            // Store the flag, fence, then load the queue; an enqueuer stores the queue, fences, then loads the flag.
+            // With full fences on both sides at least one of them sees the other's store, so a message that lands
+            // as the hold is released is started by one side or the other, without spawning a processor for an
+            // empty backlog. StartBacklogProcessor wakes a processor that is already running.
+            Interlocked.MemoryBarrier();
+            if (BacklogHasItems) StartBacklogProcessor();
         }
 
         /// <summary>
@@ -245,6 +256,7 @@ namespace StackExchange.Redis
             var target = _quiesceTarget;
             if (target is null) return false; // nothing was connected when the hold began
             if (_quiesceRecycled) return true;
+            bool retire = false;
 
             bool gotLock;
             try
@@ -272,17 +284,12 @@ namespace StackExchange.Redis
                 }
                 if (!force && target.HasCallerMessagesAwaitingResponse()) return null;
 
-                Trace($"recycling {ConnectionType} connection: {reason}");
-
-                // Report *before* tearing down, and in this order for a reason: RecordConnectionFailed only raises
-                // the public event while the pipe is still live ("if *we* didn't burn the pipe: flag it"), and
-                // Dispose runs Shutdown first - which is exactly why an ordinary dispose is silent. Recording first
-                // also performs the disconnect, so the Dispose below is cleanup.
-                target.MarkRetiredForHandoff(); // a writer already past the hold check queues for the replacement instead (see TryRequeueForHandoff)
+                // Under the lock only the marking: from here no writer that takes the lock writes to the target (see
+                // TryRequeueForHandoff), and the backlog processor skips it too, so the teardown itself can happen
+                // after the release rather than stalling every writer behind event handlers and socket shutdown.
+                target.MarkRetiredForHandoff();
                 _quiesceRecycled = true;
-                target.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
-                target.Dispose();
-                return true;
+                retire = true;
             }
             finally
             {
@@ -295,6 +302,19 @@ namespace StackExchange.Redis
                     // disposed while we held it; nobody is waiting on a disposed mutex
                 }
             }
+
+            if (retire)
+            {
+                Trace($"recycling {ConnectionType} connection: {reason}");
+
+                // Report *before* tearing down, and in this order for a reason: RecordConnectionFailed only raises
+                // the public event while the pipe is still live ("if *we* didn't burn the pipe: flag it"), and
+                // Dispose runs Shutdown first - which is exactly why an ordinary dispose is silent. Recording first
+                // also performs the disconnect, so the Dispose below is cleanup.
+                target.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
+                target.Dispose();
+            }
+            return true;
         }
 
         public void Dispose()
@@ -354,8 +374,13 @@ namespace StackExchange.Redis
                     message.SetEnqueued(null);
                     BacklogEnqueue(message);
                     // Note: we don't start a worker on each message here - except for held work that lands just after
-                    // the hold was released, which nothing else would pick up until the heartbeat
-                    if (holdForHandoff && !_quiescing) KickBacklogProcessor();
+                    // the hold was released, which nothing else would pick up until the heartbeat; see EndQuiesce for
+                    // the fence pairing
+                    if (holdForHandoff)
+                    {
+                        Interlocked.MemoryBarrier();
+                        if (!_quiescing) StartBacklogProcessor();
+                    }
                     return WriteResult.Success; // Successfully queued, so indicate success
                 }
             }
@@ -651,7 +676,7 @@ namespace StackExchange.Redis
             // is a replacement we chose, and not while a handoff is holding work back: that backlog is work diverted
             // off a live connection, which would have been written and answered, so a death of the old connection
             // during the hold (the window expiring, a blip) must leave it for the replacement to flush
-            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff && !_quiescing)
+            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff && !_quiescing && !HandoffPending)
             {
                 AbandonPendingBacklog(innerException, connection);
             }
@@ -752,6 +777,7 @@ namespace StackExchange.Redis
             {
                 reportNextFailure = reconfigureNextFailure = true;
                 LastException = null;
+                Volatile.Write(ref _handoffPendingDeadlineTicks, 0); // the replacement is up; held work is flowing to it
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection, source);
 
@@ -1226,9 +1252,10 @@ namespace StackExchange.Redis
             => _backlogFront.TryPeek(out message) || _backlog.TryPeek(out message);
 
         /// <summary>
-        /// Requeues, ahead of everything else, a caller's message that lost its connection to a maintenance handoff
-        /// while waiting for the write lock: it was issued before anything the hold has queued since, and has not
-        /// been written. See <see cref="TryRequeueForHandoff"/>.
+        /// Requeues, ahead of what is still queued, a caller's message that lost its connection to a maintenance
+        /// handoff while waiting for the write lock: it has not been written, and the work the hold queued while it
+        /// waited has not gone out either, so it goes first. See <see cref="TryRequeueForHandoff"/> and the note on
+        /// <see cref="_backlogFront"/> about what this does and does not order.
         /// </summary>
         private void BacklogRequeueFront(Message message)
         {
@@ -1244,8 +1271,8 @@ namespace StackExchange.Redis
             }
             message.SetBacklogged();
             if (wasEmpty) Multiplexer.Root(); // as BacklogEnqueue: a backlog with a caller's task in it must pin the multiplexer
-            // unconditionally: the hold may be released concurrently, and a kick with the hold still on costs one idle pass
-            KickBacklogProcessor();
+            Interlocked.MemoryBarrier(); // paired with EndQuiesce: one side or the other sees that the hold is off and the queue is not empty
+            if (!_quiescing) StartBacklogProcessor();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1518,7 +1545,7 @@ namespace StackExchange.Redis
                     // Snapshot the connection for the whole of this message: OnDisconnected nulls the field
                     // without waiting for the write lock, so re-reading it (as the loop guard used to) can hand
                     // null to a write path that requires a connection. See #3167.
-                    if (this.physical is not { HasOutputPipe: true } physical) break;
+                    if (this.physical is not { HasOutputPipe: true, RetiredForHandoff: false } physical) break; // retired by a handoff: its teardown follows the lock release
 
                     Message? message;
                     _backlogStatus = BacklogStatus.CheckingForWork;
@@ -1646,7 +1673,7 @@ namespace StackExchange.Redis
         /// </summary>
         private bool TryRequeueForHandoff(PhysicalConnection physical, Message message, bool bypassBacklog, out WriteResult result)
         {
-            if (bypassBacklog || message.IsInternalCall || ReferenceEquals(physical, this.physical) || !physical.RetiredForHandoff)
+            if (bypassBacklog || message.IsInternalCall || !physical.RetiredForHandoff)
             {
                 result = default;
                 return false;
