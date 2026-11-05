@@ -228,9 +228,11 @@ internal sealed partial class ServerEndPoint
     /// </summary>
     private void SetHoldCover(TimeSpan span)
     {
-        var ms = (int)span.TotalMilliseconds;
+        // extend, never shorten: a handoff beginning while an earlier one's cover is up must not cut that one short
+        var ms = TickDeadline.Clamp(span);
+        if (_holdCover.IsActive) ms = Math.Max(ms, Volatile.Read(ref _holdCoverMilliseconds));
         Volatile.Write(ref _holdCoverMilliseconds, ms);
-        _holdCover.SetIn(ms);
+        _holdCover.TryExtendBy(span, out _);
     }
 
     /// <summary>
@@ -327,7 +329,7 @@ internal sealed partial class ServerEndPoint
             return;
         }
 
-        _relaxedDeadline.SetIn((int)tail.TotalMilliseconds);
+        _relaxedDeadline.SetIn(tail);
         Volatile.Write(ref _relaxedEndedTicks, _relaxedDeadline.Ticks);
         Multiplexer.Trace($"{type}: relaxation continues for {tail.TotalSeconds}s (post-event)", ToString());
     }
@@ -432,6 +434,7 @@ internal sealed partial class ServerEndPoint
         var budget = window is { } value && value > TimeSpan.Zero
             ? value
             : Multiplexer.RawConfig.MaintenanceRelaxedTimeout; // no window given: use the relaxation floor
+        if (budget > MaxHandoffWindow) budget = MaxHandoffWindow; // an absurd announced window must not overflow a delay or a deadline
         IPEndPoint? current = null;
         try
         {
@@ -559,6 +562,13 @@ internal sealed partial class ServerEndPoint
     private static readonly TimeSpan LockGrace = TimeSpan.FromSeconds(1);
 
     /// <summary>
+    /// The longest MOVING window acted on. Measured windows are 15 seconds; an hour is already absurd, and anything
+    /// larger (a buggy or hostile announcement) would overflow the delays, cancellation sources and tick deadlines
+    /// downstream, or hold traffic for days.
+    /// </summary>
+    private static readonly TimeSpan MaxHandoffWindow = TimeSpan.FromHours(1);
+
+    /// <summary>
     /// Holds new caller work back, lets what has already been written finish, then replaces the connections.
     /// </summary>
     /// <remarks>
@@ -607,7 +617,9 @@ internal sealed partial class ServerEndPoint
         // reconnect can take until the end of the window plus one connect attempt: a MoveTo pins the socket target
         // to the named successor for the rest of the window, and a successor that does not answer is tried until
         // that expires before the endpoint is resolved the ordinary way.
-        ExtendRelaxedWindow(cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout, "MOVING handoff");
+        var relax = cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout;
+        if (relax > Multiplexer.RawConfig.MaintenanceRelaxedWindowMax) relax = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax; // the user's ceiling applies here as on the notification path
+        ExtendRelaxedWindow(relax, "MOVING handoff");
         var pinned = cap + LockGrace > budget ? cap + LockGrace : budget;
         var cover = pinned + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout);
         SetHoldCover(cover);
@@ -752,7 +764,7 @@ internal sealed partial class ServerEndPoint
     {
         // a new notification never shortens an existing window: a FAILING_OVER arriving inside a longer
         // MIGRATING window must not cut it short
-        if (_relaxedDeadline.TryExtendBy((int)duration.TotalMilliseconds, out var deadline))
+        if (_relaxedDeadline.TryExtendBy(duration, out var deadline))
         {
             Volatile.Write(ref _relaxedEndedTicks, deadline);
             Multiplexer.Trace($"timeouts relaxed: {cause}", ToString());

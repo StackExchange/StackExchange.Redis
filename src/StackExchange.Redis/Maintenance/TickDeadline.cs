@@ -15,22 +15,38 @@ internal struct TickDeadline
 {
     private int _ticks;
 
+    /// <summary>
+    /// The most a deadline can be set into the future: about six days. A tick count wraps in about 24.8 days, so a
+    /// span approaching that would be indistinguishable from the past; and a span that overflows an <c>int</c> of
+    /// milliseconds (a buggy or hostile announced window) would otherwise land the deadline in the past outright,
+    /// raising a protection that is silently inactive. No maintenance window is days long; clamping is always right.
+    /// </summary>
+    private const int MaxMilliseconds = int.MaxValue / 4;
+
     /// <summary>The raw deadline, or zero when unset. For callers that record *when* a window was due to end.</summary>
     public int Ticks => Volatile.Read(ref _ticks);
 
-    public void SetIn(int milliseconds) => Volatile.Write(ref _ticks, NudgeFromZero(unchecked(Environment.TickCount + milliseconds)));
+    public void SetIn(TimeSpan span) => Volatile.Write(ref _ticks, NudgeFromZero(unchecked(Environment.TickCount + Clamp(span))));
+
+    /// <summary>A span as whole milliseconds, never negative and never beyond <see cref="MaxMilliseconds"/>.</summary>
+    public static int Clamp(TimeSpan span)
+    {
+        if (span <= TimeSpan.Zero) return 0;
+        var ms = span.TotalMilliseconds;
+        return ms >= MaxMilliseconds ? MaxMilliseconds : (int)ms;
+    }
 
     public void Clear() => Volatile.Write(ref _ticks, 0);
 
     /// <summary>
-    /// Moves the deadline out to now plus <paramref name="milliseconds"/> unless it is already later than that.
+    /// Moves the deadline out to now plus <paramref name="span"/> unless it is already later than that.
     /// </summary>
-    /// <param name="milliseconds">How far from now the deadline should be, at least.</param>
+    /// <param name="span">How far from now the deadline should be, at least.</param>
     /// <param name="deadline">The deadline now in force, whether or not this call set it.</param>
     /// <returns>Whether this call extended it.</returns>
-    public bool TryExtendBy(int milliseconds, out int deadline)
+    public bool TryExtendBy(TimeSpan span, out int deadline)
     {
-        var candidate = NudgeFromZero(unchecked(Environment.TickCount + milliseconds));
+        var candidate = NudgeFromZero(unchecked(Environment.TickCount + Clamp(span)));
         while (true)
         {
             var current = Volatile.Read(ref _ticks);

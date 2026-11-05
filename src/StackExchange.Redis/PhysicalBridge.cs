@@ -133,7 +133,7 @@ namespace StackExchange.Redis
         /// </summary>
         internal void MarkNeedsReconnect() => Volatile.Write(ref _needsReconnect, true);
 
-        private volatile bool _quiescing, _quiesceRecycled, _quiesceSuccessorPinned, _quiesceInheritedProtection;
+        private volatile bool _quiescing, _quiesceRecycled, _quiesceSuccessorPinned, _quiesceInheritedProtection, _quiesceDiverted;
         private PhysicalConnection? _quiesceTarget;
         private System.Net.IPEndPoint? _quiesceRetiringEndPoint;
 
@@ -158,20 +158,40 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Whether a connection is a bona fide replacement for the one a handoff is retiring: not that connection
-        /// itself, and - where reconnection is not pinned to a named successor, so the ordinary reconnect may have
-        /// landed straight back on the node being retired - demonstrably somewhere else, by address *and* port, since
-        /// Redis Enterprise regularly rebinds to another port on the same host. A connection whose address cannot be
-        /// read yet is not known to be a replacement. Only a bona fide replacement establishing lowers the protection,
-        /// releases the hold on new work, and receives the held backlog.
+        /// itself, and either established after the retire resolved (then it is the replacement wherever it landed),
+        /// or - before that, where reconnection is not pinned to a named successor, so the ordinary reconnect may
+        /// have landed straight back on the node being retired - demonstrably somewhere else, by address *and* port,
+        /// since Redis Enterprise regularly rebinds to another port on the same host. A connection whose address
+        /// cannot be read yet is not known to be a replacement. Only a bona fide replacement establishing lowers the
+        /// protection, releases the hold on new work, and receives the held backlog.
         /// </summary>
         private bool IsBonaFideReplacement(PhysicalConnection connection)
         {
+            if (connection.KnownReplacement) return true; // stable once true; latched so the hot path does not re-derive it
             if (connection.WasHandoffTarget) return false;
-            if (_quiesceSuccessorPinned) return true;
-            var retiring = _quiesceRetiringEndPoint;
-            if (retiring is null) return true; // nothing known to compare against
-            var landedOn = RemoteEndPointOrNull(connection);
-            return landedOn is not null && !landedOn.Equals(retiring);
+            bool bonaFide;
+            if (_quiesceSuccessorPinned || _quiesceRecycled)
+            {
+                // pinned to a named successor, any other connection is the replacement; and once the retire has
+                // resolved, whatever comes up next is the replacement wherever it landed - including the same
+                // address and port, which is the common case after an in-place proxy restart or with stale DNS
+                bonaFide = true;
+            }
+            else
+            {
+                var retiring = _quiesceRetiringEndPoint;
+                if (retiring is null)
+                {
+                    bonaFide = true; // nothing known to compare against
+                }
+                else
+                {
+                    var landedOn = RemoteEndPointOrNull(connection);
+                    bonaFide = landedOn is not null && !landedOn.Equals(retiring);
+                }
+            }
+            if (bonaFide) connection.MarkKnownReplacement();
+            return bonaFide;
         }
 
         private static System.Net.IPEndPoint? RemoteEndPointOrNull(PhysicalConnection connection)
@@ -228,7 +248,8 @@ namespace StackExchange.Redis
             // it, with that handoff's diverted work queued) extends it rather than replacing it, and remembers that
             // there is older work to protect even if this hold itself diverts nothing
             _quiesceInheritedProtection = _handoffProtection.IsActive;
-            _handoffProtection.TryExtendBy((int)protection.TotalMilliseconds, out _);
+            _quiesceDiverted = _quiesceInheritedProtection; // older work still queued counts as diverted work to protect
+            _handoffProtection.TryExtendBy(protection, out _);
             _quiescing = true;
         }
 
@@ -341,11 +362,12 @@ namespace StackExchange.Redis
                     // faulted), or there was none when the hold began because it had already dropped.
                     if (current is null)
                     {
-                        // Nothing to retire. Whatever the hold diverted before the target went stays protected for the
-                        // reconnect that is coming; only a hold that never had a target, and inherited no earlier
-                        // handoff's protection, can have nothing to protect.
+                        // Nothing to retire. Whatever the hold diverted - off the target, or off a reconnect that
+                        // landed back on the retiring node and then dropped too - stays protected for the reconnect
+                        // that is coming; only a hold that diverted nothing (and inherited no earlier handoff's work)
+                        // has nothing to protect.
                         _quiesceRecycled = true;
-                        if (target is null && !_quiesceInheritedProtection) ClearHandoffPending();
+                        if (!_quiesceDiverted) ClearHandoffPending();
                         return false;
                     }
                     if (IsBonaFideReplacement(current))
@@ -388,9 +410,27 @@ namespace StackExchange.Redis
             // Report *before* tearing down, and in this order for a reason: RecordConnectionFailed only raises
             // the public event while the pipe is still live ("if *we* didn't burn the pipe: flag it"), and
             // Dispose runs Shutdown first - which is exactly why an ordinary dispose is silent. Recording first
-            // also performs the disconnect, so the Dispose below is cleanup.
-            toRetire.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
-            toRetire.Dispose();
+            // also performs the disconnect, so the Dispose below is cleanup. A user handler that throws must not
+            // leak the connection, nor make the retire look as if it had not happened.
+            try
+            {
+                toRetire.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
+            }
+            catch (Exception ex)
+            {
+                OnInternalError(ex);
+            }
+            finally
+            {
+                try
+                {
+                    toRetire.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    OnInternalError(ex);
+                }
+            }
             return true;
         }
 
@@ -438,21 +478,15 @@ namespace StackExchange.Redis
 
         public override string ToString() => ConnectionType + "/" + Format.ToString(ServerEndPoint.EndPoint);
 
-        private WriteResult QueueOrFailMessage(Message message, bool holdForHandoff = false)
+        private WriteResult QueueOrFailMessage(Message message)
         {
-            // If it's an internal call that's not a QUIT, or we're allowed to queue in general, then queue. Work held
-            // for a maintenance handoff is queued whatever the policy: the connection is live and the message would
-            // otherwise have been written, so failing it would be a regression (see ShouldHoldForHandoff).
-            if (holdForHandoff || message.IsInternalCall || Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
+            // If it's an internal call that's not a QUIT
+            // or we're allowed to queue in general, then queue
+            if (message.IsInternalCall || Multiplexer.RawConfig.BacklogPolicy.QueueWhileDisconnected)
             {
                 // Let's just never ever queue a QUIT message
                 if (message.Command != RedisCommand.QUIT)
                 {
-                    if (holdForHandoff)
-                    {
-                        EnqueueHeldAndWakeIfReleased(message);
-                        return WriteResult.Success;
-                    }
                     message.SetEnqueued(null);
                     BacklogEnqueue(message);
                     // Note: we don't start a worker on each message here
@@ -480,7 +514,11 @@ namespace StackExchange.Redis
         public WriteResult TryWriteSync(Message message, bool isReplica)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
-            if (ShouldHoldForHandoff(message)) return QueueOrFailMessage(message, holdForHandoff: true);
+            if (ShouldHoldForHandoff(message))
+            {
+                EnqueueHeldAndWakeIfReleased(message);
+                return WriteResult.Success; // queued counts as success
+            }
             if (!IsConnected || NeedsReconnect) return QueueOrFailMessage(message);
 
             var physical = this.physical;
@@ -505,7 +543,11 @@ namespace StackExchange.Redis
         public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica, bool bypassBacklog = false)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
-            if (!bypassBacklog && ShouldHoldForHandoff(message)) return new ValueTask<WriteResult>(QueueOrFailMessage(message, holdForHandoff: true));
+            if (!bypassBacklog && ShouldHoldForHandoff(message))
+            {
+                EnqueueHeldAndWakeIfReleased(message);
+                return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
+            }
             if ((!IsConnected || NeedsReconnect) && !bypassBacklog) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
 
             var physical = this.physical;
@@ -1075,10 +1117,7 @@ namespace StackExchange.Redis
             if (HoldActive && ShouldHoldBatch(messages))
             {
                 // a maintenance handoff is draining the connection: hold the batch for the replacement
-                foreach (var message in messages)
-                {
-                    QueueOrFailMessage(message, holdForHandoff: true);
-                }
+                EnqueueHeldBatchAndWakeIfReleased(messages);
                 return true;
             }
 
@@ -1361,6 +1400,24 @@ namespace StackExchange.Redis
             if (requeue) message.SetRequeued();
             else message.SetEnqueued(null);
             BacklogEnqueue(message);
+            _quiesceDiverted = true; // there is now work the handoff's protection must stand for
+            WakeIfHoldReleased();
+        }
+
+        /// <summary>A batch held as a unit: every member queued, then one fence and one check for the batch.</summary>
+        private void EnqueueHeldBatchAndWakeIfReleased(List<Message> messages)
+        {
+            foreach (var message in messages)
+            {
+                message.SetEnqueued(null);
+                BacklogEnqueue(message);
+            }
+            _quiesceDiverted = true;
+            WakeIfHoldReleased();
+        }
+
+        private void WakeIfHoldReleased()
+        {
             Interlocked.MemoryBarrier();
             if (!_quiescing) StartBacklogProcessor();
         }

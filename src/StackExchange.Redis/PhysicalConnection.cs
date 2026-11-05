@@ -988,7 +988,16 @@ namespace StackExchange.Redis
 
         // volatile: each is written on one thread and read on others as part of the handoff's identity test, in the
         // very races that test exists for; a plain field could be read stale exactly then
-        private volatile bool _retiredForHandoff, _wasHandoffTarget, _everFullyEstablished;
+        private volatile bool _retiredForHandoff, _wasHandoffTarget, _everFullyEstablished, _knownReplacement;
+
+        /// <summary>
+        /// Latched once this connection has been found to be a bona fide replacement for one a maintenance handoff
+        /// retired (see <c>PhysicalBridge.IsBonaFideReplacement</c>): the answer is stable once true, and the test
+        /// behind it reads the socket's remote address, which is not something to repeat on every write.
+        /// </summary>
+        internal bool KnownReplacement => _knownReplacement;
+
+        internal void MarkKnownReplacement() => _knownReplacement = true;
 
         /// <summary>
         /// Whether this connection was ever the one a maintenance handoff held work back from. A durable fact about the
