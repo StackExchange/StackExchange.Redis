@@ -991,9 +991,11 @@ namespace StackExchange.Redis
         private volatile bool _retiredForHandoff, _wasHandoffTarget, _everFullyEstablished, _knownReplacement;
 
         /// <summary>
-        /// Latched once this connection has been found to be a bona fide replacement for one a maintenance handoff
-        /// retired (see <c>PhysicalBridge.IsBonaFideReplacement</c>): the answer is stable once true, and the test
-        /// behind it reads the socket's remote address, which is not something to repeat on every write.
+        /// Latched once this connection, fully established, has been found to be a bona fide replacement for one a
+        /// maintenance handoff retired (see <c>PhysicalBridge.IsBonaFideReplacement</c>): the answer is stable once
+        /// true, and the test behind it reads the socket's remote address, which is not something to repeat on every
+        /// write. Cleared if the connection later becomes a handoff's target itself. A failure of a connection that is
+        /// *not* a known replacement, while a handoff's protection is up, is the handoff's own.
         /// </summary>
         internal bool KnownReplacement => _knownReplacement;
 
@@ -1007,7 +1009,25 @@ namespace StackExchange.Redis
         /// </summary>
         internal bool WasHandoffTarget => _wasHandoffTarget;
 
-        internal void MarkHandoffTarget() => _wasHandoffTarget = true;
+        /// <summary>Target status dominates: a connection that was a replacement for an earlier handoff and is now the one being retired is a target, not a replacement.</summary>
+        internal void MarkHandoffTarget()
+        {
+            _knownReplacement = false;
+            _wasHandoffTarget = true;
+        }
+
+        /// <summary>The socket's remote address and port, or <c>null</c> if the socket is not connected yet, is already gone, or there is no socket.</summary>
+        internal System.Net.IPEndPoint? TryGetRemoteEndPoint()
+        {
+            try
+            {
+                return VolatileSocket?.RemoteEndPoint as System.Net.IPEndPoint;
+            }
+            catch (Exception ex) when (ex is System.Net.Sockets.SocketException or ObjectDisposedException or InvalidOperationException)
+            {
+                return null;
+            }
+        }
 
         /// <summary>
         /// Whether this connection ever completed its handshake. A failure on a connection that never did is a failed

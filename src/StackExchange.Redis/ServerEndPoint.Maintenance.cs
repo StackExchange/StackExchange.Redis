@@ -435,15 +435,7 @@ internal sealed partial class ServerEndPoint
             ? value
             : Multiplexer.RawConfig.MaintenanceRelaxedTimeout; // no window given: use the relaxation floor
         if (budget > MaxHandoffWindow) budget = MaxHandoffWindow; // an absurd announced window must not overflow a delay or a deadline
-        IPEndPoint? current = null;
-        try
-        {
-            current = connection.VolatileSocket?.RemoteEndPoint as IPEndPoint;
-        }
-        catch (Exception ex) when (ex is System.Net.Sockets.SocketException or ObjectDisposedException or InvalidOperationException)
-        {
-            // the socket is gone or not connected: no address to compare against
-        }
+        var current = connection.TryGetRemoteEndPoint(); // null if the socket is gone or not connected: nothing to compare against
 
         _ = HandoffAsync(budget, successor, current);
     }
@@ -620,8 +612,14 @@ internal sealed partial class ServerEndPoint
         var relax = cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout;
         if (relax > Multiplexer.RawConfig.MaintenanceRelaxedWindowMax) relax = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax; // the user's ceiling applies here as on the notification path
         ExtendRelaxedWindow(relax, "MOVING handoff");
+        var drainSpan = cap + LockGrace + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout);
         var pinned = cap + LockGrace > budget ? cap + LockGrace : budget;
         var cover = pinned + TimeSpan.FromMilliseconds(Multiplexer.RawConfig.ConnectTimeout);
+        // the user's ceiling on relaxation bounds the cover too - a huge announced window must not floor every timeout
+        // for its whole length - but the cover always spans at least the drain itself and one connect attempt
+        var ceiling = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax;
+        if (ceiling < drainSpan) ceiling = drainSpan;
+        if (cover > ceiling) cover = ceiling;
         SetHoldCover(cover);
 
         // snapshots: Dispose nulls the fields, and a handoff in progress must not fault on a server going away
@@ -686,14 +684,12 @@ internal sealed partial class ServerEndPoint
                 }
                 if (lockDeadline.IsCancellationRequested)
                 {
-                    // The write lock could not be had even for the forced pass: something is stuck on it. Recycling
-                    // without the lock would reopen the mid-write loss the lock exists to prevent, so the connection
-                    // is left to the server's close, which is where things stood before handoffs existed. The hold on
-                    // *new* work ends (the finally below); the protection stays up for the work already diverted,
-                    // which was queued off a live connection whatever the policy on the promise of a replacement -
-                    // the server's close and the reconnect after it are that replacement arriving late, and the
-                    // protection lowers when it establishes or its span runs out, as always.
-                    return new(null, forced);
+                    // The write lock could not be had even for the forced pass: something is wedged on it. Leaving the
+                    // connection to the server's window-end close would fail everything in flight and leave the bridge
+                    // dark for the reconnect - the whole window's traffic, to protect at most one wedged writer's
+                    // message from a write fault. So, as a last resort, retire without the lock, which is what every
+                    // recycle did before handoffs existed. The protection stays up for the diverted work either way.
+                    return new(bridge.RetireQuiesceTargetWithoutLock(reason) ? true : null, forced);
                 }
                 await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
             }
