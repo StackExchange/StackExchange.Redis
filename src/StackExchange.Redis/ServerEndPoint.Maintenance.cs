@@ -159,7 +159,7 @@ internal sealed partial class ServerEndPoint
     // can be read without a lock from the heartbeat sweeps. Zero means "no window"; a deadline that computes
     // to zero is nudged by a tick rather than complicating the sentinel. Comparisons are unchecked
     // subtraction, as elsewhere in this type, so the ~49-day wrap is a non-event.
-    private int _relaxedDeadlineTicks;
+    private TickDeadline _relaxedDeadline;
 
     // the notification that last touched the window, reported on faults that happen inside it
     private int _relaxedType;
@@ -208,24 +208,16 @@ internal sealed partial class ServerEndPoint
         // a handoff hold diverts commands off a live connection into the backlog; whatever the relaxation setting
         // (zero disables it), those commands must not be timed out by the hold itself, so the hold imposes its
         // own floor on the effective timeout for as long as it, and the reconnect after it, can take
-        var cover = Volatile.Read(ref _holdCoverDeadlineTicks);
-        if (cover != 0)
+        if (_holdCover.IsActive)
         {
-            if (unchecked(cover - Environment.TickCount) > 0)
-            {
-                var floor = Volatile.Read(ref _holdCoverMilliseconds);
-                if (floor > result) result = floor;
-            }
-            else
-            {
-                // expired: clear it, as GetRelaxedRemaining does, so a wrapped tick count cannot re-arm a stale floor
-                Interlocked.CompareExchange(ref _holdCoverDeadlineTicks, 0, cover);
-            }
+            var floor = Volatile.Read(ref _holdCoverMilliseconds);
+            if (floor > result) result = floor;
         }
         return result;
     }
 
-    private int _holdCoverDeadlineTicks, _holdCoverMilliseconds;
+    private TickDeadline _holdCover;
+    private int _holdCoverMilliseconds;
 
     /// <summary>
     /// For the duration of a handoff hold plus the reconnect that follows it - including the rest of the window, for
@@ -238,7 +230,7 @@ internal sealed partial class ServerEndPoint
     {
         var ms = (int)span.TotalMilliseconds;
         Volatile.Write(ref _holdCoverMilliseconds, ms);
-        Volatile.Write(ref _holdCoverDeadlineTicks, NudgeFromZeroTicks(unchecked(Environment.TickCount + ms)));
+        _holdCover.SetIn(ms);
     }
 
     /// <summary>
@@ -246,7 +238,7 @@ internal sealed partial class ServerEndPoint
     /// ordinary timeouts - including a deliberately short one, with relaxation turned off - apply once more. The
     /// deadline set by <see cref="SetHoldCover"/> is only the bound for the case where that never happens.
     /// </summary>
-    private void ClearHoldCover() => Volatile.Write(ref _holdCoverDeadlineTicks, 0);
+    private void ClearHoldCover() => _holdCover.Clear();
 
     /// <summary>Whether either bridge still has a handoff's protection up; see <see cref="PhysicalBridge.HandoffPending"/>.</summary>
     internal bool AnyHandoffPending => interactive?.HandoffPending == true || subscription?.HandoffPending == true;
@@ -263,18 +255,7 @@ internal sealed partial class ServerEndPoint
     /// <summary>
     /// Milliseconds of relaxation left, or zero if none; clears an expired window as a side-effect.
     /// </summary>
-    private int GetRelaxedRemaining()
-    {
-        var deadline = Volatile.Read(ref _relaxedDeadlineTicks);
-        if (deadline == 0) return 0;
-
-        var remaining = unchecked(deadline - Environment.TickCount);
-        if (remaining > 0) return remaining;
-
-        // expired; clear it, but only if nobody has moved it on in the meantime
-        Interlocked.CompareExchange(ref _relaxedDeadlineTicks, 0, deadline);
-        return 0;
-    }
+    private int GetRelaxedRemaining() => _relaxedDeadline.RemainingMilliseconds();
 
     /// <summary>
     /// An announced disruption has started (or is still running): open or extend the relaxed window.
@@ -340,15 +321,14 @@ internal sealed partial class ServerEndPoint
         var tail = Multiplexer.RawConfig.MaintenancePostEventRelaxedDuration;
         if (tail <= TimeSpan.Zero)
         {
-            Volatile.Write(ref _relaxedDeadlineTicks, 0);
+            _relaxedDeadline.Clear();
             Volatile.Write(ref _relaxedEndedTicks, NudgeFromZeroTicks(Environment.TickCount));
             Multiplexer.Trace($"{type}: relaxation ended", ToString());
             return;
         }
 
-        var deadline = NudgeFromZeroTicks(unchecked(Environment.TickCount + (int)tail.TotalMilliseconds));
-        Volatile.Write(ref _relaxedDeadlineTicks, deadline);
-        Volatile.Write(ref _relaxedEndedTicks, deadline);
+        _relaxedDeadline.SetIn((int)tail.TotalMilliseconds);
+        Volatile.Write(ref _relaxedEndedTicks, _relaxedDeadline.Ticks);
         Multiplexer.Trace($"{type}: relaxation continues for {tail.TotalSeconds}s (post-event)", ToString());
     }
 
@@ -452,12 +432,20 @@ internal sealed partial class ServerEndPoint
         var budget = window is { } value && value > TimeSpan.Zero
             ? value
             : Multiplexer.RawConfig.MaintenanceRelaxedTimeout; // no window given: use the relaxation floor
-        var current = (connection.VolatileSocket?.RemoteEndPoint as IPEndPoint)?.Address;
+        IPEndPoint? current = null;
+        try
+        {
+            current = connection.VolatileSocket?.RemoteEndPoint as IPEndPoint;
+        }
+        catch (Exception ex) when (ex is System.Net.Sockets.SocketException or ObjectDisposedException or InvalidOperationException)
+        {
+            // the socket is gone or not connected: no address to compare against
+        }
 
         _ = HandoffAsync(budget, successor, current);
     }
 
-    private async Task HandoffAsync(TimeSpan window, EndPoint? successor, IPAddress? currentAddress)
+    private async Task HandoffAsync(TimeSpan window, EndPoint? successor, IPEndPoint? currentEndPoint)
     {
         var watch = ValueStopwatch.StartNew();
         var replaced = false;
@@ -472,7 +460,7 @@ internal sealed partial class ServerEndPoint
             var decision = await MaintenanceHandoff.DecideAsync(
                 EndPoint,
                 successor,
-                currentAddress,
+                currentEndPoint?.Address,
                 remaining,
                 pollInterval: TimeSpan.FromSeconds(1), // records carry a 5s TTL, so this is several looks per record
                 resolve: Multiplexer.AddressResolver,
@@ -492,7 +480,7 @@ internal sealed partial class ServerEndPoint
             switch (decision.Action)
             {
                 case HandoffAction.Recycle:
-                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: false, currentAddress).ForAwait();
+                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: false, currentEndPoint).ForAwait();
                     replaced = true;
                     break;
                 case HandoffAction.RecycleAtHalfWindow:
@@ -500,7 +488,7 @@ internal sealed partial class ServerEndPoint
                     // go on. Half of the *announced* window, less whatever the jitter already spent.
                     var half = TimeSpan.FromTicks(window.Ticks / 2) - jitter;
                     if (half > TimeSpan.Zero) await Task.Delay(half).ForAwait();
-                    await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason, successorPinned: false, currentAddress).ForAwait();
+                    await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason, successorPinned: false, currentEndPoint).ForAwait();
                     replaced = true;
                     break;
                 case HandoffAction.MoveTo when decision.Target is { } target:
@@ -509,7 +497,7 @@ internal sealed partial class ServerEndPoint
                     // at +6.2s, landed back on the node being retired because DNS had not moved yet, and were
                     // closed at +21.6s anyway - exactly the outcome the handoff exists to avoid.
                     SetHandoffTarget(target, remaining);
-                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: true, currentAddress).ForAwait();
+                    await DrainThenRecycleAsync(remaining, decision.Reason, successorPinned: true, currentEndPoint).ForAwait();
                     replaced = true;
                     break;
                 default:
@@ -603,9 +591,9 @@ internal sealed partial class ServerEndPoint
     /// <param name="successorPinned">Whether reconnection is pinned to a named successor. If not, a connection that
     /// went away by itself during the hold may have been replaced by one on the very node being retired, and that
     /// replacement is retired instead; see <see cref="PhysicalBridge.TryRetireQuiesceTargetAsync"/>.</param>
-    /// <param name="retiringAddress">The address of the node being retired, as seen from the connection that was told,
-    /// so that a replacement which landed elsewhere is recognised as such.</param>
-    private async Task DrainThenRecycleAsync(TimeSpan budget, string reason, bool successorPinned, IPAddress? retiringAddress)
+    /// <param name="retiringEndPoint">The address and port of the node being retired, as seen from the connection that
+    /// was told, so that a replacement which landed elsewhere is recognised as such.</param>
+    private async Task DrainThenRecycleAsync(TimeSpan budget, string reason, bool successorPinned, IPEndPoint? retiringEndPoint)
     {
         var watch = ValueStopwatch.StartNew();
         // With less than the floor left of the window there is no hold worth having: the server is about to close
@@ -631,14 +619,14 @@ internal sealed partial class ServerEndPoint
         // one lifecycle for the protection: raised here with the hold, on each bridge (the FailFast shield) and on the
         // server (the timeout cover); lowered only when a replacement establishes, when the handoff gives up on a
         // bridge, or when this span runs out - never on a local idea of "done" along the way
-        interactiveBridge?.BeginQuiesce(cover);
-        subscriptionBridge?.BeginQuiesce(cover);
+        interactiveBridge?.BeginQuiesce(cover, retiringEndPoint, successorPinned);
+        subscriptionBridge?.BeginQuiesce(cover, retiringEndPoint, successorPinned);
 
         // One loop per bridge, each with its own lock deadline, run side by side: a writer wedged on one bridge's
         // lock must not spend the other's time, and the other's idle connection must still be retired before the
         // server closes it. Each bridge is released the moment its own connection is settled.
-        var interactiveTask = RetireBridgeAsync(interactiveBridge, watch, cap, reason, retireCurrentIfTargetGone: !successorPinned, retiringAddress);
-        var subscriptionTask = RetireBridgeAsync(subscriptionBridge, watch, cap, reason, retireCurrentIfTargetGone: !successorPinned, retiringAddress);
+        var interactiveTask = RetireBridgeAsync(interactiveBridge, watch, cap, reason);
+        var subscriptionTask = RetireBridgeAsync(subscriptionBridge, watch, cap, reason);
         var interactiveResult = await interactiveTask.ForAwait();
         var subscriptionResult = await subscriptionTask.ForAwait();
 
@@ -666,7 +654,7 @@ internal sealed partial class ServerEndPoint
     /// Retires one bridge's connection once drained, or at the cap regardless, and releases its hold; see
     /// <see cref="DrainThenRecycleAsync"/>.
     /// </summary>
-    private async Task<BridgeRetirement> RetireBridgeAsync(PhysicalBridge? bridge, ValueStopwatch watch, TimeSpan cap, string reason, bool retireCurrentIfTargetGone, IPAddress? retiringAddress)
+    private async Task<BridgeRetirement> RetireBridgeAsync(PhysicalBridge? bridge, ValueStopwatch watch, TimeSpan cap, string reason)
     {
         if (bridge is null) return new(false, false);
         bool forced = false;
@@ -677,7 +665,7 @@ internal sealed partial class ServerEndPoint
             {
                 var force = watch.ElapsedMilliseconds >= cap.TotalMilliseconds;
                 forced |= force;
-                var result = await bridge.TryRetireQuiesceTargetAsync(force, retireCurrentIfTargetGone, retiringAddress, reason, lockDeadline.Token).ForAwait();
+                var result = await bridge.TryRetireQuiesceTargetAsync(force, reason, lockDeadline.Token).ForAwait();
                 if (result is { } done)
                 {
                     // whether we replaced the connection or it went away by itself, a replacement is now on its way,
@@ -762,20 +750,12 @@ internal sealed partial class ServerEndPoint
 
     private void ExtendRelaxedWindow(TimeSpan duration, string cause)
     {
-        var candidate = NudgeFromZeroTicks(unchecked(Environment.TickCount + (int)duration.TotalMilliseconds));
-        while (true)
+        // a new notification never shortens an existing window: a FAILING_OVER arriving inside a longer
+        // MIGRATING window must not cut it short
+        if (_relaxedDeadline.TryExtendBy((int)duration.TotalMilliseconds, out var deadline))
         {
-            var current = Volatile.Read(ref _relaxedDeadlineTicks);
-
-            // a new notification never shortens an existing window: a FAILING_OVER arriving inside a longer
-            // MIGRATING window must not cut it short
-            if (current != 0 && unchecked(candidate - current) <= 0) return;
-            if (Interlocked.CompareExchange(ref _relaxedDeadlineTicks, candidate, current) == current)
-            {
-                Volatile.Write(ref _relaxedEndedTicks, candidate);
-                Multiplexer.Trace($"timeouts relaxed: {cause}", ToString());
-                return;
-            }
+            Volatile.Write(ref _relaxedEndedTicks, deadline);
+            Multiplexer.Trace($"timeouts relaxed: {cause}", ToString());
         }
     }
 

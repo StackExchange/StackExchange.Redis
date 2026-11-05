@@ -894,6 +894,17 @@ namespace StackExchange.Redis
         /// </summary>
         internal void InheritWriteTime(Message parent) => _writeTickCount = parent._writeTickCount;
 
+        /// <summary>
+        /// The message is going back to the backlog after the connection it was headed for was retired by a maintenance
+        /// handoff: it no longer points at that connection, but it keeps its write time, since the budget it has already
+        /// spent (including waiting for the write lock) still counts. Unlike <see cref="SetEnqueued"/>, which restarts it.
+        /// </summary>
+        internal void SetRequeued()
+        {
+            _enqueuedTo = null;
+            _queuedStampSent = _queuedStampReceived = -1;
+        }
+
         private int _writeTickCount;
 
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);

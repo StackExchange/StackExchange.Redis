@@ -982,9 +982,13 @@ namespace StackExchange.Redis
         /// reached the write lock afterwards can tell a planned replacement from an ordinary closure. Set under the
         /// bridge's write lock; the report and dispose follow once the lock is released. Never reset.
         /// </summary>
-        internal bool RetiredForHandoff { get; private set; }
+        internal bool RetiredForHandoff => _retiredForHandoff;
 
-        internal void MarkRetiredForHandoff() => RetiredForHandoff = true;
+        internal void MarkRetiredForHandoff() => _retiredForHandoff = true;
+
+        // volatile: each is written on one thread and read on others as part of the handoff's identity test, in the
+        // very races that test exists for; a plain field could be read stale exactly then
+        private volatile bool _retiredForHandoff, _wasHandoffTarget, _everFullyEstablished;
 
         /// <summary>
         /// Whether this connection was ever the one a maintenance handoff held work back from. A durable fact about the
@@ -992,18 +996,18 @@ namespace StackExchange.Redis
         /// the drain, closed by the server at the end of the window, dropped by itself - its failure is the handoff's
         /// own, and work diverted off it must not be abandoned on that account. Never reset.
         /// </summary>
-        internal bool WasHandoffTarget { get; private set; }
+        internal bool WasHandoffTarget => _wasHandoffTarget;
 
-        internal void MarkHandoffTarget() => WasHandoffTarget = true;
+        internal void MarkHandoffTarget() => _wasHandoffTarget = true;
 
         /// <summary>
         /// Whether this connection ever completed its handshake. A failure on a connection that never did is a failed
         /// attempt to bring a connection up, which is how a maintenance handoff tells "the replacement is not up yet"
         /// from "the replacement was up and then failed" without enumerating failure types.
         /// </summary>
-        internal bool EverFullyEstablished { get; private set; }
+        internal bool EverFullyEstablished => _everFullyEstablished;
 
-        internal void MarkFullyEstablished() => EverFullyEstablished = true;
+        internal void MarkFullyEstablished() => _everFullyEstablished = true;
 
         /// <summary>
         /// Whether any message awaiting a response was issued by a *caller* rather than by us.
