@@ -892,7 +892,13 @@ namespace StackExchange.Redis
         /// <see cref="SetEnqueued"/>; they take the parent's write time, so that they share its timeout budget
         /// (including any time it spent in the backlog) rather than looking overdue by the process uptime.
         /// </summary>
-        internal void InheritWriteTime(Message parent) => _writeTickCount = parent._writeTickCount;
+        internal void InheritWriteTime(Message parent)
+        {
+            _writeTickCount = parent._writeTickCount;
+            // and the cover that goes with that budget: a held transaction's inner commands reach the replacement with
+            // a clock that includes the whole hold, and without the parent's cover the next sweep would fail them
+            _holdCover.ExtendTo(parent._holdCover.Ticks);
+        }
 
         /// <summary>
         /// The message is going back to the backlog after the connection it was headed for was retired by a maintenance

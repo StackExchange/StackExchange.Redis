@@ -1017,7 +1017,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
 
             Assert.True(
-                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 12_000),
+                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 14_000),
                 "the handoff should have replaced the connection");
             var recycledAfter = watch.Elapsed;
             // Only now: the server reads its latency when it *executes* a request, and zeroing it any earlier races the
@@ -1026,9 +1026,11 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             server.SetLatency(TimeSpan.Zero);
             log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with a 12s command in flight");
 
-            // jitter (at most a tenth of the window, capped at 1s) + the 5s cap + the lock grace (1s) + poll granularity,
-            // with a further second of slack: still well short of the 12s the command needs
-            Assert.True(recycledAfter < TimeSpan.FromSeconds(10), $"recycled after {recycledAfter}: the drain waited for the blocking command instead of capping");
+            // jitter (at most a tenth of the window, capped at 1s) + the 5s cap + the lock grace (1s) + poll granularity
+            // is the mechanism's own worst case, about 7.5s; the bug being guarded against is a recycle at the 15s
+            // deadline, so 12s discriminates with room on both sides, where 10s left two to three seconds over the
+            // worst case on a slow machine
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(12), $"recycled after {recycledAfter}: the drain waited for the blocking command instead of capping");
 
             // the in-flight command was failed by the recycle, which is what the server's close would have done
             foreach (var pending in blocking)

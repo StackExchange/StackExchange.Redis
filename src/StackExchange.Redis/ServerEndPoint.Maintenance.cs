@@ -336,8 +336,13 @@ internal sealed partial class ServerEndPoint
         Multiplexer.Trace($"{type}: relaxation continues for {tail.TotalSeconds}s (post-event)", ToString());
     }
 
-    private volatile EndPoint? _handoffTarget;
+    // The pin: the target, its expiry and the generation of the MOVING that set it, kept consistent under
+    // _maintenanceSync (every touch is rare: a MOVING, a connect, a heartbeat), which is what lets the heartbeat's
+    // expiry check and a fresh SetHandoffTarget coexist without one nulling the other's pin.
+    private EndPoint? _handoffTarget;
     private TickDeadline _handoffTargetExpiry;
+    private int _handoffTargetGeneration;
+    private int _movingGeneration; // one per MOVING acted on; a later MOVING's pin outranks an earlier one's decision
     private int _handoffInFlight, _handoffRecycles;
 
     /// <summary>
@@ -363,33 +368,48 @@ internal sealed partial class ServerEndPoint
     {
         get
         {
-            var target = _handoffTarget;
-            if (target is null) return null;
-
-            if (!_handoffTargetExpiry.IsActive)
+            lock (_maintenanceSync)
             {
-                _handoffTarget = null; // expired; resolve the endpoint the usual way from here on
-                return null;
+                if (_handoffTarget is null) return null;
+                if (!_handoffTargetExpiry.IsActive)
+                {
+                    _handoffTarget = null; // expired; resolve the endpoint the usual way from here on
+                    return null;
+                }
+                return _handoffTarget;
             }
-
-            return target;
         }
     }
 
     /// <summary>
-    /// Points the next connection attempt at a named replacement, for as long as the announced window lasts.
+    /// Points the next connection attempt at a named replacement, for as long as the announced window lasts - unless
+    /// a later <c>MOVING</c> has pinned something since (a handoff's decision can resolve, after a DNS poll, well
+    /// after the next notification arrived; the later one knows more).
     /// </summary>
-    internal void SetHandoffTarget(EndPoint target, TimeSpan window)
+    private void SetHandoffTarget(EndPoint target, TimeSpan window, int generation)
     {
-        _handoffTargetExpiry.SetIn(window < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : window);
-        _handoffTarget = target;
+        lock (_maintenanceSync)
+        {
+            if (_handoffTarget is not null && generation < _handoffTargetGeneration) return;
+            _handoffTargetExpiry.SetIn(window < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : window);
+            _handoffTarget = target;
+            _handoffTargetGeneration = generation;
+        }
     }
 
     /// <summary>
-    /// Drops the pin when a later <c>MOVING</c> names no successor: the pinned node is then, as likely as not, the
-    /// very one now being retired, and a reconnect dialled through the stale pin would land on it.
+    /// Drops the pin when a <c>MOVING</c> names no successor: the pinned node is then, as likely as not, the very one
+    /// now being retired, and a reconnect dialled through the stale pin would land on it. Only a pin this or an earlier
+    /// <c>MOVING</c> set: a later one's stands.
     /// </summary>
-    private void ClearHandoffTarget() => _handoffTarget = null;
+    private void ClearHandoffTarget(int generation)
+    {
+        lock (_maintenanceSync)
+        {
+            if (_handoffTarget is not null && generation < _handoffTargetGeneration) return;
+            _handoffTarget = null;
+        }
+    }
 
     /// <summary>
     /// Reads the pin on every heartbeat so that its expiry is noticed while it is fresh. Expiry is lazy, on read,
@@ -440,18 +460,19 @@ internal sealed partial class ServerEndPoint
         // A MOVING arriving while one is in flight (which can be most of a window: the jitter, the DNS poll, the
         // drain) is not dropped, though - the handoff in flight will replace the connections, and what this one adds
         // is where the reconnect should go, if it says: the pin is updated, and the next dial takes it.
+        var generation = Interlocked.Increment(ref _movingGeneration);
         if (Interlocked.CompareExchange(ref _handoffInFlight, 1, 0) != 0)
         {
-            if (successor is not null) SetHandoffTarget(successor, budget);
+            if (successor is not null) SetHandoffTarget(successor, budget, generation);
             Multiplexer.Trace(successor is null ? "MOVING: a handoff is already in flight" : "MOVING: a handoff is already in flight; successor noted", ToString());
             return;
         }
         var current = connection.TryGetRemoteEndPoint(); // null if the socket is gone or not connected: nothing to compare against
 
-        _ = HandoffAsync(budget, successor, current);
+        _ = HandoffAsync(budget, successor, current, generation);
     }
 
-    private async Task HandoffAsync(TimeSpan window, EndPoint? successor, IPEndPoint? currentEndPoint)
+    private async Task HandoffAsync(TimeSpan window, EndPoint? successor, IPEndPoint? currentEndPoint, int generation)
     {
         var watch = ValueStopwatch.StartNew();
         var replaced = false;
@@ -489,7 +510,7 @@ internal sealed partial class ServerEndPoint
                 case HandoffAction.Recycle:
                     // DNS has moved to a new address, so a reconnect reporting the old one is back on the retiring
                     // node; a pin left by an earlier handoff is stale now and must not dial it
-                    ClearHandoffTarget();
+                    ClearHandoffTarget(generation);
                     await DrainThenRecycleAsync(remaining, decision.Reason, successor: null, replacementAddressSeen: true, currentEndPoint).ForAwait();
                     replaced = true;
                     break;
@@ -499,7 +520,7 @@ internal sealed partial class ServerEndPoint
                     var half = TimeSpan.FromTicks(window.Ticks / 2) - jitter;
                     if (half > TimeSpan.Zero) await Task.Delay(half).ForAwait();
                     // nothing to re-resolve, or nothing known to compare against: no second address has been seen
-                    ClearHandoffTarget();
+                    ClearHandoffTarget(generation);
                     await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason, successor: null, replacementAddressSeen: false, currentEndPoint).ForAwait();
                     replaced = true;
                     break;
@@ -508,7 +529,7 @@ internal sealed partial class ServerEndPoint
                     // this only re-read the topology and recycled, which measurably did not work: we recycled
                     // at +6.2s, landed back on the node being retired because DNS had not moved yet, and were
                     // closed at +21.6s anyway - exactly the outcome the handoff exists to avoid.
-                    SetHandoffTarget(target, remaining);
+                    SetHandoffTarget(target, remaining, generation);
                     // A successor at the very address being retired - a proxy restarted in place - means the address
                     // identifies nothing for this handoff: every connection, doomed or replacement, reports it. The
                     // pin-dialled test then governs, and after that only time.
@@ -647,9 +668,11 @@ internal sealed partial class ServerEndPoint
     private async Task DrainThenRecycleAsync(TimeSpan budget, string reason, EndPoint? successor, bool replacementAddressSeen, IPEndPoint? retiringEndPoint)
     {
         var watch = ValueStopwatch.StartNew();
-        // With less than the floor left of the window there is no hold worth having: the server is about to close
+        // With less than the floor left of the window there is no drain worth having: the server is about to close
         // the socket regardless, so the connections are replaced at once (still under the lock) and the replacement
-        // gets what little time remains. Otherwise the hold lasts up to the cap.
+        // gets what little time remains. The hold still begins, because the retire is built on it - the target, the
+        // requeue of a writer that reaches the lock late, the cover for what the reconnect carries - but it lasts
+        // only the instant of the replacement. Otherwise the hold lasts up to the cap.
         var cap = budget < DrainFloor ? TimeSpan.Zero : DrainCap(budget);
 
         // The held work, and any blocking command being waited for, must not be timed out by the hold itself, nor

@@ -1662,21 +1662,20 @@ namespace StackExchange.Redis
         /// lost.
         /// <para>
         /// Internal traffic (keep-alives, probes) is not held: a stale probe has nothing to gain from lingering to the
-        /// handoff's deadline, and it is never diverted in the first place. An internal message behind held heads is
-        /// at worst reported late, which costs nothing.
+        /// handoff's deadline, and it is never diverted on its own. An internal message behind held heads is at worst
+        /// reported late, which costs nothing. The exception is an internal member of a held batch, which the batch
+        /// helper stamps itself: the batch is held as a unit, and the sweep must not fail one member of it.
+        /// </para>
+        /// <para>
+        /// A message diverted by the hold whose handoff has gone by the time it is enqueued is ordinary work: it is
+        /// flushed with the rest, and a stamp from a finished handoff would mark it held with no cover behind it.
         /// </para>
         /// </summary>
-        /// <param name="message">The message to queue.</param>
-        /// <param name="diverted">The message was diverted by a handoff's hold (or requeued after the retire): held
-        /// whatever the phase is by now, since a hold that resolved between the gate and the enqueue does not make it
-        /// ordinary work.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void BacklogEnqueue(Message message, bool diverted = false)
+        private void BacklogEnqueue(Message message)
         {
             // the same handoff decides the gate and the stamp: a message gated on one handoff must not carry the
             // deadline of the one before it (a diverted message after the hold resolved takes the last handoff's)
-            // A diverted message whose hold has gone by the time it is enqueued is ordinary work: it is flushed with the
-            // rest, and a stamp from a finished handoff would mark it held with no cover behind it.
             var live = TryGetHandoff(out var handoff);
             var holdable = !message.IsInternalCall;
             if (live && holdable) message.MarkHeldForHandoff(handoff!.Deadline.Ticks); // live: TryGetHandoff said so
@@ -1745,17 +1744,23 @@ namespace StackExchange.Redis
         {
             if (requeue) message.SetRequeued();
             else message.SetEnqueued(null);
-            BacklogEnqueue(message, diverted: true);
+            BacklogEnqueue(message);
             WakeIfHoldReleased();
         }
 
-        /// <summary>A batch held as a unit: every member queued, then one fence and one check for the batch.</summary>
+        /// <summary>
+        /// A batch held as a unit: every member queued, then one fence and one check for the batch. An internal member
+        /// rides along with the rest (see <see cref="ShouldHoldBatch"/>), so it is covered with the rest: left to the
+        /// ordinary timeout it would be failed by the sweep while the batch waits, rather than merely reported late.
+        /// </summary>
         private void EnqueueHeldBatchAndWakeIfReleased(List<Message> messages)
         {
+            var cover = TryGetHandoff(out var handoff) ? handoff.Deadline.Ticks : 0;
             foreach (var message in messages)
             {
                 message.SetEnqueued(null);
-                BacklogEnqueue(message, diverted: true);
+                if (message.IsInternalCall) message.MarkHeldForHandoff(cover); // zero (no live handoff) covers nothing
+                BacklogEnqueue(message);
             }
             WakeIfHoldReleased();
         }
