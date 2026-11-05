@@ -173,9 +173,25 @@ namespace StackExchange.Redis
         private sealed class Handoff
         {
             private int _phase; // HandoffPhase
+            private PhysicalConnection? _target;
 
             /// <summary>The connection the hold began on, or a reconnect adopted in its place; null if the bridge had none.</summary>
-            public volatile PhysicalConnection? Target;
+            public PhysicalConnection? Target => Volatile.Read(ref _target);
+
+            /// <summary>
+            /// Adopts a reconnect that landed back on the node being retired as the target, once: of two callers that
+            /// see the same doomed connection (its establishment and a heartbeat, say) one adopts and retires it.
+            /// </summary>
+            public bool TryAdopt(PhysicalConnection doomed)
+            {
+                var previous = Volatile.Read(ref _target);
+                if (ReferenceEquals(previous, doomed) || Interlocked.CompareExchange(ref _target, doomed, previous) != previous) return false;
+                doomed.MarkHandoffTarget();
+                return true;
+            }
+
+            /// <summary>The successor this handoff pinned reconnection to, if the server named one; a connection dialled through it is the replacement.</summary>
+            public readonly System.Net.EndPoint? Successor;
 
             /// <summary>Whether this handoff retired a connection (rather than finding it gone).</summary>
             public volatile bool Retired;
@@ -193,10 +209,11 @@ namespace StackExchange.Redis
             /// </summary>
             public readonly bool AddressIdentifiesNode;
 
-            public Handoff(PhysicalConnection? target, System.Net.IPEndPoint? retiringEndPoint, bool addressIdentifiesNode)
+            public Handoff(PhysicalConnection? target, System.Net.IPEndPoint? retiringEndPoint, System.Net.EndPoint? successor, bool addressIdentifiesNode)
             {
-                Target = target;
+                _target = target;
                 RetiringEndPoint = retiringEndPoint;
+                Successor = successor;
                 AddressIdentifiesNode = addressIdentifiesNode;
             }
 
@@ -285,33 +302,35 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Classifies a connection against a handoff. The connection's own facts come first (rule c): the target, or a
-        /// reconnect adopted as one, is doomed whatever else is true of it; a connection made under the successor pin
-        /// went where the server said, which is not the node being retired. Then the address: where the remote address
-        /// identifies the node, landing back on the retiring address is doomed and anywhere else is the replacement,
-        /// with an unreadable address meaning unknown. Where it identifies nothing (a tunnel, a fixed front address)
+        /// Classifies a connection against a handoff, from the connection's own facts (rule c), doomed dominating. The
+        /// target, or a reconnect adopted as one, is doomed whatever else is true of it. Where the remote address
+        /// identifies the node and could be read, it decides: back on the retiring address is doomed - including a
+        /// connection dialled through a stale pin that still named that node - and anywhere else is the replacement.
+        /// Otherwise a connection dialled through <em>this</em> handoff's successor pin went where the server said,
+        /// which is not the node being retired. Where the address identifies nothing (a tunnel, a fixed front address)
         /// only time tells: while the target is still being drained a different current connection cannot be judged;
-        /// once the target is gone, nothing else will arrive, so what is current is the replacement.
+        /// once the target is gone, nothing else will arrive, so what is current is the replacement. What is left is
+        /// an address that could not be read yet, which is unknown and defers to a later pass (rule b) - unless there
+        /// is nothing to compare it against anyway, in which case the connection is taken at its word rather than
+        /// held to the deadline with nothing ever able to judge it.
         /// </summary>
         private static Replacement Classify(Handoff handoff, PhysicalConnection connection)
         {
             if (connection.WasHandoffTarget) return Replacement.Doomed;
-            if (connection.ConnectedViaHandoffTarget) return Replacement.Yes;
+            var retiring = handoff.RetiringEndPoint;
+            if (handoff.AddressIdentifiesNode && retiring is not null && connection.TryGetRemoteEndPoint() is { } landedOn)
+            {
+                return landedOn.Equals(retiring) ? Replacement.Doomed : Replacement.Yes;
+            }
+            if (connection.HandoffTargetDialed is { } dialed && handoff.Successor is { } successor && dialed.Equals(successor))
+            {
+                return Replacement.Yes;
+            }
             if (!handoff.AddressIdentifiesNode)
             {
                 return handoff.Phase == HandoffPhase.Holding ? Replacement.Unknown : Replacement.Yes;
             }
-            var retiring = handoff.RetiringEndPoint;
-            if (retiring is null)
-            {
-                // nothing to compare against: the connection that was told had no readable address. Deferring would
-                // hold traffic until the deadline with nothing ever able to classify, so the replacement is taken at
-                // its word
-                return Replacement.Yes;
-            }
-            var landedOn = connection.TryGetRemoteEndPoint();
-            if (landedOn is null) return Replacement.Unknown;
-            return landedOn.Equals(retiring) ? Replacement.Doomed : Replacement.Yes;
+            return retiring is null ? Replacement.Yes : Replacement.Unknown;
         }
 
         /// <summary>Whether the backlog still holds work a handoff diverted; the protection stands until it has been written (rule a).</summary>
@@ -351,36 +370,79 @@ namespace StackExchange.Redis
         /// cover on the held commands - if no bona fide replacement establishes and flushes first.</param>
         /// <param name="retiringEndPoint">The address and port of the node being retired, as seen from the connection
         /// that was told, if known; see <see cref="Classify"/>.</param>
+        /// <param name="successor">The successor the server named and reconnection is pinned to, if any.</param>
         /// <param name="addressIdentifiesNode">Whether a socket's remote address identifies the node it reached; see
         /// <see cref="Handoff.AddressIdentifiesNode"/>.</param>
-        internal void BeginHold(TimeSpan protection, System.Net.IPEndPoint? retiringEndPoint, bool addressIdentifiesNode)
+        internal void BeginHold(TimeSpan protection, System.Net.IPEndPoint? retiringEndPoint, System.Net.EndPoint? successor, bool addressIdentifiesNode)
         {
             var target = physical;
             target?.MarkHandoffTarget();
+            // An earlier handoff still flushing is finished here, explicitly: its replacement is the connection this
+            // one retires, so its flush cannot complete, and its held work - which belongs to the bridge's backlog,
+            // not to a handoff - keeps its stamped cover and is flushed with this handoff's. Nothing is left mid-phase.
+            _handoff?.Finish();
             // the deadline before the phase: a reader that sees the new handoff must also see a live deadline, or it
             // would end it on the spot. Extended, never reset: an earlier handoff's held work may still be queued.
             _handoffDeadline.TryExtendBy(protection, out _);
-            _handoff = new Handoff(target, retiringEndPoint, addressIdentifiesNode);
+            _handoff = new Handoff(target, retiringEndPoint, successor, addressIdentifiesNode);
         }
 
         /// <summary>
         /// The drain loop has ended, whatever it achieved. A target it could not retire (the lock never came) is left
-        /// to the server's close, and the hold stays until a replacement is current; a replacement that established
+        /// to the server's close, and the hold stays until a replacement is current; a connection that established
         /// while the drain was still judging the target is judged again now that the target is gone.
         /// </summary>
         internal void EndDrain()
         {
             if (!TryGetHandoff(out var handoff)) return;
             handoff.TryAdvance(HandoffPhase.Holding, HandoffPhase.AwaitingReplacement);
-            ResolveIfReplacementCurrent(handoff);
+            ReevaluateHandoff();
         }
 
-        /// <summary>Resolves the hold if the current connection is an established bona fide replacement.</summary>
-        private void ResolveIfReplacementCurrent(Handoff handoff)
+        /// <summary>
+        /// Judges the current connection against the handoff in progress, if it is established. Run at establishment,
+        /// when the drain loop ends, and from every heartbeat: the drain loop and the establishment callback each see
+        /// one instant, and a phase must not be wedged by what that instant happened to miss - a poll landing in the
+        /// gap between a disconnect and the reconnect, or an address that could not be read at the moment of
+        /// establishment (rule b: unknown defers to a later pass, and the heartbeat is that pass).
+        /// </summary>
+        private void ReevaluateHandoff()
         {
-            if (physical is { EverFullyEstablished: true } current && Classify(handoff, current) == Replacement.Yes)
+            if (!TryGetHandoff(out var handoff) || handoff.Phase is HandoffPhase.Flushing or HandoffPhase.Done) return;
+            if (physical is { EverFullyEstablished: true } current) Judge(handoff, current);
+        }
+
+        /// <summary>
+        /// An established connection, judged: a bona fide replacement resolves the hold; a reconnect that landed back
+        /// on the node being retired, once the target is gone, is adopted and retired in its turn, as the drain loop
+        /// would have retired it. The retire takes the write lock, so it runs apart from the caller (an establishment
+        /// callback, or the heartbeat); while the target is still being drained, the drain loop owns the judgement.
+        /// </summary>
+        private void Judge(Handoff handoff, PhysicalConnection connection)
+        {
+            switch (Classify(handoff, connection))
             {
-                OnReplacementEstablished(handoff);
+                case Replacement.Yes:
+                    OnReplacementEstablished(handoff);
+                    break;
+                case Replacement.Doomed when handoff.Phase == HandoffPhase.AwaitingReplacement && !ReferenceEquals(connection, handoff.Target):
+                    // force: nothing a caller is waiting on can be in flight on it - the hold has diverted caller work
+                    // since before it was connected - and a pass that waited for one would have no second pass
+                    if (handoff.TryAdopt(connection)) _ = RetireAdoptedAsync();
+                    break;
+            }
+        }
+
+        private async Task RetireAdoptedAsync()
+        {
+            try
+            {
+                using var lockDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+                await TryRetireTargetAsync(force: true, "reconnected to the node being retired", lockDeadline.Token).ForAwait();
+            }
+            catch (Exception ex)
+            {
+                OnInternalError(ex);
             }
         }
 
@@ -520,13 +582,15 @@ namespace StackExchange.Redis
                             // never branded a target; the next pass looks again, and the drain's deadline bounds this
                             return null;
                         default:
-                            // back on the node being retired: what is current now is what the handoff replaces
-                            current.MarkHandoffTarget();
-                            handoff.Target = current;
+                            // back on the node being retired: what is current now is what the handoff replaces -
+                            // unless its establishment or a heartbeat adopted it first, in which case that retire is
+                            // under way and the next pass sees its result
+                            if (!handoff.TryAdopt(current)) return null;
                             toRetire = current;
                             break;
                     }
                 }
+                if (toRetire.RetiredForHandoff) return handoff.Retired; // already retired by another path; its teardown follows that path's lock release
                 if (!force && toRetire.HasCallerMessagesAwaitingResponse()) return null;
 
                 // Under the lock only the marking: from here no writer that takes the lock writes to the connection (see
@@ -1049,8 +1113,9 @@ namespace StackExchange.Redis
                 LastException = null;
                 // only a bona fide replacement establishing ends the hold for this bridge - not the very connection
                 // the hold is draining completing a handshake it was in the middle of when the hold began, and not a
-                // reconnect that landed back on the node being retired (rule c: the connection's own facts decide)
-                if (TryGetHandoff(out var handoff) && Classify(handoff, connection) == Replacement.Yes) OnReplacementEstablished(handoff);
+                // reconnect that landed back on the node being retired, which is retired in its turn (rule c: the
+                // connection's own facts decide)
+                if (TryGetHandoff(out var handoff)) Judge(handoff, connection);
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection, source);
 
@@ -1090,6 +1155,9 @@ namespace StackExchange.Redis
                     // or B: Process the backlog and send those messages through the pipe
                     StartBacklogProcessor();
                 }
+
+                // a handoff in progress is judged again on every beat, so that no phase is wedged by one missed instant
+                ReevaluateHandoff();
 
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
                 if (!runThisTime) return;
@@ -1490,10 +1558,14 @@ namespace StackExchange.Redis
         /// The one place a message enters the backlog, and so the one place the hold's cover is applied: whatever
         /// enters during a handoff is held - diverted off the live connection, queued while the bridge reconnects to
         /// the replacement, or parked behind held work being flushed - and gets the same cover, to the same deadline.
-        /// The shared deadline is also what keeps the timeout sweeps' head-of-line rule sound: a message enqueued
-        /// later never times out before one enqueued earlier, because an earlier held message expires at the same
-        /// deadline or sooner, and an ordinary message can only be enqueued after the handoff is done, which is when
-        /// nothing held is left or that deadline has passed.
+        /// The shared deadline also keeps the timeout sweeps' head-of-line rule sound for everything enqueued fresh: a
+        /// message enqueued later does not time out before one enqueued earlier, because an earlier held message
+        /// expires at the same deadline or sooner, and an ordinary message can only be enqueued after the handoff is
+        /// done, which is when nothing held is left or that deadline has passed. The one exception is a message
+        /// requeued by a writer that reached the lock after the retire: it keeps its older write time (the budget it
+        /// spent counts) behind heads with newer ones, so where its own timeout rather than the shared deadline is the
+        /// later of the two it can be reported late - by at most the heads' remaining budget - never early, and never
+        /// lost.
         /// </summary>
         /// <param name="message">The message to queue.</param>
         /// <param name="diverted">The message was diverted by a handoff's hold (or requeued after the retire): held

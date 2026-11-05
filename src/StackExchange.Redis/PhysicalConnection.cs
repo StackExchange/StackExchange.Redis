@@ -316,7 +316,7 @@ namespace StackExchange.Redis
             {
                 Trace($"handoff: connecting to {Format.ToString(handoffTarget)} in place of {Format.ToString(endpoint)}");
                 connectTo = handoffTarget;
-                _connectedViaHandoffTarget = true;
+                _handoffTargetDialed = handoffTarget;
             }
             if (tunnel is not null)
             {
@@ -989,7 +989,8 @@ namespace StackExchange.Redis
 
         // volatile: each is written on one thread and read on others as part of the handoff's identity test, in the
         // very races that test exists for; a plain field could be read stale exactly then
-        private volatile bool _retiredForHandoff, _wasHandoffTarget, _everFullyEstablished, _connectedViaHandoffTarget;
+        private volatile bool _retiredForHandoff, _wasHandoffTarget, _everFullyEstablished;
+        private volatile System.Net.EndPoint? _handoffTargetDialed;
 
         /// <summary>
         /// Whether this connection was ever the one a maintenance handoff held work back from. A durable fact about the
@@ -1002,12 +1003,14 @@ namespace StackExchange.Redis
         internal void MarkHandoffTarget() => _wasHandoffTarget = true;
 
         /// <summary>
-        /// Whether this connection was made to the successor a <c>MOVING</c> named (see
-        /// <see cref="ServerEndPoint.HandoffTarget"/>) rather than to the endpoint as resolved: recorded as the socket
-        /// is pointed there, so a handoff judging the connection later does not have to infer it from whether the pin
-        /// is still in force. Such a connection is where the server said to go, which is not the node being retired.
+        /// The successor a <c>MOVING</c> named (see <see cref="ServerEndPoint.HandoffTarget"/>) that this connection was
+        /// dialled to, in place of the endpoint as resolved; null if it was dialled to the endpoint. Recorded as the
+        /// socket is pointed there, so a handoff judging the connection later does not have to infer it from whether
+        /// the pin is still in force - and recorded as the address rather than a flag, so that the judgement can be
+        /// scoped to the handoff whose successor it is: a connection dialled through an earlier handoff's pin is not
+        /// thereby the replacement for a later one.
         /// </summary>
-        internal bool ConnectedViaHandoffTarget => _connectedViaHandoffTarget;
+        internal System.Net.EndPoint? HandoffTargetDialed => _handoffTargetDialed;
 
         /// <summary>
         /// The socket's remote address and port, or <c>null</c> if the socket is not connected yet, is already gone, or

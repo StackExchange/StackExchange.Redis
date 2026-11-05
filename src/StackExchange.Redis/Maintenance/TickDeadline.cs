@@ -11,8 +11,8 @@ namespace StackExchange.Redis.Maintenance;
 /// deadline that is already later. A deadline that has merely passed is kept, readable through <see cref="Ticks"/>,
 /// so it also records <em>when</em> it passed: fault attribution asks how recently the relaxed window closed, and a
 /// held command's cover is stamped from the handoff deadline whether or not the handoff is still running. Used for
-/// the relaxed-timeout window, the successor pin and the per-bridge handoff deadline, which all had their own copies
-/// of this before.
+/// the relaxed-timeout window, the successor pin, the per-bridge handoff deadline and each held message's cover, which
+/// all had their own copies of this before.
 /// </summary>
 internal struct TickDeadline
 {
@@ -50,19 +50,28 @@ internal struct TickDeadline
     public bool TryExtendBy(TimeSpan span, out int deadline)
     {
         var candidate = NudgeFromZero(unchecked(Environment.TickCount + Clamp(span)));
+        if (ExtendTo(candidate))
+        {
+            deadline = candidate;
+            return true;
+        }
+        deadline = Volatile.Read(ref _ticks);
+        return false;
+    }
+
+    /// <summary>
+    /// Moves the deadline out to <paramref name="ticks"/> (a tick count, as <see cref="Ticks"/> reads) unless it is
+    /// already later than that; zero means "no deadline" and extends nothing.
+    /// </summary>
+    /// <returns>Whether this call extended it.</returns>
+    public bool ExtendTo(int ticks)
+    {
+        if (ticks == 0) return false;
         while (true)
         {
             var current = Volatile.Read(ref _ticks);
-            if (current != 0 && unchecked(candidate - current) <= 0)
-            {
-                deadline = current;
-                return false;
-            }
-            if (Interlocked.CompareExchange(ref _ticks, candidate, current) == current)
-            {
-                deadline = candidate;
-                return true;
-            }
+            if (current != 0 && unchecked(ticks - current) <= 0) return false;
+            if (Interlocked.CompareExchange(ref _ticks, ticks, current) == current) return true;
         }
     }
 

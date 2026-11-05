@@ -912,28 +912,19 @@ namespace StackExchange.Redis
         /// timeout cover applies to it (and only to it: an ordinary command on the same server keeps its configured
         /// timeout) for as long as it lives, including after it has been written to the replacement.
         /// </summary>
-        internal bool HeldForHandoff => Volatile.Read(ref _holdCoverDeadlineTicks) != 0;
+        internal bool HeldForHandoff => _holdCover.Ticks != 0;
 
         /// <summary>
         /// The handoff's deadline, in <see cref="Environment.TickCount"/> terms, until which this message cannot time
         /// out: the cover is a property of the message, stamped when it is held, so nothing that happens to the handoff
         /// afterwards can withdraw it. Zero if the message was never held.
         /// </summary>
-        internal int HoldCoverDeadlineTicks => Volatile.Read(ref _holdCoverDeadlineTicks);
+        internal int HoldCoverDeadlineTicks => _holdCover.Ticks;
 
-        /// <summary>Holds the message for a handoff, covered until <paramref name="deadlineTicks"/>; a later deadline replaces an earlier one, never the reverse.</summary>
-        internal void MarkHeldForHandoff(int deadlineTicks)
-        {
-            if (deadlineTicks == 0) return; // no deadline to cover it until: a hold that was over before the enqueue completed
-            while (true)
-            {
-                var current = Volatile.Read(ref _holdCoverDeadlineTicks);
-                if (current != 0 && unchecked(deadlineTicks - current) <= 0) return;
-                if (Interlocked.CompareExchange(ref _holdCoverDeadlineTicks, deadlineTicks, current) == current) return;
-            }
-        }
+        /// <summary>Holds the message for a handoff, covered until <paramref name="deadlineTicks"/>; a later deadline replaces an earlier one, never the reverse (and zero, no deadline, covers nothing).</summary>
+        internal void MarkHeldForHandoff(int deadlineTicks) => _holdCover.ExtendTo(deadlineTicks);
 
-        private int _holdCoverDeadlineTicks;
+        private Maintenance.TickDeadline _holdCover;
 
         private int _writeTickCount;
 
