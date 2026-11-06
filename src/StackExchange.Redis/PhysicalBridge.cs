@@ -1576,9 +1576,11 @@ namespace StackExchange.Redis
             // The total is counted after the enqueue, deliberately: an interlocked increment is a full fence, and the
             // re-read below needs one after the enqueue's store. Enqueue, fence, re-read: a hold that began between
             // the read above and the enqueue has walked the queue without this message, or is about to walk it with
-            // it; either way it ends up stamped. A bridge that has never seen a handoff pays one null read for this.
+            // it; either way it ends up stamped - with the later handoff's deadline if the two differ, since the stamp
+            // only ever extends and a same-handoff double stamp is a no-op. A bridge that has never seen a handoff
+            // pays one null read for this.
             Interlocked.Increment(ref _backlogTotalEnqueued);
-            if (holdable && !live && _handoff is not null && TryGetHandoff(out var late)) message.MarkHeldForHandoff(late.Deadline.Ticks);
+            if (holdable && _handoff is not null && TryGetHandoff(out var late)) message.MarkHeldForHandoff(late.Deadline.Ticks);
 
             if (wasEmpty)
             {
