@@ -328,6 +328,11 @@ namespace StackExchange.Redis
         /// </summary>
         public bool StringBitPositions => Version.IsAtLeast(v8_12_0);
 
+        /// <summary>
+        /// Is set-member expiration (<c>SADDEX</c>, <c>SEXPIRE</c>, <c>SPTTL</c>, <c>SPERSIST</c>, ...) available?
+        /// </summary>
+        public bool SetMemberExpiry => Version.IsAtLeast(v8_12_0);
+
 #pragma warning restore 1629 // Documentation text should end with a period.
 
         /// <summary>

@@ -158,5 +158,7 @@ public enum KeyNotificationType
     TypeChanged = 1004,
     [AsciiHash("keymiss")] // class m; excluded from the "A" alias, so only seen when requested explicitly
     KeyMiss = 1005,
+    [AsciiHash("sexpired")] // a set member lapsed (8.12 set-member expiration); on the subkey channels the payload names the member
+    SExpired = 1006,
 #pragma warning restore CS1591 // docs, redundant
 }
