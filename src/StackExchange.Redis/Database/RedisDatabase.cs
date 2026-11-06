@@ -26,8 +26,8 @@ namespace StackExchange.Redis
     /// <b>Losing it is an improvement, not a regression.</b> A command added to the interface used to
     /// produce a generated throw and a warning; now it does not compile until it is implemented, which is
     /// the same guarantee <c>RedisDatabase</c> has always had and a better one than a tripwire. The
-    /// generator itself stays - <c>RetryDatabase</c> and <c>MultiGroupDatabase</c> are capture-and-replay
-    /// wrappers, which is what it is really for.
+    /// generator itself stays - <c>RetryTransaction</c> is a capture-and-replay
+    /// wrapper, which is what it is really for.
     /// </para>
     /// <para>
     /// <b>There is no fallback.</b> This once forwarded anything not yet moved to the v3 <c>RedisDatabase</c>, and
@@ -90,13 +90,24 @@ namespace StackExchange.Redis
         // Found by trying the GetDatabase swap: nothing failed, which is exactly the problem.
 
         /// <inheritdoc/>
-        /// <remarks>The cluster flag is read from the context, which is where this surface keeps that fact.</remarks>
-        DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name)
+        DatabaseFeatureFlags IInternalDatabaseAsync.GetFeatures(out string name) => GetFeaturesCore(out name);
+
+        /// <summary>The features and diagnostic name this database reports.</summary>
+        /// <remarks>
+        /// The cluster flag is read from the context, which is where this surface keeps that fact; the
+        /// retry flag from the executor, because a retrying database IS this type over a retrying chain.
+        /// Virtual so a database with more to say - <c>MultiGroupDatabase</c>, which folds in the active
+        /// member's features and reports its name - can say it without re-implementing the interface.
+        /// </remarks>
+        private protected virtual DatabaseFeatureFlags GetFeaturesCore(out string name)
         {
             name = multiplexer?.ClientName ?? "";
-            return (_inner.Raw.ServerType == ServerType.Cluster
+            var features = _inner.Raw.ServerType == ServerType.Cluster
                 ? DatabaseFeatureFlags.Cluster
-                : DatabaseFeatureFlags.None) | OwnFeatures;
+                : DatabaseFeatureFlags.None;
+            if (_inner.Raw.Executor is Availability.RespRetryExecutor) features |= DatabaseFeatureFlags.Retry;
+            if (!_inner.Raw.KeyPrefixSpan.IsEmpty) features |= DatabaseFeatureFlags.KeyPrefix;
+            return features | OwnFeatures;
         }
 
         /// <summary>What THIS wrapper is, as opposed to what the connection underneath can do.</summary>
@@ -111,10 +122,12 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         /// <remarks>
-        /// This surface has no failover notion of its own; the databases that do - <c>RetryDatabase</c>,
-        /// <c>MultiGroupDatabase</c> - sit above it and hand their own token down.
+        /// Answered by the executor chain, which is where a failover notion lives when there is one
+        /// (<c>RespGroupExecutor</c>, read through <c>GetFailoverSource</c>). Fetched per call, never
+        /// captured: the token is replaced each time a failover happens, which is how it signals.
         /// </remarks>
-        CancellationToken IInternalDatabaseAsync.GetNextFailover() => CancellationToken.None;
+        CancellationToken IInternalDatabaseAsync.GetNextFailover()
+            => _inner.Raw.Executor?.GetFailoverSource()?.Invoke() ?? CancellationToken.None;
 
         // The [AutoDatabase] funnels used to be here - four of them, the landing place for every member
         // this class did not implement. They are gone with the attribute: there is no longer a member that
@@ -209,6 +222,24 @@ namespace StackExchange.Redis
         public ITransaction CreateTransaction(object? asyncState = null)
         {
             if (this is IBatch) throw new NotSupportedException("Nested transactions are not supported");
+
+            // A retrying database replays a transaction AS A UNIT - conditions, queued commands and EXEC
+            // together - which the per-frame retry executor cannot express; that is RetryTransaction's
+            // job. It records against a plain view over the executor underneath the retry link, building
+            // a fresh inner transaction per attempt, and the durable proxy tasks it hands out cannot
+            // carry an asyncState - so one is refused rather than silently dropped.
+            if (_inner.Raw.Executor is Availability.RespRetryExecutor retry)
+            {
+                if ((asyncState ?? AsyncState) is not null)
+                {
+                    throw new InvalidOperationException(
+                        "Retrying transactions do not support asyncState; the tasks they hand back are not the tasks that were sent to the server.");
+                }
+
+                var plain = new RedisDatabase(new RespDatabaseContext(_inner.Raw.WithExecutor(retry.Inner)), multiplexer, null);
+                return new Availability.RetryTransaction(plain, retry.Controller);
+            }
+
             // CanWriteTransactions, not CanWriteRuns: an executor can write a batch without being able to
             // hold a connection across MULTI/EXEC, and the old Message shim was exactly that
             return _inner.Raw.Executor is { CanWriteTransactions: true }
@@ -224,9 +255,17 @@ namespace StackExchange.Redis
         /// sent - the question is what routing <i>would</i> do with this key, which is the one thing the
         /// context cannot answer for itself. An executor with no routing says yes; see
         /// <c>RespExecutorBase.IsConnected</c>.
+        /// <para>
+        /// The key is prefixed first, here and in the other routing questions: a send renders the prefix
+        /// into the frame, but these take the key out of band, and in a cluster the prefixed bytes are
+        /// what pick the node.
+        /// </para>
         /// </remarks>
         public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Router.IsConnected(in key, flags);
+        {
+            key = _inner.Raw.PrefixKey(in key);
+            return Router.IsConnected(in key, flags);
+        }
 
         /// <summary>
         /// <see cref="IsConnected"/> with the detail a boolean cannot carry; internal while the shape settles.
@@ -234,19 +273,22 @@ namespace StackExchange.Redis
         /// <param name="key">The key whose routing is being asked about; null means "anywhere".</param>
         /// <param name="flags">The flags that would be used; they decide primary versus replica, and so which endpoint is being asked about.</param>
         internal RespConnectionState GetConnectionState(RedisKey key, CommandFlags flags = CommandFlags.None)
-            => Router.GetConnectionState(in key, flags);
+        {
+            key = _inner.Raw.PrefixKey(in key);
+            return Router.GetConnectionState(in key, flags);
+        }
 
         internal string RouterKindForTest => Router.GetType().Name;
 
         /// <inheritdoc/>
         /// <remarks>Off the fallback: the executor is the router, so it is the one that can answer.</remarks>
         public System.Net.EndPoint? IdentifyEndpoint(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-            => Wait(Router.IdentifyEndpointAsync(key, flags));
+            => Wait(Router.IdentifyEndpointAsync(_inner.Raw.PrefixKey(in key), flags));
 
         /// <inheritdoc/>
         /// <remarks>Off the fallback; see the synchronous twin.</remarks>
         public Task<System.Net.EndPoint?> IdentifyEndpointAsync(RedisKey key = default, CommandFlags flags = CommandFlags.None)
-            => Router.IdentifyEndpointAsync(key, flags).AsTask(AsyncState, flags);
+            => Router.IdentifyEndpointAsync(_inner.Raw.PrefixKey(in key), flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         /// <remarks><inheritdoc cref="PingAsync" path="/remarks"/></remarks>

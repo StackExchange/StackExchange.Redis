@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using RESPite;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.Availability;
 
@@ -18,8 +19,8 @@ public static class DatabaseExtensions
     /// SE.Redis concepts, so can respond to server failover events, apply circuit-breaker rules, and
     /// respect command effect categorization.
     /// </summary>
-    /// <param name="database">The database to wrap; this must not be a batch, a transaction, an
-    /// already-retrying database, or a database carrying an <c>asyncState</c> (see remarks).</param>
+    /// <param name="database">The database to make retrying; this must not be a batch, a transaction, or
+    /// an already-retrying database.</param>
     /// <param name="retryPolicy">
     /// The policy to apply; when <see langword="null"/> (the default), the policy configured for the
     /// underlying connection is used - <see cref="MultiGroupOptions.RetryPolicy"/> for a connection group,
@@ -27,18 +28,40 @@ public static class DatabaseExtensions
     /// <see cref="RetryPolicy.Default"/>.
     /// </param>
     /// <remarks>
-    /// <para><b>asyncState is not supported.</b> A database's <c>asyncState</c> is stamped onto the task
-    /// produced by a single dispatch, but a retrying database hands back its own task spanning however
-    /// many attempts the operation takes; the same is true of the per-operation tasks handed out by
-    /// <see cref="IDatabaseAsync.CreateTransaction(object?)"/> on such a database. Rather than dropping
-    /// the state silently, both refuse it: wrapping a database obtained via
-    /// <c>GetDatabase(db, asyncState)</c> throws, as does supplying an <c>asyncState</c> when creating a
-    /// transaction from a retrying database.</para>
+    /// <para>
+    /// <b>Retry is a link in the dispatch chain, not a wrapper on the database.</b> This re-dispatches
+    /// through the same executor decorator as <see cref="WithRetry(RespDatabaseContext, RetryPolicy?)"/>:
+    /// what is replayed is the rendered command, so everything the database carries - the key prefix, the
+    /// database index, an <c>asyncState</c>, the multi-group failover source - travels unchanged. It used
+    /// to build a capture-and-replay wrapper, which replayed <i>method calls</i> and therefore had to
+    /// refuse an <c>asyncState</c> it could not stamp; the re-dispatched form has no such limit.
+    /// </para>
+    /// <para>
+    /// <b>A database this cannot see inside is handed back unchanged.</b> An external
+    /// <see cref="IDatabaseAsync"/> implementation exposes no executor to decorate, and there is nothing
+    /// to capture any more - so rather than failing, such a database is returned as it came, without
+    /// retry.
+    /// </para>
     /// </remarks>
     /// <exception cref="System.InvalidOperationException">If <paramref name="database"/> is a batch, a
-    /// transaction, already retrying, or carries an <c>asyncState</c>.</exception>
+    /// transaction, or already retrying.</exception>
     public static IDatabaseAsync WithRetry(this IDatabaseAsync database, RetryPolicy? retryPolicy = null)
-        => new RetryDatabase(database, retryPolicy ?? ResolveRetryPolicy(database.Multiplexer));
+    {
+        if (database is null) throw new System.ArgumentNullException(nameof(database));
+
+        if (database.Context is not { Raw: { Executor: not null } raw })
+        {
+            // nothing to decorate: an external implementation, or a context with no executor; see remarks
+            return database;
+        }
+
+        // a batch or a transaction queues rather than dispatches, so there is nothing to retry yet; the
+        // context overload below refuses nesting, which is the third historical rejection
+        database.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
+
+        var context = new RespDatabaseContext(raw).WithRetry(retryPolicy);
+        return new RedisDatabase(context, database.Multiplexer, database.GetAsyncState());
+    }
 
     /// <summary>
     /// A context whose commands are retried when a transient fault says they can be.
@@ -75,18 +98,16 @@ public static class DatabaseExtensions
         var inner = raw.Executor ?? throw new System.InvalidOperationException(
             "This context has no executor, so there is nothing to retry through.");
 
-        // cannot nest retry, as RetryDatabase.Validate refuses to wrap a retrying database: two loops
-        // would multiply the attempt counts rather than sharing them
+        // cannot nest retry: two loops would multiply the attempt counts rather than sharing them
         if (inner is RespRetryExecutor)
         {
             throw new System.InvalidOperationException(
                 "This context is already retrying; a second policy would multiply the attempts rather than replace them.");
         }
 
-        // the failover source comes from the executor chain rather than from an IDatabaseAsync, which is
-        // what lets a retrying CONTEXT track failover at all: RetryDatabase could always hand its own
-        // GetNextFailover down, but a context built with WithRetry had nowhere to get one and so silently
-        // ran with the failover rungs unreachable. Fetched per use, never captured - see GetFailoverSource.
+        // the failover source comes from the executor chain rather than from an IDatabaseAsync: a
+        // multi-group chain offers one through GetFailoverSource, and anything else honestly has none.
+        // Fetched per use, never captured - see GetFailoverSource.
         return new RespDatabaseContext(
             raw.WithExecutor(new RespRetryExecutor(inner, retryPolicy ?? ResolveRetryPolicy(raw.Multiplexer), inner.GetFailoverSource())));
     }

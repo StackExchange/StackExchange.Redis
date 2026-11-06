@@ -187,7 +187,7 @@ public abstract class CircuitBreaker
             public override void Reset() { }
         }
 
-        // note we leave IsConnectionFault alone - that would impact RetryDatabase, where this is the key
+        // note we leave IsConnectionFault alone - that would impact RespRetryExecutor, where this is the key
     }
     private sealed class DefaultCircuitBreaker : CircuitBreaker
     {

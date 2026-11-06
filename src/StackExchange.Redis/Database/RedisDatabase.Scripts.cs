@@ -107,19 +107,52 @@ internal partial class RedisDatabase
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluate(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
-        => script.Evaluate(this, parameters, null, flags);
+        => script.Evaluate(ScriptTarget(out var prefix), parameters, prefix, flags);
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
-        => script.EvaluateAsync(this, parameters, null, flags);
+        => script.EvaluateAsync(ScriptTarget(out var prefix), parameters, prefix, flags);
 
     /// <inheritdoc/>
     public RedisResult ScriptEvaluate(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
-        => script.Evaluate(this, parameters, withKeyPrefix: null, flags);
+        => script.Evaluate(ScriptTarget(out var prefix), parameters, prefix, flags);
 
     /// <inheritdoc/>
     public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object? parameters = null, CommandFlags flags = CommandFlags.None)
-        => script.EvaluateAsync(this, parameters, withKeyPrefix: null, flags);
+        => script.EvaluateAsync(ScriptTarget(out var prefix), parameters, prefix, flags);
+
+    /// <summary>
+    /// Where a <see cref="LuaScript"/> evaluation should be sent from, and the key prefix its parameter
+    /// extraction must apply.
+    /// </summary>
+    /// <param name="keyPrefix">The context's composed key prefix, or null when there is none.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>The one place a key's bytes travel as a value.</b> A <c>@key</c> hole in the script text becomes
+    /// <c>ARGV[n]</c>, so the key's bytes go out in the ARGV list, where the render-time key prefix cannot
+    /// see them; only the KEYS declaration is <see cref="RedisKey"/>-typed. So the prefix has to be applied
+    /// where keys and arguments are extracted together - which is what <c>ExtractParameters</c>'s prefix
+    /// parameter is for, and what the old <c>KeyPrefixedDatabase</c> passed its prefix to.
+    /// </para>
+    /// <para>
+    /// The extraction then owns the WHOLE composition: the keys it hands back are already the bytes the
+    /// server must see, so the send goes through an unprefixed view of the same context, or render time
+    /// would prefix the KEYS declaration a second time while ARGV kept the single prefix - a mismatch the
+    /// server cannot flag, because both spell valid keys.
+    /// </para>
+    /// </remarks>
+    private IDatabase ScriptTarget(out RedisKey? keyPrefix)
+    {
+        var raw = _inner.Raw;
+        if (raw.KeyPrefixSpan.IsEmpty)
+        {
+            keyPrefix = null;
+            return this;
+        }
+
+        keyPrefix = raw.KeyPrefix;
+        return new RedisDatabase(new RespDatabaseContext(raw.WithoutKeyPrefix()), multiplexer, AsyncState);
+    }
 
     /// <summary>The low-allocation shipped shape, which travels the same uncached route.</summary>
     /// <remarks>

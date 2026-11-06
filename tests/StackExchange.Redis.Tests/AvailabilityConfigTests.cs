@@ -329,8 +329,9 @@ public class AvailabilityConfigTests
         config.AbortOnConnectFail = false;
 
         await using var muxer = await ConnectionMultiplexer.ConnectAsync(config);
-        var retrying = Assert.IsType<RetryDatabase>(muxer.GetDatabase().WithRetry());
-        Assert.Same(configured, retrying.Policy);
+        var retrying = muxer.GetDatabase().WithRetry();
+        var executor = Assert.IsType<RespRetryExecutor>(retrying.Context.Raw.Executor);
+        Assert.Same(configured, executor.Policy);
     }
 
     [Fact]
@@ -340,8 +341,9 @@ public class AvailabilityConfigTests
         config.AbortOnConnectFail = false;
 
         await using var muxer = await ConnectionMultiplexer.ConnectAsync(config);
-        var retrying = Assert.IsType<RetryDatabase>(muxer.GetDatabase().WithRetry());
-        Assert.Same(RetryPolicy.Default, retrying.Policy);
+        var retrying = muxer.GetDatabase().WithRetry();
+        var executor = Assert.IsType<RespRetryExecutor>(retrying.Context.Raw.Executor);
+        Assert.Same(RetryPolicy.Default, executor.Policy);
     }
 
     // ---- the context's multiplexer, and WithRetry() on a context ----

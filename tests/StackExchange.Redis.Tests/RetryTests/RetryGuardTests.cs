@@ -28,28 +28,34 @@ public class RetryGuardTests(ITestOutputHelper log) : TestBase(log)
         Assert.Throws<InvalidOperationException>(() => db.WithRetry(Policy()).WithRetry(Policy()));
     }
 
-    // A database's asyncState is stamped onto the task produced by a single dispatch. A retrying database
-    // hands back its own task spanning however many attempts it takes, so it cannot carry that state -
-    // and silently dropping it would be worse than refusing.
+    // A database's asyncState used to be REFUSED here: the capture-and-replay wrapper handed back its own
+    // tasks, spanning however many attempts an operation took, and those could not carry the state. The
+    // re-dispatched form returns the ordinary database's tasks - retry happens beneath the dispatch - so
+    // the state simply travels.
     [Fact]
-    public async Task WithRetry_RefusesAsyncState()
+    public async Task WithRetry_CarriesAsyncState()
     {
         using var server = new InProcessTestServer(Output);
         await using var conn = await server.ConnectAsync(log: Writer);
 
         object state = new();
-        var ex = Assert.Throws<InvalidOperationException>(() => conn.GetDatabase(0, state).WithRetry(Policy()));
-        Log(ex.Message);
+        var task = conn.GetDatabase(0, state).WithRetry(Policy()).PingAsync();
+        Assert.Same(state, task.AsyncState);
+        await task;
 
         // ...including via a key-prefixed view of such a database, which inherits the inner state
-        Assert.Throws<InvalidOperationException>(() => conn.GetDatabase(0, state).WithKeyPrefix("p:").WithRetry(Policy()));
+        task = conn.GetDatabase(0, state).WithKeyPrefix("p:").WithRetry(Policy()).PingAsync();
+        Assert.Same(state, task.AsyncState);
+        await task;
 
-        // and the same applies to a transaction created *from* a retrying database
+        // a transaction created *from* a retrying database still refuses one: it replays as a unit,
+        // handing out durable proxy tasks that are not the tasks sent to the server, so the state
+        // cannot be carried - and dropping it silently would be worse than refusing
         var retryDb = conn.GetDatabase().WithRetry(Policy());
-        Assert.Throws<InvalidOperationException>(() => retryDb.CreateTransaction(state));
+        var ex = Assert.Throws<InvalidOperationException>(() => retryDb.CreateTransaction(state));
+        Log(ex.Message);
 
         // no state: fine
-        Assert.NotNull(conn.GetDatabase().WithKeyPrefix("p:").WithRetry(Policy()));
         Assert.NotNull(retryDb.CreateTransaction());
     }
 

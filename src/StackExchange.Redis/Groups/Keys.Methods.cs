@@ -294,9 +294,20 @@ public static partial class Keys
     /// and the command names no key, so nothing could ever invalidate an entry for it. Either one alone
     /// would be enough.
     /// </remarks>
+    /// <exception cref="NotSupportedException">The context has a key prefix in force.</exception>
     public static ValueTask<RedisKey> RandomAsync(this RespKeys keys, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
-        => keys.Context.SendAsync<RedisKey>(
+    {
+        // RANDOMKEY samples the WHOLE keyspace: a prefixed context cannot restrict it to its own keys,
+        // and the result comes back un-prefixed, so there is no honest answer to give. The old
+        // KeyPrefixedDatabase refused this the same way.
+        if (!keys.Context.KeyPrefixSpan.IsEmpty)
+        {
+            throw new NotSupportedException("RANDOMKEY is not supported when a key prefix is in force: it samples the entire keyspace, not the prefixed one.");
+        }
+
+        return keys.Context.SendAsync<RedisKey>(
             $"{RedisCommand.RANDOMKEY}", flags.NeverCached(), cancellationToken: cancellationToken);
+    }
 
     /// <summary>TYPE.</summary>
     /// <param name="keys">The key command group.</param>

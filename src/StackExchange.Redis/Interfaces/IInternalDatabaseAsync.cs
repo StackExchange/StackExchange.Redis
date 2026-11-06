@@ -23,9 +23,9 @@ internal interface IInternalDatabaseAsync : IDatabaseAsync
     CancellationToken GetNextFailover();
 
     /// <summary>
-    /// The async-state that this database stamps onto the tasks it hands out, if any; wrappers that
-    /// cannot preserve it (see <c>RetryDatabase</c>) need to know when one is present rather than
-    /// dropping it silently.
+    /// The async-state that this database stamps onto the tasks it hands out, if any; anything that
+    /// rebuilds a database over the same context (see <c>WithRetry</c>) reads it here so the state
+    /// travels rather than being dropped silently.
     /// </summary>
     object? AsyncState { get; }
 }

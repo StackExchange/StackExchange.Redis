@@ -175,16 +175,14 @@ public class RedisDatabaseTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// There are two prefixing mechanisms now, and they overlap: <c>KeyPrefixedDatabase</c> wraps an
-    /// <see cref="IDatabase"/> and rewrites every <see cref="RedisKey"/> as it forwards, while
-    /// <see cref="RespContext"/> carries a prefix the frame writer applies. A caller who reaches the
-    /// context <i>through</i> a wrapper touches both, which is the shape a double prefix would take - and
-    /// a double prefix is silent: every read and write agrees with every other, against the wrong keys.
+    /// There is ONE prefixing mechanism - <see cref="RespContext"/> carries the prefix and the frame
+    /// writer applies it - and two surfaces that reach it: the shipped <see cref="IDatabase"/> and the
+    /// context surface underneath it. A double prefix is the silent failure shape: every read and write
+    /// agrees with every other, against the wrong keys.
     /// </para>
     /// <para>
-    /// They do compose correctly, and this pins why rather than merely that. The wrapper's context is its
-    /// <i>inner</i> context plus the prefix, not its own - so the prefix is contributed once, by whichever
-    /// mechanism is actually in the path, and never by both.
+    /// This pins that <c>WithKeyPrefix</c> contributes the prefix once, to the context, and that both
+    /// surfaces then see the same keyspace.
     /// </para>
     /// </remarks>
     [Fact]
