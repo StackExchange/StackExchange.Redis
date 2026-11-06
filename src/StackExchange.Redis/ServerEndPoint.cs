@@ -1084,14 +1084,11 @@ namespace StackExchange.Redis
             var last = Volatile.Read(ref _lastConnectFailureRefreshTicks);
             if (last != 0 && unchecked(now - last) < interval) return;
 
-            if (Interlocked.CompareExchange(ref _lastConnectFailureRefreshTicks, NudgeFromZeroTicks(now), last) != last) return;
+            if (Interlocked.CompareExchange(ref _lastConnectFailureRefreshTicks, Maintenance.TickDeadline.NudgeFromZero(now), last) != last) return;
 
             Multiplexer.Logger?.LogInformationRefreshingAfterConnectFailures(new(this), consecutiveFailures);
             Multiplexer.ReconfigureIfNeeded(EndPoint, fromBroadcast: false, $"{consecutiveFailures} consecutive connect failures");
         }
-
-        /// <summary>Zero means "never", so a tick count that lands on it moves by one.</summary>
-        private static int NudgeFromZeroTicks(int ticks) => ticks == 0 ? 1 : ticks;
 
         /// <summary>
         /// Subscribes to the configuration-change broadcast on a RESP3 interactive connection that is shared with
@@ -1125,9 +1122,6 @@ namespace StackExchange.Redis
                 {
                     // Clear the unselectable flag ASAP since we are open for business
                     ClearUnselectable(UnselectableFlags.DidNotRespond);
-
-                    // whatever a handoff pointed us at, we are connected now: resume normal resolution
-                    ClearHandoffTarget();
 
                     // is *this specific* connection using RESP3? (without reference to config preferences)
                     bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
@@ -1241,6 +1235,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
+                    ExpireHandoffTargetIfDue();
                     interactive?.OnHeartbeat(false);
                     subscription?.OnHeartbeat(false);
                 }

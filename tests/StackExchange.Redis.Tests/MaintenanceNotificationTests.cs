@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis.Maintenance;
@@ -26,13 +27,15 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     /// </summary>
     private static async Task<(InProcessTestServer Server, ConnectionMultiplexer Connection, EventCollector Events)> ConnectAsync(
         ITestOutputHelper log,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        Action<ConfigurationOptions>? configure = null)
     {
         var server = new InProcessTestServer(log);
         var config = server.GetClientConfig(defaultOnly: true);
         config.Protocol = RedisProtocol.Resp3;
         config.MaintenanceNotifications = MaintenanceNotificationMode.Enabled; // must be live, or the test is vacuous
         config.LoggerFactory = loggerFactory;
+        configure?.Invoke(config);
 
         var conn = await ConnectionMultiplexer.ConnectAsync(config);
         return (server, conn, new EventCollector(conn));
@@ -843,6 +846,324 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
     }
 
     [Fact]
+    public Task MovingUnderSteadyLoadRecyclesPromptlyAndFailsNothing() => SteadyLoadHandoffAsync(configure: null);
+
+    [Fact]
+    public Task MovingUnderSteadyLoadWithRelaxationDisabledStillDrains()
+        // a relaxed timeout of zero is the documented way to turn relaxation off; the drain cap is derived from it,
+        // and must keep a floor rather than recycle at once with commands still in flight
+        => SteadyLoadHandoffAsync(configure: c => c.MaintenanceRelaxedTimeout = TimeSpan.Zero);
+
+    [Fact]
+    public Task MovingUnderSteadyLoadWithShortTimeoutsAndRelaxationOffKeepsHeldWork()
+        // The sharp case for the hold's cover: relaxation off, and a timeout shorter than the time a held command spends
+        // waiting (the drain of the in-flight ones, the replacement's handshake, then its own turn). The held commands
+        // must keep their cover until they are answered on the replacement - not only until it establishes - or the
+        // sweep fails them in the gap; everything else keeps the short timeout. Only the workload is slow: the test
+        // server answers one request at a time, so slowing the handshake too would push *it* past the timeout and
+        // nothing could ever resume, which is a harness limit and not the behaviour under test.
+        => SteadyLoadHandoffAsync(
+            configure: c =>
+            {
+                c.MaintenanceRelaxedTimeout = TimeSpan.Zero;
+                c.AsyncTimeout = 1000;
+                c.SyncTimeout = 1000;
+            },
+            serverLatencyMilliseconds: 300,
+            latencyOnlyFor: RedisCommand.PING,
+            workers: 2); // two in flight at most: serially served, their ordinary wait stays inside the timeout
+
+    /// <summary>When, in the first handoff's life, the second <c>MOVING</c> arrives.</summary>
+    public enum SecondMovingAt
+    {
+        /// <summary>At once: the first handoff is still in its jitter, deciding.</summary>
+        Decision,
+
+        /// <summary>Inside the first drain, kept open by a slow command in flight.</summary>
+        Drain,
+
+        /// <summary>After the first recycle, while the held work reaches the replacement.</summary>
+        Flush,
+    }
+
+    [Theory]
+    [InlineData(true, SecondMovingAt.Decision)]
+    [InlineData(false, SecondMovingAt.Decision)]
+    [InlineData(true, SecondMovingAt.Drain)]
+    [InlineData(false, SecondMovingAt.Drain)]
+    [InlineData(true, SecondMovingAt.Flush)]
+    [InlineData(false, SecondMovingAt.Flush)]
+    public async Task MovingTwiceInOneWindowLosesNothing(bool secondNamesSuccessor, SecondMovingAt at)
+    {
+        // The contract for back-to-back MOVINGs inside one window is best effort (see docs/ServerMaintenanceEvent.md):
+        // nothing is lost or abandoned contrary to the backlog policy, and traffic resumes within the handoff's own
+        // bound. Which successor the pin ends up naming, and whether the second notification starts a drain of its own
+        // or only redirects the first's reconnect, are not asserted: they are the mechanism, not the promise.
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs);
+        using (server)
+        await using (conn)
+        {
+            server.SetLatency(TimeSpan.FromMilliseconds(40));
+            var db = conn.GetDatabase();
+            using var stop = new CancellationTokenSource();
+            long completed = 0;
+            var failures = new List<Exception>();
+            var workerTasks = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await db.PingAsync();
+                        Interlocked.Increment(ref completed);
+                    }
+                    catch (Exception ex)
+                    {
+                        lock (failures) failures.Add(ex);
+                    }
+                }
+            })).ToArray();
+            try
+            {
+                Assert.True(await Poll.UntilAsync(() => Volatile.Read(ref completed) > 20, timeoutMilliseconds: 30_000), "the load should be flowing before the handoff");
+                var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+                var first = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+                var second = secondNamesSuccessor ? new IPEndPoint(IPAddress.Parse("127.0.0.10"), 6380) : null;
+
+                if (at == SecondMovingAt.Drain)
+                {
+                    // slow replies keep the first drain open (3s, inside the 5s cap) for the second MOVING to land in. Every
+                    // command, not one: a per-command latency lifts the throttle from the workers' PINGs, and four
+                    // unthrottled workers for ten seconds starve the timing-sensitive tests running alongside on a small
+                    // CI runner (observed: three different neighbours failing once each across two runs)
+                    server.SetLatency(TimeSpan.FromSeconds(3));
+                    Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "slow commands should be in flight before MOVING arrives");
+                }
+
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                server.SendMoving(null, timeSeconds: 10, newEndpoint: first, sequenceId: 0);
+                Assert.Equal(MaintenanceNotificationType.Moving, (await events.NextAsync()).NotificationType);
+
+                switch (at)
+                {
+                    case SecondMovingAt.Drain:
+                        await Task.Delay(1500); // past the jitter (at most a tenth of the window), inside the drain the slow command holds open
+                        break;
+                    case SecondMovingAt.Flush:
+                        Assert.True(await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 8_000), "the first handoff should have replaced the connection");
+                        break;
+                }
+                server.SendMoving(null, timeSeconds: 10, newEndpoint: second, sequenceId: 1);
+                Assert.Equal(MaintenanceNotificationType.Moving, (await events.NextAsync()).NotificationType);
+                if (at == SecondMovingAt.Drain) server.SetLatency(TimeSpan.FromMilliseconds(40)); // the replies already being held keep their 3s; what follows flows
+                log.WriteLine($"second MOVING ({(second is null ? "no successor" : "successor named")}) sent at +{watch.ElapsedMilliseconds}ms, during {at}; pin now {endpoint.HandoffTarget?.ToString() ?? "(none)"}");
+
+                var before = Volatile.Read(ref completed);
+                Assert.True(
+                    await Poll.UntilAsync(() => Volatile.Read(ref completed) > before + 20, timeoutMilliseconds: 20_000),
+                    "traffic should resume after the second MOVING");
+                log.WriteLine($"traffic flowing again at +{watch.ElapsedMilliseconds}ms; recycles={endpoint.HandoffRecycles}; pin {endpoint.HandoffTarget?.ToString() ?? "(none)"}");
+
+                stop.Cancel();
+                await Task.WhenAll(workerTasks);
+                lock (failures)
+                {
+                    log.WriteLine($"completed: {Volatile.Read(ref completed)}; failed: {failures.Count}");
+                    Assert.Empty(failures.Select(f => f.Message));
+                }
+            }
+            finally
+            {
+                stop.Cancel();
+            }
+        }
+    }
+
+    private async Task SteadyLoadHandoffAsync(Action<ConfigurationOptions>? configure, int serverLatencyMilliseconds = 40, RedisCommand? latencyOnlyFor = null, int workers = 4)
+    {
+        // The drain used to wait for "no caller work", which under steady traffic never comes: measured live at
+        // about 450 ops/s, the recycle arrived at the end of the 15s window and failed the eight commands in
+        // flight at that instant, with no time left to establish the replacement. Holding new work back lets the
+        // written commands finish, so the recycle follows within a round trip and nothing fails: the held work is
+        // written to the replacement.
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs, configure);
+        using (server)
+        await using (conn)
+        {
+            // every reply is held briefly, so with several workers something is always in flight
+            server.SetLatency(TimeSpan.FromMilliseconds(serverLatencyMilliseconds), latencyOnlyFor);
+            var db = conn.GetDatabase();
+            using var stop = new CancellationTokenSource();
+            long completed = 0;
+            var failures = new List<Exception>();
+            var workerTasks = Enumerable.Range(0, workers).Select(_ => Task.Run(async () =>
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await db.PingAsync();
+                        Interlocked.Increment(ref completed);
+                    }
+                    catch (Exception ex)
+                    {
+                        lock (failures) failures.Add(ex);
+                    }
+                }
+            })).ToArray();
+            try
+            {
+                // 20 completions can take a while when the workload is deliberately slow and served one at a time
+                Assert.True(await Poll.UntilAsync(() => Volatile.Read(ref completed) > 20, timeoutMilliseconds: 30_000), "the load should be flowing before the handoff");
+
+                var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+                var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                server.SendMoving(null, timeSeconds: 10, newEndpoint: successor, sequenceId: 0);
+                var moving = await events.NextAsync();
+                Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+
+                Assert.True(
+                    await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 8_000),
+                    "the handoff should have replaced the connection");
+                var recycledAfter = watch.Elapsed;
+                log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms of a 10s window");
+
+                // jitter is at most a tenth of the window and the drain is one round trip; recycling at the deadline is the bug
+                Assert.True(recycledAfter < TimeSpan.FromSeconds(5), $"recycled after {recycledAfter}: that is waiting for the window, not draining");
+
+                // the replacement carries the held work and whatever follows. Note the in-process transport never dials the
+                // successor: its tunnel derives the socket target from the configured endpoint, so the reconnect goes
+                // straight back to this server; the timing here is the hold and the handshake, not a refused address.
+                var resumeWatch = System.Diagnostics.Stopwatch.StartNew();
+                var before = Volatile.Read(ref completed);
+                Assert.True(
+                    await Poll.UntilAsync(() => Volatile.Read(ref completed) > before + 20, timeoutMilliseconds: 20_000),
+                    "traffic should resume on the replacement connection");
+                log.WriteLine($"traffic resumed {resumeWatch.ElapsedMilliseconds}ms after the recycle was observed");
+
+                stop.Cancel();
+                await Task.WhenAll(workerTasks);
+                lock (failures)
+                {
+                    log.WriteLine($"completed: {Volatile.Read(ref completed)}; failed: {failures.Count}");
+                    Assert.Empty(failures.Select(f => f.Message));
+                }
+                Assert.DoesNotContain(logs.Lines, l => l.Contains("did not establish a replacement", StringComparison.Ordinal));
+            }
+            finally
+            {
+                stop.Cancel(); // on any exit: a failed assertion must not leave four workers hot-looping on a disposed multiplexer
+            }
+        }
+    }
+
+    [Fact]
+    public async Task MovingWaitsForSlowCommandsThatFitInsideTheDrainCap()
+    {
+        // A slow or blocking command that will finish inside the drain cap (half the relaxed timeout, 5s by default)
+        // is allowed to: the hold waits for it, timeouts are relaxed meanwhile, and the recycle follows its reply.
+        // The server's close would have let it finish too, so failing it would be a regression.
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs);
+        using (server)
+        await using (conn)
+        {
+            server.SetLatency(TimeSpan.FromSeconds(3)); // the in-process server answers one request at a time, so one slow command, not several
+            var db = conn.GetDatabase();
+            var slow = new[] { db.PingAsync() };
+            Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "the slow command should be in flight before MOVING arrives");
+
+            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+            var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            server.SendMoving(null, timeSeconds: 10, newEndpoint: successor, sequenceId: 0);
+            var moving = await events.NextAsync();
+            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+
+            Assert.True(
+                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 10_000),
+                "the handoff should have replaced the connection");
+            var recycledAfter = watch.Elapsed;
+            server.SetLatency(TimeSpan.Zero);
+            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with a 3s command in flight");
+
+            // the slow command was answered, not failed: the recycle waited for it (had it not, the recycle would have
+            // failed the command, and this await would throw)
+            foreach (var pending in slow) Assert.True(await pending >= TimeSpan.Zero);
+            // 3s for the command, up to 1s of jitter, lock and poll granularity, and slack; the cap would be 5s + jitter
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(7), $"recycled after {recycledAfter}: later than the command plus jitter");
+        }
+    }
+
+    [Fact]
+    public async Task MovingWithBlockingCommandsInFlightRecyclesAtTheDrainCap()
+    {
+        // A command that will not finish inside the cap - a long blocking read - must not hold everyone else's work
+        // in the backlog for the whole window: at the cap the connection is replaced regardless. The blocking command
+        // is failed by the recycle, as the server's close would have failed it; everything issued afterwards flows.
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs);
+        using (server)
+        await using (conn)
+        {
+            server.SetLatency(TimeSpan.FromSeconds(12)); // well past the 5s cap and the slack below; the relaxed window covers it until the recycle
+            var db = conn.GetDatabase();
+            // one, not several: the test server answers one request at a time, so each extra 12s command would hold the
+            // replacement's handshake behind it as well
+            var blocking = new[] { db.PingAsync() };
+            Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "the blocking command should be in flight before MOVING arrives");
+
+            var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+            var successor = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            server.SendMoving(null, timeSeconds: 15, newEndpoint: successor, sequenceId: 0);
+            var moving = await events.NextAsync();
+            Assert.Equal(MaintenanceNotificationType.Moving, moving.NotificationType);
+
+            Assert.True(
+                await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 14_000),
+                "the handoff should have replaced the connection");
+            var recycledAfter = watch.Elapsed;
+            // Only now: the server reads its latency when it *executes* a request, and zeroing it any earlier races the
+            // one command this test needs to stay slow (it was observed answered at once, and then nothing was in
+            // flight to cap on). From here the replacement's handshake waits behind at most that one 12s reply.
+            server.SetLatency(TimeSpan.Zero);
+            log.WriteLine($"recycled after {recycledAfter.TotalMilliseconds:0}ms with a 12s command in flight");
+
+            // jitter (at most a tenth of the window, capped at 1s) + the 5s cap + the lock grace (1s) + poll granularity
+            // is the mechanism's own worst case, about 7.5s; the bug being guarded against is a recycle at the 15s
+            // deadline, so 12s discriminates with room on both sides, where 10s left two to three seconds over the
+            // worst case on a slow machine
+            Assert.True(recycledAfter < TimeSpan.FromSeconds(12), $"recycled after {recycledAfter}: the drain waited for the blocking command instead of capping");
+
+            // the in-flight command was failed by the recycle, which is what the server's close would have done
+            foreach (var pending in blocking)
+            {
+                await Assert.ThrowsAnyAsync<RedisException>(async () => await pending);
+            }
+
+            Assert.True(
+                await Poll.UntilAsync(
+                    () =>
+                    {
+                        try
+                        {
+                            return conn.IsConnected && conn.GetDatabase().Ping() >= TimeSpan.Zero;
+                        }
+                        catch (Exception ex) when (ex is RedisException or TimeoutException)
+                        {
+                            return false;
+                        }
+                    },
+                    timeoutMilliseconds: 40_000),
+                "the client should be serving commands on the replacement connection");
+        }
+    }
+
+    [Fact]
     public async Task MovingRecyclesTheConnectionBeforeTheServerCloses()
     {
         // The point of D6: today a MOVING is survivable because the socket eventually closes and we reconnect,
@@ -884,7 +1205,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             Assert.True(
                 await Poll.UntilAsync(() => endpoint.HandoffTarget is not null || endpoint.HandoffRecycles > 0, timeoutMilliseconds: 10_000),
                 "the handoff should have taken the named successor");
-            log.WriteLine($"handoff target: {endpoint.HandoffTarget?.ToString() ?? "(cleared after reconnect)"}; recycles={endpoint.HandoffRecycles}");
+            log.WriteLine($"handoff target: {endpoint.HandoffTarget?.ToString() ?? "(expired with the window)"}; recycles={endpoint.HandoffRecycles}");
 
             // a fresh connection re-sends the opt-in, which is how a recycle is visible from the server's side
             Assert.True(

@@ -34,6 +34,7 @@ namespace StackExchange.Redis
         /// For now, simplicity in: queue it all, replay or timeout it all.
         /// </remarks>
         private readonly ConcurrentQueue<Message> _backlog = new();
+
         private bool BacklogHasItems => !_backlog.IsEmpty;
         private int _backlogProcessorIsRunning = 0;
         private int _backlogCurrentEnqueued = 0;
@@ -132,9 +133,508 @@ namespace StackExchange.Redis
         /// </summary>
         internal void MarkNeedsReconnect() => Volatile.Write(ref _needsReconnect, true);
 
+        /// <summary>
+        /// Where a maintenance handoff stands on this bridge. One variable, advanced in one direction, and the only
+        /// thing every handoff question is answered from: whether new work is held, whether the backlog may flush,
+        /// whether a failure is the handoff's own, and whether work enqueued now is covered. (Parallel flags for the
+        /// same facts kept disagreeing with each other in the races between them.)
+        /// </summary>
+        private enum HandoffPhase
+        {
+            /// <summary>
+            /// The connection current when the hold began (the target) is being drained: new caller work is held in
+            /// the backlog, the backlog does not flush, and the drain is waiting for the target's in-flight work.
+            /// </summary>
+            Holding,
+
+            /// <summary>
+            /// The target is gone - retired by the drain, or it went away by itself - and whatever is current is not
+            /// yet known to be a bona fide replacement. New work is still held and the backlog still does not flush,
+            /// because writing to a connection the server is about to close would only hand it work to fail.
+            /// </summary>
+            AwaitingReplacement,
+
+            /// <summary>
+            /// A bona fide replacement is current and established, and the held work is being written to it. The
+            /// handoff's protection stands until the last held message has been written: a failure before that would
+            /// still abandon them under a FailFast policy.
+            /// </summary>
+            Flushing,
+
+            /// <summary>Nothing left to protect; or the deadline passed; or the bridge was disposed.</summary>
+            Done,
+        }
+
+        /// <summary>
+        /// One maintenance handoff on this bridge: its phase, its target, and its deadline. A new object per handoff,
+        /// so that a transition requested against an earlier handoff (a backlog pass finishing an earlier flush, say)
+        /// cannot land on a later one.
+        /// </summary>
+        private sealed class Handoff
+        {
+            private int _phase; // HandoffPhase
+            private int _retiring; // a retire of the target, outside the drain loop, is under way
+            private PhysicalConnection? _target;
+
+            /// <summary>
+            /// Until when this handoff stands at the latest: the hold, the rest of the window and one connect attempt,
+            /// from when the hold began. This handoff's own, not shared with an earlier one: held work is stamped with
+            /// it, so the time a command can be in limbo is bounded by the handoff that held it, never by a longer one
+            /// that happened to come before. It is read on every question put to a live handoff, so a passed deadline
+            /// is noticed while it is still fresh.
+            /// </summary>
+            public Maintenance.TickDeadline Deadline;
+
+            /// <summary>The connection the hold began on; null if the bridge had none. Let go of once the handoff is done.</summary>
+            public PhysicalConnection? Target => Volatile.Read(ref _target);
+
+            /// <summary>Whether this handoff retired a connection (rather than finding it gone).</summary>
+            public volatile bool Retired;
+
+            public Handoff(PhysicalConnection? target, TimeSpan protection)
+            {
+                _target = target;
+                Deadline.SetIn(protection);
+            }
+
+            /// <summary>Claims the one-at-a-time retire of the target outside the drain loop; see <see cref="PhysicalBridge.Judge"/>.</summary>
+            public bool TryBeginRetire() => Interlocked.CompareExchange(ref _retiring, 1, 0) == 0;
+
+            public void EndRetire() => Volatile.Write(ref _retiring, 0);
+
+            public HandoffPhase Phase => (HandoffPhase)Volatile.Read(ref _phase);
+
+            /// <summary>Advances the phase, if it is still where the caller saw it. Done lets go of the target: a finished handoff must not root a retired connection.</summary>
+            public bool TryAdvance(HandoffPhase from, HandoffPhase to)
+            {
+                if (Interlocked.CompareExchange(ref _phase, (int)to, (int)from) != (int)from) return false;
+                if (to == HandoffPhase.Done) Volatile.Write(ref _target, null);
+                return true;
+            }
+
+            /// <summary>Ends the handoff whatever its phase: the deadline passed, or the bridge was disposed.</summary>
+            public void Finish()
+            {
+                Volatile.Write(ref _phase, (int)HandoffPhase.Done);
+                Volatile.Write(ref _target, null);
+            }
+        }
+
+        private volatile Handoff? _handoff;
+
+        /// <summary>The handoff in progress, if there is one and its deadline has not passed (a passed deadline ends it).</summary>
+        private bool TryGetHandoff([NotNullWhen(true)] out Handoff? handoff)
+        {
+            handoff = _handoff;
+            if (handoff is null || handoff.Phase == HandoffPhase.Done) return false;
+            if (handoff.Deadline.IsActive) return true;
+            handoff.Finish();
+            return false;
+        }
+
+        private HandoffPhase Phase => TryGetHandoff(out var handoff) ? handoff.Phase : HandoffPhase.Done;
+
+        /// <summary>
+        /// A handoff's hold is in force: whatever is current is the target, or is not known to be a bona fide
+        /// replacement. New work is queued and the backlog does not flush; the moment a replacement is current and
+        /// established (or the deadline passes), the hold is over and the backlog flushes to it.
+        /// </summary>
+        private bool HoldUnresolved => Phase is HandoffPhase.Holding or HandoffPhase.AwaitingReplacement;
+
+        /// <summary>
+        /// The last resort when the write lock could not be had for the whole of the drain's deadline: retires the
+        /// target without it. A writer wedged on the lock is the only thing this can race, and what it risks is that
+        /// one writer's message failing with a write fault; what it buys is the replacement starting now rather than
+        /// at the server's window-end close, which would fail everything in flight and leave the bridge dark for the
+        /// reconnect. Before handoffs existed the recycle was always lockless, so this is the old behaviour kept as
+        /// the fallback rather than the rule.
+        /// </summary>
+        internal bool RetireTargetWithoutLock(string reason)
+        {
+            if (!TryGetHandoff(out var handoff) || handoff.Target is not { } target || !ReferenceEquals(physical, target)) return false;
+            if (!target.TryMarkRetiredForHandoff()) return false; // a retire under the lock got there first; its teardown follows
+            handoff.Retired = true;
+            handoff.TryAdvance(HandoffPhase.Holding, HandoffPhase.AwaitingReplacement);
+            RetireConnection(target, reason + " (without the write lock: last resort)");
+            return true;
+        }
+
+        /// <summary>
+        /// The rules the handoff keeps, stated once so that the next edit is checked against them rather than
+        /// against the last edit:
+        /// <list type="bullet">
+        /// <item>(a) protection stands down only when the held work is <em>safe</em> - written to the replacement,
+        /// or past the deadline that also bounds its cover - never merely because a replacement exists;</item>
+        /// <item>(b) the replacement is whatever fully establishes once the target is gone, and nothing else: the
+        /// client does not try to tell from a socket's address which node it reached. Address evidence (is this
+        /// reconnect back on the node being retired?) was tried, and cost eight review rounds of special cases - a
+        /// tunnel, a fixed front address, a successor at the same address, a node with several addresses, an address
+        /// that could not be read - for one corner it would have served: a reconnect to the retiring node after the
+        /// retire, with no successor named and a stale resolver. There the server closes that reconnect at the end of
+        /// the window and the client reconnects again, as it always did; the held work rides the relaxed window and
+        /// its own cover meanwhile. Less machinery, resolved later rather than wrong;</item>
+        /// <item>(c) what a connection <em>is</em> - the target, established - is recorded on the connection when it
+        /// happens and read from there; the handoff's phase says only where the flow stands.</item>
+        /// </list>
+        /// </summary>
+        private enum Replacement
+        {
+            /// <summary>Established once the target was gone: the replacement.</summary>
+            Yes,
+
+            /// <summary>The target: the server will close it.</summary>
+            Doomed,
+
+            /// <summary>A different connection current while the target is still being drained: judged again once the drain has let go.</summary>
+            Unknown,
+        }
+
+        /// <summary>Classifies a connection against a handoff; see rule (b).</summary>
+        private static Replacement Classify(Handoff handoff, PhysicalConnection connection)
+        {
+            if (connection.WasHandoffTarget) return Replacement.Doomed;
+            return handoff.Phase == HandoffPhase.Holding ? Replacement.Unknown : Replacement.Yes;
+        }
+
+        /// <summary>
+        /// Whether the backlog still holds work a handoff diverted, including a message the processor has dequeued but
+        /// not yet written; the protection stands until it has been written (rule a). Under the backlog lock, which is
+        /// where the processor moves a message from the queue to its hand, so the message is seen in one place or the
+        /// other. Only the termination path asks this, never the per-message path.
+        /// </summary>
+        private bool AnyHeldQueued()
+        {
+            lock (_backlog)
+            {
+                if (_backlogInHand is { HeldForHandoff: true }) return true;
+                foreach (var message in _backlog)
+                {
+                    if (message.HeldForHandoff) return true;
+                }
+                return false;
+            }
+        }
+
+        /// <summary>The message the backlog processor has taken off the queue and not yet finished writing; see <see cref="AnyHeldQueued"/>.</summary>
+        private volatile Message? _backlogInHand;
+
+        /// <summary>
+        /// Whether a connection failure belongs to a maintenance handoff in progress: the target (retired by the
+        /// drain, closed by the server at the end of the window, or dropped by itself), a reconnect that landed back
+        /// on the node being retired, or an attempt to bring up the replacement that never completed its handshake,
+        /// whatever the failure type. Only a replacement that was fully established and then failed is an ordinary
+        /// failure, and a FailFast policy applies to it as usual, even while the handoff is still flushing.
+        /// </summary>
+        private bool IsHandoffOwnFailure(PhysicalConnection connection)
+            => TryGetHandoff(out var handoff)
+                && (!connection.EverFullyEstablished || Classify(handoff, connection) != Replacement.Yes);
+
+        /// <summary>
+        /// Starts holding caller work back from the current connection while a maintenance handoff lets what has
+        /// already been written complete; see <see cref="ServerEndPoint.DrainThenRecycleAsync"/>. The connection
+        /// current at this moment is the one the handoff will retire, and the only one it will ever retire: a
+        /// replacement established meanwhile is left alone.
+        /// </summary>
+        /// <remarks>
+        /// Held work goes to the backlog rather than the socket, and is written to the replacement connection once
+        /// that is established. Without this the drain could never finish under steady traffic: there was always
+        /// something in flight, so the recycle waited for the end of the announced window and then failed whatever
+        /// was in flight at that instant.
+        /// </remarks>
+        /// <param name="protection">For how long at most the handoff stands - the FailFast shield here and the timeout
+        /// cover on the held commands - if no replacement establishes and flushes first.</param>
+        internal void BeginHold(TimeSpan protection)
+        {
+            var target = physical;
+            target?.MarkHandoffTarget();
+            // Publish the new handoff, then finish the previous one - in that order, so that there is no instant at
+            // which neither hold is in force: a wake racing this would otherwise flush the previous hold's work to the
+            // very connection this hold is about to drain. The previous handoff (still flushing, say) is finished
+            // explicitly rather than left mid-phase: its replacement is the connection this one retires, so its flush
+            // cannot complete, and its held work - which belongs to the bridge's backlog, not to a handoff - keeps its
+            // stamped cover and is flushed with this handoff's.
+            var previous = _handoff;
+            var handoff = new Handoff(target, protection);
+            _handoff = handoff;
+            previous?.Finish();
+
+            // Work already in the backlog when the hold begins is delayed by it exactly as diverted work is (the
+            // processor does not flush while the hold is unresolved), so it gets the same cover: without this, a
+            // queue that predates the MOVING would be timed out by the hold itself under short timeouts with
+            // relaxation off. Store the handoff, fence, then walk the queue - paired with BacklogEnqueue, which
+            // enqueues, fences, then re-reads the handoff - so a message enqueued concurrently is stamped by one side
+            // or the other.
+            Interlocked.MemoryBarrier();
+            foreach (var queued in _backlog)
+            {
+                if (!queued.IsInternalCall) queued.MarkHeldForHandoff(handoff.Deadline.Ticks);
+            }
+        }
+
+        /// <summary>
+        /// The drain loop has ended, whatever it achieved. A target it could not retire (the lock never came) is left
+        /// to the server's close, and the hold stays until a replacement is current; a connection that established
+        /// while the drain was still judging the target is judged again now that the target is gone.
+        /// </summary>
+        internal void EndDrain()
+        {
+            if (!TryGetHandoff(out var handoff)) return;
+            handoff.TryAdvance(HandoffPhase.Holding, HandoffPhase.AwaitingReplacement);
+            ReevaluateHandoff();
+        }
+
+        /// <summary>
+        /// Judges the current connection against the handoff in progress, if it is established. Run at establishment,
+        /// when the drain loop ends, and from every heartbeat: the drain loop and the establishment callback each see
+        /// one instant, and a phase must not be wedged by what that instant happened to miss - a poll landing in the
+        /// gap between a disconnect and the reconnect, or an address that could not be read at the moment of
+        /// establishment (rule b: unknown defers to a later pass, and the heartbeat is that pass).
+        /// </summary>
+        private void ReevaluateHandoff()
+        {
+            if (!TryGetHandoff(out var handoff)) return;
+            if (physical is { EverFullyEstablished: true, RetiredForHandoff: false } current) Judge(handoff, current);
+        }
+
+        /// <summary>
+        /// An established connection, judged: the replacement resolves the hold; the target, still current once the
+        /// drain loop is over (its retire never got the lock, or faulted), is retired again - one attempt at a time,
+        /// idempotent under the lock, so a heartbeat that finds the previous attempt still waiting does not pile on
+        /// and one that finds it failed tries again. While the target is still being drained, the drain loop owns
+        /// the judgement.
+        /// </summary>
+        private void Judge(Handoff handoff, PhysicalConnection connection)
+        {
+            switch (Classify(handoff, connection))
+            {
+                case Replacement.Yes:
+                    OnReplacementEstablished(handoff);
+                    break;
+                case Replacement.Doomed when handoff.Phase != HandoffPhase.Holding && ReferenceEquals(connection, handoff.Target):
+                    if (handoff.TryBeginRetire()) _ = RetireTargetAsync(handoff);
+                    break;
+            }
+        }
+
+        /// <summary>Whether a handoff is in progress on this bridge, in any phase but Done; see <see cref="ServerEndPoint.HandoffLive"/>.</summary>
+        internal bool HandoffLive => TryGetHandoff(out _);
+
+        /// <summary>
+        /// The retire outside the drain loop. Forced: the loop's own forced pass has come and gone by the time this
+        /// runs, and nothing a caller is waiting on can be in flight on a reconnect that the hold has diverted caller
+        /// work away from since before it was connected.
+        /// </summary>
+        private async Task RetireTargetAsync(Handoff handoff)
+        {
+            try
+            {
+                using var lockDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+                await TryRetireTargetAsync(force: true, "still on the node being retired after the drain", lockDeadline.Token).ForAwait();
+            }
+            catch (Exception ex)
+            {
+                OnInternalError(ex);
+            }
+            finally
+            {
+                handoff.EndRetire();
+            }
+        }
+
+        /// <summary>
+        /// A bona fide replacement is current and established: the hold is over and the backlog flushes to it. The
+        /// handoff stands until the held work has been written (rule a); if nothing is held, it is done now.
+        /// </summary>
+        private void OnReplacementEstablished(Handoff handoff)
+        {
+            if (!(handoff.TryAdvance(HandoffPhase.Holding, HandoffPhase.Flushing)
+                || handoff.TryAdvance(HandoffPhase.AwaitingReplacement, HandoffPhase.Flushing)))
+            {
+                return; // already flushing, or done
+            }
+            TryFinishFlush(handoff);
+            // Store the phase, fence, then load the queue - the mirror image of WakeIfHoldReleased, which every held
+            // enqueue (single, batch, requeue) goes through. With a full fence on both sides at least one of them
+            // sees the other's store, so a message held concurrently with the release is not stranded; neither side
+            // starts a processor for an empty backlog, and StartBacklogProcessor wakes one that is already running.
+            Interlocked.MemoryBarrier();
+            if (BacklogHasItems) StartBacklogProcessor();
+        }
+
+        /// <summary>
+        /// The held work has all been written: nothing left to protect (rule a). A message held between the check and
+        /// the transition (a requeue by a writer that reached the lock late) keeps its cover - that is stamped on the
+        /// message - and is flushed by the processor like any other; only the FailFast shield is down for it.
+        /// </summary>
+        private void TryFinishFlush(Handoff handoff)
+        {
+            if (handoff.Phase == HandoffPhase.Flushing && !AnyHeldQueued()) handoff.TryAdvance(HandoffPhase.Flushing, HandoffPhase.Done);
+        }
+
+        /// <summary>
+        /// Whether a message should be held in the backlog for the replacement connection rather than written: only
+        /// while a handoff is draining a connection that is still live (once it has dropped, the ordinary disconnected
+        /// rules and the backlog policy apply), and only for a caller's work. Internal traffic (keep-alives, probes)
+        /// still goes to the old connection, and so does QUIT, which is never queued.
+        /// </summary>
+        private bool ShouldHoldForHandoff(Message message) => HoldActive && IsHoldable(message);
+
+        /// <summary>A handoff's hold is unresolved, and the current connection is live.</summary>
+        private bool HoldActive => HoldUnresolved && IsConnected && !NeedsReconnect;
+
+        /// <summary>A caller's work, and not QUIT, which is never queued.</summary>
+        private static bool IsHoldable(Message message) => !message.IsInternalCall && message.Command != RedisCommand.QUIT;
+
+        /// <summary>
+        /// A batch is written as a unit, so it is held as a unit: when it carries any holdable message and no QUIT.
+        /// An internal member rides along with the rest, because splitting the batch would be worse than holding it.
+        /// </summary>
+        private static bool ShouldHoldBatch(List<Message> messages)
+        {
+            bool any = false;
+            foreach (var message in messages)
+            {
+                if (message.Command == RedisCommand.QUIT) return false;
+                any |= IsHoldable(message);
+            }
+            return any;
+        }
+
+        /// <summary>
+        /// Retires the connection the hold began on, under the write lock, once nothing a caller is waiting on is in
+        /// flight on it - or regardless, when <paramref name="force"/> says the drain has waited long enough. If that
+        /// connection has gone by itself, whatever is current is the replacement (rule b) and is left alone. The lock
+        /// is what keeps a writer that passed the hold check before it was set from slipping onto the old connection
+        /// between the check and the retire; such a writer finds the connection retired when it gets the lock, and
+        /// queues for the replacement instead (see <see cref="TryRequeueForHandoff"/>).
+        /// </summary>
+        /// <param name="force">Replace the connection even if caller work is still in flight on it.</param>
+        /// <param name="reason">Why; for the trace.</param>
+        /// <param name="lockDeadline">Bounds the wait for the write lock (together with the mutex's own timeout, whichever
+        /// ends first); the drain re-waits until this deadline, so it is the deadline that decides how long overall.</param>
+        /// <returns><c>null</c> if the connection could not be retired yet - caller work in flight, or the lock not
+        /// obtained inside the deadline - so the drain should try again; otherwise whether this handoff retired a
+        /// connection.</returns>
+        internal async ValueTask<bool?> TryRetireTargetAsync(bool force, string reason, CancellationToken lockDeadline)
+        {
+            if (!TryGetHandoff(out var handoff)) return false;
+            if (handoff.Phase is HandoffPhase.Flushing or HandoffPhase.Done) return handoff.Retired;
+
+            // Lock-free first: the drain polls this every 20ms, and only a pass that is going to retire needs the write
+            // lock (held across the check and the marking). The in-flight question needs only the connection's own
+            // lock; and with the target gone there is nothing to retire, so nothing to lock for. The locked pass below
+            // repeats the judgement on what is current then, which is the one that counts.
+            var current = physical;
+            if (handoff.Target is { } drainTarget && ReferenceEquals(current, drainTarget))
+            {
+                if (!force && drainTarget.HasCallerMessagesAwaitingResponse()) return null;
+            }
+            else
+            {
+                return TargetGone(handoff, current);
+            }
+
+            PhysicalConnection toRetire;
+            bool gotLock;
+            try
+            {
+                gotLock = await _singleWriter.TryTakeAsync(lockDeadline).ForAwait();
+            }
+            catch (OperationCanceledException)
+            {
+                gotLock = false;
+            }
+            catch (ObjectDisposedException)
+            {
+                // the bridge was disposed mid-handoff: nothing left to retire, and no replacement is coming
+                handoff.Finish();
+                return false;
+            }
+            if (!gotLock) return null;
+            try
+            {
+                if (handoff.Phase is HandoffPhase.Flushing or HandoffPhase.Done) return handoff.Retired;
+                current = physical;
+                if (handoff.Target is not { } target || !ReferenceEquals(current, target)) return TargetGone(handoff, current);
+                toRetire = target;
+                if (toRetire.RetiredForHandoff) return handoff.Retired; // already retired by another path; its teardown follows that path's lock release
+                if (!force && toRetire.HasCallerMessagesAwaitingResponse()) return null;
+
+                // Under the lock only the marking: from here no writer that takes the lock writes to the connection (see
+                // TryRequeueForHandoff), and the backlog processor skips it too, so the teardown itself can happen
+                // after the release rather than stalling every writer behind event handlers and socket shutdown. The
+                // marking is a compare-exchange, so of this and a lockless last-resort retire racing it, exactly one
+                // tears the connection down.
+                if (!toRetire.TryMarkRetiredForHandoff()) return handoff.Retired;
+                handoff.Retired = true;
+                handoff.TryAdvance(HandoffPhase.Holding, HandoffPhase.AwaitingReplacement);
+            }
+            finally
+            {
+                try
+                {
+                    _singleWriter.Release();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // disposed while we held it; nobody is waiting on a disposed mutex
+                }
+            }
+
+            RetireConnection(toRetire, reason);
+            return true;
+        }
+
+        /// <summary>
+        /// The connection the hold began on is gone - it went away by itself (the server closed it, or it faulted), or
+        /// there was none when the hold began because the bridge was already disconnected. The phase says so first,
+        /// so that whatever is current is judged as of a target that is gone: an established connection is the
+        /// replacement and the hold is over now; one still connecting is judged when it establishes; none means the
+        /// reconnect is coming, and whatever the hold diverted stays protected for it. Nothing to retire, so the
+        /// drain loop ends.
+        /// </summary>
+        private bool TargetGone(Handoff handoff, PhysicalConnection? current)
+        {
+            handoff.TryAdvance(HandoffPhase.Holding, HandoffPhase.AwaitingReplacement);
+            if (current is { EverFullyEstablished: true } && Classify(handoff, current) == Replacement.Yes) OnReplacementEstablished(handoff);
+            return false;
+        }
+
+        /// <summary>
+        /// Tears down a connection a handoff has marked retired. Report <em>before</em> tearing down, and in this
+        /// order for a reason: <c>RecordConnectionFailed</c> only raises the public event while the pipe is still live
+        /// ("if *we* didn't burn the pipe: flag it"), and <c>Dispose</c> runs <c>Shutdown</c> first - which is exactly
+        /// why an ordinary dispose is silent. Recording first also performs the disconnect, so the dispose is cleanup.
+        /// A user handler that throws must not leak the connection, nor make the retire look as if it had not happened.
+        /// </summary>
+        private void RetireConnection(PhysicalConnection connection, string reason)
+        {
+            Trace($"recycling {ConnectionType} connection: {reason}");
+            try
+            {
+                connection.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
+            }
+            catch (Exception ex)
+            {
+                OnInternalError(ex);
+            }
+            finally
+            {
+                try
+                {
+                    connection.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    OnInternalError(ex);
+                }
+            }
+        }
+
         public void Dispose()
         {
             isDisposed = true;
+            _handoff?.Finish(); // nothing left to protect, and no replacement is coming
             // If there's anything in the backlog and we're being torn down - exfil it immediately (e.g. so all awaitables complete)
             AbandonPendingBacklog(new ObjectDisposedException("Connection is being disposed"), null);
             try
@@ -155,7 +655,7 @@ namespace StackExchange.Redis
             isDisposed = true; // make damn sure we don't true to resurrect
 
             // If there's anything in the backlog and we're being torn down - exfil it immediately (e.g. so all awaitables complete)
-            AbandonPendingBacklog(new ObjectDisposedException("Connection is being finalized"), null);
+            AbandonPendingBacklog(new ObjectDisposedException("Connection is being finalized"), null, locked: false);
 
             // shouldn't *really* touch managed objects
             // in a finalizer, but we need to kill that socket,
@@ -212,6 +712,11 @@ namespace StackExchange.Redis
         public WriteResult TryWriteSync(Message message, bool isReplica)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
+            if (ShouldHoldForHandoff(message))
+            {
+                EnqueueHeldAndWakeIfReleased(message);
+                return WriteResult.Success; // queued counts as success
+            }
             if (!IsConnected || NeedsReconnect) return QueueOrFailMessage(message);
 
             var physical = this.physical;
@@ -236,6 +741,11 @@ namespace StackExchange.Redis
         public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica, bool bypassBacklog = false)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
+            if (!bypassBacklog && ShouldHoldForHandoff(message))
+            {
+                EnqueueHeldAndWakeIfReleased(message);
+                return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
+            }
             if ((!IsConnected || NeedsReconnect) && !bypassBacklog) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
 
             var physical = this.physical;
@@ -477,8 +987,13 @@ namespace StackExchange.Redis
                 Multiplexer.Logger?.LogErrorConnectionIssue(innerException, innerException.Message);
             }
             Trace($"OnConnectionFailed: {connection}");
-            // If we're configured to, fail all pending backlogged messages
-            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true)
+            // If we're configured to, fail all pending backlogged messages - but not for a maintenance handoff, which
+            // is a replacement we chose, and not for a failure that is a handoff's own: the backlog then holds work
+            // diverted off a live connection, which would have been written and answered, so a death of the old
+            // connection (the window expiring, a blip) or a failed attempt to reach the replacement must leave it for
+            // the replacement to flush
+            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff
+                && !IsHandoffOwnFailure(connection))
             {
                 AbandonPendingBacklog(innerException, connection);
             }
@@ -540,10 +1055,26 @@ namespace StackExchange.Redis
             }
         }
 
-        private void AbandonPendingBacklog(Exception ex, PhysicalConnection? connection)
+        /// <param name="ex">Why.</param>
+        /// <param name="connection">The connection, if any, to report against.</param>
+        /// <param name="locked">Take the dequeuers' lock, as every head-changing party must while anything else can run;
+        /// the finalizer passes <c>false</c>, since it must not block and nothing else is running by then.</param>
+        private void AbandonPendingBacklog(Exception ex, PhysicalConnection? connection, bool locked = true)
         {
-            while (BacklogTryDequeue(out Message? next))
+            while (true)
             {
+                Message? next;
+                if (locked)
+                {
+                    lock (_backlog) // the timeout sweep peeks, then dequeues and compares under this lock; a concurrent dequeue here would trip it
+                    {
+                        if (!BacklogTryDequeue(out next)) break;
+                    }
+                }
+                else if (!BacklogTryDequeue(out next))
+                {
+                    break;
+                }
                 // as in PhysicalConnection.RecordMessageFailed: don't hand the same exception to every
                 // message. A backlogged message has provably never been written, which is exactly what the
                 // retry machinery needs to know, and it is lost if we share the connection-level instance.
@@ -558,11 +1089,16 @@ namespace StackExchange.Redis
             Trace("OnFullyEstablished");
             // the attempt itself succeeded (handshake complete), even if this bridge has since moved on and discards it below
             connection.ReportAttemptOutcome(isSuccess: true, ConnectionFailureType.None, null);
+            connection.MarkFullyEstablished();
             connection.SetIdle();
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
                 reportNextFailure = reconfigureNextFailure = true;
                 LastException = null;
+                // a replacement establishing ends the hold for this bridge - not the very connection the hold is
+                // draining completing a handshake it was in the middle of when the hold began (rule c: the connection
+                // says what it is)
+                if (TryGetHandoff(out var handoff)) Judge(handoff, connection);
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection, source);
 
@@ -602,6 +1138,9 @@ namespace StackExchange.Redis
                     // or B: Process the backlog and send those messages through the pipe
                     StartBacklogProcessor();
                 }
+
+                // a handoff in progress is judged again on every beat, so that no phase is wedged by one missed instant
+                ReevaluateHandoff();
 
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
                 if (!runThisTime) return;
@@ -776,6 +1315,13 @@ namespace StackExchange.Redis
 
             if (isDisposed) throw new ObjectDisposedException(Name);
 
+            if (HoldActive && ShouldHoldBatch(messages))
+            {
+                // a maintenance handoff is draining the connection: hold the batch for the replacement
+                EnqueueHeldBatchAndWakeIfReleased(messages);
+                return true;
+            }
+
             if (!IsConnected || NeedsReconnect)
             {
                 // During reconnection (e.g. MOVED-to-same-endpoint), queue messages to the backlog
@@ -928,6 +1474,7 @@ namespace StackExchange.Redis
                     if (!gotLock) return TimedOutBeforeWrite(message);
                 }
 
+                if (TryRequeueForHandoff(physical, message, bypassBacklog: false, out var requeued)) return requeued;
                 var result = WriteMessageInsideLock(physical, message);
 
                 if ((result == WriteResult.Success) & message.IsFlushRequiredSync)
@@ -990,15 +1537,50 @@ namespace StackExchange.Redis
             StartBacklogProcessor();
         }
 
+        /// <summary>
+        /// The one place a message enters the backlog, and so the one place the hold's cover is applied: whatever
+        /// enters during a handoff is held - diverted off the live connection, queued while the bridge reconnects to
+        /// the replacement, or parked behind held work being flushed - and gets the same cover, to the same deadline.
+        /// The shared deadline also keeps the timeout sweeps' head-of-line rule sound for everything enqueued fresh: a
+        /// message enqueued later does not time out before one enqueued earlier, because an earlier held message
+        /// expires at the same deadline or sooner, and an ordinary message can only be enqueued after the handoff is
+        /// done, which is when nothing held is left or that deadline has passed. The one exception is a message
+        /// requeued by a writer that reached the lock after the retire: it keeps its older write time (the budget it
+        /// spent counts) behind heads with newer ones, so where its own timeout rather than the shared deadline is the
+        /// later of the two it can be reported late - by at most the heads' remaining budget - never early, and never
+        /// lost.
+        /// <para>
+        /// Internal traffic (keep-alives, probes) is not held: a stale probe has nothing to gain from lingering to the
+        /// handoff's deadline, and it is never diverted on its own. An internal message behind held heads is at worst
+        /// reported late, which costs nothing. The exception is an internal member of a held batch, which the batch
+        /// helper stamps itself: the batch is held as a unit, and the sweep must not fail one member of it.
+        /// </para>
+        /// <para>
+        /// A message diverted by the hold whose handoff has gone by the time it is enqueued is ordinary work: it is
+        /// flushed with the rest, and a stamp from a finished handoff would mark it held with no cover behind it.
+        /// </para>
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void BacklogEnqueue(Message message)
         {
-            bool wasEmpty = _backlog.IsEmpty;
+            // the same handoff decides the gate and the stamp: a message gated on one handoff must not carry the
+            // deadline of the one before it (a diverted message after the hold resolved takes the last handoff's)
+            var live = TryGetHandoff(out var handoff);
+            var holdable = !message.IsInternalCall;
+            if (live && holdable) message.MarkHeldForHandoff(handoff!.Deadline.Ticks); // live: TryGetHandoff said so
+            bool wasEmpty = !BacklogHasItems;
             // important that this *precedes* enqueue, to play well with HasPendingCallerFacingItems
             Interlocked.Increment(ref _backlogCurrentEnqueued);
-            Interlocked.Increment(ref _backlogTotalEnqueued);
             _backlog.Enqueue(message);
             message.SetBacklogged();
+            // The total is counted after the enqueue, deliberately: an interlocked increment is a full fence, and the
+            // re-read below needs one after the enqueue's store. Enqueue, fence, re-read: a hold that began between
+            // the read above and the enqueue has walked the queue without this message, or is about to walk it with
+            // it; either way it ends up stamped - with the later handoff's deadline if the two differ, since the stamp
+            // only ever extends and a same-handoff double stamp is a no-op. A bridge that has never seen a handoff
+            // pays one null read for this.
+            Interlocked.Increment(ref _backlogTotalEnqueued);
+            if (holdable && _handoff is not null && TryGetHandoff(out var late)) message.MarkHeldForHandoff(late.Deadline.Ticks);
 
             if (wasEmpty)
             {
@@ -1020,6 +1602,68 @@ namespace StackExchange.Redis
                 return true;
             }
             return false;
+        }
+
+        /// <summary>Whether the backlog holds a caller's message; snapshot enumeration, which a concurrent queue allows.</summary>
+        private bool AnyCallerFacingQueued()
+        {
+            foreach (var message in _backlog)
+            {
+                if (message.IsCallerFacing) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Queues work held for a maintenance handoff - diverted at the gate, or requeued by a writer that reached the
+        /// lock to find its connection retired - and, through <see cref="WakeIfHoldReleased"/>, makes sure it is not
+        /// stranded if the hold is released concurrently: the queue is stored, then a full fence, then the phase is
+        /// loaded - the mirror image of <see cref="OnReplacementEstablished"/>, which stores the phase, fences, then
+        /// loads the queue. With a full fence on both sides at least one of them sees the other's store, so one side or
+        /// the other starts the processor; neither starts one for an empty backlog.
+        /// </summary>
+        /// <remarks>
+        /// A requeued message is appended, not inserted at the head: a head insert would buy only a best effort at the
+        /// order the writer would have had (a writer starved past the start of the flush lands behind flushed work
+        /// anyway), at the price of a second queue and a head-mutation discipline across every backlog operation. The
+        /// write path never promised more than this in the same races.
+        /// </remarks>
+        /// <param name="message">The message to queue.</param>
+        /// <param name="requeue">The message had already been enqueued (to the connection that has since been retired):
+        /// it keeps its write time, since the budget it has spent still counts, and only forgets that connection.</param>
+        private void EnqueueHeldAndWakeIfReleased(Message message, bool requeue = false)
+        {
+            if (requeue) message.SetRequeued();
+            else message.SetEnqueued(null);
+            BacklogEnqueue(message);
+            WakeIfHoldReleased();
+        }
+
+        /// <summary>
+        /// A batch held as a unit: every member queued, then one fence and one check for the batch. An internal member
+        /// rides along with the rest (see <see cref="ShouldHoldBatch"/>), so it is covered with the rest: left to the
+        /// ordinary timeout it would be failed by the sweep while the batch waits, rather than merely reported late.
+        /// </summary>
+        private void EnqueueHeldBatchAndWakeIfReleased(List<Message> messages)
+        {
+            var cover = TryGetHandoff(out var handoff) ? handoff.Deadline.Ticks : 0;
+            foreach (var message in messages)
+            {
+                message.SetEnqueued(null);
+                if (message.IsInternalCall) message.MarkHeldForHandoff(cover); // zero (no live handoff) covers nothing
+                BacklogEnqueue(message);
+            }
+            WakeIfHoldReleased();
+        }
+
+        /// <summary>
+        /// The enqueue side of the pairing with <see cref="OnReplacementEstablished"/>, and the only one: the queue
+        /// has been stored (by whichever helper called this), then a full fence here, then the phase is loaded.
+        /// </summary>
+        private void WakeIfHoldReleased()
+        {
+            Interlocked.MemoryBarrier();
+            if (!HoldUnresolved) StartBacklogProcessor();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1064,14 +1708,17 @@ namespace StackExchange.Redis
             }
             else
             {
-                _backlogAutoReset.Set();
+                try
+                {
+                    _backlogAutoReset.Set();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // disposed between the check and the wake; the processor that was running is winding down anyway
+                }
             }
         }
 
-        /// <summary>
-        /// Crawls from the head of the backlog queue, consuming anything that should have timed out
-        /// and pruning it accordingly (these messages will get timeout exceptions).
-        /// </summary>
         /// <summary>
         /// Whether this bridge owes a *caller* anything, ignoring our own internal traffic.
         /// </summary>
@@ -1079,13 +1726,13 @@ namespace StackExchange.Redis
         {
             if (physical?.HasCallerMessagesAwaitingResponse() == true) return true;
 
-            foreach (var message in _backlog) // snapshot enumeration; a concurrent queue is fine to walk
-            {
-                if (message.IsCallerFacing) return true;
-            }
-            return false;
+            return AnyCallerFacingQueued();
         }
 
+        /// <summary>
+        /// Crawls from the head of the backlog queue, consuming anything that should have timed out
+        /// and pruning it accordingly (these messages will get timeout exceptions).
+        /// </summary>
         private void CheckBacklogForTimeouts()
         {
             var now = Environment.TickCount;
@@ -1099,17 +1746,21 @@ namespace StackExchange.Redis
             // Because peeking at the backlog, checking message and then dequeuing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
             // But we reduce contention by only locking if we see something that looks timed out.
+            // a command a maintenance handoff held is covered until the handoff's deadline; an ordinary command keeps
+            // the timeout above. The head-of-line rule below still holds across the two: see BacklogEnqueue
+            static int TimeoutFor(Message m, int timeout) => m.HeldForHandoff ? ServerEndPoint.GetEffectiveTimeoutMilliseconds(timeout, m) : timeout;
+
             while (_backlog.TryPeek(out Message? message))
             {
                 // See if the message has pass our async timeout threshold
                 // Note: All timed out messages must be dequeued, even when no completion is needed, to be able to dequeue and complete other timed out messages.
-                if (!message.HasTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
+                if (!message.HasTimedOut(now, TimeoutFor(message, timeout), out var _)) break; // not a timeout - we can stop looking
                 lock (_backlog)
                 {
                     // Peek again since we didn't have lock before...
                     // and rerun the exact same checks as above, note that it may be a different message now
                     if (!_backlog.TryPeek(out message)) break;
-                    if (!message.HasTimedOut(now, timeout, out var _)) break;
+                    if (!message.HasTimedOut(now, TimeoutFor(message, timeout), out var _)) break;
 
                     if (!BacklogTryDequeue(out var message2) || (message != message2)) // consume it for real
                     {
@@ -1163,7 +1814,7 @@ namespace StackExchange.Redis
             {
                 while (!isDisposed)
                 {
-                    if (!_backlog.IsEmpty)
+                    if (BacklogHasItems)
                     {
                         // TODO: vNext handoff this backlog to another primary ("can handle everything") connection
                         // and remove any per-server commands. This means we need to track a bit of whether something
@@ -1260,7 +1911,12 @@ namespace StackExchange.Redis
                 while (IsConnected)
                 {
                     // check whether the backlog is empty *before* even trying to get the lock
-                    if (_backlog.IsEmpty) return; // nothing to do
+                    if (!BacklogHasItems) return; // nothing to do
+
+                    // a maintenance handoff is holding work back from the connection about to be retired: nothing would
+                    // be written, and the lock is better left to the drain and the writers it is waiting on; the
+                    // release kicks this again
+                    if (HoldUnresolved) return;
 
                     // try and get the lock; if unsuccessful, retry
                     gotLock = _singleWriter.TryTakeSync();
@@ -1272,12 +1928,12 @@ namespace StackExchange.Redis
                 // Timeouts are handled above, so we're exclusively into backlog items eligible to write at this point.
                 // If we can't write them, abort and wait for the next heartbeat or activation to try this again.
                 bool flush = false;
-                while (IsConnected)
+                while (IsConnected && !HoldUnresolved) // not while a handoff is holding work back from the connection about to be retired
                 {
                     // Snapshot the connection for the whole of this message: OnDisconnected nulls the field
                     // without waiting for the write lock, so re-reading it (as the loop guard used to) can hand
                     // null to a write path that requires a connection. See #3167.
-                    if (this.physical is not { HasOutputPipe: true } physical) break;
+                    if (this.physical is not { HasOutputPipe: true, RetiredForHandoff: false } physical) break; // retired by a handoff: its teardown follows the lock release
 
                     Message? message;
                     _backlogStatus = BacklogStatus.CheckingForWork;
@@ -1290,6 +1946,7 @@ namespace StackExchange.Redis
                         {
                             break;
                         }
+                        _backlogInHand = message; // still "queued" as far as a handoff's flush is concerned, until written
                     }
 
                     try
@@ -1315,6 +1972,7 @@ namespace StackExchange.Redis
                     }
                     finally
                     {
+                        _backlogInHand = null;
                         UnmarkActiveMessage(message);
                     }
                 }
@@ -1325,6 +1983,9 @@ namespace StackExchange.Redis
                     _backlogStatus = BacklogStatus.Flushing;
                     physical?.Flush();
                 }
+
+                // the held work has reached the replacement: nothing left to protect (rule a)
+                if (_handoff is { } handoff) TryFinishFlush(handoff);
 
                 _backlogStatus = BacklogStatus.SettingIdle;
                 physical?.SetIdle();
@@ -1371,13 +2032,7 @@ namespace StackExchange.Redis
 
         public bool HasPendingCallerFacingItems()
         {
-            if (BacklogHasItems)
-            {
-                foreach (var item in _backlog) // non-consuming, thread-safe, etc
-                {
-                    if (item.IsCallerFacing) return true;
-                }
-            }
+            if (BacklogHasItems && AnyCallerFacingQueued()) return true;
             return physical?.HasPendingCallerFacingItems() ?? false;
         }
 
@@ -1388,6 +2043,35 @@ namespace StackExchange.Redis
             Multiplexer.OnMessageFaulted(message, ex);
             message.SetExceptionAndComplete(ex, null);
             return WriteResult.TimeoutBeforeWrite;
+        }
+
+        /// <summary>
+        /// For a writer that has just taken the write lock: if the connection it was headed for was retired by a
+        /// maintenance handoff while it waited, nothing is written to it - its teardown follows the lock release. A
+        /// caller's message is queued for the replacement with the rest of the held work (appended, see
+        /// <see cref="EnqueueHeldAndWakeIfReleased"/>); internal traffic and a message bypassing the backlog are failed
+        /// as having no connection, as they would be on a disconnected bridge. The connection itself says whether a
+        /// handoff retired it (<see cref="PhysicalConnection.RetiredForHandoff"/>), so a writer starved across any
+        /// number of later handoffs still recognises its own. Only the handoff case: a write that loses its connection
+        /// to an ordinary closure is still reported as a closure (#3167).
+        /// </summary>
+        private bool TryRequeueForHandoff(PhysicalConnection physical, Message message, bool bypassBacklog, out WriteResult result)
+        {
+            if (!physical.RetiredForHandoff)
+            {
+                result = default;
+                return false;
+            }
+            if (bypassBacklog || message.IsInternalCall)
+            {
+                // not queued, but not written to a connection whose teardown is under way either: a keep-alive or a
+                // backlog-bypassing message that reached the lock after the retire simply has no connection
+                result = FailDueToNoConnection(message);
+                return true;
+            }
+            EnqueueHeldAndWakeIfReleased(message, requeue: true);
+            result = WriteResult.Success; // queued counts as success
+            return true;
         }
 
         /// <summary>
@@ -1427,11 +2111,12 @@ namespace StackExchange.Redis
                     // if we *still* can't get it: that counts as
                     // an actual timeout
                     var pending = _singleWriter.TryTakeAsync();
-                    if (!pending.IsCompletedSuccessfully) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
+                    if (!pending.IsCompletedSuccessfully) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message, bypassBacklog);
 
                     gotLock = pending.GetAwaiter().GetResult(); // fine since we know we got a result
                     if (!gotLock) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
                 }
+                if (TryRequeueForHandoff(physical, message, bypassBacklog, out var requeued)) return new ValueTask<WriteResult>(requeued);
                 var result = WriteMessageInsideLock(physical, message);
                 if ((result == WriteResult.Success) & message.IsFlushRequiredAsync)
                 {
@@ -1463,13 +2148,15 @@ namespace StackExchange.Redis
         private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(
             ValueTask<bool> pending,
             PhysicalConnection physical,
-            Message message)
+            Message message,
+            bool bypassBacklog)
         {
             bool gotLock = false;
             try
             {
                 gotLock = await pending.ForAwait();
                 if (!gotLock) return TimedOutBeforeWrite(message);
+                if (TryRequeueForHandoff(physical, message, bypassBacklog, out var requeued)) return requeued;
                 var result = WriteMessageInsideLock(physical, message);
 
                 if (result == WriteResult.Success)
@@ -1859,33 +2546,6 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.RawConfig.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
             }
             physical?.SimulateConnectionFailure(failureType);
-        }
-
-        /// <summary>
-        /// Drops the current connection so that a fresh one is established.
-        /// </summary>
-        /// <remarks>
-        /// Deliberately just a dispose: that routes through <c>RecordConnectionFailed</c> to
-        /// <see cref="OnDisconnected"/>, which reconnects immediately by itself, so there is no new lifecycle
-        /// here to get wrong. Used by the <c>MOVING</c> handoff, where the point is to choose *when* the
-        /// connection is replaced - after the replacement address is known - rather than waiting for the server
-        /// to close it and re-resolving to whatever DNS says at that moment, which has been measured as still
-        /// naming the node being retired.
-        /// </remarks>
-        internal bool RecycleConnection(string reason)
-        {
-            var current = physical;
-            if (current is null) return false;
-
-            Multiplexer.Trace($"recycling {ConnectionType} connection: {reason}", ToString());
-
-            // Report *before* tearing down, and in this order for a reason: RecordConnectionFailed only raises
-            // the public event while the pipe is still live ("if *we* didn't burn the pipe: flag it"), and
-            // Dispose runs Shutdown first - which is exactly why an ordinary dispose is silent. Recording first
-            // also performs the disconnect, so the Dispose below is cleanup.
-            current.RecordConnectionFailed(ConnectionFailureType.MaintenanceHandoff);
-            current.Dispose();
-            return true;
         }
 
         internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMessage)?.Command;

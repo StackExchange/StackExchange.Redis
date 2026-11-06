@@ -892,7 +892,45 @@ namespace StackExchange.Redis
         /// <see cref="SetEnqueued"/>; they take the parent's write time, so that they share its timeout budget
         /// (including any time it spent in the backlog) rather than looking overdue by the process uptime.
         /// </summary>
-        internal void InheritWriteTime(Message parent) => _writeTickCount = parent._writeTickCount;
+        internal void InheritWriteTime(Message parent)
+        {
+            _writeTickCount = parent._writeTickCount;
+            // and the cover that goes with that budget: a held transaction's inner commands reach the replacement with
+            // a clock that includes the whole hold, and without the parent's cover the next sweep would fail them
+            _holdCover.ExtendTo(parent._holdCover.Ticks);
+        }
+
+        /// <summary>
+        /// The message is going back to the backlog after the connection it was headed for was retired by a maintenance
+        /// handoff: it no longer points at that connection, but it keeps its write time, since the budget it has already
+        /// spent (including waiting for the write lock) still counts. Unlike <see cref="SetEnqueued"/>, which restarts it.
+        /// </summary>
+        internal void SetRequeued()
+        {
+            _enqueuedTo = null;
+            _queuedStampSent = _queuedStampReceived = -1;
+        }
+
+        /// <summary>
+        /// Whether this message entered a backlog during a maintenance handoff - diverted off a live connection by the
+        /// hold, requeued after the connection it was headed for was retired, or queued while the bridge reconnected to
+        /// the replacement. Such a message is waiting on the client's own choice, not on the server, so the handoff's
+        /// timeout cover applies to it (and only to it: an ordinary command on the same server keeps its configured
+        /// timeout) for as long as it lives, including after it has been written to the replacement.
+        /// </summary>
+        internal bool HeldForHandoff => _holdCover.Ticks != 0;
+
+        /// <summary>
+        /// The handoff's deadline, in <see cref="Environment.TickCount"/> terms, until which this message cannot time
+        /// out: the cover is a property of the message, stamped when it is held, so nothing that happens to the handoff
+        /// afterwards can withdraw it. Zero if the message was never held.
+        /// </summary>
+        internal int HoldCoverDeadlineTicks => _holdCover.Ticks;
+
+        /// <summary>Holds the message for a handoff, covered until <paramref name="deadlineTicks"/>; a later deadline replaces an earlier one, never the reverse (and zero, no deadline, covers nothing).</summary>
+        internal void MarkHeldForHandoff(int deadlineTicks) => _holdCover.ExtendTo(deadlineTicks);
+
+        private Maintenance.TickDeadline _holdCover;
 
         private int _writeTickCount;
 

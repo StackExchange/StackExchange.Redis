@@ -978,6 +978,67 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Whether a maintenance handoff retired this connection, so that a writer which was headed for it and only
+        /// reached the write lock afterwards can tell a planned replacement from an ordinary closure. Set under the
+        /// bridge's write lock; the report and dispose follow once the lock is released. Never reset.
+        /// </summary>
+        internal bool RetiredForHandoff => Volatile.Read(ref _retiredForHandoff) != 0;
+
+        /// <summary>Marks the connection retired, once: only the caller that marked it tears it down.</summary>
+        internal bool TryMarkRetiredForHandoff() => Interlocked.CompareExchange(ref _retiredForHandoff, 1, 0) == 0;
+
+        private int _retiredForHandoff;
+
+        // volatile: each is written on one thread and read on others as part of the handoff's identity test, in the
+        // very races that test exists for; a plain field could be read stale exactly then
+        private volatile bool _wasHandoffTarget, _everFullyEstablished;
+
+        /// <summary>
+        /// Whether this connection was ever the one a maintenance handoff held work back from. A durable fact about the
+        /// connection rather than about where the handoff's flow stands: whatever happens to it afterwards - retired by
+        /// the drain, closed by the server at the end of the window, dropped by itself - its failure is the handoff's
+        /// own, and work diverted off it must not be abandoned on that account. Never reset.
+        /// </summary>
+        internal bool WasHandoffTarget => _wasHandoffTarget;
+
+        internal void MarkHandoffTarget() => _wasHandoffTarget = true;
+
+        /// <summary>
+        /// The socket's remote address and port, or <c>null</c> if the socket is not connected yet, is already gone, or
+        /// there is no socket. Read when a <c>MOVING</c> arrives, to tell the handoff's DNS poll where we are now.
+        /// </summary>
+        internal System.Net.IPEndPoint? TryGetRemoteEndPoint()
+        {
+            var cached = _remoteEndPoint;
+            if (cached is not null) return cached;
+            try
+            {
+                cached = VolatileSocket?.RemoteEndPoint as System.Net.IPEndPoint;
+            }
+            catch (Exception ex) when (ex is System.Net.Sockets.SocketException or ObjectDisposedException or InvalidOperationException)
+            {
+                return null;
+            }
+            if (cached is not null) _remoteEndPoint = cached;
+            return cached;
+        }
+
+        private volatile System.Net.IPEndPoint? _remoteEndPoint;
+
+        /// <summary>
+        /// Whether this connection ever completed its handshake. A failure on a connection that never did is a failed
+        /// attempt to bring a connection up, which is how a maintenance handoff tells "the replacement is not up yet"
+        /// from "the replacement was up and then failed" without enumerating failure types.
+        /// </summary>
+        internal bool EverFullyEstablished => _everFullyEstablished;
+
+        internal void MarkFullyEstablished()
+        {
+            _everFullyEstablished = true;
+            _ = TryGetRemoteEndPoint(); // cache it now, while the socket is certainly connected
+        }
+
+        /// <summary>
         /// Whether any message awaiting a response was issued by a *caller* rather than by us.
         /// </summary>
         /// <remarks>
@@ -1027,14 +1088,17 @@ namespace StackExchange.Redis
                     {
                         // We only handle async timeouts here, synchronous timeouts are handled upstream.
                         // Those sync timeouts happen in ConnectionMultiplexer.ExecuteSyncImpl() via Monitor.Wait.
-                        if (msg.HasTimedOut(now, timeout, out var elapsed))
+                        // A command a maintenance handoff held, now written to the replacement, is covered by the
+                        // handoff for as long as that stands; every other command keeps the timeout above.
+                        var effective = msg.HeldForHandoff ? ServerEndPoint.GetEffectiveTimeoutMilliseconds(timeout, msg) : timeout;
+                        if (msg.HasTimedOut(now, effective, out var elapsed))
                         {
                             if (msg.ResultBoxIsAsync)
                             {
                                 bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
                                 var baseErrorMessage = haveDeltas
-                                    ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
-                                    : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)";
+                                    ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {effective}ms)"
+                                    : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {effective}ms)";
                                 var timeoutEx = ExceptionFactory.Timeout(multiplexer, baseErrorMessage, msg, server);
                                 multiplexer.OnMessageFaulted(msg, timeoutEx);
                                 msg.SetExceptionAndComplete(timeoutEx, this); // tell the message that it is doomed
@@ -1054,6 +1118,12 @@ namespace StackExchange.Redis
                                     Shutdown(ConnectionFailureType.UnableToConnect);
                                 }
                             }
+                        }
+                        else if (msg.HeldForHandoff)
+                        {
+                            // a command a handoff held carries a longer cover than the ordinary ones written behind it on
+                            // the replacement, so it says nothing about them: look past it
+                            continue;
                         }
                         else
                         {

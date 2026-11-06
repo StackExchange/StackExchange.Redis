@@ -2736,27 +2736,32 @@ namespace StackExchange.Redis
                         // sync caller in flight when a MIGRATING arrives times out at the strict timeout while
                         // its async neighbour is relaxed. It can shrink back too: when a window closes the
                         // effective timeout drops to the configured value, and we stop at that.
+                        //
+                        // Waiting in slices is what makes that re-read reachable: a single wait for the whole budget
+                        // that nothing pulses (a genuinely slow command) would time out at the original deadline and
+                        // never see a relaxation, or a handoff's cover, that began after we parked. Only where the
+                        // budget can change at all, though: with maintenance notifications disabled for the server
+                        // nothing ever relaxes or covers it, and one wait for the whole budget is enough.
                         var startedAt = Environment.TickCount;
-                        var remaining = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
                         while (true)
                         {
-                            if (!Monitor.Wait(source, remaining))
-                            {
-                                Trace("Timeout performing " + message);
-                                timeout = true;
-                                break;
-                            }
-                            if (source.IsCompleted)
-                            {
-                                Trace("Timely response to " + message);
-                                break;
-                            }
-                            var budget = server?.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds) ?? TimeoutMilliseconds;
-                            remaining = budget - unchecked(Environment.TickCount - startedAt);
+                            // per wait, not once: a window that opens after we park puts us on slices (so we notice it
+                            // close again), and one that closes takes us off them
+                            var sliceMilliseconds = server is not null && server.MaintenanceMayChangeTimeouts ? 1000 : int.MaxValue;
+                            var budget = server is null
+                                ? TimeoutMilliseconds
+                                : ServerEndPoint.GetEffectiveTimeoutMilliseconds(server.GetEffectiveTimeoutMilliseconds(TimeoutMilliseconds), message);
+                            var remaining = budget - unchecked(Environment.TickCount - startedAt);
                             if (remaining <= 0)
                             {
                                 Trace("Timeout performing " + message);
                                 timeout = true;
+                                break;
+                            }
+                            Monitor.Wait(source, remaining < sliceMilliseconds ? remaining : sliceMilliseconds);
+                            if (source.IsCompleted)
+                            {
+                                Trace("Timely response to " + message);
                                 break;
                             }
                         }

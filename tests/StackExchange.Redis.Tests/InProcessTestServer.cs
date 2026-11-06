@@ -501,14 +501,27 @@ public class InProcessTestServer : MemoryCacheRedisServer
     */
     // written by the test thread, read by the server's own thread(s): store as ticks so the read/write can
     // be made explicitly visible (a plain TimeSpan field can be missed indefinitely)
-    public void SetLatency(TimeSpan latency) => Volatile.Write(ref _latencyTicks, latency.Ticks);
+    public void SetLatency(TimeSpan latency) => SetLatency(latency, only: null);
+
+    /// <summary>
+    /// Hold every reply by <paramref name="latency"/>, or only the replies to one command: a test that wants the
+    /// workload slow while a reconnecting client's handshake stays fast (so that a short timeout bites the workload
+    /// and not the handshake) names the workload's command here.
+    /// </summary>
+    internal void SetLatency(TimeSpan latency, RedisCommand? only)
+    {
+        Volatile.Write(ref _latencyOnly, only is { } command ? (int)command : -1);
+        Volatile.Write(ref _latencyTicks, latency.Ticks);
+    }
 
     private long _latencyTicks;
+    private int _latencyOnly = -1;
 
     protected override ValueTask ClientPauseAsync(RedisClient client, in RedisRequest request)
     {
         var latency = TimeSpan.FromTicks(Volatile.Read(ref _latencyTicks));
-        if (latency > TimeSpan.Zero & request.KnownCommand != RedisCommand.QUIT)
+        var only = Volatile.Read(ref _latencyOnly);
+        if (latency > TimeSpan.Zero & request.KnownCommand != RedisCommand.QUIT & (only < 0 || (int)request.KnownCommand == only))
         {
             Log($"[{client}] holding {request.Command} response by {latency.TotalMilliseconds}ms");
             return new(Task.Delay(latency));
