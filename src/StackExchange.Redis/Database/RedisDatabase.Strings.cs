@@ -16,9 +16,10 @@ namespace StackExchange.Redis
     /// visibly not.
     /// </para>
     /// <para>
-    /// Implementing a member here removes it from the generated set automatically, because
-    /// <c>[AutoDatabase]</c> skips whatever the class declares itself - so nothing has to be deleted from
-    /// a list of stubs, and SER352's count falls by itself.
+    /// During the port, implementing a member here removed it from the generated set automatically,
+    /// because <c>[AutoDatabase]</c> skipped whatever the class declared itself - so nothing had to be
+    /// deleted from a list of stubs, and SER352's count fell by itself until both hit zero and the
+    /// generator was deleted. The per-group layout it drove remains.
     /// </para>
     /// <para>
     /// Note how little each one is. The body is the whole implementation - no message type, no result

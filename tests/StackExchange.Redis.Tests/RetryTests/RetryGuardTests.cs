@@ -48,15 +48,15 @@ public class RetryGuardTests(ITestOutputHelper log) : TestBase(log)
         Assert.Same(state, task.AsyncState);
         await task;
 
-        // a transaction created *from* a retrying database still refuses one: it replays as a unit,
-        // handing out durable proxy tasks that are not the tasks sent to the server, so the state
-        // cannot be carried - and dropping it silently would be worse than refusing
+        // ...and a transaction created *from* a retrying database carries it too. The capture-and-replay
+        // wrapper refused one - its durable proxies could not take a state - but the frame-level replay's
+        // durable tasks are built by the same AsTask bridge as everything else, so the state travels.
         var retryDb = conn.GetDatabase().WithRetry(Policy());
-        var ex = Assert.Throws<InvalidOperationException>(() => retryDb.CreateTransaction(state));
-        Log(ex.Message);
-
-        // no state: fine
-        Assert.NotNull(retryDb.CreateTransaction());
+        var tran = retryDb.CreateTransaction(state);
+        var queued = tran.StringSetAsync("asyncstate:key", "value");
+        Assert.Same(state, queued.AsyncState);
+        Assert.True(await tran.ExecuteAsync());
+        Assert.True(await queued);
     }
 
     // Key-prefixing composes with retry: the prefix is applied when the operation is captured, so it
