@@ -316,9 +316,6 @@ namespace StackExchange.Redis
             {
                 Trace($"handoff: connecting to {Format.ToString(handoffTarget)} in place of {Format.ToString(endpoint)}");
                 connectTo = handoffTarget;
-                // only where the socket below really dials it: a tunnel connects to the configured endpoint on its
-                // own terms, and recording a dial that never happened would be false evidence for the handoff
-                if (tunnel is null) _handoffTargetDialed = handoffTarget;
             }
             if (tunnel is not null)
             {
@@ -995,7 +992,6 @@ namespace StackExchange.Redis
         // volatile: each is written on one thread and read on others as part of the handoff's identity test, in the
         // very races that test exists for; a plain field could be read stale exactly then
         private volatile bool _wasHandoffTarget, _everFullyEstablished;
-        private volatile System.Net.EndPoint? _handoffTargetDialed;
 
         /// <summary>
         /// Whether this connection was ever the one a maintenance handoff held work back from. A durable fact about the
@@ -1008,18 +1004,8 @@ namespace StackExchange.Redis
         internal void MarkHandoffTarget() => _wasHandoffTarget = true;
 
         /// <summary>
-        /// The successor a <c>MOVING</c> named (see <see cref="ServerEndPoint.HandoffTarget"/>) that this connection was
-        /// dialled to, in place of the endpoint as resolved; null if it was dialled to the endpoint. Recorded as the
-        /// socket is pointed there, so a handoff judging the connection later does not have to infer it from whether
-        /// the pin is still in force - and recorded as the address rather than a flag, so that the judgement can be
-        /// scoped to the handoff whose successor it is: a connection dialled through an earlier handoff's pin is not
-        /// thereby the replacement for a later one.
-        /// </summary>
-        internal System.Net.EndPoint? HandoffTargetDialed => _handoffTargetDialed;
-
-        /// <summary>
         /// The socket's remote address and port, or <c>null</c> if the socket is not connected yet, is already gone, or
-        /// there is no socket. Cached once read: a connected socket's remote endpoint never changes.
+        /// there is no socket. Read when a <c>MOVING</c> arrives, to tell the handoff's DNS poll where we are now.
         /// </summary>
         internal System.Net.IPEndPoint? TryGetRemoteEndPoint()
         {

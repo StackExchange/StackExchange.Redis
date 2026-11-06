@@ -315,7 +315,6 @@ internal sealed partial class ServerEndPoint
             return;
         }
 
-        Volatile.Write(ref _relaxedType, (int)type);
         var tail = Multiplexer.RawConfig.MaintenancePostEventRelaxedDuration;
 
         // While a handoff is live - from the hold beginning until the held work has reached the replacement - the
@@ -323,16 +322,30 @@ internal sealed partial class ServerEndPoint
         // operation arriving meanwhile (a MIGRATED for a shard move) must not pull the deadline back under it and
         // have the sweep fail the very commands the handoff is carrying across. So during a handoff a close can
         // lengthen the window but not shorten it; the replace semantics above apply the rest of the time.
+        // The type reported on faults follows the window it describes: it changes only when this completion is what
+        // the window now stands for - not when a handoff's window is preserved past it, or a timeout the handoff
+        // covered would be attributed to an operation that had finished.
         var handoffInFlight = HandoffLive;
         if (tail <= TimeSpan.Zero)
         {
-            if (!handoffInFlight) _relaxedDeadline.SetIn(TimeSpan.Zero); // ended now, and recorded as such for fault attribution
+            if (!handoffInFlight)
+            {
+                _relaxedDeadline.SetIn(TimeSpan.Zero); // ended now, and recorded as such for fault attribution
+                Volatile.Write(ref _relaxedType, (int)type);
+            }
             Multiplexer.Trace($"{type}: relaxation ended", ToString());
             return;
         }
 
-        if (handoffInFlight) _relaxedDeadline.TryExtendBy(tail, out _);
-        else _relaxedDeadline.SetIn(tail);
+        if (!handoffInFlight)
+        {
+            _relaxedDeadline.SetIn(tail);
+            Volatile.Write(ref _relaxedType, (int)type);
+        }
+        else if (_relaxedDeadline.TryExtendBy(tail, out _))
+        {
+            Volatile.Write(ref _relaxedType, (int)type);
+        }
         Multiplexer.Trace($"{type}: relaxation continues for {tail.TotalSeconds}s (post-event)", ToString());
     }
 
@@ -390,7 +403,7 @@ internal sealed partial class ServerEndPoint
     {
         lock (_maintenanceSync)
         {
-            if (_handoffTarget is not null && generation < _handoffTargetGeneration) return;
+            if (generation < _handoffTargetGeneration) return; // whether or not that later pin has since expired: it knew more
             _handoffTargetExpiry.SetIn(window < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : window);
             _handoffTarget = target;
             _handoffTargetGeneration = generation;
@@ -406,8 +419,9 @@ internal sealed partial class ServerEndPoint
     {
         lock (_maintenanceSync)
         {
-            if (_handoffTarget is not null && generation < _handoffTargetGeneration) return;
+            if (generation < _handoffTargetGeneration) return;
             _handoffTarget = null;
+            _handoffTargetGeneration = generation;
         }
     }
 
@@ -464,7 +478,8 @@ internal sealed partial class ServerEndPoint
         if (Interlocked.CompareExchange(ref _handoffInFlight, 1, 0) != 0)
         {
             if (successor is not null) SetHandoffTarget(successor, budget, generation);
-            Multiplexer.Trace(successor is null ? "MOVING: a handoff is already in flight" : "MOVING: a handoff is already in flight; successor noted", ToString());
+            else ClearHandoffTarget(generation); // as on the direct path: no successor named means any pinned node may itself be retiring
+            Multiplexer.Trace(successor is null ? "MOVING: a handoff is already in flight; pin dropped" : "MOVING: a handoff is already in flight; successor noted", ToString());
             return;
         }
         var current = connection.TryGetRemoteEndPoint(); // null if the socket is gone or not connected: nothing to compare against
@@ -511,7 +526,7 @@ internal sealed partial class ServerEndPoint
                     // DNS has moved to a new address, so a reconnect reporting the old one is back on the retiring
                     // node; a pin left by an earlier handoff is stale now and must not dial it
                     ClearHandoffTarget(generation);
-                    await DrainThenRecycleAsync(remaining, decision.Reason, successor: null, replacementAddressSeen: true, currentEndPoint).ForAwait();
+                    await DrainThenRecycleAsync(remaining, decision.Reason).ForAwait();
                     replaced = true;
                     break;
                 case HandoffAction.RecycleAtHalfWindow:
@@ -521,7 +536,7 @@ internal sealed partial class ServerEndPoint
                     if (half > TimeSpan.Zero) await Task.Delay(half).ForAwait();
                     // nothing to re-resolve, or nothing known to compare against: no second address has been seen
                     ClearHandoffTarget(generation);
-                    await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason, successor: null, replacementAddressSeen: false, currentEndPoint).ForAwait();
+                    await DrainThenRecycleAsync(Remaining(window, watch), decision.Reason).ForAwait();
                     replaced = true;
                     break;
                 case HandoffAction.MoveTo when decision.Target is { } target:
@@ -530,11 +545,7 @@ internal sealed partial class ServerEndPoint
                     // at +6.2s, landed back on the node being retired because DNS had not moved yet, and were
                     // closed at +21.6s anyway - exactly the outcome the handoff exists to avoid.
                     SetHandoffTarget(target, remaining, generation);
-                    // A successor at the very address being retired - a proxy restarted in place - means the address
-                    // identifies nothing for this handoff: every connection, doomed or replacement, reports it. The
-                    // pin-dialled test then governs, and after that only time.
-                    var sameAddress = target is IPEndPoint successorAddress && currentEndPoint is not null && successorAddress.Equals(currentEndPoint);
-                    await DrainThenRecycleAsync(remaining, decision.Reason, target, replacementAddressSeen: !sameAddress, currentEndPoint).ForAwait();
+                    await DrainThenRecycleAsync(remaining, decision.Reason).ForAwait();
                     replaced = true;
                     break;
                 default:
@@ -656,16 +667,7 @@ internal sealed partial class ServerEndPoint
     /// </remarks>
     /// <param name="budget">What is left of the announced window.</param>
     /// <param name="reason">Why; for the trace.</param>
-    /// <param name="successor">The successor the server named and reconnection is pinned to, if any: a connection
-    /// dialled through it is the replacement.</param>
-    /// <param name="replacementAddressSeen">Whether the handoff has seen a second address - the server named a
-    /// successor at a different address, or DNS moved to a new address - so that a reconnect reporting the retiring
-    /// address is known to be back on the retiring node, and is retired in its turn; see
-    /// <see cref="PhysicalBridge.TryRetireTargetAsync"/>. Where no second address was ever involved (including a
-    /// successor at the same address), the address says nothing and only time tells.</param>
-    /// <param name="retiringEndPoint">The address and port of the node being retired, as seen from the connection that
-    /// was told, so that a replacement which landed elsewhere is recognised as such.</param>
-    private async Task DrainThenRecycleAsync(TimeSpan budget, string reason, EndPoint? successor, bool replacementAddressSeen, IPEndPoint? retiringEndPoint)
+    private async Task DrainThenRecycleAsync(TimeSpan budget, string reason)
     {
         var watch = ValueStopwatch.StartNew();
         // With less than the floor left of the window there is no drain worth having: the server is about to close
@@ -694,15 +696,8 @@ internal sealed partial class ServerEndPoint
         var interactiveBridge = interactive;
         var subscriptionBridge = subscription;
 
-        // Whether a socket's remote address says anything about *which node* it reached: only when this handoff has
-        // itself seen a second address, and there is no tunnel in the way. Behind a Tunnel every connection reports
-        // the tunnel's address; and where the only address ever involved is the one in front of the cluster (a load
-        // balancer or VIP) comparing it with the retiring one would make the genuine replacement look like a return
-        // to the retiring node forever. Then only time can tell: once the target is gone, what is current is the
-        // replacement.
-        var addressIdentifiesNode = replacementAddressSeen && Multiplexer.RawConfig.Tunnel is null;
-        interactiveBridge?.BeginHold(cover, retiringEndPoint, successor, addressIdentifiesNode);
-        subscriptionBridge?.BeginHold(cover, retiringEndPoint, successor, addressIdentifiesNode);
+        interactiveBridge?.BeginHold(cover);
+        subscriptionBridge?.BeginHold(cover);
 
         // One loop per bridge, each with its own lock deadline, run side by side: a writer wedged on one bridge's
         // lock must not spend the other's time, and the other's idle connection must still be retired before the

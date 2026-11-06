@@ -873,6 +873,112 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
             latencyOnlyFor: RedisCommand.PING,
             workers: 2); // two in flight at most: serially served, their ordinary wait stays inside the timeout
 
+    /// <summary>When, in the first handoff's life, the second <c>MOVING</c> arrives.</summary>
+    public enum SecondMovingAt
+    {
+        /// <summary>At once: the first handoff is still in its jitter, deciding.</summary>
+        Decision,
+
+        /// <summary>Inside the first drain, kept open by a slow command in flight.</summary>
+        Drain,
+
+        /// <summary>After the first recycle, while the held work reaches the replacement.</summary>
+        Flush,
+    }
+
+    [Theory]
+    [InlineData(true, SecondMovingAt.Decision)]
+    [InlineData(false, SecondMovingAt.Decision)]
+    [InlineData(true, SecondMovingAt.Drain)]
+    [InlineData(false, SecondMovingAt.Drain)]
+    [InlineData(true, SecondMovingAt.Flush)]
+    [InlineData(false, SecondMovingAt.Flush)]
+    public async Task MovingTwiceInOneWindowLosesNothing(bool secondNamesSuccessor, SecondMovingAt at)
+    {
+        // The contract for back-to-back MOVINGs inside one window is best effort (see docs/ServerMaintenanceEvent.md):
+        // nothing is lost or abandoned contrary to the backlog policy, and traffic resumes within the handoff's own
+        // bound. Which successor the pin ends up naming, and whether the second notification starts a drain of its own
+        // or only redirects the first's reconnect, are not asserted: they are the mechanism, not the promise.
+        var logs = new CapturingLoggerFactory();
+        var (server, conn, events) = await ConnectAsync(log, logs);
+        using (server)
+        await using (conn)
+        {
+            server.SetLatency(TimeSpan.FromMilliseconds(40));
+            var db = conn.GetDatabase();
+            using var stop = new CancellationTokenSource();
+            long completed = 0;
+            var failures = new List<Exception>();
+            var workerTasks = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+            {
+                while (!stop.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await db.PingAsync();
+                        Interlocked.Increment(ref completed);
+                    }
+                    catch (Exception ex)
+                    {
+                        lock (failures) failures.Add(ex);
+                    }
+                }
+            })).ToArray();
+            try
+            {
+                Assert.True(await Poll.UntilAsync(() => Volatile.Read(ref completed) > 20, timeoutMilliseconds: 30_000), "the load should be flowing before the handoff");
+                var endpoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(server.DefaultEndPoint);
+                var first = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
+                var second = secondNamesSuccessor ? new IPEndPoint(IPAddress.Parse("127.0.0.10"), 6380) : null;
+
+                Task<RedisValue>? slow = null;
+                if (at == SecondMovingAt.Drain)
+                {
+                    // one slow command in flight keeps the first drain open (3s, inside the 5s cap) for the second MOVING to land in
+                    server.SetLatency(TimeSpan.FromSeconds(3), RedisCommand.GET);
+                    slow = db.StringGetAsync("slow");
+                    Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "the slow command should be in flight before MOVING arrives");
+                }
+
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                server.SendMoving(null, timeSeconds: 10, newEndpoint: first, sequenceId: 0);
+                Assert.Equal(MaintenanceNotificationType.Moving, (await events.NextAsync()).NotificationType);
+
+                switch (at)
+                {
+                    case SecondMovingAt.Drain:
+                        await Task.Delay(1500); // past the jitter (at most a tenth of the window), inside the drain the slow command holds open
+                        break;
+                    case SecondMovingAt.Flush:
+                        Assert.True(await Poll.UntilAsync(() => endpoint.HandoffRecycles > 0, timeoutMilliseconds: 8_000), "the first handoff should have replaced the connection");
+                        break;
+                }
+                server.SendMoving(null, timeSeconds: 10, newEndpoint: second, sequenceId: 1);
+                Assert.Equal(MaintenanceNotificationType.Moving, (await events.NextAsync()).NotificationType);
+                log.WriteLine($"second MOVING ({(second is null ? "no successor" : "successor named")}) sent at +{watch.ElapsedMilliseconds}ms, during {at}; pin now {endpoint.HandoffTarget?.ToString() ?? "(none)"}");
+
+                var before = Volatile.Read(ref completed);
+                Assert.True(
+                    await Poll.UntilAsync(() => Volatile.Read(ref completed) > before + 20, timeoutMilliseconds: 20_000),
+                    "traffic should resume after the second MOVING");
+                log.WriteLine($"traffic flowing again at +{watch.ElapsedMilliseconds}ms; recycles={endpoint.HandoffRecycles}; pin {endpoint.HandoffTarget?.ToString() ?? "(none)"}");
+
+                if (slow is not null) await slow; // drained, not failed: it fitted inside the cap
+                stop.Cancel();
+                await Task.WhenAll(workerTasks);
+                lock (failures)
+                {
+                    log.WriteLine($"completed: {Volatile.Read(ref completed)}; failed: {failures.Count}");
+                    Assert.Empty(failures.Select(f => f.Message));
+                }
+            }
+            finally
+            {
+                stop.Cancel();
+            }
+        }
+    }
+
     private async Task SteadyLoadHandoffAsync(Action<ConfigurationOptions>? configure, int serverLatencyMilliseconds = 40, RedisCommand? latencyOnlyFor = null, int workers = 4)
     {
         // The drain used to wait for "no caller work", which under steady traffic never comes: measured live at
