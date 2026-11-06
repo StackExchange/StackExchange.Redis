@@ -931,13 +931,14 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 var first = new IPEndPoint(IPAddress.Parse("127.0.0.9"), 6380);
                 var second = secondNamesSuccessor ? new IPEndPoint(IPAddress.Parse("127.0.0.10"), 6380) : null;
 
-                Task<RedisValue>? slow = null;
                 if (at == SecondMovingAt.Drain)
                 {
-                    // one slow command in flight keeps the first drain open (3s, inside the 5s cap) for the second MOVING to land in
-                    server.SetLatency(TimeSpan.FromSeconds(3), RedisCommand.GET);
-                    slow = db.StringGetAsync("slow");
-                    Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "the slow command should be in flight before MOVING arrives");
+                    // slow replies keep the first drain open (3s, inside the 5s cap) for the second MOVING to land in. Every
+                    // command, not one: a per-command latency lifts the throttle from the workers' PINGs, and four
+                    // unthrottled workers for ten seconds starve the timing-sensitive tests running alongside on a small
+                    // CI runner (observed: three different neighbours failing once each across two runs)
+                    server.SetLatency(TimeSpan.FromSeconds(3));
+                    Assert.True(await Poll.UntilAsync(() => conn.GetCounters().Interactive.SentItemsAwaitingResponse > 0), "slow commands should be in flight before MOVING arrives");
                 }
 
                 var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -955,6 +956,7 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 }
                 server.SendMoving(null, timeSeconds: 10, newEndpoint: second, sequenceId: 1);
                 Assert.Equal(MaintenanceNotificationType.Moving, (await events.NextAsync()).NotificationType);
+                if (at == SecondMovingAt.Drain) server.SetLatency(TimeSpan.FromMilliseconds(40)); // the replies already being held keep their 3s; what follows flows
                 log.WriteLine($"second MOVING ({(second is null ? "no successor" : "successor named")}) sent at +{watch.ElapsedMilliseconds}ms, during {at}; pin now {endpoint.HandoffTarget?.ToString() ?? "(none)"}");
 
                 var before = Volatile.Read(ref completed);
@@ -963,7 +965,6 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                     "traffic should resume after the second MOVING");
                 log.WriteLine($"traffic flowing again at +{watch.ElapsedMilliseconds}ms; recycles={endpoint.HandoffRecycles}; pin {endpoint.HandoffTarget?.ToString() ?? "(none)"}");
 
-                if (slow is not null) await slow; // drained, not failed: it fitted inside the cap
                 stop.Cancel();
                 await Task.WhenAll(workerTasks);
                 lock (failures)
