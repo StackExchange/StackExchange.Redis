@@ -719,14 +719,7 @@ public partial class ConnectionMultiplexer
             return false;
         }
 
-        // Get new primary - try twice (unless the caller already holds sentinel's answer)
-        EndPoint newPrimaryEndPoint = reportedPrimary
-                                    ?? GetConfiguredPrimaryForService(serviceName)
-                                    ?? GetConfiguredPrimaryForService(serviceName)
-                                    ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
-
-        connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
-
+        // Coalesce discovery too: simultaneous restore events otherwise fan out blocking Sentinel queries.
         // Claim the reconfigure gate BEFORE reshaping the connection. ReconfigureAsync refuses to run while
         // another reconfigure holds this gate, so rewriting the endpoint list and retiring servers first would
         // leave the connection reshaped but unconfigured whenever we lose that race - and two concurrent
@@ -741,6 +734,14 @@ public partial class ConnectionMultiplexer
         bool switched = false;
         try
         {
+            // Get new primary - try twice (unless the caller already holds sentinel's answer)
+            EndPoint newPrimaryEndPoint = reportedPrimary
+                                        ?? GetConfiguredPrimaryForService(serviceName)
+                                        ?? GetConfiguredPrimaryForService(serviceName)
+                                        ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
+
+            connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
+
             // Trigger a blocking reconfigure for the switch, then refresh the sentinel address list.
             // reconfigureAll:true forces every already-connected node to re-read its role before the
             // primary is re-elected (see IsStalePrimaryView); reconfigureAll:false matches the legacy
