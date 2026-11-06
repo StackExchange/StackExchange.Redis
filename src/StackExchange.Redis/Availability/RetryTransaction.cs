@@ -7,7 +7,7 @@ using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.Availability;
 
-// A retryable transaction. Unlike RetryDatabase - which replays a single captured typed call each attempt -
+// A retryable transaction. Unlike RespRetryExecutor - which replays a single rendered frame each attempt -
 // a transaction is built up across many builder calls plus an Execute, so we *record* each captured call
 // (the AutoDatabase (state, projection) pair) and hand the caller a durable, still-incomplete proxy task.
 // Only ExecuteAsync actually runs anything: for each attempt it spins up a fresh, one-shot inner transaction
@@ -21,7 +21,7 @@ namespace StackExchange.Redis.Availability;
 // Execute is sync-over-async (see below). Note that ITransaction : IBatch : IDatabaseAsync, so the only
 // members this adds over ITransactionAsync are the two Execute overloads.
 // Replays: the recorded operations are re-run as a unit on every attempt, and a capture is held from the
-// moment it is recorded until Execute - longer than RetryDatabase holds one - so the captured arguments must
+// moment it is recorded until Execute - longer than a single dispatch holds one - so the captured arguments must
 // be copies of the caller's memory rather than the caller's own buffer. They are released in ExecuteAsync,
 // which is the only point that knows an operation will not be replayed again; a transaction that is never
 // executed keeps its captures, and nothing here could know otherwise.
@@ -30,14 +30,14 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
 {
     /// <inheritdoc/>
     public RespDatabaseContext Context => new(GetContextCore());
-    // Note: the *command* surface is async-only, exactly like RetryDatabase - retrying is inherently
+    // Note: the *command* surface is async-only - retrying is inherently
     // delay-ish; only the terminal Execute is offered synchronously.
     private readonly IDatabaseAsync _source;
     private readonly RetryController _controller;
 
     /// <summary>Refuse to build a context, saying why.</summary>
     /// <remarks>
-    /// <b>Still refused, where <see cref="RetryDatabase"/>'s is not.</b> A retrying database replays one
+    /// <b>Still refused, where a retrying database's is not.</b> A retrying database replays one
     /// operation, so decorating its executor gives the context surface exactly the same behaviour. A
     /// retrying transaction replays <i>the whole recorded unit</i> - conditions, queued operations and
     /// <c>EXEC</c> together - and a retry executor knows nothing of that: it would re-send individual
@@ -185,7 +185,7 @@ internal sealed partial class RetryTransaction : IDatabaseAsync, ITransaction
         int maxWatchAttempts = conditions is null ? 1 : _controller.MaxWatchConflictAttempts;
         while (true)
         {
-            // no async-state: RetryDatabase refuses one (the durable proxies below cannot carry it)
+            // no async-state: a retrying transaction refuses one (the durable proxies below cannot carry it)
             var inner = _source.CreateTransaction();
 
             // replay the recorded constraints and operations onto this fresh, one-shot transaction; the

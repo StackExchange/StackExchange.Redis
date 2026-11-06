@@ -93,7 +93,7 @@ using RespResult result = db.ExecuteResp("GET", new RedisKeyOrValue[] { (RedisKe
 // ...
 ```
 
-Keys passed this way participate in cluster slot routing and `KeyPrefixed` key-prefixing, just like a key argument to any built-in command. `ExecuteResp` recognizes known command names (applying the same command-map renaming/disabling rules as everything else) and falls back to treating the command as opaque only if it isn't recognized.
+Keys passed this way participate in cluster slot routing and `WithKeyPrefix` key-prefixing, just like a key argument to any built-in command. `ExecuteResp` recognizes known command names (applying the same command-map renaming/disabling rules as everything else) and falls back to treating the command as opaque only if it isn't recognized.
 
 The `new RedisKeyOrValue[]` above is fine for occasional use, but allocates on every call - see [Leasing the argument buffer](#leasing-the-argument-buffer) below for the low-allocation form once you're on a hot path.
 

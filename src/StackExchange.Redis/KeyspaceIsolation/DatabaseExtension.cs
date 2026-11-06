@@ -1,4 +1,5 @@
 ﻿using System;
+using StackExchange.Redis.Interfaces;
 
 namespace StackExchange.Redis.KeyspaceIsolation
 {
@@ -54,14 +55,29 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 return database; // fine - you can keep using the original, then
             }
 
-            if (database is KeyPrefixedDatabase prefixed)
+            // The prefix is CONTEXT state, applied to every RedisKey at render time - so the result is a
+            // plain database over a prefixed context, not a wrapper. Nesting composes the same way the
+            // old decorators did: the prefixes concatenate, outermost call innermost on the wire.
+            //
+            // A foreign IDatabase has no context to re-point, and - unlike WithRetry, where "no retry" is
+            // merely the behaviour the caller already had - quietly not prefixing would hand every command
+            // to the WRONG KEYSPACE; that must throw rather than degrade.
+            if (database.Context is not { Raw: { Executor: not null } raw })
             {
-                // combine the key in advance to minimize indirection
-                keyPrefix = prefixed.ToInner(keyPrefix);
-                database = prefixed.Inner;
+                throw new NotSupportedException(
+                    $"WithKeyPrefix requires a database from this library; {database.GetType().Name} exposes no context to apply the prefix to.");
             }
 
-            return new KeyPrefixedDatabase(database, keyPrefix.AsPrefix()!);
+            // a batch or transaction cannot be re-contexted into a plain database without silently losing
+            // what it is; take the prefix BEFORE creating it (the batch inherits the prefixed context)
+            database.RejectFlags(DatabaseFeatureFlags.Batch | DatabaseFeatureFlags.Transaction);
+
+            // the channel prefix too: the old decorator prefixed the channel on Publish, and a tenant
+            // boundary that covered keys but not the messages about them would be a silent hole
+            var context = new RespDatabaseContext(raw
+                .AppendKeyPrefix(keyPrefix)
+                .AppendChannelPrefix(new RedisChannel((byte[]?)keyPrefix, RedisChannel.PatternMode.Literal)));
+            return new RedisDatabase(context, database.Multiplexer, database.GetAsyncState());
         }
     }
 }

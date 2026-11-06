@@ -62,7 +62,8 @@ internal interface IMappableRedisArgs
 // parameter - which is very nearly all of them - so that a funnel holding an opaque TState can still ask the
 // one question that changes what it must hand back: was this fire-and-forget?
 //
-// It exists for RetryTransaction. That funnel records each call and returns a durable proxy task completed
+// It existed for the retired capture-and-replay retry transaction, and remains for any funnel with the
+// same need. That funnel recorded each call and returned a durable proxy task completed
 // later from the attempt, which is wrong for fire-and-forget: a plain RedisTransaction hands back an
 // *already-completed* task there (the caller has explicitly declined the reply), so without this the same
 // source awaiting the same result returns instantly on one and hangs on the other. The flags are captured

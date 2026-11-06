@@ -361,7 +361,7 @@ public class RespRetryExecutorTests
 
     /// <summary>
     /// A retrying <b>context</b> gets its next-failover token from the executor chain, so failover-aware
-    /// retry works without going through <see cref="RetryDatabase"/>.
+    /// retry works without any database wrapper involved.
     /// </summary>
     /// <remarks>
     /// <para>

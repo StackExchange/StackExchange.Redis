@@ -352,15 +352,9 @@ namespace StackExchange.Redis
                 // the key prefix is part of the CONTEXT here, not of the key, and it is applied at write
                 // time - so the key a caller hands us is not yet the key the server will see, and in a
                 // cluster those bytes are what pick the node. Compose first, exactly as AppendFormatted
-                // will, or we would sample the version of a node that never sees this command. A null key
-                // means "routes to no particular key" and stays null: prefixing it would invent one.
-                if (_keyPrefix is { Length: > 0 } && !key.IsNull)
-                {
-                    var prefixed = RedisKey.WithPrefix(_keyPrefix, key);
-                    return probe.TryGetFeatures(command, in prefixed, flags, out features);
-                }
-
-                return probe.TryGetFeatures(command, in key, flags, out features);
+                // will, or we would sample the version of a node that never sees this command.
+                var prefixed = PrefixKey(in key);
+                return probe.TryGetFeatures(command, in prefixed, flags, out features);
             }
 
             // no probe: a bare context, a test fake, a hand-wired executor. Nothing is known, and every
@@ -383,6 +377,16 @@ namespace StackExchange.Redis
 
         /// <summary>The key prefix as raw bytes, so the writer never pays a conversion per command.</summary>
         internal ReadOnlySpan<byte> KeyPrefixSpan => _keyPrefix;
+
+        /// <summary>The key as the server will see it: the context's prefix applied, exactly as render time will.</summary>
+        /// <param name="key">The key being asked about.</param>
+        /// <remarks>
+        /// For the ROUTING questions - features, connectivity, endpoint identity - which take the key out
+        /// of band rather than rendering it, and so would otherwise ask about a key the server never sees.
+        /// A null key means "routes to no particular key" and stays null: prefixing it would invent one.
+        /// </remarks>
+        internal RedisKey PrefixKey(in RedisKey key)
+            => _keyPrefix is { Length: > 0 } && !key.IsNull ? RedisKey.WithPrefix(_keyPrefix, key) : key;
 
         /// <summary>The prefix applied to channels written through this context.</summary>
         /// <remarks>
@@ -496,8 +500,8 @@ namespace StackExchange.Redis
         /// is true: <c>With</c> says the result differs in this respect, which invites "so the second call
         /// wins". It does not - <c>AppendKeyPrefix("a").AppendKeyPrefix("b")</c> sends key <c>k</c> as
         /// <c>abk</c>, and there is deliberately no way back to <c>k</c>. That matches nesting the
-        /// <c>KeyPrefixed*</c> decorators, and <see cref="KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix"/>,
-        /// which folds the two prefixes and re-wraps the inner database.
+        /// old <c>KeyPrefixed*</c> decorators, and is how
+        /// <see cref="KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix"/> composes when called twice.
         /// </para>
         /// <para>
         /// A null or empty prefix appends nothing, rather than resetting. The shipped
@@ -507,14 +511,28 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         internal RespContext AppendKeyPrefix(RedisKey keyPrefix)
-            => new(
+            => new RespContext(
                 CommandMap,
                 _keyPrefix is null ? keyPrefix : RedisKey.WithPrefix(_keyPrefix, keyPrefix),
                 default,
                 Database,
-                ServerType,
+                _serverType,
                 Executor,
-                _services);
+                _services).WithSameTopology(this);
+
+        /// <summary>A copy of this context with no key prefix at all.</summary>
+        /// <remarks>
+        /// <b>Not an escape from isolation, and deliberately unreachable from one.</b> "No way back to
+        /// <c>k</c>" (see <see cref="AppendKeyPrefix"/>) is the public contract; this exists for the one
+        /// internal path that composes the prefix itself - <c>LuaScript</c> parameter extraction, where a
+        /// key's bytes travel in ARGV and must be prefixed at extraction, keys and arguments together. The
+        /// keys that path sends are already fully composed, so rendering them through the prefixed context
+        /// would prefix the KEYS declaration twice while ARGV carried it once.
+        /// </remarks>
+        internal RespContext WithoutKeyPrefix()
+            => _keyPrefix is null
+                ? this
+                : new RespContext(CommandMap, RedisKey.Null, default, Database, _serverType, Executor, _services).WithSameTopology(this);
 
         /// <summary>
         /// Returns a context whose channels carry <paramref name="channelPrefix"/>, <b>appended to</b> any

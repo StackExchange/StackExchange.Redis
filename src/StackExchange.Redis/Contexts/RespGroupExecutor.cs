@@ -129,6 +129,16 @@ namespace StackExchange.Redis
             => _active()?.ResolveFor(in key, command, flags);
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// A router resolves one step and recurses, exactly as <see cref="ResolveFor"/> does. Without
+        /// this, a batch or transaction run - which resolves by its folded slot, not by a key - stopped
+        /// AT the group, whose base implementation declines to write runs, and the transaction reported
+        /// itself unexecuted without anything having been sent.
+        /// </remarks>
+        internal override RespExecutorBase? ResolveForSlot(int slot, RedisCommand command, CommandFlags flags)
+            => _active()?.ResolveForSlot(slot, command, flags);
+
+        /// <inheritdoc/>
         /// <remarks>Null when nothing is active; the same "no honest answer" default as elsewhere.</remarks>
         public override ValueTask<EndPoint?> IdentifyEndpointAsync(
             RedisKey key,
@@ -155,7 +165,7 @@ namespace StackExchange.Redis
         /// </remarks>
         private RespExecutorBase ThrowUnavailable()
             => throw new RedisConnectionException(
-                ConnectionFailureType.UnableToResolvePhysicalConnection,
+                ConnectionFailureType.UnableToConnect, // the facade's classification, so the two agree
                 CommandFlags.CommandRetryNever,
                 _describeUnavailable?.Invoke() ?? "No connection group member is available.",
                 null,

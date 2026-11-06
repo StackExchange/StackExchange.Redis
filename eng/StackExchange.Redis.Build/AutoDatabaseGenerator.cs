@@ -322,7 +322,7 @@ public class AutoDatabaseGenerator : IIncrementalGenerator
     //  - generic methods (open type args can't be captured into a concrete state struct)
     //  - the Wait family (synchronization over caller-supplied Tasks, not server calls)
     //  - IsConnected: a synchronous status probe that IDatabaseAsync carries; it would route through the
-    //    sync Execute funnel, which an async-only database (e.g. RetryDatabase) doesn't provide - and a
+    //    sync Execute funnel, which an async-only database (e.g. RetryTransaction) doesn't provide - and a
     //    connection check shouldn't be retried in any case
     //  - IdentifyEndpoint / IdentifyEndpointAsync: a routing lookup ("which endpoint serves this key"),
     //    not a replayable server command; wrappers want their own behaviour here (e.g. a connection-group

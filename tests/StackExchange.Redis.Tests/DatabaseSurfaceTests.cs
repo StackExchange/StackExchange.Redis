@@ -218,13 +218,13 @@ public class DatabaseCoverageTests
     /// "nothing is generated" means nothing is generated rather than "the query stopped working".
     /// </summary>
     /// <remarks>
-    /// <see cref="Availability.RetryDatabase"/> is <c>[AutoDatabase(Replays = true)]</c> and is generated
+    /// <c>RetryTransaction</c> is <c>[AutoDatabase(Replays = true)]</c> and is generated
     /// on purpose - capture-and-replay wrappers are what the generator is <i>for</i>, and it keeps that
     /// job after the transitional database stops needing it. So this control cannot go stale by being
     /// right, which is how the previous one kept failing.
     /// </remarks>
     [Fact]
     public void TheGeneratedQueryCanStillSeeAGeneratedMember()
-        => Assert.NotEmpty(Generated(typeof(Availability.RetryDatabase), "String", typeof(IDatabaseAsync)));
+        => Assert.NotEmpty(Generated(typeof(Availability.RetryTransaction), "String", typeof(IDatabaseAsync)));
 }
 

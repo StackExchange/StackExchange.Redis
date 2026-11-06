@@ -23,8 +23,6 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisKey(string? key) : this(null, key) { }
 
-        internal RedisKey AsPrefix() => new RedisKey((byte[]?)this, null);
-
         internal bool IsNull => KeyPrefix == null && KeyValue == null;
 
         internal static RedisKey Null { get; } = new RedisKey(null, null);

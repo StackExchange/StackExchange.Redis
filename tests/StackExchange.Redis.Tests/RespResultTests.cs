@@ -203,11 +203,11 @@ public class RespResultTests(ITestOutputHelper output, SharedConnectionFixture f
     public async Task ExecuteResp_KeyPrefixed_ShortKey_IsPrefixedCorrectly()
     {
         // regression coverage: RedisKeyOrValue must round-trip a short (<=8 byte) key value through
-        // KeyPrefixed without it getting folded into RedisValue's inline ShortBlob/Simplify form.
+        // a prefixed database without it getting folded into RedisValue's inline ShortBlob/Simplify form.
         await using var conn = Create();
         var raw = conn.GetDatabase();
         string prefixText = Me() + ":";
-        IDatabase db = new KeyPrefixedDatabase(raw, Encoding.UTF8.GetBytes(prefixText));
+        IDatabase db = raw.WithKeyPrefix(prefixText);
 
         RedisKey shortKey = "abc"; // <= 8 bytes - would be eligible for ShortBlob packing as a RedisValue
         RedisKey directKey = prefixText + "abc";
