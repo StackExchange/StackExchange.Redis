@@ -59,7 +59,16 @@ namespace StackExchange.Redis
         /// </remarks>
         internal static Task<T> AsTask<T>(this ValueTask<T> pending, object? asyncState, CommandFlags flags)
         {
-            if ((flags & CommandFlags.FireAndForget) != 0) asyncState = null;
+            if ((flags & CommandFlags.FireAndForget) != 0)
+            {
+                asyncState = null;
+
+                // a declined reply that is already answered travels exactly as the executor shaped it,
+                // which is what lets a transaction hand every fire-and-forget caller ONE shared completed
+                // task instead of a fresh Task.FromResult per queued command; a result-backed ValueTask
+                // comes out of AsTask as Task.FromResult anyway, so nothing else changes
+                if (pending.IsCompletedSuccessfully) return pending.AsTask();
+            }
 
             if (pending.IsCompletedSuccessfully)
             {

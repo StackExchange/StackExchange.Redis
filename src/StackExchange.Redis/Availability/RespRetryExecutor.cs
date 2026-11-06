@@ -54,8 +54,8 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     /// <summary>The policy in force; read by the tests, which assert how a policy was resolved.</summary>
     internal RetryPolicy Policy => _controller.Policy;
 
-    /// <summary>The controller, shared with <see cref="RetryTransaction"/> so a transaction created from a
-    /// retrying database applies exactly the policy the database does.</summary>
+    /// <summary>The controller, shared with <see cref="RespRetryTransactionExecutor"/> so a transaction
+    /// created from a retrying database applies exactly the policy the database does.</summary>
     internal RetryController Controller => _controller;
 
     /// <summary>The executor underneath, so a second <c>WithRetry</c> can refuse rather than nest.</summary>

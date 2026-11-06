@@ -481,8 +481,8 @@ public class RetryEndToEndTests(ITestOutputHelper log) : TestBase(log)
     }
 
     // Multi-group + a retryable transaction: A fails every EXEC and is knocked out, so the group reroutes to B.
-    // Because RetryTransaction builds a *fresh* inner transaction against the currently-active member on each
-    // attempt, the replay lands on B and commits there - the transaction analogue of the single-command
+    // Because the retrying executor builds a *fresh* attempt transaction against the currently-active member
+    // on each replay, the retry lands on B and commits there - the transaction analogue of the single-command
     // WithRetry_FailsOverBetweenGroupsOnLoading test.
     [Fact]
     public async Task WithRetry_Transaction_FailsOverBetweenGroups()
