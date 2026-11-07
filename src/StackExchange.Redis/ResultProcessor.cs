@@ -308,6 +308,15 @@ namespace StackExchange.Redis
                 case RedisErrorKind.WrongPass:
                     bridge?.Multiplexer.SetAuthSuspect(new RedisServerException(errorKind, message.Flags, reader.GetOverview()));
                     break;
+                case RedisErrorKind.ReadOnly:
+                    // Sentinel-managed writes can reveal a demotion before INFO. Only mark the local role here;
+                    // the sentinel owner's heartbeat resolves the primary (sentinel-clients: Handle reconnections).
+                    // Standalone/cluster keep their existing error behavior, and no reconfigure starts on this IO path.
+                    if (bridge?.Multiplexer.IsSentinelManaged == true && bridge.ServerEndPoint is { IsReplica: false } demoted)
+                    {
+                        demoted.MarkAsReplicaWithoutReconfigure();
+                    }
+                    break;
             }
 
             var server = bridge?.ServerEndPoint;

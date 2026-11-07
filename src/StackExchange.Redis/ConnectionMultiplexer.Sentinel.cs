@@ -19,6 +19,15 @@ public partial class ConnectionMultiplexer
     internal ConnectionMultiplexer? sentinelConnection;
     private int _sentinelInitialized;
     private int _demotedPrimaryRecoveryActive;
+    private int _sentinelSwitchActive;
+    private int _sentinelAddressUpdateActive;
+    private readonly HashSet<string> _sentinelAddressUpdatesPending = new(StringComparer.Ordinal);
+    private int _sentinelSwitchPending;
+    // the managed connection is still on its seed - the configured endpoints, used because no sentinel named any address
+    // for the service (see GetSentinelMasterConnectionAsync); set before it is published, cleared by the switch that
+    // moves it onto the nodes sentinel names
+    private volatile bool _sentinelSeeded;
+    internal bool IsSentinelManaged { get; private set; }
 
     /// <summary>
     /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
@@ -50,12 +59,8 @@ public partial class ConnectionMultiplexer
                     // We don't care about the result of this - we're just trying
                     _ = Format.TryParseEndPoint(messageParts[1], messageParts[2], out var switchBlame);
 
-                    // Resolve the child under the lock, but run the (potentially multi-second,
-                    // blocking) SwitchPrimary reconfigure OUTSIDE it: otherwise a failover for one
-                    // service would block +switch-master handling and GetSentinelMasterConnection
-                    // for every other service sharing this sentinel connection. SwitchPrimary is
-                    // already invoked without this lock from the reconnect timer and the restore
-                    // handlers, so holding it here is not a required invariant.
+                    // Resolve the child under the lock, then start discovery/reconfiguration outside it:
+                    // services sharing a sentinel connection must not hold up one another's failover.
                     ConnectionMultiplexer? switchTarget = null;
                     lock (sentinelConnectionChildren)
                     {
@@ -76,7 +81,7 @@ public partial class ConnectionMultiplexer
 
                     if (switchTarget is not null)
                     {
-                        SwitchPrimary(switchBlame, switchTarget);
+                        SwitchPrimaryAsync(switchBlame, switchTarget).RedisFireAndForget();
                     }
                 },
                 CommandFlags.FireAndForget);
@@ -86,7 +91,7 @@ public partial class ConnectionMultiplexer
         // we need to reconfigure to make sure we still have a subscription to the +switch-master channel
         ConnectionFailed += (sender, e) =>
             // Reconfigure to get subscriptions back online
-            ReconfigureAsync(first: false, reconfigureAll: true, log, e.EndPoint, "Lost sentinel connection", false).Wait();
+            ReconfigureAsync(first: false, reconfigureAll: true, log, e.EndPoint, "Lost sentinel connection", false).RedisFireAndForget();
 
         // Subscribe to new sentinels being added
         if (sub.SubscribedEndpoint(RedisChannel.Literal("+sentinel")) == null)
@@ -96,7 +101,10 @@ public partial class ConnectionMultiplexer
                 (_, message) =>
                 {
                     string[] messageParts = ((string)message!).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    UpdateSentinelAddressList(messageParts[0]);
+                    // "<type> <name> <ip> <port> @ <master-name> <master-ip> <master-port>": the service follows the "@"
+                    int separator = Array.IndexOf(messageParts, "@");
+                    if (separator >= 0 && separator + 1 < messageParts.Length)
+                        UpdateSentinelAddressListAsync(messageParts[separator + 1]).RedisFireAndForget();
                 },
                 CommandFlags.FireAndForget);
         }
@@ -189,7 +197,7 @@ public partial class ConnectionMultiplexer
         var sentinelConnection = await SentinelConnectAsync(sentinelConfig, writer).ForAwait();
         try
         {
-            var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, writer);
+            var muxer = await sentinelConnection.GetSentinelMasterConnectionAsync(configuration, writer).ForAwait();
             // Set reference to sentinel connection so that we can dispose it
             muxer.sentinelConnection = sentinelConnection;
 
@@ -197,7 +205,7 @@ public partial class ConnectionMultiplexer
         }
         catch
         {
-            try { sentinelConnection.Dispose(); } catch { }
+            try { await sentinelConnection.DisposeAsync().ForAwait(); } catch { }
             throw;
         }
     }
@@ -208,6 +216,10 @@ public partial class ConnectionMultiplexer
     /// <param name="config">The configuration to be used when connecting to the primary.</param>
     /// <param name="log">The writer to log to, if any.</param>
     public ConnectionMultiplexer GetSentinelMasterConnection(ConfigurationOptions config, TextWriter? log = null)
+        // The public synchronous connect boundary only. Background recovery and ConnectAsync call the async core.
+        => GetSentinelMasterConnectionAsync(config, log, synchronousConnect: true).GetAwaiter().GetResult();
+
+    private async Task<ConnectionMultiplexer> GetSentinelMasterConnectionAsync(ConfigurationOptions config, TextWriter? log, bool synchronousConnect = false)
     {
         // A soft-failed SentinelConnect cannot detect a server type, but _isSentinel still records its intent.
         if (ServerSelectionStrategy.ServerType != ServerType.Sentinel && (config.AbortOnConnectFail || !_isSentinel))
@@ -234,6 +246,8 @@ public partial class ConnectionMultiplexer
         ConnectionMultiplexer? connection = null;
         EndPointCollection? endpoints = null;
         RedisConnectionException? failure = null;
+        // the address the connection was made to when no sentinel held a healthy primary; see below
+        EndPoint? heldDownPrimary;
 
         try
         {
@@ -246,7 +260,18 @@ public partial class ConnectionMultiplexer
                 EndPoint? newPrimaryEndPoint = null;
                 for (int i = 0; i < queryAttempts && newPrimaryEndPoint is null; i++)
                 {
-                    newPrimaryEndPoint = GetConfiguredPrimaryForService(serviceName);
+                    newPrimaryEndPoint = await GetConfiguredPrimaryForServiceAsync(serviceName).ForAwait();
+                }
+
+                // No sentinel holds a healthy primary: connect to the address sentinel names anyway, as discovery did
+                // before SENTINEL MASTER was asked, and let recovery move on once sentinel names a healthy one. The
+                // alternative, seeding with the configured endpoints, is a connection to nodes sentinel never named -
+                // a sentinel host given without a port is then tried on the default data port, and any server there
+                // is taken for the primary.
+                heldDownPrimary = null;
+                if (newPrimaryEndPoint is null)
+                {
+                    newPrimaryEndPoint = heldDownPrimary = await GetPrimaryAddressForServiceAsync(serviceName).ForAwait();
                 }
 
                 if (newPrimaryEndPoint is null)
@@ -260,15 +285,15 @@ public partial class ConnectionMultiplexer
                         throw failure;
                     }
 
-                    if (connection is not null) try { connection.Dispose(); } catch { }
-                    connection = SeedConnection(failure);
+                    if (connection is not null) try { await connection.DisposeAsync().ForAwait(); } catch { }
+                    connection = await SeedConnectionAsync(failure).ForAwait();
                     break;
                 }
 
                 EndPoint[]? replicaEndPoints = null;
                 for (int i = 0; i < queryAttempts && replicaEndPoints is null; i++)
                 {
-                    replicaEndPoints = GetReplicasForService(serviceName);
+                    replicaEndPoints = await GetReplicasForServiceAsync(serviceName).ForAwait();
                 }
 
                 endpoints = config.EndPoints.Clone();
@@ -293,11 +318,20 @@ public partial class ConnectionMultiplexer
                     }
                 }
 
-                if (connection is not null) try { connection.Dispose(); } catch { }
-                connection = ConnectImpl(config, log, endpoints: endpoints);
+                if (connection is not null) try { await connection.DisposeAsync().ForAwait(); } catch { }
+                connection = await ConnectImplAsync(config, log, endpoints: endpoints, synchronousConnect: synchronousConnect).ForAwait();
+
+                // Preserve the synchronous Connect soft timeout: a disconnected multiplexer is returned while its
+                // initial reconfigure continues; ROLE and the initial switch are recovery work in this case.
+                if (synchronousConnect && !config.AbortOnConnectFail && !connection.IsConnected)
+                {
+                    failure = connection.LastException as RedisConnectionException;
+                    break;
+                }
 
                 // verify role is primary according to:
-                // https://redis.io/topics/sentinel-clients
+                // https://redis.io/docs/latest/develop/reference/sentinel-clients/ Step 3: ROLE (or INFO) on the node
+                // sentinel named; a non-primary answer means a stale sentinel view, so the loop asks again.
                 bool isPrimary;
                 var server = connection.GetServer(newPrimaryEndPoint);
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
@@ -306,7 +340,7 @@ public partial class ConnectionMultiplexer
                     try
                     {
                         isPrimary = connection.CommandMap.IsAvailable(RedisCommand.ROLE)
-                            ? server.Role()?.Value == Role.LabelForMaster
+                            ? (await server.RoleAsync().ForAwait())?.Value == Role.LabelForMaster
                             : !server.IsReplica;
                     }
                     catch
@@ -322,7 +356,7 @@ public partial class ConnectionMultiplexer
                     }
                 }
 
-                Thread.Sleep(100);
+                await Task.Delay(100).ForAwait();
             }
             while (sw.ElapsedMilliseconds < config.ConnectTimeout);
 
@@ -337,11 +371,13 @@ public partial class ConnectionMultiplexer
                     throw failure;
                 }
 
-                connection ??= SeedConnection(failure);
+                connection ??= await SeedConnectionAsync(failure).ForAwait();
 
                 connection.LastException = failure;
                 connection.Logger?.LogErrorSyncConnectTimeout(failure, failure.Message);
             }
+
+            connection.IsSentinelManaged = true;
 
             // Attach to reconnect event to ensure proper connection to the new primary
             connection.ConnectionRestored += OnManagedConnectionRestored;
@@ -349,16 +385,39 @@ public partial class ConnectionMultiplexer
             // If we lost the connection, run a switch to a least try and get updated info about the primary
             connection.ConnectionFailed += OnManagedConnectionFailed;
 
+            ConnectionMultiplexer? existing = null;
             lock (sentinelConnectionChildren)
             {
-                sentinelConnectionChildren[serviceName] = connection;
+                if (sentinelConnectionChildren.TryGetValue(serviceName, out var child) && !child.IsDisposed)
+                    existing = child;
+                else
+                    sentinelConnectionChildren[serviceName] = connection;
+            }
+            if (existing is not null)
+            {
+                connection.ConnectionRestored -= OnManagedConnectionRestored;
+                connection.ConnectionFailed -= OnManagedConnectionFailed;
+                try { await connection.DisposeAsync().ForAwait(); } catch { }
+                connection = null;
+                return existing;
             }
 
             // Perform the initial switchover
             var switchBlame = endpoints is { Count: > 0 } ? endpoints[0] : null;
             try
             {
-                SwitchPrimary(switchBlame, connection, log);
+                if (synchronousConnect && !config.AbortOnConnectFail && !connection.IsConnected)
+                {
+                    ScheduleSentinelPrimaryReconnect(connection, switchBlame);
+                }
+                else
+                {
+                    // A primary held down is never a healthy answer, so a switch asking only for one would find nothing and
+                    // throw - with AbortOnConnectFail, failing a connect that reached the node sentinel names, where asking
+                    // only get-master-addr-by-name connected. So it may fall back the same way the connect did; it still
+                    // asks for a healthy primary first, since sentinel may have been put right while we connected.
+                    await SwitchPrimaryAsync(switchBlame, connection, log, acceptHeldDownPrimary: heldDownPrimary is not null).ForAwait();
+                }
             }
             catch when (!config.AbortOnConnectFail)
             {
@@ -366,7 +425,7 @@ public partial class ConnectionMultiplexer
                 // hold however far we got. Gating this on !success would tear down a connection that had
                 // *successfully* reached its primary just because the follow-up switchover threw, and throw
                 // from a call the caller asked never to throw.
-                ScheduleSentinelPrimaryReconnect(connection, switchBlame);
+                // SwitchPrimaryAsync's finally has already scheduled recovery.
             }
 
             return connection;
@@ -384,135 +443,100 @@ public partial class ConnectionMultiplexer
                         sentinelConnectionChildren.Remove(serviceName);
                     }
                 }
-                try { connection.Dispose(); } catch { }
+                try { await connection.DisposeAsync().ForAwait(); } catch { }
             }
             throw;
         }
 
-        // AbortOnConnectFail=false with no primary discovered: hand back a multiplexer seeded with whatever endpoints
-        // the caller gave us (the sentinel addresses, via Connect), for SwitchPrimary to rebuild once discovery works.
-        // A config with no endpoints of its own has nothing to seed with, and that is the discovery failure the caller
-        // should see - not the "No nodes to consider" that ConnectImpl would throw at an empty endpoint list.
-        ConnectionMultiplexer SeedConnection(RedisConnectionException discoveryFailure)
+        // AbortOnConnectFail=false with no address from any sentinel - not even one held down: hand back a multiplexer
+        // seeded with whatever endpoints the caller gave us (the sentinel addresses, via Connect), for SwitchPrimary to
+        // rebuild once discovery works. A config with no endpoints of its own has nothing to seed with, and that is the
+        // discovery failure the caller should see - not the "No nodes to consider" that ConnectImpl would throw at an
+        // empty endpoint list.
+        async Task<ConnectionMultiplexer> SeedConnectionAsync(RedisConnectionException discoveryFailure)
         {
             if (config.EndPoints.Count == 0)
             {
                 throw discoveryFailure;
             }
             endpoints = config.EndPoints.Clone();
-            return ConnectImpl(config, log, endpoints: endpoints);
+            var seeded = await ConnectImplAsync(config, log, endpoints: endpoints, synchronousConnect: synchronousConnect).ForAwait();
+            seeded._sentinelSeeded = true;
+            return seeded;
         }
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
     internal void OnManagedConnectionRestored(object? sender, ConnectionFailedEventArgs e)
     {
-        if (sender is not ConnectionMultiplexer connection)
+        if (sender is ConnectionMultiplexer connection)
         {
-            return; // This should never happen - called from non-nullable ConnectionFailedEventArgs
-        }
-
-        var oldTimer = Interlocked.Exchange(ref connection.sentinelPrimaryReconnectTimer, null);
-        oldTimer?.Dispose();
-
-        try
-        {
-            // Run a switch to make sure we have update-to-date
-            // information about which primary we should connect to
-            SwitchPrimary(e.EndPoint, connection);
-
-            try
-            {
-                // Verify that the reconnected endpoint is a primary,
-                // and the correct one otherwise we should reconnect
-                if (connection.GetServer(e.EndPoint).IsReplica || e.EndPoint != connection.currentSentinelPrimaryEndPoint)
-                {
-                    // This isn't a primary, so try connecting again
-                    SwitchPrimary(e.EndPoint, connection);
-                }
-            }
-            catch (Exception)
-            {
-                // If we get here it means that we tried to reconnect to a server that is no longer
-                // considered a primary by Sentinel and was removed from the list of endpoints.
-
-                // If we caught an exception, we may have gotten a stale endpoint
-                // we are not aware of, so retry
-                SwitchPrimary(e.EndPoint, connection);
-            }
-
-            // A soft-failed connect (AbortOnConnectFail=false) records the discovery failure as LastException, and
-            // the exception factory folds that into every "no connection available" message. We are connected to a
-            // sentinel-approved primary again, so stop reporting it.
-            connection.LastException = null;
-        }
-        catch (Exception)
-        {
-            // Log, but don't throw in an event handler
-            // TODO: Log via new event handler? a la ConnectionFailed?
+            // Failed/Restored are delivered on workers and may arrive out of order. Both ask for a fresh
+            // sentinel view; only that view plus the current connection state can stop recovery.
+            if (Volatile.Read(ref connection.sentinelPrimaryReconnectTimer) is null
+                && Volatile.Read(ref connection._sentinelSwitchActive) == 0
+                && connection.currentSentinelPrimaryEndPoint is EndPoint primary
+                && !IsStalePrimaryView(connection, primary)) return;
+            ScheduleSentinelPrimaryReconnect(connection, e.EndPoint);
         }
     }
 
     internal void OnManagedConnectionFailed(object? sender, ConnectionFailedEventArgs e)
     {
-        if (sender is not ConnectionMultiplexer connection)
+        if (sender is ConnectionMultiplexer connection)
         {
-            return; // This should never happen - called from non-nullable ConnectionFailedEventArgs
+            ScheduleSentinelPrimaryReconnect(connection, e.EndPoint);
         }
-
-        ScheduleSentinelPrimaryReconnect(connection, e.EndPoint);
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1075:Avoid empty catch clause that catches System.Exception.", Justification = "We don't care.")]
+    private static void StopSentinelPrimaryReconnect(ConnectionMultiplexer connection)
+        => Interlocked.Exchange(ref connection.sentinelPrimaryReconnectTimer, null)?.Dispose();
+
     private void ScheduleSentinelPrimaryReconnect(ConnectionMultiplexer connection, EndPoint? endPoint)
     {
-        // Periodically check to see if we can reconnect to the proper primary.
-        // This is here in case we lost our subscription to a good sentinel instance
-        // or if we miss the published primary change.
-        //
-        // Built before it is published, and published with a compare-exchange: this is now reached from the
-        // connect path as well as from ConnectionFailed, and the handler is wired up a few lines before the
-        // connect path calls it - on a connection that is already failing in the background. A plain null
-        // check would let both threads create a timer, and only one of them could ever be reached by
-        // OnManagedConnectionRestored to be disposed; the loser would keep firing SwitchPrimary every second
-        // for the life of the process, with no handle left to stop it.
-        var timer = new Timer(
-            _ =>
-            {
-                try
-                {
-                    // Attempt, but do not fail here
-                    SwitchPrimary(endPoint, connection);
-                }
-                catch (Exception)
-                {
-                }
-                finally
-                {
-                    try
-                    {
-                        connection.sentinelPrimaryReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        // If we get here the managed connection was restored and the timer was
-                        // disposed by another thread, so there's no need to run the timer again.
-                    }
-                }
-            },
-            null,
-            Timeout.InfiniteTimeSpan,
-            Timeout.InfiniteTimeSpan);
+        if (IsDisposed || connection.IsDisposed || connection.RawConfig.ServiceName is null)
+        {
+            StopSentinelPrimaryReconnect(connection);
+            return;
+        }
+        if (Volatile.Read(ref connection.sentinelPrimaryReconnectTimer) is not null) return;
 
+        // A one-shot timer, rearmed only after the asynchronous attempt finishes. Capture its own identity:
+        // a finishing callback must never rearm a replacement timer installed by a concurrent failure.
+        Timer? timer = null;
+        timer = new Timer(_ => ReconnectAsync().RedisFireAndForget(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         if (Interlocked.CompareExchange(ref connection.sentinelPrimaryReconnectTimer, timer, null) is null)
         {
-            // we won: start it. Deliberately not started at construction - a timer that fires before it is
-            // published cannot be found by the callback's own Change call, nor disposed on restore.
-            timer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+            try { timer.Change(TimeSpan.Zero, Timeout.InfiniteTimeSpan); }
+            catch (ObjectDisposedException) { } // disposed/restored between publication and Change
         }
         else
         {
             timer.Dispose();
+        }
+
+        async Task ReconnectAsync()
+        {
+            try
+            {
+                if (IsDisposed || connection.IsDisposed)
+                {
+                    StopSentinelPrimaryReconnect(connection);
+                    return;
+                }
+                await SwitchPrimaryAsync(endPoint, connection).ForAwait();
+            }
+            catch (Exception ex)
+            {
+                Trace("Sentinel primary reconnect failed: " + ex.Message, "Sentinel");
+            }
+            finally
+            {
+                if (ReferenceEquals(Volatile.Read(ref connection.sentinelPrimaryReconnectTimer), timer))
+                {
+                    try { timer!.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan); }
+                    catch (ObjectDisposedException) { }
+                }
+            }
         }
     }
 
@@ -528,8 +552,7 @@ public partial class ConnectionMultiplexer
     }
 
     /// <summary>
-    /// Re-resolves the primary through sentinel for every managed connection whose primary has been demoted
-    /// while its connection stayed up.
+    /// Re-resolves a managed primary that was seen demoted.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -580,24 +603,24 @@ public partial class ConnectionMultiplexer
         foreach (var child in demoted)
         {
             if (Interlocked.CompareExchange(ref child._demotedPrimaryRecoveryActive, 1, 0) != 0) continue;
+            RecoverAsync(child).RedisFireAndForget();
+        }
 
-            // asking sentinel and SwitchPrimary both block; keep that off the heartbeat
-            ThreadPool.QueueUserWorkItem(_ =>
+        async Task RecoverAsync(ConnectionMultiplexer child)
+        {
+            try
             {
-                try
-                {
-                    RecoverDemotedPrimary(child);
-                }
-                catch (Exception ex)
-                {
-                    // sentinel unreachable, or either connection disposed meanwhile: a later heartbeat looks again
-                    Trace("Demoted primary recovery failed: " + ex.Message, "Sentinel");
-                }
-                finally
-                {
-                    Volatile.Write(ref child._demotedPrimaryRecoveryActive, 0);
-                }
-            });
+                await RecoverDemotedPrimaryAsync(child).ForAwait();
+            }
+            catch (Exception ex)
+            {
+                // sentinel unreachable, or either connection disposed meanwhile: a later heartbeat looks again
+                Trace("Demoted primary recovery failed: " + ex.Message, "Sentinel");
+            }
+            finally
+            {
+                Volatile.Write(ref child._demotedPrimaryRecoveryActive, 0);
+            }
         }
     }
 
@@ -614,30 +637,30 @@ public partial class ConnectionMultiplexer
     /// node to elect a primary that may not exist - once per second for as long as sentinel lags. Where that read
     /// cannot be sent (<c>INFO</c> unavailable), fall through to the switch rather than ask sentinel forever.</description></item>
     /// <item><description>anything else: switch, exactly as a <c>+switch-master</c> announcement would have.
-    /// Sentinel's answer is handed to <see cref="SwitchPrimary"/> so the switch acts on the answer these guards
+    /// Sentinel's answer is handed to <see cref="SwitchPrimaryAsync"/> so the switch acts on the answer these guards
     /// evaluated, rather than asking again and possibly acting on a different one.</description></item>
     /// </list>
-    /// A reconfigure already running is left alone: <see cref="SwitchPrimary"/> claims the reconfigure gate
+    /// A reconfigure already running is left alone: <see cref="SwitchPrimaryAsync"/> claims the reconfigure gate
     /// before touching anything, so a lost race leaves no trace and a later heartbeat retries.
     /// </remarks>
-    private void RecoverDemotedPrimary(ConnectionMultiplexer connection)
+    private async Task RecoverDemotedPrimaryAsync(ConnectionMultiplexer connection)
     {
         if (IsDisposed || connection.IsDisposed || connection.RawConfig.ServiceName is not string serviceName) return;
 
-        // cheap early out before the blocking sentinel query; SwitchPrimary's claim is the authoritative check
+        // cheap early out before touching the topology; SwitchPrimaryAsync's claim is the authoritative check
         if (Volatile.Read(ref connection.activeConfigCause) is not null) return;
 
-        if (GetConfiguredPrimaryForService(serviceName) is not EndPoint reported) return;
+        if (await GetConfiguredPrimaryForServiceAsync(serviceName).ForAwait() is not EndPoint reported) return;
         if (connection.TryResolveServerEndPoint(reported) is { IsConnected: true, IsReplica: true } replica
-            && replica.CheckInfoReplication())
+            && await replica.CheckInfoReplicationAsync().ForAwait())
         {
             return;
         }
 
-        // the view may have been put right while sentinel was answering
+        // The view may have been put right while sentinel was answering.
         if (!IsSentinelPrimaryDemoted(connection)) return;
 
-        if (SwitchPrimary(connection.currentSentinelPrimaryEndPoint, connection, reportedPrimary: reported)
+        if (await SwitchPrimaryAsync(connection.currentSentinelPrimaryEndPoint, connection, reportedPrimary: reported).ForAwait()
             && connection.TryResolveServerEndPoint(reported) is { IsConnected: true, IsReplica: false })
         {
             // As OnManagedConnectionRestored does: we are connected to a sentinel-approved primary again, so a
@@ -677,136 +700,291 @@ public partial class ConnectionMultiplexer
         return true;
     }
 
-    internal EndPoint? GetConfiguredPrimaryForService(string serviceName) =>
-        _serverSnapshot // same as GetServerSnapshot, but without forcing span
-            .Where(static s => s.ServerType == ServerType.Sentinel)
-            .AsParallel()
-            .Select(s =>
+    /// <summary>
+    /// The primary sentinel holds for <paramref name="serviceName"/>: the first valid answer from any sentinel route.
+    /// </summary>
+    /// <remarks>
+    /// https://redis.io/docs/latest/develop/reference/sentinel-clients/ Step 2 asks the sentinels for the address;
+    /// an answer is taken only from a sentinel that holds that node as a healthy master (flags <c>master</c>, no
+    /// <c>s_down</c>/<c>o_down</c>), which <c>SENTINEL MASTER</c> reports and <c>get-master-addr-by-name</c> does not -
+    /// a sentinel still repeating a failed primary is passed over for one that already knows the new one. A stale
+    /// but healthy-looking answer is still caught by the role check (Step 3) and asked again.
+    /// <para>
+    /// A sentinel that does not give a usable <c>SENTINEL MASTER</c> answer - any error (the subcommand unknown, or
+    /// denied by an ACL that allows only what discovery needed before), or a reply without the <c>master</c> flag or an
+    /// address - is asked <c>get-master-addr-by-name</c> instead, exactly as every sentinel was before. Only a sentinel
+    /// that explicitly holds the node down is passed over; when every sentinel does, this returns <c>null</c>, and the
+    /// callers that must not wait for a healthy answer ask <see cref="GetPrimaryAddressForServiceAsync"/>.
+    /// </para>
+    /// </remarks>
+    internal Task<EndPoint?> GetConfiguredPrimaryForServiceAsync(string serviceName) =>
+        QuerySentinelsAsync(async server =>
+        {
+            EndPoint? primary;
+            try
             {
-                try { return GetServer(s.EndPoint).SentinelGetMasterAddressByName(serviceName); }
-                catch { return null; }
-            })
-            .FirstOrDefault(r => r != null);
-
-    internal EndPoint[]? GetReplicasForService(string serviceName) =>
-        _serverSnapshot // same as GetServerSnapshot, but without forcing span
-            .Where(static s => s.ServerType == ServerType.Sentinel)
-            .AsParallel()
-            .Select(s =>
+                primary = ParseHealthyPrimary(await server.SentinelMasterAsync(serviceName).ForAwait(), out bool heldDown);
+                if (heldDown) return null;
+            }
+            catch (RedisServerException)
             {
-                try { return GetServer(s.EndPoint).SentinelGetReplicaAddresses(serviceName); }
-                catch { return null; }
-            })
-            .FirstOrDefault(r => r != null);
+                primary = null;
+            }
+            return primary ?? await server.SentinelGetMasterAddressByNameAsync(serviceName).ForAwait();
+        });
 
     /// <summary>
-    /// Switches the SentinelMasterConnection over to a new primary.
+    /// The address sentinel names for <paramref name="serviceName"/>, whatever health it holds that node in: the first
+    /// <c>get-master-addr-by-name</c> answer from any sentinel route.
     /// </summary>
+    /// <remarks>
+    /// Only for when <see cref="GetConfiguredPrimaryForServiceAsync"/> found no healthy primary - which it reports only
+    /// once every sentinel has answered or the deadline has passed, so a healthy answer is preferred however slow it is,
+    /// and a sentinel still repeating a failed primary cannot overtake one that knows the new one. This is how discovery
+    /// asked before <c>SENTINEL MASTER</c> was consulted, and it is <c>get-master-addr-by-name</c> rather than the
+    /// address in the <c>SENTINEL MASTER</c> reply on purpose: during a failover it already names the replica being
+    /// promoted, while <c>SENTINEL MASTER</c> still describes the old primary.
+    /// </remarks>
+    internal Task<EndPoint?> GetPrimaryAddressForServiceAsync(string serviceName) =>
+        QuerySentinelsAsync(server => server.SentinelGetMasterAddressByNameAsync(serviceName));
+
+    // Every replica sentinel lists is added, whatever its flags: one that is down is left to its bridge to reconnect,
+    // so a replica down at connect time (a rolling restart) joins once it is back at the same address.
+    internal Task<EndPoint[]?> GetReplicasForServiceAsync(string serviceName) =>
+        QuerySentinelsAsync(async server => (EndPoint[]?)await server.SentinelGetReplicaAddressesAsync(serviceName).ForAwait());
+
+    /// <summary>
+    /// Asks every sentinel at once and takes the first answer, as the parallel query this replaces did - but through
+    /// the asynchronous API: a request waiting on a slow or dead sentinel holds no thread-pool worker.
+    /// </summary>
+    private Task<T?> QuerySentinelsAsync<T>(Func<IServer, Task<T?>> query) where T : class
+    {
+        // sentinel-clients Step 1 tries the sentinels one by one; every route is asked at once instead, as the parallel
+        // query did - the requests are asynchronous and hold no worker, so a dead route delays nothing.
+        var sentinels = _serverSnapshot.Where(static s => s.ServerType == ServerType.Sentinel && !s.IsDisposed);
+        return FirstSentinelResultAsync(sentinels.Select(QueryAsync).ToArray(), AsyncTimeoutMilliseconds);
+
+        async Task<T?> QueryAsync(ServerEndPoint server)
+        {
+            try { return await query(GetServer(server.EndPoint)).ForAwait(); }
+            catch (Exception) { return null; }
+        }
+    }
+
+    // a primary is unusable only when sentinel holds it down; "disconnected" is a link sentinel is re-establishing
+    internal static bool IsSentinelPrimaryDown(string? flags) => flags is not null
+        && flags.Split(',').Any(static f => f is "s_down" or "o_down");
+
+    /// <summary>
+    /// The address a <c>SENTINEL MASTER</c> reply names, when it describes a healthy master; otherwise <c>null</c>.
+    /// </summary>
+    /// <param name="row">The reply.</param>
+    /// <param name="heldDown">Whether sentinel holds the node down (<c>s_down</c>/<c>o_down</c>): the one <c>null</c>
+    /// that is an answer. Any other <c>null</c> is a reply that cannot be judged.</param>
+    internal static EndPoint? ParseHealthyPrimary(KeyValuePair<string, string>[] row, out bool heldDown)
+    {
+        var fields = row.ToDictionary(static p => p.Key, static p => p.Value);
+        fields.TryGetValue("flags", out var flags);
+        heldDown = IsSentinelPrimaryDown(flags);
+        if (heldDown || flags is null || !flags.Split(',').Contains("master")) return null;
+        return ParseSentinelAddress(fields);
+    }
+
+    private static EndPoint? ParseSentinelAddress(Dictionary<string, string> fields)
+    {
+        if (fields.TryGetValue("ip", out var host) && fields.TryGetValue("port", out var port)
+            && Format.TryParseEndPoint(host, port, out var address)) return address;
+        return null;
+    }
+
+    // Every request observes its own failure, including the requests still outstanding when a faster
+    // sentinel answers. One deadline covers the whole race, rather than a timeout per losing request.
+    // All requests use the asynchronous API: waiting for a slow/dead sentinel consumes no worker.
+    internal static async Task<T?> FirstSentinelResultAsync<T>(Task<T?>[] requests, int timeoutMilliseconds) where T : class
+    {
+        using var timeout = new CancellationTokenSource();
+        var deadline = Task.Delay(timeoutMilliseconds, timeout.Token);
+        var pending = new List<Task>(requests.Length + 1) { deadline };
+        foreach (var request in requests) pending.Add(request.ObserveErrors());
+        try
+        {
+            while (pending.Count > 1)
+            {
+                var completed = await Task.WhenAny(pending).ForAwait();
+                if (ReferenceEquals(completed, deadline)) break;
+                pending.Remove(completed);
+                try
+                {
+                    if (await ((Task<T?>)completed).ForAwait() is T result) return result;
+                }
+                catch (Exception) { } // another sentinel may still have an answer
+            }
+            return null;
+        }
+        finally
+        {
+            timeout.Cancel();
+        }
+    }
+
+    /// <summary>
+    /// Switches the SentinelMasterConnection over to a new primary, without blocking a worker.
+    /// </summary>
+    /// <remarks>
+    /// The reconnect timer, the demotion heartbeat, the restore handler and <c>+switch-master</c> all call this. A
+    /// per-connection gate covers discovery as well as reconfiguration, so they cannot overlap; a switch requested while
+    /// one is running is not dropped, but recorded and replayed once it finishes. The reconnect timer is stopped here,
+    /// and only here, once the connection is on the sentinel-reported primary with no stale view left.
+    /// <para>
+    /// No sentinel holding a healthy primary normally means "ask again later". Two callers instead take the address
+    /// sentinel holds down (<see cref="GetPrimaryAddressForServiceAsync"/>): the initial switch of a connect that was
+    /// itself made to such an address (<paramref name="acceptHeldDownPrimary"/>), and any switch of a connection still on
+    /// its seed, which serves from nodes sentinel never named. A seeded connection stops counting as one only once a
+    /// switch has claimed the reconfigure gate and moved it onto the nodes sentinel names - its seed nodes are retired
+    /// even when the replica query fails - so an attempt that loses the claim or throws is simply repeated.
+    /// </para>
+    /// </remarks>
     /// <param name="switchBlame">The endpoint responsible for the switch.</param>
     /// <param name="connection">The connection that should be switched over to a new primary endpoint.</param>
     /// <param name="writer">The writer to log to, if any.</param>
     /// <param name="reportedPrimary">The primary sentinel already reported, when the caller has just asked it;
     /// otherwise sentinel is queried here.</param>
+    /// <param name="acceptHeldDownPrimary">Whether to fall back to the address sentinel holds down when no sentinel
+    /// holds a healthy primary, as the connect that made this connection did.</param>
     /// <returns><c>true</c> when a switch ran (the endpoint set and/or roles were reconfigured); <c>false</c> when
-    /// the view was already correct, or another reconfigure holds the gate - the callers that retry (the reconnect
-    /// timer, the demotion heartbeat) get a later attempt either way.</returns>
-    internal bool SwitchPrimary(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? writer = null, EndPoint? reportedPrimary = null)
+    /// the view was already correct, another switch is running, or another reconfigure holds the gate - the callers
+    /// that retry (the reconnect timer, the demotion heartbeat) get a later attempt either way.</returns>
+    internal async Task<bool> SwitchPrimaryAsync(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? writer = null, EndPoint? reportedPrimary = null, bool acceptHeldDownPrimary = false)
     {
+        if (IsDisposed || connection.IsDisposed) return false;
+        if (connection.RawConfig.ServiceName is null)
+        {
+            StopSentinelPrimaryReconnect(connection);
+            return false;
+        }
+        if (Interlocked.CompareExchange(ref connection._sentinelSwitchActive, 1, 0) != 0)
+        {
+            Interlocked.Exchange(ref connection._sentinelSwitchPending, 1);
+            ScheduleSentinelPrimaryReconnect(connection, switchBlame);
+            return false;
+        }
+
+        var serviceName = connection.RawConfig.ServiceName;
+        bool refreshAddresses = connection.currentSentinelPrimaryEndPoint is null;
         var logger = Logger.With(writer);
-        if (connection.RawConfig.ServiceName is not string serviceName)
-        {
-            logger?.LogInformationServiceNameNotDefined();
-            return false;
-        }
-
-        // Get new primary - try twice (unless the caller already holds sentinel's answer)
-        EndPoint newPrimaryEndPoint = reportedPrimary
-                                    ?? GetConfiguredPrimaryForService(serviceName)
-                                    ?? GetConfiguredPrimaryForService(serviceName)
-                                    ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
-
-        connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
-
-        // Claim the reconfigure gate BEFORE reshaping the connection. ReconfigureAsync refuses to run while
-        // another reconfigure holds this gate, so rewriting the endpoint list and retiring servers first would
-        // leave the connection reshaped but unconfigured whenever we lose that race - and two concurrent
-        // switches could interleave their endpoint rewrites. Claim first and a lost race touches nothing.
-        string cause = $"Primary switch {serviceName}";
-        if (!connection.TryClaimReconfigure(cause))
-        {
-            Trace($"Primary switch for {serviceName} skipped; reconfiguration already in progress");
-            return false;
-        }
-
-        bool switched = false;
+        bool healthy = false, claimed = false, handedOver = false;
+        EndPoint? confirmedPrimary = null;
         try
         {
-            // Trigger a blocking reconfigure for the switch, then refresh the sentinel address list.
-            // reconfigureAll:true forces every already-connected node to re-read its role before the
-            // primary is re-elected (see IsStalePrimaryView); reconfigureAll:false matches the legacy
-            // behavior for the "unknown endpoint" rebuild path.
-            void TriggerReconfigure(bool reconfigureAll)
+            if (serviceName is null)
             {
+                logger?.LogInformationServiceNameNotDefined();
+                return false;
+            }
+
+            // Get new primary - try twice (unless the caller already holds sentinel's answer). No healthy primary
+            // means "ask again later", except where the address sentinel holds down is the better place to wait (see
+            // remarks) - for a connection still on its seed, until a switch has actually moved it off.
+            bool seeded = connection._sentinelSeeded;
+            EndPoint newPrimaryEndPoint = reportedPrimary
+                ?? await GetConfiguredPrimaryForServiceAsync(serviceName).ForAwait()
+                ?? await GetConfiguredPrimaryForServiceAsync(serviceName).ForAwait()
+                ?? (acceptHeldDownPrimary || seeded
+                    ? await GetPrimaryAddressForServiceAsync(serviceName).ForAwait()
+                    : null)
+                ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
+            connection.currentSentinelPrimaryEndPoint = confirmedPrimary = newPrimaryEndPoint;
+
+            // The endpoint set is rebuilt only around a primary this connection has never seen (e.g. a recreated
+            // node that came back on a brand-new address); a known primary keeps the set it has. Ask for the
+            // replicas before the claim, so the gate is not held across a sentinel round trip.
+            bool unknownPrimary = !connection.servers.Contains(newPrimaryEndPoint);
+            EndPoint[]? replicas = unknownPrimary
+                ? await GetReplicasForServiceAsync(serviceName).ForAwait() ?? await GetReplicasForServiceAsync(serviceName).ForAwait()
+                : null;
+
+            // Claim the reconfigure gate BEFORE reshaping the connection. ReconfigureAsync refuses to run while
+            // another reconfigure holds this gate, so rewriting the endpoint list and retiring servers first would
+            // leave the connection reshaped but unconfigured whenever we lose that race - and two concurrent
+            // switches could interleave their endpoint rewrites. Claim first and a lost race touches nothing.
+            string cause = $"Primary switch {serviceName}";
+            if (!connection.TryClaimReconfigure(cause))
+            {
+                Trace($"Primary switch for {serviceName} skipped; reconfiguration already in progress");
+                return false;
+            }
+            claimed = true;
+
+            bool stale = IsStalePrimaryView(connection, newPrimaryEndPoint);
+            if (unknownPrimary)
+            {
+                // A seeded connection holds no node sentinel named, only the configured endpoints - which may well be some
+                // other server - so it is not kept "until discovery works" for want of the replica list.
+                if (replicas is not null || seeded)
+                {
+                    connection.EndPoints.Clear();
+                    connection.EndPoints.TryAdd(newPrimaryEndPoint);
+                    foreach (var replica in replicas ?? [])
+                    {
+                        connection.EndPoints.TryAdd(replica);
+                    }
+
+                    // Only once sentinel gave us the whole picture: a null replica list is a failed query, not a
+                    // deployment with no replicas, and retiring on one would drop healthy nodes over a hiccup.
+                    // Seed nodes are not such nodes, so a seeded connection retires them regardless.
+                    await RetireServersAbsentFromEndPointsAsync(connection, logger).ForAwait();
+                }
+                else
+                {
+                    // Keep the old nodes until discovery works.
+                    connection.EndPoints.TryAdd(newPrimaryEndPoint);
+                }
+            }
+
+            // Off the seed: the gate is ours and the endpoint set is sentinel's (or already held what sentinel names).
+            // From here no healthy primary means "ask again later", as for every other connection.
+            if (seeded) connection._sentinelSeeded = false;
+
+            bool switched = unknownPrimary || stale;
+            refreshAddresses |= switched;
+            if (switched)
+            {
+                // Step 3: a new node reads its role during handshake. For a known primary, reconfigureAll forces
+                // INFO on connected nodes too; an unknown primary can leave cached roles on old nodes until the
+                // next recovery attempt. Any remaining replica/second-primary view keeps recovery running.
                 Trace($"Switching primary to {newPrimaryEndPoint}");
-                switched = true; // from here the claim is ReconfigureAsync's to release, however it exits
-                connection.ReconfigureAsync(
+                handedOver = true; // from here the claim is ReconfigureAsync's to release, however it exits
+                await connection.ReconfigureAsync(
                     first: false,
-                    reconfigureAll: reconfigureAll,
+                    reconfigureAll: !unknownPrimary,
                     log: logger,
                     blame: switchBlame,
                     cause: cause,
                     publishReconfigure: false,
                     publishReconfigureFlags: CommandFlags.PreferMaster,
-                    claimed: true).Wait();
-
-                UpdateSentinelAddressList(serviceName);
+                    claimed: true).ForAwait();
             }
 
-            if (!connection.servers.Contains(newPrimaryEndPoint))
-            {
-                // The sentinel-reported primary is an endpoint we have never seen (e.g. a
-                // recreated node that came back on a brand-new IP). Rebuild the endpoint set
-                // from scratch around it and reconfigure.
-                EndPoint[]? replicaEndPoints = GetReplicasForService(serviceName)
-                                            ?? GetReplicasForService(serviceName);
-
-                connection.EndPoints.Clear();
-                connection.EndPoints.TryAdd(newPrimaryEndPoint);
-                if (replicaEndPoints is not null)
-                {
-                    foreach (var replicaEndPoint in replicaEndPoints)
-                    {
-                        connection.EndPoints.TryAdd(replicaEndPoint);
-                    }
-                }
-
-                // Only once sentinel gave us the whole picture: a null replica list is a failed query, not a
-                // deployment with no replicas, and retiring on one would drop healthy nodes over a hiccup.
-                if (replicaEndPoints is not null)
-                {
-                    RetireServersAbsentFromEndPoints(connection, logger);
-                }
-
-                TriggerReconfigure(reconfigureAll: false);
-            }
-            else if (IsStalePrimaryView(connection, newPrimaryEndPoint))
-            {
-                // The sentinel-reported primary IS an endpoint we already know about, but our
-                // cached view of the topology is stale (failover between known nodes: the old
-                // primary was demoted to a replica in-place and a former replica was promoted).
-                // A plain reconfigure with reconfigureAll:false would NOT re-read the role of an
-                // already-connected node, so the primary election would re-pick the stale demoted
-                // node. Force a full reconfigure so every connected node's role is refreshed before
-                // the primary is re-elected.
-                TriggerReconfigure(reconfigureAll: true);
-            }
-
+            healthy = !IsStalePrimaryView(connection, newPrimaryEndPoint);
+            if (healthy) connection.LastException = null;
             return switched;
         }
         finally
         {
             // not handed over (view already correct, or we threw before the reconfigure): release it ourselves
-            if (!switched) connection.ReleaseReconfigureClaim();
+            if (claimed && !handedOver) connection.ReleaseReconfigureClaim();
+            if (healthy && Volatile.Read(ref connection._sentinelSwitchPending) == 0)
+            {
+                StopSentinelPrimaryReconnect(connection);
+                // A failure delivered while the old timer was still published may not have installed a
+                // replacement. Recheck after removing it so a concurrent disconnect cannot lose recovery.
+                healthy = confirmedPrimary is not null && !IsStalePrimaryView(connection, confirmedPrimary);
+            }
+            Volatile.Write(ref connection._sentinelSwitchActive, 0);
+            if (Interlocked.Exchange(ref connection._sentinelSwitchPending, 0) != 0 || !healthy)
+                ScheduleSentinelPrimaryReconnect(connection, switchBlame);
+            // Address discovery runs on its own; it must not widen the switch gate.
+            if (refreshAddresses && serviceName is not null) UpdateSentinelAddressListAsync(serviceName).RedisFireAndForget();
         }
     }
 
@@ -827,21 +1005,13 @@ public partial class ConnectionMultiplexer
     /// well: a dropped node finishes what it owes rather than having its in-flight commands abandoned.
     /// </para>
     /// </remarks>
-    private static void RetireServersAbsentFromEndPoints(ConnectionMultiplexer connection, ILogger? log)
+    private static async Task RetireServersAbsentFromEndPointsAsync(ConnectionMultiplexer connection, ILogger? log)
     {
-        List<ServerEndPoint>? drop = null;
-        foreach (var server in connection.GetServerSnapshot())
-        {
-            if (server.IsDisposed || connection.EndPoints.Contains(server.EndPoint)) continue;
-            (drop ??= new List<ServerEndPoint>()).Add(server);
-        }
-
-        if (drop is null) return;
+        var drop = connection._serverSnapshot.Where(s => !s.IsDisposed && !connection.EndPoints.Contains(s.EndPoint)).ToArray();
         foreach (var server in drop)
         {
-            // short drain: this runs on the +switch-master handler and the reconnect timer, and the
-            // reconfigure that follows is the part that matters for getting traffic moving again
-            connection.RetireServerAsync(server, "no longer named by sentinel", TimeSpan.FromSeconds(1), log).Wait();
+            // short drain: the reconfigure that follows is the part that matters for getting traffic moving again
+            await connection.RetireServerAsync(server, "no longer named by sentinel", TimeSpan.FromSeconds(1), log).ForAwait();
         }
     }
 
@@ -860,10 +1030,11 @@ public partial class ConnectionMultiplexer
     /// <param name="newPrimaryEndPoint">The primary endpoint reported by sentinel (already known to the connection).</param>
     private static bool IsStalePrimaryView(ConnectionMultiplexer connection, EndPoint newPrimaryEndPoint)
     {
-        var newPrimaryServer = connection.GetServerEndPoint(newPrimaryEndPoint, activate: false, provenance: ServerProvenance.Sentinel);
+        var newPrimaryServer = connection.TryResolveServerEndPoint(newPrimaryEndPoint);
 
         // We do not know this endpoint yet, or we still think the sentinel-reported primary is a
-        // replica, or we are not actually connected to it: our view is stale.
+        // replica, or its interactive connection is down: our view is stale. Subscription recovery is
+        // handled by the normal bridges; it must not keep primary discovery polling a healthy data node.
         if (newPrimaryServer is null || newPrimaryServer.IsReplica || !newPrimaryServer.IsConnected)
         {
             return true;
@@ -886,33 +1057,61 @@ public partial class ConnectionMultiplexer
         return false;
     }
 
-    internal void UpdateSentinelAddressList(string serviceName)
+    internal async Task UpdateSentinelAddressListAsync(string serviceName)
     {
-        var firstCompleteRequest = _serverSnapshot // same as GetServerSnapshot, but without forcing span
-                                    .Where(static s => s.ServerType == ServerType.Sentinel)
-                                    .AsParallel()
-                                    .Select(s =>
-                                    {
-                                        try { return GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName); }
-                                        catch { return null; }
-                                    })
-                                    .FirstOrDefault(r => r != null);
-
-        // Ignore errors, as having an updated sentinel list is not essential
-        if (firstCompleteRequest == null)
-            return;
-
-        bool hasNew = false;
-        foreach (EndPoint newSentinel in firstCompleteRequest.Where(x => !EndPoints.Contains(x)))
+        lock (_sentinelAddressUpdatesPending)
         {
-            hasNew = true;
-            EndPoints.TryAdd(newSentinel);
+            if (IsDisposed) return;
+            _sentinelAddressUpdatesPending.Add(serviceName);
+            if (_sentinelAddressUpdateActive != 0) return;
+            _sentinelAddressUpdateActive = 1;
         }
-
-        if (hasNew)
+        try
         {
-            // Reconfigure the sentinel multiplexer if we added new endpoints
-            ReconfigureAsync(first: false, reconfigureAll: true, Logger, EndPoints[0], "Updating Sentinel List", false).Wait();
+            while (!IsDisposed)
+            {
+                lock (_sentinelAddressUpdatesPending)
+                {
+                    if (_sentinelAddressUpdatesPending.Count == 0) break;
+                    serviceName = _sentinelAddressUpdatesPending.First();
+                    _sentinelAddressUpdatesPending.Remove(serviceName);
+                }
+                var peers = await QuerySentinelsAsync(async server =>
+                    (EndPoint[]?)await server.SentinelGetSentinelAddressesAsync(serviceName).ForAwait()).ForAwait();
+                if (peers is null) continue;
+
+                bool hasNew = false;
+                // https://valkey.io/topics/sentinel-clients/: append unknown ip:port pairs, retaining all old routes.
+                // Add before claiming reconfigure, so a busy claim cannot lose the discovery result.
+                foreach (var peer in peers)
+                {
+                    hasNew |= EndPoints.TryAdd(peer);
+                }
+                if (!hasNew) continue;
+
+                const string cause = "Updating Sentinel List";
+                while (!IsDisposed)
+                {
+                    if (TryClaimReconfigure(cause))
+                    {
+                        await ReconfigureAsync(first: false, reconfigureAll: true, Logger, EndPoints[0], cause, false, claimed: true).ForAwait();
+                        break;
+                    }
+                    // Coalesce later announcements while waiting for the owner of the claim; no worker is held.
+                    await Task.Delay(1000).ForAwait();
+                }
+            }
+        }
+        finally
+        {
+            string? pending;
+            lock (_sentinelAddressUpdatesPending)
+            {
+                _sentinelAddressUpdateActive = 0;
+                pending = !IsDisposed ? _sentinelAddressUpdatesPending.FirstOrDefault() : null;
+                if (IsDisposed) _sentinelAddressUpdatesPending.Clear();
+            }
+            if (pending is not null) UpdateSentinelAddressListAsync(pending).RedisFireAndForget();
         }
     }
 }
