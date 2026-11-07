@@ -23,6 +23,7 @@
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
         public const string Transport = "SER009";
+        public const string ClusterSlotStats = "SER012"; // SER011 is Server_8_12, on the open set-member-expiry PR
 
         // ReSharper restore InconsistentNaming
 
