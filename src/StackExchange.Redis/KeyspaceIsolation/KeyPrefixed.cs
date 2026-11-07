@@ -496,6 +496,18 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAddAsync(ToInner(key), value, flags);
 
+        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAddAndSetExpiryAsync(ToInner(key), value, expiry, keepTtl, when, flags);
+
+        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAddAndSetExpiryAsync(ToInner(key), value, expiry, when, flags);
+
+        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue[] values, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAddAndSetExpiryAsync(ToInner(key), values, expiry, keepTtl, when, flags);
+
+        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue[] values, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAddAndSetExpiryAsync(ToInner(key), values, expiry, when, flags);
+
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.SetCombineAndStoreAsync(operation, ToInner(destination), ToInner(keys), flags);
 
@@ -522,6 +534,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLengthAsync(ToInner(key), flags);
+
+        public Task<ExpireResult[]> SetMemberExpireAsync(RedisKey key, RedisValue[] members, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberExpireAsync(ToInner(key), members, expiry, when, flags);
+
+        public Task<ExpireResult[]> SetMemberExpireAsync(RedisKey key, RedisValue[] members, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberExpireAsync(ToInner(key), members, expiry, when, flags);
+
+        public Task<long[]> SetMemberGetExpireDateTimeAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberGetExpireDateTimeAsync(ToInner(key), members, flags);
+
+        public Task<long[]> SetMemberGetTimeToLiveAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberGetTimeToLiveAsync(ToInner(key), members, flags);
+
+        public Task<PersistResult[]> SetMemberPersistAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberPersistAsync(ToInner(key), members, flags);
 
         public Task<RedisValue[]> SetMembersAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetMembersAsync(ToInner(key), flags);
