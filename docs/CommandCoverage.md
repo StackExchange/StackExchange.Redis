@@ -149,7 +149,6 @@ Operator tooling. All of it works through `Execute` on an `IServer`; none of it 
 | `CLIENT NO-TOUCH` | 7.2.0 | `deferred` | Per-connection flag, as `NO-EVICT`. |
 | `CLUSTER SHARDS` | 7.0.0 | `deferred` | Not used anywhere today: `ClusterConfiguration` is built from `CLUSTER NODES`, and configuration export captures `NODES` and `SLOTS`. Moving topology discovery to `SHARDS`, or exposing it typed, is a design question. |
 | `CLUSTER LINKS` | 7.0.0 | `deferred` | Topology introspection. |
-| `CLUSTER SLOT-STATS` | 8.2.0 | `deferred` | Per-slot statistics; pairs with hot-key tooling. |
 
 ## Todo: accepted gaps
 

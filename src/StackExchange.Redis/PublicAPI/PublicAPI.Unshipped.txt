@@ -1,1 +1,23 @@
 ﻿#nullable enable
+[SER012]StackExchange.Redis.ClusterSlotStatsEntry
+[SER012]StackExchange.Redis.ClusterSlotStatsEntry.CpuTime.get -> System.TimeSpan?
+[SER012]StackExchange.Redis.ClusterSlotStatsEntry.KeyCount.get -> long
+[SER012]StackExchange.Redis.ClusterSlotStatsEntry.MemoryBytes.get -> long?
+[SER012]StackExchange.Redis.ClusterSlotStatsEntry.Metadata.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string!, long>>!
+[SER012]StackExchange.Redis.ClusterSlotStatsEntry.NetworkBytesIn.get -> long?
+[SER012]StackExchange.Redis.ClusterSlotStatsEntry.NetworkBytesOut.get -> long?
+[SER012]StackExchange.Redis.ClusterSlotStatsEntry.Slot.get -> int
+[SER012]override StackExchange.Redis.ClusterSlotStatsEntry.ToString() -> string!
+[SER012]StackExchange.Redis.ClusterSlotStatsMetric
+[SER012]StackExchange.Redis.ClusterSlotStatsMetric.CpuTime = 1 -> StackExchange.Redis.ClusterSlotStatsMetric
+[SER012]StackExchange.Redis.ClusterSlotStatsMetric.KeyCount = 0 -> StackExchange.Redis.ClusterSlotStatsMetric
+[SER012]StackExchange.Redis.ClusterSlotStatsMetric.MemoryBytes = 2 -> StackExchange.Redis.ClusterSlotStatsMetric
+[SER012]StackExchange.Redis.ClusterSlotStatsMetric.NetworkBytesIn = 3 -> StackExchange.Redis.ClusterSlotStatsMetric
+[SER012]StackExchange.Redis.ClusterSlotStatsMetric.NetworkBytesOut = 4 -> StackExchange.Redis.ClusterSlotStatsMetric
+[SER012]StackExchange.Redis.ClusterSlotStatsResult
+[SER012]StackExchange.Redis.ClusterSlotStatsResult.Slots.get -> System.Collections.Generic.IReadOnlyList<StackExchange.Redis.ClusterSlotStatsEntry!>!
+[SER012]StackExchange.Redis.IServer.ClusterSlotStatsBySlotRange(int startSlot, int endSlot, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ClusterSlotStatsResult?
+[SER012]StackExchange.Redis.IServer.ClusterSlotStatsBySlotRangeAsync(int startSlot, int endSlot, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClusterSlotStatsResult?>!
+[SER012]StackExchange.Redis.IServer.ClusterSlotStatsOrderBy(StackExchange.Redis.ClusterSlotStatsMetric metric, long limit = 0, StackExchange.Redis.Order order = StackExchange.Redis.Order.Descending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> StackExchange.Redis.ClusterSlotStatsResult?
+[SER012]StackExchange.Redis.IServer.ClusterSlotStatsOrderByAsync(StackExchange.Redis.ClusterSlotStatsMetric metric, long limit = 0, StackExchange.Redis.Order order = StackExchange.Redis.Order.Descending, StackExchange.Redis.CommandFlags flags = StackExchange.Redis.CommandFlags.None) -> System.Threading.Tasks.Task<StackExchange.Redis.ClusterSlotStatsResult?>!
+StackExchange.Redis.RedisFeatures.ClusterSlotStats.get -> bool
