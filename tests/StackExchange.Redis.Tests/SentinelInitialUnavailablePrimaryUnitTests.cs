@@ -22,14 +22,20 @@ public class SentinelInitialUnavailablePrimaryUnitTests(ITestOutputHelper log)
     private static readonly EndPoint Primary = new IPEndPoint(IPAddress.Parse("192.0.2.2"), 6379);
     private static readonly EndPoint SentinelEndPoint = new IPEndPoint(IPAddress.Parse("192.0.2.10"), 26379);
 
+    // the sentinel host as a connection string usually names it, without a port: the sentinel connection fills in the
+    // sentinel port, but anything connecting to it as a data node fills in the data port - where some other server listens
+    private const string PortlessSentinelHost = "192.0.2.10";
+    private static readonly EndPoint ColocatedRedis = new IPEndPoint(IPAddress.Parse("192.0.2.10"), 6379);
+    private const string HeldDown = "master,s_down,disconnected";
+
     // how long a command queued while the client is stuck may wait: far beyond the recovery, as the reporter's 60s
     private const int PendingTimeoutMilliseconds = 60_000;
 
     [Theory]
     [InlineData(false, "master")]
     [InlineData(true, "master")]
-    [InlineData(false, "master,s_down,disconnected")]
-    [InlineData(true, "master,s_down,disconnected")]
+    [InlineData(false, HeldDown)]
+    [InlineData(true, HeldDown)]
     public async Task CorrectedSentinelPrimaryIsFollowedWithoutSwitchMaster(bool asynchronous, string initialFlags)
     {
         using var data = new InProcessTestServer(log, Primary);
@@ -38,8 +44,8 @@ public class SentinelInitialUnavailablePrimaryUnitTests(ITestOutputHelper log)
             PrimaryFlags = initialFlags,
         };
         await using var conn = await ConnectAsync(CreateConfig(data, sentinel), asynchronous);
-        // a primary held down leaves no address to use, so the client is seeded with the sentinel itself: connected,
-        // but to no data node
+        // the client waits at the address sentinel names, held down or not, which nothing serves: connected to no data node
+        Assert.Contains(Unreachable, conn.GetEndPoints());
         Assert.Empty(ConnectedDataNodes(conn));
         Assert.DoesNotContain(Primary, conn.GetEndPoints());
 
@@ -58,6 +64,102 @@ public class SentinelInitialUnavailablePrimaryUnitTests(ITestOutputHelper log)
         var read = queue.ReadAsync().AsTask();
         Assert.Same(read, await Task.WhenAny(read, Task.Delay(5000)));
         Assert.Equal("fresh", (string?)(await read).Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PrimaryHeldDownIsAwaitedAtItsAddressNotOnTheSentinelHost(bool asynchronous)
+    {
+        using var data = new InProcessTestServer(log, Primary);
+        using var colocated = new InProcessTestServer(log, ColocatedRedis);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, Unreachable, SentinelEndPoint, log) { PrimaryFlags = HeldDown };
+        await using var conn = await ConnectAsync(CreatePortlessConfig(data, sentinel, colocated), asynchronous);
+
+        var write = await Record.ExceptionAsync(() => conn.GetDatabase().StringSetAsync("held-down:key", "misplaced"));
+        log.WriteLine($"write while held down: {write?.GetType().Name ?? "succeeded"}");
+        await using (var direct = await ConnectionMultiplexer.ConnectAsync(colocated.GetClientConfig()))
+        {
+            Assert.False(await direct.GetDatabase().KeyExistsAsync("held-down:key"), "the write landed on the server on the sentinel host");
+        }
+        Assert.Contains(Unreachable, conn.GetEndPoints());
+        Assert.DoesNotContain(ColocatedRedis, conn.GetEndPoints());
+
+        CorrectSentinel(sentinel);
+        await AssertFollowsPrimaryAsync(conn);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task SeededClientLeavesTheSentinelHostOnceSentinelNamesAPrimaryHeldDown(bool asynchronous, bool replicaQueryFails)
+    {
+        using var data = new InProcessTestServer(log, Primary);
+        using var colocated = new InProcessTestServer(log, ColocatedRedis);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, Unreachable, SentinelEndPoint, log) { PrimaryFlags = HeldDown };
+        await using var conn = await ConnectSeededOnTheSentinelHostAsync(data, sentinel, colocated, asynchronous);
+
+        // sentinel is back, but holds the primary down - and may not list its replicas
+        if (replicaQueryFails) sentinel.ReplicaError = "NOPERM User client has no permissions to run the 'sentinel|replicas' command";
+        sentinel.AddEmptyNode(SentinelEndPoint);
+        await AssertLeavesTheSentinelHostAsync(conn);
+
+        CorrectSentinel(sentinel);
+        await AssertFollowsPrimaryAsync(conn);
+    }
+
+    [Fact]
+    public async Task SeededClientLeavesTheSentinelHostAfterAnAttemptThatLostTheReconfigureGate()
+    {
+        using var data = new InProcessTestServer(log, Primary);
+        using var colocated = new InProcessTestServer(log, ColocatedRedis);
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, Unreachable, SentinelEndPoint, log) { PrimaryFlags = HeldDown };
+        await using var conn = await ConnectSeededOnTheSentinelHostAsync(data, sentinel, colocated, asynchronous: true);
+
+        // another reconfigure holds the gate when sentinel comes back, holding the primary down
+        await UntilAsync(() => conn.TryClaimReconfigure("unit holds the claim"), "could not claim reconfigure");
+        try
+        {
+            sentinel.AddEmptyNode(SentinelEndPoint);
+            await UntilAsync(() => sentinel.ReplicaQueries > 0, "no attempt to leave the seed reached the gate");
+            // a later attempt reaching the gate again means the first one has lost it
+            int reached = sentinel.ReplicaQueries;
+            await UntilAsync(() => sentinel.ReplicaQueries > reached, "the attempt that lost the gate was not repeated");
+            Assert.Contains(ColocatedRedis, conn.GetEndPoints());
+        }
+        finally
+        {
+            conn.ReleaseReconfigureClaim();
+        }
+
+        await AssertLeavesTheSentinelHostAsync(conn);
+        CorrectSentinel(sentinel);
+        await AssertFollowsPrimaryAsync(conn);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ClientSeededWithTheSentinelItselfFollowsThePrimaryOnceSentinelKnowsIt(bool asynchronous)
+    {
+        using var data = new InProcessTestServer(log, Primary);
+        // sentinel does not know the service yet: neither query gives any address
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, Unreachable, SentinelEndPoint, log)
+        {
+            SupportsSentinelMaster = false,
+            LegacyAnswersNothing = true,
+        };
+        await using var conn = await ConnectAsync(CreateConfig(data, sentinel), asynchronous);
+        // seeded with the configured endpoint, which has the sentinel port: connected, but to no data node
+        Assert.Contains(SentinelEndPoint, conn.GetEndPoints());
+        Assert.Empty(ConnectedDataNodes(conn));
+
+        sentinel.SupportsSentinelMaster = true;
+        sentinel.LegacyAnswersNothing = false;
+        CorrectSentinel(sentinel);
+        await AssertFollowsPrimaryAsync(conn);
     }
 
     [Theory]
@@ -161,6 +263,32 @@ public class SentinelInitialUnavailablePrimaryUnitTests(ITestOutputHelper log)
         config.ConnectTimeout = 250;
         config.SyncTimeout = 500;
         config.ConfigCheckSeconds = 1;
+        return config;
+    }
+
+    // no sentinel answers at connect, so nothing names any address and the client is seeded with its configured
+    // endpoint - which, without a port, is the server on the sentinel host
+    private static async Task<ConnectionMultiplexer> ConnectSeededOnTheSentinelHostAsync(
+        InProcessTestServer data, InProcessSentinelServer sentinel, InProcessTestServer colocated, bool asynchronous)
+    {
+        Assert.True(sentinel.TryGetNode(SentinelEndPoint, out var sentinelNode));
+        sentinelNode.UpdateSlots([]);
+        Assert.True(sentinel.RemoveNode(SentinelEndPoint));
+        var conn = await ConnectAsync(CreatePortlessConfig(data, sentinel, colocated), asynchronous);
+        Assert.Contains(ColocatedRedis, conn.GetEndPoints());
+        return conn;
+    }
+
+    private static Task AssertLeavesTheSentinelHostAsync(ConnectionMultiplexer conn) => UntilAsync(
+        () => conn.GetEndPoints().Contains(Unreachable) && !conn.GetEndPoints().Contains(ColocatedRedis),
+        "the client did not leave the sentinel host for the address sentinel names");
+
+    private static ConfigurationOptions CreatePortlessConfig(InProcessTestServer data, InProcessSentinelServer sentinel, InProcessTestServer colocated)
+    {
+        var config = CreateConfig(data, sentinel);
+        config.EndPoints.Clear();
+        config.EndPoints.Add(PortlessSentinelHost);
+        config.Tunnel = InProcessSentinelServer.CreateTunnel(data, sentinel, colocated);
         return config;
     }
 

@@ -209,6 +209,75 @@ public class SentinelPrimaryDemotionUnitTests(ITestOutputHelper log)
         await UntilAsync(() => conn.sentinelPrimaryReconnectTimer is null, "connect left a timer");
     }
 
+    [Fact]
+    public async Task SlowSentinelWithAHealthyPrimaryWinsOverAFastOneHoldingItsPrimaryDown()
+    {
+        // A failed and nothing serves it; C is the primary now
+        using var data = new InProcessTestServer(log, NewNodeC);
+        using var stale = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log) { PrimaryFlags = "master,s_down,o_down" };
+        using var current = new InProcessSentinelServer(data, ServiceName, NewNodeC, SecondSentinelEndPoint, log);
+        // every answer naming C arrives well after the stale sentinel has answered, but well within AsyncTimeout
+        current.BeforePrimaryReplyAsync = () => Task.Delay(500);
+        var config = CreateConfig(data, stale, current);
+        config.EndPoints.Add(SecondSentinelEndPoint);
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+
+        Assert.Equal([NewNodeC], ConnectedPrimaries(conn));
+        Assert.DoesNotContain(PrimaryA, conn.GetEndPoints());
+    }
+
+    [Fact]
+    public async Task PrimaryHeldDownDuringAFailoverIsTakenFromGetMasterAddrByName()
+    {
+        using var data = new InProcessTestServer(log, NewNodeC);
+        // a failover in progress: SENTINEL MASTER still describes A, failed and served by nothing, while
+        // get-master-addr-by-name already names C, the replica being promoted
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log)
+        {
+            PrimaryFlags = "master,s_down,o_down,failover_in_progress",
+            PromotedPrimary = NewNodeC,
+        };
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(CreateConfig(data, sentinel));
+
+        Assert.Equal([NewNodeC], ConnectedPrimaries(conn));
+        Assert.DoesNotContain(PrimaryA, conn.GetEndPoints());
+    }
+
+    [Fact]
+    public async Task ReachablePrimaryHeldDownByEverySentinelIsConnectedWithAbortOnConnectFail()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        // sentinel has lost A (a partition between them), the client has not
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log) { PrimaryFlags = "master,s_down" };
+        var config = CreateConfig(data, sentinel);
+        config.AbortOnConnectFail = true;
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+
+        Assert.Equal([PrimaryA], ConnectedPrimaries(conn));
+        Assert.True(await conn.GetDatabase().StringSetAsync("held-down", "written"));
+    }
+
+    [Fact]
+    public async Task PrimaryCorrectedWhileConnectingToOneHeldDownIsFollowedWithAbortOnConnectFail()
+    {
+        using var data = new InProcessTestServer(log, PrimaryA);
+        using var other = new InProcessTestServer(log, NewNodeC); // a primary of its own, which A does not replicate
+        using var sentinel = new InProcessSentinelServer(data, ServiceName, PrimaryA, SentinelEndPoint, log) { PrimaryFlags = "master,s_down" };
+        // sentinel is put right (SENTINEL REMOVE + MONITOR C, nothing announced) as soon as the connect has taken A's
+        // address, so while the client is still connecting to A
+        sentinel.OnPrimaryQuery = () =>
+        {
+            if (sentinel.LegacyQueries == 0) return;
+            sentinel.Primary = NewNodeC;
+            sentinel.PrimaryFlags = "master";
+        };
+        var config = CreateConfig(data, sentinel, other);
+        config.AbortOnConnectFail = true;
+        await using var conn = await ConnectionMultiplexer.ConnectAsync(config);
+
+        await AssertPrimaryBecomesAsync(conn, NewNodeC);
+    }
+
     [Theory]
     [InlineData("unsupported")]
     [InlineData("noperm")]

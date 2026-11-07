@@ -23,6 +23,10 @@ public partial class ConnectionMultiplexer
     private int _sentinelAddressUpdateActive;
     private readonly HashSet<string> _sentinelAddressUpdatesPending = new(StringComparer.Ordinal);
     private int _sentinelSwitchPending;
+    // the managed connection is still on its seed - the configured endpoints, used because no sentinel named any address
+    // for the service (see GetSentinelMasterConnectionAsync); set before it is published, cleared by the switch that
+    // moves it onto the nodes sentinel names
+    private volatile bool _sentinelSeeded;
     internal bool IsSentinelManaged { get; private set; }
 
     /// <summary>
@@ -242,6 +246,8 @@ public partial class ConnectionMultiplexer
         ConnectionMultiplexer? connection = null;
         EndPointCollection? endpoints = null;
         RedisConnectionException? failure = null;
+        // the address the connection was made to when no sentinel held a healthy primary; see below
+        EndPoint? heldDownPrimary;
 
         try
         {
@@ -255,6 +261,17 @@ public partial class ConnectionMultiplexer
                 for (int i = 0; i < queryAttempts && newPrimaryEndPoint is null; i++)
                 {
                     newPrimaryEndPoint = await GetConfiguredPrimaryForServiceAsync(serviceName).ForAwait();
+                }
+
+                // No sentinel holds a healthy primary: connect to the address sentinel names anyway, as discovery did
+                // before SENTINEL MASTER was asked, and let recovery move on once sentinel names a healthy one. The
+                // alternative, seeding with the configured endpoints, is a connection to nodes sentinel never named -
+                // a sentinel host given without a port is then tried on the default data port, and any server there
+                // is taken for the primary.
+                heldDownPrimary = null;
+                if (newPrimaryEndPoint is null)
+                {
+                    newPrimaryEndPoint = heldDownPrimary = await GetPrimaryAddressForServiceAsync(serviceName).ForAwait();
                 }
 
                 if (newPrimaryEndPoint is null)
@@ -390,9 +407,17 @@ public partial class ConnectionMultiplexer
             try
             {
                 if (synchronousConnect && !config.AbortOnConnectFail && !connection.IsConnected)
+                {
                     ScheduleSentinelPrimaryReconnect(connection, switchBlame);
+                }
                 else
-                    await SwitchPrimaryAsync(switchBlame, connection, log).ForAwait();
+                {
+                    // A primary held down is never a healthy answer, so a switch asking only for one would find nothing and
+                    // throw - with AbortOnConnectFail, failing a connect that reached the node sentinel names, where asking
+                    // only get-master-addr-by-name connected. So it may fall back the same way the connect did; it still
+                    // asks for a healthy primary first, since sentinel may have been put right while we connected.
+                    await SwitchPrimaryAsync(switchBlame, connection, log, acceptHeldDownPrimary: heldDownPrimary is not null).ForAwait();
+                }
             }
             catch when (!config.AbortOnConnectFail)
             {
@@ -423,18 +448,21 @@ public partial class ConnectionMultiplexer
             throw;
         }
 
-        // AbortOnConnectFail=false with no primary discovered: hand back a multiplexer seeded with whatever endpoints
-        // the caller gave us (the sentinel addresses, via Connect), for SwitchPrimary to rebuild once discovery works.
-        // A config with no endpoints of its own has nothing to seed with, and that is the discovery failure the caller
-        // should see - not the "No nodes to consider" that ConnectImpl would throw at an empty endpoint list.
-        Task<ConnectionMultiplexer> SeedConnectionAsync(RedisConnectionException discoveryFailure)
+        // AbortOnConnectFail=false with no address from any sentinel - not even one held down: hand back a multiplexer
+        // seeded with whatever endpoints the caller gave us (the sentinel addresses, via Connect), for SwitchPrimary to
+        // rebuild once discovery works. A config with no endpoints of its own has nothing to seed with, and that is the
+        // discovery failure the caller should see - not the "No nodes to consider" that ConnectImpl would throw at an
+        // empty endpoint list.
+        async Task<ConnectionMultiplexer> SeedConnectionAsync(RedisConnectionException discoveryFailure)
         {
             if (config.EndPoints.Count == 0)
             {
                 throw discoveryFailure;
             }
             endpoints = config.EndPoints.Clone();
-            return ConnectImplAsync(config, log, endpoints: endpoints, synchronousConnect: synchronousConnect);
+            var seeded = await ConnectImplAsync(config, log, endpoints: endpoints, synchronousConnect: synchronousConnect).ForAwait();
+            seeded._sentinelSeeded = true;
+            return seeded;
         }
     }
 
@@ -685,7 +713,8 @@ public partial class ConnectionMultiplexer
     /// A sentinel that does not give a usable <c>SENTINEL MASTER</c> answer - any error (the subcommand unknown, or
     /// denied by an ACL that allows only what discovery needed before), or a reply without the <c>master</c> flag or an
     /// address - is asked <c>get-master-addr-by-name</c> instead, exactly as every sentinel was before. Only a sentinel
-    /// that explicitly holds the node down is passed over.
+    /// that explicitly holds the node down is passed over; when every sentinel does, this returns <c>null</c>, and the
+    /// callers that must not wait for a healthy answer ask <see cref="GetPrimaryAddressForServiceAsync"/>.
     /// </para>
     /// </remarks>
     internal Task<EndPoint?> GetConfiguredPrimaryForServiceAsync(string serviceName) =>
@@ -703,6 +732,21 @@ public partial class ConnectionMultiplexer
             }
             return primary ?? await server.SentinelGetMasterAddressByNameAsync(serviceName).ForAwait();
         });
+
+    /// <summary>
+    /// The address sentinel names for <paramref name="serviceName"/>, whatever health it holds that node in: the first
+    /// <c>get-master-addr-by-name</c> answer from any sentinel route.
+    /// </summary>
+    /// <remarks>
+    /// Only for when <see cref="GetConfiguredPrimaryForServiceAsync"/> found no healthy primary - which it reports only
+    /// once every sentinel has answered or the deadline has passed, so a healthy answer is preferred however slow it is,
+    /// and a sentinel still repeating a failed primary cannot overtake one that knows the new one. This is how discovery
+    /// asked before <c>SENTINEL MASTER</c> was consulted, and it is <c>get-master-addr-by-name</c> rather than the
+    /// address in the <c>SENTINEL MASTER</c> reply on purpose: during a failover it already names the replica being
+    /// promoted, while <c>SENTINEL MASTER</c> still describes the old primary.
+    /// </remarks>
+    internal Task<EndPoint?> GetPrimaryAddressForServiceAsync(string serviceName) =>
+        QuerySentinelsAsync(server => server.SentinelGetMasterAddressByNameAsync(serviceName));
 
     // Every replica sentinel lists is added, whatever its flags: one that is down is left to its bridge to reconnect,
     // so a replica down at connect time (a rolling restart) joins once it is back at the same address.
@@ -791,16 +835,26 @@ public partial class ConnectionMultiplexer
     /// per-connection gate covers discovery as well as reconfiguration, so they cannot overlap; a switch requested while
     /// one is running is not dropped, but recorded and replayed once it finishes. The reconnect timer is stopped here,
     /// and only here, once the connection is on the sentinel-reported primary with no stale view left.
+    /// <para>
+    /// No sentinel holding a healthy primary normally means "ask again later". Two callers instead take the address
+    /// sentinel holds down (<see cref="GetPrimaryAddressForServiceAsync"/>): the initial switch of a connect that was
+    /// itself made to such an address (<paramref name="acceptHeldDownPrimary"/>), and any switch of a connection still on
+    /// its seed, which serves from nodes sentinel never named. A seeded connection stops counting as one only once a
+    /// switch has claimed the reconfigure gate and moved it onto the nodes sentinel names - its seed nodes are retired
+    /// even when the replica query fails - so an attempt that loses the claim or throws is simply repeated.
+    /// </para>
     /// </remarks>
     /// <param name="switchBlame">The endpoint responsible for the switch.</param>
     /// <param name="connection">The connection that should be switched over to a new primary endpoint.</param>
     /// <param name="writer">The writer to log to, if any.</param>
     /// <param name="reportedPrimary">The primary sentinel already reported, when the caller has just asked it;
     /// otherwise sentinel is queried here.</param>
+    /// <param name="acceptHeldDownPrimary">Whether to fall back to the address sentinel holds down when no sentinel
+    /// holds a healthy primary, as the connect that made this connection did.</param>
     /// <returns><c>true</c> when a switch ran (the endpoint set and/or roles were reconfigured); <c>false</c> when
     /// the view was already correct, another switch is running, or another reconfigure holds the gate - the callers
     /// that retry (the reconnect timer, the demotion heartbeat) get a later attempt either way.</returns>
-    internal async Task<bool> SwitchPrimaryAsync(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? writer = null, EndPoint? reportedPrimary = null)
+    internal async Task<bool> SwitchPrimaryAsync(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? writer = null, EndPoint? reportedPrimary = null, bool acceptHeldDownPrimary = false)
     {
         if (IsDisposed || connection.IsDisposed) return false;
         if (connection.RawConfig.ServiceName is null)
@@ -828,10 +882,16 @@ public partial class ConnectionMultiplexer
                 return false;
             }
 
-            // Get new primary - try twice (unless the caller already holds sentinel's answer)
+            // Get new primary - try twice (unless the caller already holds sentinel's answer). No healthy primary
+            // means "ask again later", except where the address sentinel holds down is the better place to wait (see
+            // remarks) - for a connection still on its seed, until a switch has actually moved it off.
+            bool seeded = connection._sentinelSeeded;
             EndPoint newPrimaryEndPoint = reportedPrimary
                 ?? await GetConfiguredPrimaryForServiceAsync(serviceName).ForAwait()
                 ?? await GetConfiguredPrimaryForServiceAsync(serviceName).ForAwait()
+                ?? (acceptHeldDownPrimary || seeded
+                    ? await GetPrimaryAddressForServiceAsync(serviceName).ForAwait()
+                    : null)
                 ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
             connection.currentSentinelPrimaryEndPoint = confirmedPrimary = newPrimaryEndPoint;
 
@@ -858,17 +918,20 @@ public partial class ConnectionMultiplexer
             bool stale = IsStalePrimaryView(connection, newPrimaryEndPoint);
             if (unknownPrimary)
             {
-                if (replicas is not null)
+                // A seeded connection holds no node sentinel named, only the configured endpoints - which may well be some
+                // other server - so it is not kept "until discovery works" for want of the replica list.
+                if (replicas is not null || seeded)
                 {
                     connection.EndPoints.Clear();
                     connection.EndPoints.TryAdd(newPrimaryEndPoint);
-                    foreach (var replica in replicas)
+                    foreach (var replica in replicas ?? [])
                     {
                         connection.EndPoints.TryAdd(replica);
                     }
 
                     // Only once sentinel gave us the whole picture: a null replica list is a failed query, not a
                     // deployment with no replicas, and retiring on one would drop healthy nodes over a hiccup.
+                    // Seed nodes are not such nodes, so a seeded connection retires them regardless.
                     await RetireServersAbsentFromEndPointsAsync(connection, logger).ForAwait();
                 }
                 else
@@ -877,6 +940,10 @@ public partial class ConnectionMultiplexer
                     connection.EndPoints.TryAdd(newPrimaryEndPoint);
                 }
             }
+
+            // Off the seed: the gate is ours and the endpoint set is sentinel's (or already held what sentinel names).
+            // From here no healthy primary means "ask again later", as for every other connection.
+            if (seeded) connection._sentinelSeeded = false;
 
             bool switched = unknownPrimary || stale;
             refreshAddresses |= switched;

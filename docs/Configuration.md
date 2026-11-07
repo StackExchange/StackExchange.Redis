@@ -50,7 +50,9 @@ keeps asking without tearing down or reconfiguring the healthy connections. A co
 is marked as a replica at once, rather than at the next role check (`ConfigCheckSeconds`), and the client asks sentinel on its next heartbeat.
 Sentinel is queried asynchronously: waiting on a slow or unreachable sentinel holds no thread-pool thread, and a sentinel query waits up to
 `AsyncTimeout`, also when the connection is made with the synchronous `Connect`. A sentinel whose `SENTINEL MASTER` reply holds the primary
-down (`s_down`/`o_down`) is passed over for one that does not. A sentinel without a usable `SENTINEL MASTER` reply - the subcommand is
+down (`s_down`/`o_down`) is passed over for one that does not. When every sentinel that answers holds it down, the client connects to
+the address `get-master-addr-by-name` gives (during a failover, the replica being promoted) rather than to any endpoint of its own
+configuration, and moves on once a sentinel names a healthy primary. A sentinel without a usable `SENTINEL MASTER` reply - the subcommand is
 unknown or refused, such as to an ACL user allowed only `get-master-addr-by-name`, or the reply has no flags - is asked with
 `get-master-addr-by-name` instead.
 

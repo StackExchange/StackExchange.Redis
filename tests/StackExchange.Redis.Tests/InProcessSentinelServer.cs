@@ -65,6 +65,12 @@ public sealed class InProcessSentinelServer : InProcessTestServer
 
     /// <summary>Answer <c>get-master-addr-by-name</c> with nil, as a sentinel that does not (yet) know the primary does.</summary>
     public bool LegacyAnswersNothing { get; set; }
+
+    /// <summary>
+    /// The address <c>get-master-addr-by-name</c> answers with instead of <see cref="Primary"/>: during a failover it already
+    /// names the replica being promoted, while <c>SENTINEL MASTER</c> still describes the old primary.
+    /// </summary>
+    public EndPoint? PromotedPrimary { get; set; }
     public EndPoint[]? ReplicaAddressesOverride { get; set; }
     public Func<Task>? BeforePrimaryReplyAsync { get; set; }
     public Func<Task>? BeforePeerReplyAsync { get; set; }
@@ -127,7 +133,7 @@ public sealed class InProcessSentinelServer : InProcessTestServer
     {
         Interlocked.Increment(ref _legacyQueries);
         if (!IsService(request) || LegacyAnswersNothing) return TypedRedisValue.NullArray(RespPrefix.Array);
-        var host = GetHost(Primary, out var port);
+        var host = GetHost(PromotedPrimary ?? Primary, out var port);
         var reply = TypedRedisValue.Rent(2, out var span, RespPrefix.Array);
         span[0] = TypedRedisValue.BulkString(host);
         span[1] = TypedRedisValue.BulkString(port.ToString());
