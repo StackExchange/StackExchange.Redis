@@ -496,17 +496,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAddAsync(ToInner(key), value, flags);
 
-        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.SetAddAndSetExpiryAsync(ToInner(key), value, expiry, keepTtl, when, flags);
+        public Task<bool> SetAddAsync(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAddAsync(ToInner(key), value, expiry, when, flags);
 
-        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.SetAddAndSetExpiryAsync(ToInner(key), value, expiry, when, flags);
-
-        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue[] values, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.SetAddAndSetExpiryAsync(ToInner(key), values, expiry, keepTtl, when, flags);
-
-        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue[] values, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
-            Inner.SetAddAndSetExpiryAsync(ToInner(key), values, expiry, when, flags);
+        public Task<bool> SetAddAsync(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAddAsync(ToInner(key), values, expiry, when, flags);
 
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.SetCombineAndStoreAsync(operation, ToInner(destination), ToInner(keys), flags);

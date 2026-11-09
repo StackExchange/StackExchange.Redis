@@ -16,10 +16,10 @@ public class SetMemberExpiryRoundTrip(ITestOutputHelper log)
     private const long NextCenturyUnixSeconds = 4133980800;
 
     [Fact(Timeout = 1000)]
-    public async Task SetAddAndSetExpiry_Ex()
+    public async Task SetAddWithExpiry_Ex()
     {
         var db = new RedisDatabase(null!, 0, null);
-        var msg = db.SetAddAndSetExpiryMessage("k", "m", Expiration.CreateOrKeepTtl(TimeSpan.FromSeconds(15), keepTtl: false), When.Always, CommandFlags.None);
+        var msg = db.SetAddWithExpiryMessage("k", "m", Expiration.CreateOrKeepTtl(TimeSpan.FromSeconds(15), keepTtl: false), When.Always, CommandFlags.None);
         const string RequestResp = "*7\r\n$6\r\nSADDEX\r\n$1\r\nk\r\n$2\r\nEX\r\n$2\r\n15\r\n$7\r\nMEMBERS\r\n$1\r\n1\r\n$1\r\nm\r\n";
 
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.Boolean, RequestResp, ":1\r\n", log: log);
@@ -27,10 +27,10 @@ public class SetMemberExpiryRoundTrip(ITestOutputHelper log)
     }
 
     [Fact(Timeout = 1000)]
-    public async Task SetAddAndSetExpiry_Px()
+    public async Task SetAddWithExpiry_Px()
     {
         var db = new RedisDatabase(null!, 0, null);
-        var msg = db.SetAddAndSetExpiryMessage("k", "m", Expiration.CreateOrKeepTtl(TimeSpan.FromMilliseconds(1500), keepTtl: false), When.Always, CommandFlags.None);
+        var msg = db.SetAddWithExpiryMessage("k", "m", Expiration.CreateOrKeepTtl(TimeSpan.FromMilliseconds(1500), keepTtl: false), When.Always, CommandFlags.None);
         const string RequestResp = "*7\r\n$6\r\nSADDEX\r\n$1\r\nk\r\n$2\r\nPX\r\n$4\r\n1500\r\n$7\r\nMEMBERS\r\n$1\r\n1\r\n$1\r\nm\r\n";
 
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.Boolean, RequestResp, ":1\r\n", log: log);
@@ -38,10 +38,10 @@ public class SetMemberExpiryRoundTrip(ITestOutputHelper log)
     }
 
     [Fact(Timeout = 1000)]
-    public async Task SetAddAndSetExpiry_KeepTtl()
+    public async Task SetAddWithExpiry_KeepTtl()
     {
         var db = new RedisDatabase(null!, 0, null);
-        var msg = db.SetAddAndSetExpiryMessage("k", "m", Expiration.CreateOrKeepTtl((TimeSpan?)null, keepTtl: true), When.Always, CommandFlags.None);
+        var msg = db.SetAddWithExpiryMessage("k", "m", Expiration.CreateOrKeepTtl((TimeSpan?)null, keepTtl: true), When.Always, CommandFlags.None);
         const string RequestResp = "*6\r\n$6\r\nSADDEX\r\n$1\r\nk\r\n$7\r\nKEEPTTL\r\n$7\r\nMEMBERS\r\n$1\r\n1\r\n$1\r\nm\r\n";
 
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.Boolean, RequestResp, ":1\r\n", log: log);
@@ -49,10 +49,10 @@ public class SetMemberExpiryRoundTrip(ITestOutputHelper log)
     }
 
     [Fact(Timeout = 1000)]
-    public async Task SetAddAndSetExpiry_Bare_DiscardsTtl()
+    public async Task SetAddWithExpiry_Bare_DiscardsTtl()
     {
         var db = new RedisDatabase(null!, 0, null);
-        var msg = db.SetAddAndSetExpiryMessage("k", "m", Expiration.CreateOrKeepTtl((TimeSpan?)null, keepTtl: false), When.Always, CommandFlags.None);
+        var msg = db.SetAddWithExpiryMessage("k", "m", Expiration.CreateOrKeepTtl((TimeSpan?)null, keepTtl: false), When.Always, CommandFlags.None);
         const string RequestResp = "*5\r\n$6\r\nSADDEX\r\n$1\r\nk\r\n$7\r\nMEMBERS\r\n$1\r\n1\r\n$1\r\nm\r\n";
 
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.Boolean, RequestResp, ":0\r\n", log: log);
@@ -60,10 +60,10 @@ public class SetMemberExpiryRoundTrip(ITestOutputHelper log)
     }
 
     [Fact(Timeout = 1000)]
-    public async Task SetAddAndSetExpiry_ExAt()
+    public async Task SetAddWithExpiry_ExAt()
     {
         var db = new RedisDatabase(null!, 0, null);
-        var msg = db.SetAddAndSetExpiryMessage("k", "m", new Expiration(NextCentury), When.Always, CommandFlags.None);
+        var msg = db.SetAddWithExpiryMessage("k", "m", new Expiration(NextCentury), When.Always, CommandFlags.None);
         const string RequestResp = "*7\r\n$6\r\nSADDEX\r\n$1\r\nk\r\n$4\r\nEXAT\r\n$10\r\n4133980800\r\n$7\r\nMEMBERS\r\n$1\r\n1\r\n$1\r\nm\r\n";
 
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.Boolean, RequestResp, ":1\r\n", log: log);
@@ -71,10 +71,10 @@ public class SetMemberExpiryRoundTrip(ITestOutputHelper log)
     }
 
     [Fact(Timeout = 1000)]
-    public async Task SetAddAndSetExpiry_Mnx()
+    public async Task SetAddWithExpiry_Mnx()
     {
         var db = new RedisDatabase(null!, 0, null);
-        var msg = db.SetAddAndSetExpiryMessage("k", new RedisValue[] { "a", "b" }, Expiration.CreateOrKeepTtl(TimeSpan.FromSeconds(15), keepTtl: false), When.NotExists, CommandFlags.None);
+        var msg = db.SetAddWithExpiryMessage("k", new RedisValue[] { "a", "b" }, Expiration.CreateOrKeepTtl(TimeSpan.FromSeconds(15), keepTtl: false), When.NotExists, CommandFlags.None);
         const string RequestResp = "*9\r\n$6\r\nSADDEX\r\n$1\r\nk\r\n$3\r\nMNX\r\n$2\r\nEX\r\n$2\r\n15\r\n$7\r\nMEMBERS\r\n$1\r\n2\r\n$1\r\na\r\n$1\r\nb\r\n";
 
         // one existing member vetoes the whole batch: reply 0, nothing added
@@ -83,10 +83,10 @@ public class SetMemberExpiryRoundTrip(ITestOutputHelper log)
     }
 
     [Fact(Timeout = 1000)]
-    public async Task SetAddAndSetExpiry_Mxx()
+    public async Task SetAddWithExpiry_Mxx()
     {
         var db = new RedisDatabase(null!, 0, null);
-        var msg = db.SetAddAndSetExpiryMessage("k", new RedisValue[] { "a", "b" }, new Expiration(NextCentury), When.Exists, CommandFlags.None);
+        var msg = db.SetAddWithExpiryMessage("k", new RedisValue[] { "a", "b" }, new Expiration(NextCentury), When.Exists, CommandFlags.None);
         const string RequestResp = "*9\r\n$6\r\nSADDEX\r\n$1\r\nk\r\n$3\r\nMXX\r\n$4\r\nEXAT\r\n$10\r\n4133980800\r\n$7\r\nMEMBERS\r\n$1\r\n2\r\n$1\r\na\r\n$1\r\nb\r\n";
 
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.Boolean, RequestResp, ":1\r\n", log: log);
@@ -94,10 +94,10 @@ public class SetMemberExpiryRoundTrip(ITestOutputHelper log)
     }
 
     [Fact(Timeout = 1000)]
-    public async Task SetAddAndSetExpiry_SingleElementArray_SameAsSingle()
+    public async Task SetAddWithExpiry_SingleElementArray_SameAsSingle()
     {
         var db = new RedisDatabase(null!, 0, null);
-        var msg = db.SetAddAndSetExpiryMessage("k", new RedisValue[] { "m" }, Expiration.CreateOrKeepTtl(TimeSpan.FromSeconds(15), keepTtl: false), When.Always, CommandFlags.None);
+        var msg = db.SetAddWithExpiryMessage("k", new RedisValue[] { "m" }, Expiration.CreateOrKeepTtl(TimeSpan.FromSeconds(15), keepTtl: false), When.Always, CommandFlags.None);
         const string RequestResp = "*7\r\n$6\r\nSADDEX\r\n$1\r\nk\r\n$2\r\nEX\r\n$2\r\n15\r\n$7\r\nMEMBERS\r\n$1\r\n1\r\n$1\r\nm\r\n";
 
         var result = await TestConnection.ExecuteAsync(msg, ResultProcessor.Boolean, RequestResp, ":1\r\n", log: log);

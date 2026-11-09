@@ -17,6 +17,17 @@ open_questions: 6
 
 # Set-member expiration: StackExchange.Redis implementation plan
 
+> **Revised in review (PR #3340):** the add-with-expiry surface shipped as **`SetAdd` overloads taking
+> `Expiration`** — `SetAdd(key, value, Expiration, When, flags)` and `SetAdd(key, values, Expiration, When, flags)`,
+> both returning `bool` (+ async) — not the four-per-arity `SetAddAndSetExpiry` shape planned below.
+> `Expiration` already encodes `EX`/`PX`/`EXAT`/`PXAT`/`KEEPTTL`, which is exactly `SADDEX`'s expiration block,
+> so the `TimeSpan?`/`DateTime`/`keepTtl` splits collapse; `Expiration.Persist` is rejected
+> (`SADDEX` has no `PERSIST`; that is `SetMemberPersist`'s job). The overloads always send `SADDEX` -
+> plain `SADD` is not an equivalent fallback, because the bare `SADDEX` form discards an existing member's
+> TTL where `SADD` leaves existing members untouched (R.2). Everything below the surface - the message
+> shapes, requirement ids, tests and open questions - is unchanged; read `SetAddAndSetExpiry` as
+> `SetAdd(..., Expiration, ...)` (internally `SetAddWithExpiryMessage`).
+
 No shared client HLD exists for this feature. The server facts below come from redis/redis#15938
 ("Set member expiration", merged to `unstable` as `a76a3689a`, shipped in 8.12-rc2, which reports
 `redis_version:8.11.241`), from the command JSONs at that commit

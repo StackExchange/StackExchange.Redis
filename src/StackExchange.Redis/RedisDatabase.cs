@@ -2269,60 +2269,36 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public bool SetAddAndSetExpiry(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public bool SetAdd(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = SetAddAndSetExpiryMessage(key, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags);
+            var msg = SetAddWithExpiryMessage(key, value, expiry, when, flags);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public bool SetAddAndSetExpiry(RedisKey key, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public bool SetAdd(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = SetAddAndSetExpiryMessage(key, value, new(expiry), when, flags);
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var msg = SetAddWithExpiryMessage(key, values, expiry, when, flags);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public bool SetAddAndSetExpiry(RedisKey key, RedisValue[] values, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public Task<bool> SetAddAsync(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            if (values == null) throw new ArgumentNullException(nameof(values));
-            var msg = SetAddAndSetExpiryMessage(key, values, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags);
-            return ExecuteSync(msg, ResultProcessor.Boolean);
-        }
-
-        public bool SetAddAndSetExpiry(RedisKey key, RedisValue[] values, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        {
-            if (values == null) throw new ArgumentNullException(nameof(values));
-            var msg = SetAddAndSetExpiryMessage(key, values, new(expiry), when, flags);
-            return ExecuteSync(msg, ResultProcessor.Boolean);
-        }
-
-        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = SetAddAndSetExpiryMessage(key, value, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags);
+            var msg = SetAddWithExpiryMessage(key, value, expiry, when, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = SetAddAndSetExpiryMessage(key, value, new(expiry), when, flags);
-            return ExecuteAsync(msg, ResultProcessor.Boolean);
-        }
-
-        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue[] values, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        public Task<bool> SetAddAsync(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
-            var msg = SetAddAndSetExpiryMessage(key, values, Expiration.CreateOrKeepTtl(expiry, keepTtl), when, flags);
+            var msg = SetAddWithExpiryMessage(key, values, expiry, when, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> SetAddAndSetExpiryAsync(RedisKey key, RedisValue[] values, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        internal Message SetAddWithExpiryMessage(in RedisKey key, in RedisValue value, Expiration expiry, When when, CommandFlags flags)
         {
-            if (values == null) throw new ArgumentNullException(nameof(values));
-            var msg = SetAddAndSetExpiryMessage(key, values, new(expiry), when, flags);
-            return ExecuteAsync(msg, ResultProcessor.Boolean);
-        }
-
-        internal Message SetAddAndSetExpiryMessage(in RedisKey key, in RedisValue value, Expiration expiry, When when, CommandFlags flags)
-        {
+            // SADDEX has no PERSIST token; removing member expirations is SetMemberPersist's job
+            if (expiry.IsPersist) throw new ArgumentException("PERSIST is not supported by SADDEX; use " + nameof(SetMemberPersist) + " to remove member expirations.", nameof(expiry));
             int expiryTokenCount = expiry.GetTokenCount(allowEnx: false);
             if (when == When.Always)
             {
@@ -2352,11 +2328,11 @@ namespace StackExchange.Redis
             }
         }
 
-        internal Message SetAddAndSetExpiryMessage(in RedisKey key, RedisValue[] values, Expiration expiry, When when, CommandFlags flags)
+        internal Message SetAddWithExpiryMessage(in RedisKey key, RedisValue[] values, Expiration expiry, When when, CommandFlags flags)
         {
             if (values.Length == 1)
             {
-                return SetAddAndSetExpiryMessage(key, values[0], expiry, when, flags);
+                return SetAddWithExpiryMessage(key, values[0], expiry, when, flags);
             }
             // Determine the base array size
             int expiryTokenCount = expiry.GetTokenCount(allowEnx: false);

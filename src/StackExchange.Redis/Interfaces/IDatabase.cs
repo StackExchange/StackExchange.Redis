@@ -1771,14 +1771,16 @@ namespace StackExchange.Redis
         long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Adds the specified member to the set stored at key and/or sets its per-member expiration, in one atomic call.
-        /// If key does not exist, a new set is created first.
+        /// Adds the specified member to the set stored at key and/or sets its per-member expiration, in one atomic call
+        /// (<c>SADDEX</c>). If key does not exist, a new set is created first.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="value">The value to add to the set and/or set the expiration of.</param>
-        /// <param name="expiry">The expiry to set on the member. <see langword="null"/> (without <paramref name="keepTtl"/>) sends the bare form,
-        /// which <b>discards</b> any expiration the member already has.</param>
-        /// <param name="keepTtl"><see langword="true"/> to send <c>KEEPTTL</c>: an existing expiration is kept; a new member gets none.</param>
+        /// <param name="expiry">The expiry to set on the member: a <see cref="TimeSpan"/> or <see cref="DateTime"/> (implicitly converted),
+        /// or <see cref="Expiration.KeepTtl"/> to keep an existing expiration (a new member gets none). The default (none) sends the bare
+        /// form, which <b>discards</b> any expiration the member already has - this is <c>SADDEX</c>'s behaviour, not <c>SADD</c>'s, which
+        /// leaves existing members (and their expirations) untouched. <see cref="Expiration.Persist"/> is not supported here: use
+        /// <see cref="SetMemberPersist"/> to remove expirations.</param>
         /// <param name="when">Which condition to apply the operation under; see the remarks.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns><see langword="true"/> if at least one member was added, updated or deleted, else <see langword="false"/>
@@ -1792,50 +1794,22 @@ namespace StackExchange.Redis
         /// </remarks>
         [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
 #pragma warning disable RS0026 // similar overloads
-        bool SetAddAndSetExpiry(RedisKey key, RedisValue value, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        bool SetAdd(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Adds the specified member to the set stored at key and/or sets its per-member expiration to an absolute time, in one atomic call.
-        /// If key does not exist, a new set is created first.
-        /// </summary>
-        /// <param name="key">The key of the set.</param>
-        /// <param name="value">The value to add to the set and/or set the expiration of.</param>
-        /// <param name="expiry">The exact expiry time to set on the member.</param>
-        /// <param name="when"><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/param[@name='when']"/></param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/returns"/></returns>
-        /// <remarks><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/remarks"/></remarks>
-        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
-        bool SetAddAndSetExpiry(RedisKey key, RedisValue value, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Adds the specified members to the set stored at key and/or sets their per-member expiration, in one atomic call.
-        /// If key does not exist, a new set is created first.
+        /// Adds the specified members to the set stored at key and/or sets their per-member expiration, in one atomic call
+        /// (<c>SADDEX</c>). If key does not exist, a new set is created first.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="values">The values to add to the set and/or set the expiration of.</param>
-        /// <param name="expiry"><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/param[@name='expiry']"/></param>
-        /// <param name="keepTtl"><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/param[@name='keepTtl']"/></param>
-        /// <param name="when"><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/param[@name='when']"/></param>
+        /// <param name="expiry"><inheritdoc cref="SetAdd(RedisKey, RedisValue, Expiration, When, CommandFlags)" path="/param[@name='expiry']"/></param>
+        /// <param name="when"><inheritdoc cref="SetAdd(RedisKey, RedisValue, Expiration, When, CommandFlags)" path="/param[@name='when']"/></param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/returns"/></returns>
-        /// <remarks><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/remarks"/></remarks>
+        /// <returns><inheritdoc cref="SetAdd(RedisKey, RedisValue, Expiration, When, CommandFlags)" path="/returns"/>
+        /// Unlike <see cref="SetAdd(RedisKey, RedisValue[], CommandFlags)"/>, the server does not report how many members were added.</returns>
+        /// <remarks><inheritdoc cref="SetAdd(RedisKey, RedisValue, Expiration, When, CommandFlags)" path="/remarks"/></remarks>
         [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
-        bool SetAddAndSetExpiry(RedisKey key, RedisValue[] values, TimeSpan? expiry = null, bool keepTtl = false, When when = When.Always, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Adds the specified members to the set stored at key and/or sets their per-member expiration to an absolute time, in one atomic call.
-        /// If key does not exist, a new set is created first.
-        /// </summary>
-        /// <param name="key">The key of the set.</param>
-        /// <param name="values">The values to add to the set and/or set the expiration of.</param>
-        /// <param name="expiry">The exact expiry time to set on the members.</param>
-        /// <param name="when"><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/param[@name='when']"/></param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/returns"/></returns>
-        /// <remarks><inheritdoc cref="SetAddAndSetExpiry(RedisKey, RedisValue, TimeSpan?, bool, When, CommandFlags)" path="/remarks"/></remarks>
-        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
-        bool SetAddAndSetExpiry(RedisKey key, RedisValue[] values, DateTime expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        bool SetAdd(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
 #pragma warning restore RS0026
 
         /// <summary>

@@ -24,74 +24,74 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     private readonly RedisValue[] members = ["m1", "m2"];
 
     [Fact]
-    public void SetAddAndSetExpiry()
+    public void SetAddWithExpiry()
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
 
-        Assert.True(db.SetAddAndSetExpiry(key, "m1", oneYear));
+        Assert.True(db.SetAdd(key, "m1", oneYear));
         var ttl = Assert.Single(db.SetMemberGetTimeToLive(key, ["m1"]));
         Assert.InRange(ttl, oneYear.TotalMilliseconds - 10_000, oneYear.TotalMilliseconds);
 
         // absolute form
-        Assert.True(db.SetAddAndSetExpiry(key, "m2", nextCentury));
+        Assert.True(db.SetAdd(key, "m2", nextCentury));
         var expireTime = Assert.Single(db.SetMemberGetExpireDateTime(key, ["m2"]));
         var expected = (nextCentury - UnixEpoch).TotalMilliseconds;
         Assert.InRange(expireTime, expected - ClockSkewToleranceMs, expected + ClockSkewToleranceMs);
     }
 
     [Fact]
-    public async Task SetAddAndSetExpiryAsync()
+    public async Task SetAddWithExpiryAsync()
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
 
-        Assert.True(await db.SetAddAndSetExpiryAsync(key, members, oneYear));
+        Assert.True(await db.SetAddAsync(key, members, oneYear));
         var ttls = await db.SetMemberGetTimeToLiveAsync(key, members);
         Assert.All(ttls, ttl => Assert.InRange(ttl, oneYear.TotalMilliseconds - 10_000, oneYear.TotalMilliseconds));
     }
 
     [Fact]
-    public void SetAddAndSetExpiryKeepTtl()
+    public void SetAddWithExpiryKeepTtl()
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
 
-        Assert.True(db.SetAddAndSetExpiry(key, "m1", oneYear));
+        Assert.True(db.SetAdd(key, "m1", oneYear));
 
         // KEEPTTL: the existing expiration survives the re-add
-        Assert.False(db.SetAddAndSetExpiry(key, "m1", expiry: null, keepTtl: true));
+        Assert.False(db.SetAdd(key, "m1", Expiration.KeepTtl));
         var ttl = Assert.Single(db.SetMemberGetTimeToLive(key, ["m1"]));
         Assert.True(ttl > 0);
 
         // the bare form discards it
-        Assert.True(db.SetAddAndSetExpiry(key, "m1", expiry: null));
+        Assert.True(db.SetAdd(key, "m1", Expiration.Default));
         ttl = Assert.Single(db.SetMemberGetTimeToLive(key, ["m1"]));
         Assert.Equal(-1, ttl); // present, no expiration
     }
 
     [Fact]
-    public void SetAddAndSetExpiryWhen()
+    public void SetAddWithExpiryWhen()
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
 
         // MNX on a fresh key: all new, applies
-        Assert.True(db.SetAddAndSetExpiry(key, members, oneYear, when: When.NotExists));
+        Assert.True(db.SetAdd(key, members, oneYear, when: When.NotExists));
 
         // MNX with one existing member vetoes the whole batch: nothing is added at all
-        Assert.False(db.SetAddAndSetExpiry(key, [(RedisValue)"m1", "newcomer"], oneYear, when: When.NotExists));
+        Assert.False(db.SetAdd(key, [(RedisValue)"m1", "newcomer"], oneYear, when: When.NotExists));
         Assert.False(db.SetContains(key, "newcomer"));
 
         // MXX: all exist, applies
-        Assert.True(db.SetAddAndSetExpiry(key, members, oneYear + TimeSpan.FromMinutes(1), when: When.Exists));
+        Assert.True(db.SetAdd(key, members, oneYear + TimeSpan.FromMinutes(1), when: When.Exists));
 
         // MXX with one missing member vetoes the whole batch
-        Assert.False(db.SetAddAndSetExpiry(key, [(RedisValue)"m1", "ghost"], oneYear, when: When.Exists));
+        Assert.False(db.SetAdd(key, [(RedisValue)"m1", "ghost"], oneYear, when: When.Exists));
     }
 
     [Fact]
-    public void SetAddAndSetExpiryPastDeletes()
+    public void SetAddWithExpiryPastDeletes()
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
@@ -99,7 +99,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
         db.SetAdd(key, "m1");
 
         // an expiration already in the past deletes the member - and that counts as a change
-        Assert.True(db.SetAddAndSetExpiry(key, "m1", DateTime.UtcNow.AddMinutes(-5)));
+        Assert.True(db.SetAdd(key, "m1", DateTime.UtcNow.AddMinutes(-5)));
         Assert.False(db.SetContains(key, "m1"));
     }
 
@@ -268,7 +268,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
         var key = Me();
         var prefixed = conn.GetDatabase().WithKeyPrefix("prefix:");
 
-        Assert.True(prefixed.SetAddAndSetExpiry(key, "m1", oneYear));
+        Assert.True(prefixed.SetAdd(key, "m1", oneYear));
         var ttl = Assert.Single(prefixed.SetMemberGetTimeToLive(key, ["m1"]));
         Assert.True(ttl > 0);
 
