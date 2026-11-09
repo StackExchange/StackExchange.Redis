@@ -51,6 +51,7 @@ Documentation
 - [Vector Sets](VectorSets) - how to use Vector Sets for similarity search with embeddings
 - [Hash Import](HImport) - bulk-importing many hashes that share a common set of field names
 - [Hash Tags and Slots](HashTags) - co-locating keys in the same cluster slot for multi-key operations
+- [Cluster slot statistics](ClusterSlotStats) - per-slot usage statistics via `CLUSTER SLOT-STATS`
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts, including the low-allocation `ScriptEvalLease` API

@@ -322,6 +322,11 @@ namespace StackExchange.Redis
         /// </summary>
         public bool HashImport => Version.IsAtLeast(v8_10_0);
 
+        /// <summary>
+        /// Are the <c>CLUSTER SLOT-STATS</c> per-slot usage statistics available?
+        /// </summary>
+        public bool ClusterSlotStats => Version.IsAtLeast(v8_2_0_rc1);
+
 #pragma warning restore 1629 // Documentation text should end with a period.
 
         /// <summary>
