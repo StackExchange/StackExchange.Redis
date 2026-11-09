@@ -4,7 +4,7 @@ Which server commands StackExchange.Redis does not expose as typed APIs, and why
 
 Upstream: redis/redis@6a5fee67583480de1fec323649f43fd000001b49 (`src/commands`, unstable, 2026-10-30). Maintained by the `audit-command-coverage` skill under `.claude/skills/`, which re-diffs this file against upstream and reports only what changed.
 
-This supersedes the hand-maintained list in [#2055](https://github.com/StackExchange/StackExchange.Redis/issues/2055).
+This supersedes the hand-maintained list in [#2055](https://github.com/seredis/StackExchange.Redis/issues/2055).
 
 ## Rules
 

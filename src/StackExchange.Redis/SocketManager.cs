@@ -143,7 +143,7 @@ namespace StackExchange.Redis
             {
 #if !NET10_0_OR_GREATER
                 // Prior to .NET 10, enabling TCP keep-alive on host-based endpoints fails outside of Windows.
-                // see https://github.com/StackExchange/StackExchange.Redis/issues/3086
+                // see https://github.com/seredis/StackExchange.Redis/issues/3086
                 case DnsEndPoint when !RuntimeInformation.IsOSPlatform(OSPlatform.Windows): return false;
 #endif
                 case DnsEndPoint:

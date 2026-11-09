@@ -688,7 +688,7 @@ internal sealed partial class PhysicalConnection
         in RedisChannel messageChannel,
         in RespReader reader)
     {
-        // note: this could be multi-message: https://github.com/StackExchange/StackExchange.Redis/issues/2507
+        // note: this could be multi-message: https://github.com/seredis/StackExchange.Redis/issues/2507
         _readStatus = ReadStatus.InvokePubSub;
         switch (reader.Prefix)
         {

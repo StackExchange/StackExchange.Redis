@@ -33,7 +33,7 @@ See [`api-sketch.md`](api-sketch.md).
 `tests/StackExchange.Redis.FaultInjector.Tests` is present here now. The rest of this section records
 why the wait was worth it.
 
-[#3191](https://github.com/StackExchange/StackExchange.Redis/pull/3191) ("Server-native maintenance
+[#3191](https://github.com/seredis/StackExchange.Redis/pull/3191) ("Server-native maintenance
 notifications") is open, 107 files, +13,160. It carries
 `tests/StackExchange.Redis.FaultInjector.Tests`, and with it the three things this work would
 otherwise have to build from scratch:

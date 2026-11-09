@@ -6,7 +6,7 @@ namespace StackExchange.Redis.Tests;
 
 /// <summary>
 /// Covers the commands whose retry category depends on their *arguments* rather than just the command name
-/// (see https://github.com/StackExchange/StackExchange.Redis/issues/3148). These call the message factories
+/// (see https://github.com/seredis/StackExchange.Redis/issues/3148). These call the message factories
 /// directly against the in-process server, so nothing here needs a real Redis.
 /// </summary>
 public class CommandRetryCategoryUnitTests(ITestOutputHelper log)

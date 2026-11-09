@@ -1875,7 +1875,7 @@ namespace StackExchange.Redis
                     ValueStopwatch? watch = null;
 
                     int iterCount = first ? 2 : 1;
-                    // This is fix for https://github.com/StackExchange/StackExchange.Redis/issues/300
+                    // This is fix for https://github.com/seredis/StackExchange.Redis/issues/300
                     // auto discoverability of cluster nodes is made synchronous.
                     // We try to connect to endpoints specified inside the user provided configuration
                     // and when we encounter an endpoint to which we are able to successfully connect,
