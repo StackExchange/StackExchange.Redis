@@ -324,6 +324,11 @@ namespace StackExchange.Redis
         public bool HashImport => Version.IsAtLeast(v8_10_0);
 
         /// <summary>
+        /// Are the <c>CLUSTER SLOT-STATS</c> per-slot usage statistics available?
+        /// </summary>
+        public bool ClusterSlotStats => Version.IsAtLeast(v8_2_0_rc1);
+
+        /// <summary>
         /// Is bit enumeration (<c>BITRANGEINTARRAY</c>) available?
         /// </summary>
         public bool StringBitPositions => Version.IsAtLeast(v8_12_0);
