@@ -21,7 +21,7 @@ public class ValkeyUnitTests(ITestOutputHelper log)
 
     private sealed class InProcessValkeyLikeServer(ITestOutputHelper log) : InProcessTestServer(log)
     {
-        // see https://github.com/StackExchange/StackExchange.Redis/pull/3050
+        // see https://github.com/seredis/StackExchange.Redis/pull/3050
         protected override string ServerModeKey => "server_mode";
 
         protected override void Info(StringBuilder sb, string section)

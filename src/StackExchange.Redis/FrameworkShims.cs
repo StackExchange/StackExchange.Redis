@@ -1,7 +1,7 @@
 ﻿#pragma warning disable SA1403 // single namespace
 
 #if NET
-// context: https://github.com/StackExchange/StackExchange.Redis/issues/2619
+// context: https://github.com/seredis/StackExchange.Redis/issues/2619
 [assembly: System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.Runtime.CompilerServices.IsExternalInit))]
 #else
 // To support { get; init; } properties

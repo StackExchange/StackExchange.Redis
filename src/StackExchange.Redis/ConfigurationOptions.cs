@@ -1209,7 +1209,7 @@ namespace StackExchange.Redis
             // }
             // else
             // ^^^ left for context; originally our intention was to auto-enable RESP3 by default *if* the server version
-            // is >= 6; however, it turns out (see extensive conversation here https://github.com/StackExchange/StackExchange.Redis/pull/2396)
+            // is >= 6; however, it turns out (see extensive conversation here https://github.com/seredis/StackExchange.Redis/pull/2396)
             // that tangential undocumented API breaks were made at the same time; this means that even if we fix every
             // edge case in the library itself, the break is still visible to external callers via Execute[Async]; with an
             // abundance of caution, we are therefore making RESP3 explicit opt-in only for now; we may revisit this in a major

@@ -7,7 +7,7 @@ For all documentation, [see here](https://stackexchange.github.io/StackExchange.
 
 #### Build Status
 
-[![CI](https://github.com/StackExchange/StackExchange.Redis/actions/workflows/CI.yml/badge.svg)](https://github.com/StackExchange/StackExchange.Redis/actions/workflows/CI.yml)
+[![CI](https://github.com/seredis/StackExchange.Redis/actions/workflows/CI.yml/badge.svg)](https://github.com/seredis/StackExchange.Redis/actions/workflows/CI.yml)
 
 #### Package Status
 

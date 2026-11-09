@@ -17,7 +17,7 @@
 
     <LangVersion>14</LangVersion>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/StackExchange/StackExchange.Redis/</RepositoryUrl>
+    <RepositoryUrl>https://github.com/seredis/StackExchange.Redis/</RepositoryUrl>
 
     <DebugSymbols>true</DebugSymbols>
     <DebugType>embedded</DebugType>

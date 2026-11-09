@@ -1855,7 +1855,7 @@ namespace StackExchange.Redis
                                 _readStatus = ReadStatus.InvokePubSub;
                                 muxer.OnMessage(subscriptionChannel, subscriptionChannel, payload);
                             }
-                            // could be multi-message: https://github.com/StackExchange/StackExchange.Redis/issues/2507
+                            // could be multi-message: https://github.com/seredis/StackExchange.Redis/issues/2507
                             else if (TryGetMultiPubSubPayload(items[2], out var payloads))
                             {
                                 _readStatus = ReadStatus.InvokePubSub;

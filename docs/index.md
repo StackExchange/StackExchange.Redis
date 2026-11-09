@@ -62,4 +62,4 @@ Questions and Contributions
 If you think you have found a bug or have a feature request, please [report an issue][2], or if appropriate: submit a pull request. If you have a question, feel free to [contact me](https://github.com/mgravell).
 
   [1]: https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/task-parallel-library-tpl
-  [2]: https://github.com/StackExchange/StackExchange.Redis/issues?state=open
+  [2]: https://github.com/seredis/StackExchange.Redis/issues?state=open

@@ -16,7 +16,7 @@ This can be done either by installing Docker and running `docker compose up` in 
 
 Tests default to `127.0.0.1` as their server, however you can override any of the test IPs/hostnames and ports by placing a `TestConfig.json` in the `StackExchange.Redis.Tests\` folder. This file is intentionally in `.gitignore` already, as it's for *your* personal overrides. This is useful for testing local or remote servers, different versions, various ports, etc.
 
-You can find all the JSON properties at [TestConfig.cs](https://github.com/StackExchange/StackExchange.Redis/blob/main/tests/StackExchange.Redis.Tests/Helpers/TestConfig.cs). An example override (everything not specified being a default) would look like this:
+You can find all the JSON properties at [TestConfig.cs](https://github.com/seredis/StackExchange.Redis/blob/main/tests/StackExchange.Redis.Tests/Helpers/TestConfig.cs). An example override (everything not specified being a default) would look like this:
 ```json
 {
   "RunLongRunning": true,
