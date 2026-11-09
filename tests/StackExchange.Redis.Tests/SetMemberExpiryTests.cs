@@ -28,6 +28,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
 
         Assert.True(db.SetAdd(key, "m1", oneYear));
         var ttl = Assert.Single(db.SetMemberGetTimeToLive(key, ["m1"]));
@@ -45,6 +46,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
         Assert.True(await db.SetAddAsync(key, members, oneYear));
         var ttls = await db.SetMemberGetTimeToLiveAsync(key, members);
@@ -56,6 +58,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
 
         Assert.True(db.SetAdd(key, "m1", oneYear));
 
@@ -75,6 +78,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
 
         // MNX on a fresh key: all new, applies
         Assert.True(db.SetAdd(key, members, oneYear, when: When.NotExists));
@@ -95,6 +99,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
 
         db.SetAdd(key, "m1");
 
@@ -108,6 +113,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SetAdd(key, members);
 
         var result = db.SetMemberExpire(key, members, oneYear);
@@ -122,6 +128,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
         await db.SetAddAsync(key, members);
 
         var result = await db.SetMemberExpireAsync(key, members, oneYear);
@@ -136,6 +143,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
 
         var result = db.SetMemberExpire(key, members, oneYear);
         Assert.Equal([ExpireResult.NoSuchField, ExpireResult.NoSuchField], result);
@@ -146,6 +154,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SetAdd(key, "m1");
 
         var result = db.SetMemberExpire(key, [(RedisValue)"m1", "ghost"], oneYear);
@@ -157,6 +166,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SetAdd(key, members);
 
         // NX: only when the member has no expiry
@@ -183,6 +193,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SetAdd(key, "m1");
 
         var result = db.SetMemberExpire(key, ["m1"], DateTime.UtcNow.AddMinutes(-5));
@@ -195,6 +206,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SetAdd(key, members);
         db.SetMemberExpire(key, ["m1"], oneYear);
 
@@ -210,6 +222,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
         await db.SetAddAsync(key, "m1");
         await db.SetMemberExpireAsync(key, ["m1"], oneYear);
 
@@ -222,6 +235,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SetAdd(key, members);
         db.SetMemberExpire(key, ["m1"], nextCentury);
 
@@ -238,6 +252,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        db.KeyDelete(key, CommandFlags.FireAndForget);
         db.SetAdd(key, members);
         db.SetMemberExpire(key, ["m1"], oneYear);
 
@@ -254,6 +269,7 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var db = Create(require: RedisFeatures.v8_12_0).GetDatabase();
         var key = Me();
+        await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
         await db.SetAddAsync(key, "m1");
         await db.SetMemberExpireAsync(key, ["m1"], oneYear);
 
@@ -266,14 +282,15 @@ public class SetMemberExpiryTests(ITestOutputHelper output, SharedConnectionFixt
     {
         var conn = Create(require: RedisFeatures.v8_12_0);
         var key = Me();
-        var prefixed = conn.GetDatabase().WithKeyPrefix("prefix:");
+        var raw = conn.GetDatabase();
+        var prefixed = raw.WithKeyPrefix("prefix:");
+        raw.KeyDelete([(RedisKey)("prefix:" + key), key], CommandFlags.FireAndForget);
 
         Assert.True(prefixed.SetAdd(key, "m1", oneYear));
         var ttl = Assert.Single(prefixed.SetMemberGetTimeToLive(key, ["m1"]));
         Assert.True(ttl > 0);
 
         // the write really landed on the prefixed key
-        var raw = conn.GetDatabase();
         Assert.True(raw.SetContains("prefix:" + key, "m1"));
         Assert.False(raw.KeyExists(key));
     }
