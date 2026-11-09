@@ -333,6 +333,11 @@ namespace StackExchange.Redis
         /// </summary>
         public bool SetMemberExpiry => Version.IsAtLeast(v8_12_0);
 
+        /// <summary>
+        /// Are key eviction-protection flags (<c>BLESS</c>) available?
+        /// </summary>
+        public bool Bless => Version.IsAtLeast(v8_12_0);
+
 #pragma warning restore 1629 // Documentation text should end with a period.
 
         /// <summary>
