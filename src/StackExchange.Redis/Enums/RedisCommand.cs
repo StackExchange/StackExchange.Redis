@@ -41,6 +41,7 @@ internal enum RedisCommand
     BITFIELD_RO,
     BITOP,
     BITPOS,
+    BITRANGEINTARRAY,
     BLPOP,
     BRPOP,
     BRPOPLPUSH,
@@ -469,6 +470,7 @@ internal static class RedisCommandExtensions
             case RedisCommand.BITCOUNT:
             case RedisCommand.BITFIELD_RO:
             case RedisCommand.BITPOS:
+            case RedisCommand.BITRANGEINTARRAY:
             case RedisCommand.CLIENT:
             case RedisCommand.CLUSTER:
             case RedisCommand.COMMAND:
