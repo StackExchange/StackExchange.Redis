@@ -1139,6 +1139,53 @@ namespace StackExchange.Redis
         bool KeyMove(RedisKey key, int database, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Turns on the specified protection flags for an existing key; with <see cref="BlessFlags.NoEvict"/>, the key is never
+        /// chosen as an eviction victim under any <c>maxmemory-policy</c>.
+        /// </summary>
+        /// <param name="key">The key to protect; the key must exist.</param>
+        /// <param name="bless">The flags to turn on.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the key's flags changed; <see langword="false"/> if they were already set.</returns>
+        /// <remarks>
+        /// <para>
+        /// The flags are server metadata rather than part of the value: they survive overwrites of the value, and travel with
+        /// the key through replication, persistence, <c>COPY</c>, <c>MOVE</c>, <c>RENAME</c> and slot migration, but are
+        /// <b>not</b> carried by <c>DUMP</c>/<c>RESTORE</c>. A missing key is a server error, not <see langword="false"/>.
+        /// </para>
+        /// <para>
+        /// This operation is rejected with an <c>OOM</c> error when the server is over <c>maxmemory</c> and cannot evict;
+        /// <see cref="KeyUnbless(RedisKey, BlessFlags, CommandFlags)"/> is always permitted.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/bless-set"/></para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        bool KeyBless(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Turns off the specified protection flags for an existing key.
+        /// </summary>
+        /// <param name="key">The key to unprotect; the key must exist.</param>
+        /// <param name="bless">The flags to turn off.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if the key's flags changed; <see langword="false"/> if they were already clear.</returns>
+        /// <remarks>
+        /// <para>Unlike <see cref="KeyBless(RedisKey, BlessFlags, CommandFlags)"/>, this is permitted while the server is over <c>maxmemory</c>.</para>
+        /// <para><seealso href="https://redis.io/commands/bless-clear"/></para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        bool KeyUnbless(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Gets the protection flags currently set on an existing key.
+        /// </summary>
+        /// <param name="key">The key to query; the key must exist.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The active flags; <see cref="BlessFlags.None"/> for an unblessed key. A missing key is a server error.</returns>
+        /// <remarks><seealso href="https://redis.io/commands/bless-get"/></remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        BlessFlags KeyBlessFlags(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Remove the existing timeout on key, turning the key from volatile (a key with an expiry set) to persistent (a key that will never expire as no timeout is associated).
         /// </summary>
         /// <param name="key">The key to persist.</param>
@@ -1771,6 +1818,48 @@ namespace StackExchange.Redis
         long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Adds the specified member to the set stored at key and/or sets its per-member expiration, in one atomic call
+        /// (<c>SADDEX</c>). If key does not exist, a new set is created first.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="value">The value to add to the set and/or set the expiration of.</param>
+        /// <param name="expiry">The expiry to set on the member: a <see cref="TimeSpan"/> or <see cref="DateTime"/> (implicitly converted),
+        /// or <see cref="Expiration.KeepTtl"/> to keep an existing expiration (a new member gets none). The default (none) sends the bare
+        /// form, which <b>discards</b> any expiration the member already has - this is <c>SADDEX</c>'s behaviour, not <c>SADD</c>'s, which
+        /// leaves existing members (and their expirations) untouched. <see cref="Expiration.Persist"/> is not supported here: use
+        /// <see cref="SetMemberPersist"/> to remove expirations.</param>
+        /// <param name="when">Which condition to apply the operation under; see the remarks.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><see langword="true"/> if at least one member was added, updated or deleted, else <see langword="false"/>
+        /// (nothing changed, or the <paramref name="when"/> condition was not met).</returns>
+        /// <remarks>
+        /// <para>The <paramref name="when"/> condition applies to the member (<see cref="When.NotExists"/> sends <c>MNX</c>: only if the member
+        /// does not exist yet; <see cref="When.Exists"/> sends <c>MXX</c>: only if it already exists); with multiple members the condition is
+        /// <b>all-or-nothing across the batch</b> - one member that breaks it vetoes the whole call, and nothing is changed.</para>
+        /// <para>An expiration that is already in the past deletes the member instead of adding it.</para>
+        /// <para><seealso href="https://redis.io/commands/saddex"/></para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+#pragma warning disable RS0026 // similar overloads
+        bool SetAdd(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds the specified members to the set stored at key and/or sets their per-member expiration, in one atomic call
+        /// (<c>SADDEX</c>). If key does not exist, a new set is created first.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="values">The values to add to the set and/or set the expiration of.</param>
+        /// <param name="expiry"><inheritdoc cref="SetAdd(RedisKey, RedisValue, Expiration, When, CommandFlags)" path="/param[@name='expiry']"/></param>
+        /// <param name="when"><inheritdoc cref="SetAdd(RedisKey, RedisValue, Expiration, When, CommandFlags)" path="/param[@name='when']"/></param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><inheritdoc cref="SetAdd(RedisKey, RedisValue, Expiration, When, CommandFlags)" path="/returns"/>
+        /// Unlike <see cref="SetAdd(RedisKey, RedisValue[], CommandFlags)"/>, the server does not report how many members were added.</returns>
+        /// <remarks><inheritdoc cref="SetAdd(RedisKey, RedisValue, Expiration, When, CommandFlags)" path="/remarks"/></remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        bool SetAdd(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
         /// Returns the members of the set resulting from the specified operation against the given sets.
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
@@ -1914,6 +2003,155 @@ namespace StackExchange.Redis
         /// <returns>The cardinality (number of elements) of the set, or 0 if key does not exist.</returns>
         /// <remarks><seealso href="https://redis.io/commands/scard"/></remarks>
         long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sets a per-member time to live on the given members of the set stored at key.
+        /// After the timeout has expired, the member is automatically removed from the set.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="members">The members to set the expiration of.</param>
+        /// <param name="expiry">The timeout to set.</param>
+        /// <param name="when">Under which condition the expiration will be set, per member, using <see cref="ExpireWhen"/>.
+        /// A member with no expiration counts as infinitely far away for <see cref="ExpireWhen.GreaterThanCurrentExpiry"/>.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// An array with, per member and in order, the result of the operation:
+        /// <list type="table">
+        ///   <listheader>
+        ///     <term>Result</term>
+        ///     <description>Description</description>
+        ///   </listheader>
+        ///   <item>
+        ///     <term>2</term>
+        ///     <description>Member deleted because the specified expiration time is due.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>1</term>
+        ///     <description>Expiration time set/updated.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>0</term>
+        ///     <description>Expiration time not set/updated (a specified ExpireWhen condition is not met).</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-2</term>
+        ///     <description>No such member exists.</description>
+        ///   </item>
+        /// </list>
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/sexpire"/></remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+#pragma warning disable RS0026 // similar overloads
+        ExpireResult[] SetMemberExpire(RedisKey key, RedisValue[] members, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sets a per-member expiration time on the given members of the set stored at key.
+        /// After the timeout has expired, the member is automatically removed from the set.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="members">The members to set the expiration of.</param>
+        /// <param name="expiry">The exact expiry time to set.</param>
+        /// <param name="when"><inheritdoc cref="SetMemberExpire(RedisKey, RedisValue[], TimeSpan, ExpireWhen, CommandFlags)" path="/param[@name='when']"/></param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns><inheritdoc cref="SetMemberExpire(RedisKey, RedisValue[], TimeSpan, ExpireWhen, CommandFlags)" path="/returns"/></returns>
+        /// <remarks><seealso href="https://redis.io/commands/sexpireat"/></remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        ExpireResult[] SetMemberExpire(RedisKey key, RedisValue[] members, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <summary>
+        /// For each specified member of the set stored at key, gets the expiration time as a Unix timestamp in milliseconds (milliseconds since the Unix epoch).
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="members">The members to get the expiration time of.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// An array with, per member and in order, the result of the operation:
+        /// <list type="table">
+        ///   <listheader>
+        ///     <term>Result</term>
+        ///     <description>Description</description>
+        ///   </listheader>
+        ///   <item>
+        ///     <term>&gt; 0</term>
+        ///     <description>Expiration time, as a Unix timestamp in milliseconds.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-1</term>
+        ///     <description>Member has no associated expiration time.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-2</term>
+        ///     <description>No such member exists.</description>
+        ///   </item>
+        /// </list>
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/spexpiretime"/></remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        long[] SetMemberGetExpireDateTime(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified member of the set stored at key, gets the remaining time to live in milliseconds.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="members">The members to get the time to live of.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// An array with, per member and in order, the result of the operation:
+        /// <list type="table">
+        ///   <listheader>
+        ///     <term>Result</term>
+        ///     <description>Description</description>
+        ///   </listheader>
+        ///   <item>
+        ///     <term>&gt; 0</term>
+        ///     <description>Time to live, in milliseconds.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-1</term>
+        ///     <description>Member has no associated expiration time.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-2</term>
+        ///     <description>No such member exists.</description>
+        ///   </item>
+        /// </list>
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/spttl"/></remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        long[] SetMemberGetTimeToLive(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// For each specified member of the set stored at key, removes the expiration time.
+        /// A member without an expiration stays in the set until removed explicitly.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="members">The members to remove the expiration of.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>
+        /// An array with, per member and in order, the result of the operation:
+        /// <list type="table">
+        ///   <listheader>
+        ///     <term>Result</term>
+        ///     <description>Description</description>
+        ///   </listheader>
+        ///   <item>
+        ///     <term>1</term>
+        ///     <description>Expiration time was removed.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-1</term>
+        ///     <description>Member has no associated expiration time.</description>
+        ///   </item>
+        ///   <item>
+        ///     <term>-2</term>
+        ///     <description>No such member exists.</description>
+        ///   </item>
+        /// </list>
+        /// </returns>
+        /// <remarks><seealso href="https://redis.io/commands/spersist"/></remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        PersistResult[] SetMemberPersist(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns all the members of the set value stored at key.
@@ -3492,6 +3730,36 @@ namespace StackExchange.Redis
         /// </para>
         /// </remarks>
         long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the positions of the bits set to 1 (or, when <paramref name="bit"/> is <c>false</c>, set to 0) in a range of a string or bitmap, in ascending order.
+        /// Positions are counted as in <see cref="StringBitPosition(RedisKey, bool, long, long, StringIndexType, CommandFlags)"/>: the string is an array of bits from left to right, where the most significant bit of the first byte is position 0.
+        /// </summary>
+        /// <param name="key">The key of the string or bitmap.</param>
+        /// <param name="bit">True to return the positions of set bits, false to return the positions of clear bits.</param>
+        /// <param name="start">The start of the range (defaults to 0).</param>
+        /// <param name="end">The end of the range, inclusive (defaults to -1, the last byte or bit). Negative values index from the end of the value.</param>
+        /// <param name="indexType">Whether <paramref name="start"/> and <paramref name="end"/> are byte or bit offsets (defaults to <see cref="StringIndexType.Byte"/>).</param>
+        /// <param name="limit">The maximum number of positions to return, lowest first; <c>null</c> returns every match in the range. See the remarks for paging.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The matching bit positions in ascending order; empty when the key does not exist, the range is empty, or nothing matches.</returns>
+        /// <remarks>
+        /// <para><seealso href="https://redis.io/commands/bitrangeintarray"/></para>
+        /// <para>
+        /// Unlike <see cref="StringBitPosition(RedisKey, bool, long, long, StringIndexType, CommandFlags)"/> with <paramref name="bit"/> <c>false</c>,
+        /// the range never extends past the end of the value, so no clear bits are reported beyond it.
+        /// </para>
+        /// <para>
+        /// To page through a large bitmap, pass <paramref name="limit"/> and continue from the last position returned:
+        /// with <see cref="StringIndexType.Bit"/>, the next <paramref name="start"/> is that position plus one;
+        /// with <see cref="StringIndexType.Byte"/>, the server completes the byte containing the last position (so a page can hold up to 7 more than <paramref name="limit"/>),
+        /// and the next <paramref name="start"/> is that position divided by 8, plus one. A page shorter than <paramref name="limit"/> ends the scan.
+        /// Pages are separate commands and do not share a snapshot.
+        /// </para>
+        /// <para>Available from Redis 8.12; older servers reject the command.</para>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        long[] StringBitPositions(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, long? limit = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Decrements the number stored at key by decrement.

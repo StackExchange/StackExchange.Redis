@@ -41,6 +41,8 @@ internal enum RedisCommand
     BITFIELD_RO,
     BITOP,
     BITPOS,
+    BITRANGEINTARRAY,
+    BLESS,
     BLPOP,
     BRPOP,
     BRPOPLPUSH,
@@ -193,6 +195,7 @@ internal enum RedisCommand
     RPUSHX,
 
     SADD,
+    SADDEX,
     SAVE,
     SCAN,
     SCARD,
@@ -207,6 +210,8 @@ internal enum RedisCommand
     SETEX,
     SETNX,
     SETRANGE,
+    SEXPIRE,
+    SEXPIREAT,
     SHUTDOWN,
     SINTER,
     SINTERCARD,
@@ -220,7 +225,12 @@ internal enum RedisCommand
     SORT,
     [AsciiHash("SORT_RO")]
     SORT_RO,
+    SPERSIST,
+    SPEXPIRE,
+    SPEXPIREAT,
+    SPEXPIRETIME,
     SPOP,
+    SPTTL,
     SPUBLISH,
     SRANDMEMBER,
     SREM,
@@ -416,14 +426,20 @@ internal static class RedisCommandExtensions
             case RedisCommand.RPUSH:
             case RedisCommand.RPUSHX:
             case RedisCommand.SADD:
+            case RedisCommand.SADDEX:
             case RedisCommand.SDIFFSTORE:
             case RedisCommand.SET:
             case RedisCommand.SETBIT:
             case RedisCommand.SETEX:
             case RedisCommand.SETNX:
             case RedisCommand.SETRANGE:
+            case RedisCommand.SEXPIRE:
+            case RedisCommand.SEXPIREAT:
             case RedisCommand.SINTERSTORE:
             case RedisCommand.SMOVE:
+            case RedisCommand.SPERSIST:
+            case RedisCommand.SPEXPIRE:
+            case RedisCommand.SPEXPIREAT:
             case RedisCommand.SPOP:
             case RedisCommand.SREM:
             case RedisCommand.SUNIONSTORE:
@@ -469,6 +485,8 @@ internal static class RedisCommandExtensions
             case RedisCommand.BITCOUNT:
             case RedisCommand.BITFIELD_RO:
             case RedisCommand.BITPOS:
+            case RedisCommand.BITRANGEINTARRAY:
+            case RedisCommand.BLESS: // SET/CLEAR are raised to primary-only where we can see the subcommand
             case RedisCommand.CLIENT:
             case RedisCommand.CLUSTER:
             case RedisCommand.COMMAND:
@@ -554,6 +572,8 @@ internal static class RedisCommandExtensions
             case RedisCommand.SMEMBERS:
             case RedisCommand.SMISMEMBER:
             case RedisCommand.SORT_RO:
+            case RedisCommand.SPEXPIRETIME:
+            case RedisCommand.SPTTL:
             case RedisCommand.SPUBLISH:
             case RedisCommand.SRANDMEMBER:
             case RedisCommand.SSUBSCRIBE:

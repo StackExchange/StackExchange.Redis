@@ -293,6 +293,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> KeyPersistAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.KeyPersistAsync(ToInner(key), flags);
 
+        public Task<bool> KeyBlessAsync(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyBlessAsync(ToInner(key), bless, flags);
+
+        public Task<bool> KeyUnblessAsync(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyUnblessAsync(ToInner(key), bless, flags);
+
+        public Task<BlessFlags> KeyBlessFlagsAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
+            Inner.KeyBlessFlagsAsync(ToInner(key), flags);
+
         public Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None) =>
             throw new NotSupportedException("RANDOMKEY is not supported when a key-prefix is specified");
 
@@ -496,6 +505,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> SetAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAddAsync(ToInner(key), value, flags);
 
+        public Task<bool> SetAddAsync(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAddAsync(ToInner(key), value, expiry, when, flags);
+
+        public Task<bool> SetAddAsync(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAddAsync(ToInner(key), values, expiry, when, flags);
+
         public Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.SetCombineAndStoreAsync(operation, ToInner(destination), ToInner(keys), flags);
 
@@ -522,6 +537,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLengthAsync(ToInner(key), flags);
+
+        public Task<ExpireResult[]> SetMemberExpireAsync(RedisKey key, RedisValue[] members, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberExpireAsync(ToInner(key), members, expiry, when, flags);
+
+        public Task<ExpireResult[]> SetMemberExpireAsync(RedisKey key, RedisValue[] members, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberExpireAsync(ToInner(key), members, expiry, when, flags);
+
+        public Task<long[]> SetMemberGetExpireDateTimeAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberGetExpireDateTimeAsync(ToInner(key), members, flags);
+
+        public Task<long[]> SetMemberGetTimeToLiveAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberGetTimeToLiveAsync(ToInner(key), members, flags);
+
+        public Task<PersistResult[]> SetMemberPersistAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberPersistAsync(ToInner(key), members, flags);
 
         public Task<RedisValue[]> SetMembersAsync(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetMembersAsync(ToInner(key), flags);
@@ -852,6 +882,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None) =>
             Inner.StringBitPositionAsync(ToInner(key), bit, start, end, indexType, flags);
+
+        public Task<long[]> StringBitPositionsAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, long? limit = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.StringBitPositionsAsync(ToInner(key), bit, start, end, indexType, limit, flags);
 
         public Task<bool> StringDeleteAsync(RedisKey key, ValueCondition when, CommandFlags flags = CommandFlags.None) =>
             Inner.StringDeleteAsync(ToInner(key), when, flags);

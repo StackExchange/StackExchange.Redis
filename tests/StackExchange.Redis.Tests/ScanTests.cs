@@ -464,7 +464,10 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
         for (int i = 0; i < 2000; i++)
             db.SortedSetAdd(key, "z" + i, i, flags: CommandFlags.FireAndForget);
 
-        int count = db.SortedSetScan(key, pageSize: pageSize).Count();
-        Assert.Equal(2000, count);
+        var members = db.SortedSetScan(key, pageSize: pageSize).ToList();
+
+        // the 8.12 btree encoding can return duplicates even for an unmodified key
+        // (redis/redis#16158; the SCAN contract allows it), so count distinct members
+        Assert.Equal(2000, members.Select(e => e.Element).Distinct().Count());
     }
 }

@@ -450,6 +450,7 @@ public class KeyNotificationUnitTests(ITestOutputHelper log)
     [InlineData("sadd", KeyNotificationType.SAdd)]
     [InlineData("set", KeyNotificationType.Set)]
     [InlineData("setrange", KeyNotificationType.SetRange)]
+    [InlineData("sexpired", KeyNotificationType.SExpired)]
     [InlineData("sortstore", KeyNotificationType.SortStore)]
     [InlineData("srem", KeyNotificationType.SRem)]
     [InlineData("spop", KeyNotificationType.SPop)]
@@ -916,6 +917,32 @@ public class KeyNotificationUnitTests(ITestOutputHelper log)
         Assert.True(notification.IsType("hset"u8));
         Assert.Equal("mykey", (string?)notification.GetKey());
         Assert.Equal(expectedFirstSubKey, (string?)notification.GetSubKeys().First());
+    }
+
+    [Theory]
+    [InlineData("14:presence:lobby|5:alice", new[] { "alice" })]
+    [InlineData("14:presence:lobby|5:alice|3:bob", new[] { "alice", "bob" })]
+    public void SubKeyEvent_SExpired_NamesTheLapsedMembers(string payload, string[] expectedSubKeys)
+    {
+        // 8.12 set-member expiration: __subkeyevent@0__:sexpired names the member(s) that lapsed, not just the key
+        var channel = RedisChannel.Literal("__subkeyevent@0__:sexpired");
+        RedisValue value = payload;
+
+        Assert.True(KeyNotification.TryParse(channel, value, out var notification));
+
+        Assert.Equal(KeyNotificationKind.SubKeyEvent, notification.Kind);
+        Assert.Equal(0, notification.Database);
+        Assert.Equal(KeyNotificationType.SExpired, notification.Type);
+        Assert.True(notification.IsType("sexpired"u8));
+        Assert.Equal("presence:lobby", (string?)notification.GetKey());
+
+        var subKeys = new List<string?>();
+        foreach (var subKey in notification.GetSubKeys())
+        {
+            subKeys.Add((string?)subKey);
+        }
+
+        Assert.Equal(expectedSubKeys, subKeys);
     }
 
     [Theory]

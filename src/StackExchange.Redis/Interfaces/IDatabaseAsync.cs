@@ -275,6 +275,18 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.KeyMove(RedisKey, int, CommandFlags)"/>
         Task<bool> KeyMoveAsync(RedisKey key, int database, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.KeyBless(RedisKey, BlessFlags, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<bool> KeyBlessAsync(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.KeyUnbless(RedisKey, BlessFlags, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<bool> KeyUnblessAsync(RedisKey key, BlessFlags bless, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.KeyBlessFlags(RedisKey, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<BlessFlags> KeyBlessFlagsAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.KeyPersist(RedisKey, CommandFlags)"/>
         Task<bool> KeyPersistAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
@@ -434,6 +446,16 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.SetAdd(RedisKey, RedisValue[], CommandFlags)"/>
         Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.SetAdd(RedisKey, RedisValue, Expiration, When, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+#pragma warning disable RS0026 // similar overloads
+        Task<bool> SetAddAsync(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.SetAdd(RedisKey, RedisValue[], Expiration, When, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<bool> SetAddAsync(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
         /// <inheritdoc cref="IDatabase.SetCombine(SetOperation, RedisKey, RedisKey, CommandFlags)"/>
         Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
 
@@ -460,6 +482,28 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.SetLength(RedisKey, CommandFlags)"/>
         Task<long> SetLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.SetMemberExpire(RedisKey, RedisValue[], TimeSpan, ExpireWhen, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+#pragma warning disable RS0026 // similar overloads
+        Task<ExpireResult[]> SetMemberExpireAsync(RedisKey key, RedisValue[] members, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.SetMemberExpire(RedisKey, RedisValue[], DateTime, ExpireWhen, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<ExpireResult[]> SetMemberExpireAsync(RedisKey key, RedisValue[] members, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None);
+#pragma warning restore RS0026
+
+        /// <inheritdoc cref="IDatabase.SetMemberGetExpireDateTime(RedisKey, RedisValue[], CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<long[]> SetMemberGetExpireDateTimeAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.SetMemberGetTimeToLive(RedisKey, RedisValue[], CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<long[]> SetMemberGetTimeToLiveAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.SetMemberPersist(RedisKey, RedisValue[], CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<PersistResult[]> SetMemberPersistAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.SetMembers(RedisKey, CommandFlags)"/>
         Task<RedisValue[]> SetMembersAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
@@ -850,6 +894,10 @@ namespace StackExchange.Redis
 
         /// <inheritdoc cref="IDatabase.StringBitPosition(RedisKey, bool, long, long, StringIndexType, CommandFlags)"/>
         Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.StringBitPositions(RedisKey, bool, long, long, StringIndexType, long?, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<long[]> StringBitPositionsAsync(RedisKey key, bool bit, long start = 0, long end = -1, StringIndexType indexType = StringIndexType.Byte, long? limit = null, CommandFlags flags = CommandFlags.None);
 
         /// <inheritdoc cref="IDatabase.StringDecrement(RedisKey, long, CommandFlags)"/>
         Task<long> StringDecrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);

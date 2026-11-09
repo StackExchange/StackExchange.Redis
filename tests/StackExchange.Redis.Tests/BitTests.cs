@@ -146,4 +146,102 @@ public class BitTests(ITestOutputHelper output, SharedConnectionFixture fixture)
         var write = Assert.Single(commands, c => c.Command == "BITFIELD");
         Assert.False(conn.GetServer(write.EndPoint).IsReplica);
     }
+
+    private static void SetSampleBits(IDatabase db, RedisKey key)
+    {
+        // the sample from redis/redis#15986: bits 1, 7, 9 and 30
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        foreach (var bit in new long[] { 1, 7, 9, 30 })
+        {
+            db.StringSetBit(key, bit, true, CommandFlags.FireAndForget);
+        }
+    }
+
+    [Fact]
+    public async Task StringBitPositions_Ranges()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_12_0);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        SetSampleBits(db, key);
+
+        Assert.Equal(new long[] { 1, 7, 9, 30 }, db.StringBitPositions(key, true));
+        Assert.Equal(new long[] { 9, 30 }, db.StringBitPositions(key, true, 1, -1));
+        Assert.Equal(new long[] { 7, 9 }, await db.StringBitPositionsAsync(key, true, 5, 10, StringIndexType.Bit));
+        Assert.Empty(db.StringBitPositions(key, true, 3, 1)); // reversed range
+    }
+
+    [Fact]
+    public async Task StringBitPositions_ClearBits()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_12_0);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        SetSampleBits(db, key);
+
+        Assert.Equal(new long[] { 24, 25, 26, 27, 28, 29, 31 }, db.StringBitPositions(key, false, 24, 31, StringIndexType.Bit));
+        // unlike BITPOS, the range is clamped to the value: nothing past bit 31 is reported
+        Assert.Equal(new long[] { 31 }, await db.StringBitPositionsAsync(key, false, 30, 100, StringIndexType.Bit));
+    }
+
+    [Fact]
+    public async Task StringBitPositions_Limit()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_12_0);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+        SetSampleBits(db, key);
+
+        Assert.Equal(new long[] { 1 }, db.StringBitPositions(key, true, 0, -1, StringIndexType.Bit, limit: 1));
+        Assert.Equal(new long[] { 7, 9 }, db.StringBitPositions(key, true, 2, -1, StringIndexType.Bit, limit: 2));
+        Assert.Equal(new long[] { 1, 7 }, db.StringBitPositions(key, true, 0, -1, StringIndexType.Byte, limit: 1)); // BYTE completes byte 0
+        Assert.Empty(await db.StringBitPositionsAsync(key, true, 0, -1, StringIndexType.Byte, limit: 0));
+    }
+
+    [Theory]
+    [InlineData(StringIndexType.Bit)]
+    [InlineData(StringIndexType.Byte)]
+    public async Task StringBitPositions_PagesWithoutGaps(StringIndexType indexType)
+    {
+        await using var conn = Create(require: RedisFeatures.v8_12_0);
+        var db = conn.GetDatabase();
+        RedisKey key = Me() + ":" + indexType;
+
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        var rand = new Random(12345);
+        for (int i = 0; i < 10_000; i++)
+        {
+            if (rand.Next(3) == 0) db.StringSetBit(key, i, true, CommandFlags.FireAndForget);
+        }
+        var all = await db.StringBitPositionsAsync(key, true);
+        Assert.NotEmpty(all);
+
+        var paged = new System.Collections.Generic.List<long>();
+        long start = 0;
+        const int Limit = 97;
+        while (true)
+        {
+            var page = db.StringBitPositions(key, true, start, -1, indexType, limit: Limit);
+            paged.AddRange(page);
+            if (page.Length < Limit) break;
+            long last = page[page.Length - 1];
+            start = indexType == StringIndexType.Bit ? last + 1 : (last / 8) + 1;
+        }
+        Assert.Equal(all, paged);
+    }
+
+    [Fact]
+    public async Task StringBitPositions_MissingKeyAndWrongType()
+    {
+        await using var conn = Create(require: RedisFeatures.v8_12_0);
+        var db = conn.GetDatabase();
+        RedisKey key = Me();
+
+        db.KeyDelete(key, CommandFlags.FireAndForget);
+        Assert.Empty(db.StringBitPositions(key, true));
+
+        db.ListRightPush(key, "a", flags: CommandFlags.FireAndForget);
+        var ex = await Assert.ThrowsAsync<RedisServerException>(() => db.StringBitPositionsAsync(key, true));
+        Assert.Contains("WRONGTYPE", ex.Message);
+    }
 }
