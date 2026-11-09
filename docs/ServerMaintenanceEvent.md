@@ -28,7 +28,7 @@ multiplexer.ServerMaintenanceEvent += (object sender, ServerMaintenanceEvent e) 
     }
 };
 ```
-You can see the schema for the `AzureMaintenanceEvent` class [here](https://github.com/StackExchange/StackExchange.Redis/blob/main/src/StackExchange.Redis/Maintenance/AzureMaintenanceEvent.cs). Note that the library automatically sets the `ReceivedTimeUtc` timestamp when the event is received, so if you see in your logs that `ReceivedTimeUtc` is after `StartTimeUtc`, this may indicate that your connections are under high load.
+You can see the schema for the `AzureMaintenanceEvent` class [here](https://github.com/seredis/StackExchange.Redis/blob/main/src/StackExchange.Redis/Maintenance/AzureMaintenanceEvent.cs). Note that the library automatically sets the `ReceivedTimeUtc` timestamp when the event is received, so if you see in your logs that `ReceivedTimeUtc` is after `StartTimeUtc`, this may indicate that your connections are under high load.
 
 ## Walking through a sample maintenance event
 

@@ -1137,7 +1137,7 @@ namespace StackExchange.Redis
                         var bridge = connection.BridgeCouldBeNull;
                         var config = Parse(connection, nodes);
 
-                        // re multi-db: https://github.com/StackExchange/StackExchange.Redis/issues/2642
+                        // re multi-db: https://github.com/seredis/StackExchange.Redis/issues/2642
                         if (bridge != null && !connection.MultiDatabasesOverride)
                         {
                             bridge.ServerEndPoint.ServerType = ServerType.Cluster;
