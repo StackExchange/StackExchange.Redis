@@ -1,7 +1,7 @@
 using System.ComponentModel;
 
 #if NET5_0_OR_GREATER
-// context: https://github.com/StackExchange/StackExchange.Redis/issues/2619
+// context: https://github.com/seredis/StackExchange.Redis/issues/2619
 [assembly: System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.Runtime.CompilerServices.IsExternalInit))]
 #else
 

@@ -4,7 +4,7 @@ using Xunit;
 
 namespace StackExchange.Redis.Tests;
 
-// context: https://github.com/StackExchange/StackExchange.Redis/pull/3043
+// context: https://github.com/seredis/StackExchange.Redis/pull/3043
 public class ClusterHandshakeNodesUnitTests(ITestOutputHelper log)
 {
     [Fact]

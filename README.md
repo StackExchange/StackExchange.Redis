@@ -7,7 +7,7 @@ For all documentation, [see here](https://seredis.dev/).
 
 #### Build Status
 
-[![CI](https://github.com/StackExchange/StackExchange.Redis/actions/workflows/CI.yml/badge.svg)](https://github.com/StackExchange/StackExchange.Redis/actions/workflows/CI.yml)
+[![CI](https://github.com/seredis/StackExchange.Redis/actions/workflows/CI.yml/badge.svg)](https://github.com/seredis/StackExchange.Redis/actions/workflows/CI.yml)
 
 #### Package Status
 
@@ -15,4 +15,4 @@ For all documentation, [see here](https://seredis.dev/).
 | ------- | ------------ | ----------------- | --------- |
 | [StackExchange.Redis](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/v/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) | [![StackExchange.Redis](https://img.shields.io/nuget/vpre/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/absoluteLatest) | [![StackExchange.Redis](https://img.shields.io/nuget/dt/StackExchange.Redis.svg)](https://www.nuget.org/packages/StackExchange.Redis/) |
 
-Release notes at: [GitHub Releases](https://github.com/StackExchange/StackExchange.Redis/releases) (3.0 onwards; [earlier releases](https://seredis.dev/ReleaseNotes))
+Release notes at: [GitHub Releases](https://github.com/seredis/StackExchange.Redis/releases) (3.0 onwards; [earlier releases](https://seredis.dev/ReleaseNotes))
