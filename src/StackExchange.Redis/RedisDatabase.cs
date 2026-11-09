@@ -2269,6 +2269,190 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public bool SetAdd(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = SetAddWithExpiryMessage(key, value, expiry, when, flags);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+
+        public bool SetAdd(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var msg = SetAddWithExpiryMessage(key, values, expiry, when, flags);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> SetAddAsync(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = SetAddWithExpiryMessage(key, value, expiry, when, flags);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> SetAddAsync(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var msg = SetAddWithExpiryMessage(key, values, expiry, when, flags);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
+        internal Message SetAddWithExpiryMessage(in RedisKey key, in RedisValue value, Expiration expiry, When when, CommandFlags flags)
+        {
+            // SADDEX has no PERSIST token; removing member expirations is SetMemberPersist's job
+            if (expiry.IsPersist) throw new ArgumentException("PERSIST is not supported by SADDEX; use " + nameof(SetMemberPersist) + " to remove member expirations.", nameof(expiry));
+            int expiryTokenCount = expiry.GetTokenCount(allowEnx: false);
+            if (when == When.Always)
+            {
+                return expiryTokenCount switch
+                {
+                    2 => Message.Create(Database, flags, RedisCommand.SADDEX, key, expiry.Operand, expiry.Value, RedisLiterals.MEMBERS, 1, value),
+                    1 => Message.Create(Database, flags, RedisCommand.SADDEX, key, expiry.Operand, RedisLiterals.MEMBERS, 1, value),
+                    _ => Message.Create(Database, flags, RedisCommand.SADDEX, key, RedisLiterals.MEMBERS, 1, value),
+                };
+            }
+            else
+            {
+                // we need an extra token
+                var existance = when switch
+                {
+                    When.Exists => RedisLiterals.MXX,
+                    When.NotExists => RedisLiterals.MNX,
+                    _ => throw new ArgumentOutOfRangeException(nameof(when)),
+                };
+
+                return expiryTokenCount switch
+                {
+                    2 => Message.Create(Database, flags, RedisCommand.SADDEX, key, existance, expiry.Operand, expiry.Value, RedisLiterals.MEMBERS, 1, value),
+                    1 => Message.Create(Database, flags, RedisCommand.SADDEX, key, existance, expiry.Operand, RedisLiterals.MEMBERS, 1, value),
+                    _ => Message.Create(Database, flags, RedisCommand.SADDEX, key, existance, RedisLiterals.MEMBERS, 1, value),
+                };
+            }
+        }
+
+        internal Message SetAddWithExpiryMessage(in RedisKey key, RedisValue[] values, Expiration expiry, When when, CommandFlags flags)
+        {
+            if (values.Length == 1)
+            {
+                return SetAddWithExpiryMessage(key, values[0], expiry, when, flags);
+            }
+            // Determine the base array size
+            int expiryTokenCount = expiry.GetTokenCount(allowEnx: false);
+            var extraTokens = expiryTokenCount + (when == When.Always ? 2 : 3); // [MXX|MNX] {expiry} MEMBERS {length}
+            RedisValue[] args = new RedisValue[values.Length + extraTokens];
+
+            int index = 0;
+            switch (when)
+            {
+                case When.Always:
+                    break;
+                case When.Exists:
+                    args[index++] = RedisLiterals.MXX;
+                    break;
+                case When.NotExists:
+                    args[index++] = RedisLiterals.MNX;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(when));
+            }
+            switch (expiryTokenCount)
+            {
+                case 2:
+                    args[index++] = expiry.Operand;
+                    args[index++] = expiry.Value;
+                    break;
+                case 1:
+                    args[index++] = expiry.Operand;
+                    break;
+            }
+            args[index++] = RedisLiterals.MEMBERS;
+            args[index++] = values.Length;
+            for (int i = 0; i < values.Length; i++)
+            {
+                args[index++] = values[i];
+            }
+            Debug.Assert(index == args.Length);
+            return Message.Create(Database, flags, RedisCommand.SADDEX, key, args);
+        }
+
+        public ExpireResult[] SetMemberExpire(RedisKey key, RedisValue[] members, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
+            return SetMemberExpireExecute(key, milliseconds, when, PickSetMemberExpireCommandByPrecision, SyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]>>, ResultProcessor.ExpireResultArray, flags, members);
+        }
+
+        public ExpireResult[] SetMemberExpire(RedisKey key, RedisValue[] members, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = Expiration.GetUnixTimeMilliseconds(expiry);
+            return SetMemberExpireExecute(key, milliseconds, when, PickSetMemberExpireAtCommandByPrecision, SyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]>>, ResultProcessor.ExpireResultArray, flags, members);
+        }
+
+        public Task<ExpireResult[]> SetMemberExpireAsync(RedisKey key, RedisValue[] members, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = expiry.Ticks / TimeSpan.TicksPerMillisecond;
+            return SetMemberExpireExecute(key, milliseconds, when, PickSetMemberExpireCommandByPrecision, AsyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]>>, ResultProcessor.ExpireResultArray, flags, members);
+        }
+
+        public Task<ExpireResult[]> SetMemberExpireAsync(RedisKey key, RedisValue[] members, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None)
+        {
+            long milliseconds = Expiration.GetUnixTimeMilliseconds(expiry);
+            return SetMemberExpireExecute(key, milliseconds, when, PickSetMemberExpireAtCommandByPrecision, AsyncCustomArrExecutor<ExpireResult, ResultProcessor<ExpireResult[]>>, ResultProcessor.ExpireResultArray, flags, members);
+        }
+
+        private T SetMemberExpireExecute<T, TProcessor>(RedisKey key, long milliseconds, ExpireWhen when, Func<bool, RedisCommand> getCmd, CustomExecutor<T, TProcessor> executor, TProcessor processor, CommandFlags flags, params RedisValue[] members)
+            => executor(GetSetMemberExpireMessage(key, milliseconds, when, getCmd, flags, members), processor);
+
+        internal Message GetSetMemberExpireMessage(RedisKey key, long milliseconds, ExpireWhen when, Func<bool, RedisCommand> getCmd, CommandFlags flags, params RedisValue[] members)
+        {
+            if (members == null) throw new ArgumentNullException(nameof(members));
+            var useSeconds = milliseconds % 1000 == 0;
+            var cmd = getCmd(useSeconds);
+            long expiry = useSeconds ? (milliseconds / 1000) : milliseconds;
+
+            // S[P]EXPIRE[AT] ... NX/XX/GT/LT is a conditional write, exactly as for the key-level EXPIRE;
+            // a bare one keeps the last-wins default
+            flags = flags.WithCategory(when.AsRetryCategory());
+
+            var values = when switch
+            {
+                ExpireWhen.Always => new List<RedisValue> { expiry, RedisLiterals.MEMBERS, members.Length },
+                _ => new List<RedisValue> { expiry, when.ToLiteral(), RedisLiterals.MEMBERS, members.Length },
+            };
+            values.AddRange(members);
+            return Message.Create(Database, flags, cmd, key, values.ToArray());
+        }
+
+        internal static RedisCommand PickSetMemberExpireCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.SEXPIRE : RedisCommand.SPEXPIRE;
+
+        internal static RedisCommand PickSetMemberExpireAtCommandByPrecision(bool useSeconds) => useSeconds ? RedisCommand.SEXPIREAT : RedisCommand.SPEXPIREAT;
+
+        public long[] SetMemberGetExpireDateTime(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            SetMemberExecute(RedisCommand.SPEXPIRETIME, key, SyncCustomArrExecutor<long, ResultProcessor<long[]>>, ResultProcessor.Int64Array, flags, members);
+
+        public Task<long[]> SetMemberGetExpireDateTimeAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            SetMemberExecute(RedisCommand.SPEXPIRETIME, key, AsyncCustomArrExecutor<long, ResultProcessor<long[]>>, ResultProcessor.Int64Array, flags, members);
+
+        public long[] SetMemberGetTimeToLive(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            SetMemberExecute(RedisCommand.SPTTL, key, SyncCustomArrExecutor<long, ResultProcessor<long[]>>, ResultProcessor.Int64Array, flags, members);
+
+        public Task<long[]> SetMemberGetTimeToLiveAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            SetMemberExecute(RedisCommand.SPTTL, key, AsyncCustomArrExecutor<long, ResultProcessor<long[]>>, ResultProcessor.Int64Array, flags, members);
+
+        public PersistResult[] SetMemberPersist(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            SetMemberExecute(RedisCommand.SPERSIST, key, SyncCustomArrExecutor<PersistResult, ResultProcessor<PersistResult[]>>, ResultProcessor.PersistResultArray, flags, members);
+
+        public Task<PersistResult[]> SetMemberPersistAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            SetMemberExecute(RedisCommand.SPERSIST, key, AsyncCustomArrExecutor<PersistResult, ResultProcessor<PersistResult[]>>, ResultProcessor.PersistResultArray, flags, members);
+
+        private T SetMemberExecute<T, TProcessor>(RedisCommand cmd, RedisKey key, CustomExecutor<T, TProcessor> executor, TProcessor processor, CommandFlags flags = CommandFlags.None, params RedisValue[] members)
+            => executor(GetSetMemberMessage(cmd, key, flags, members), processor);
+
+        internal Message GetSetMemberMessage(RedisCommand cmd, RedisKey key, CommandFlags flags, params RedisValue[] members)
+        {
+            if (members == null) throw new ArgumentNullException(nameof(members));
+            var values = new List<RedisValue> { RedisLiterals.MEMBERS, members.Length };
+            values.AddRange(members);
+            return Message.Create(Database, flags, cmd, key, values.ToArray());
+        }
+
         public RedisValue[] SetCombine(SetOperation operation, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, operation.ToSetCommand(), first, second);

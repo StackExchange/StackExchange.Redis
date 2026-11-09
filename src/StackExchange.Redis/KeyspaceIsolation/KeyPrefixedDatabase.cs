@@ -465,6 +465,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None) =>
             Inner.SetAdd(ToInner(key), value, flags);
 
+        public bool SetAdd(RedisKey key, RedisValue value, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAdd(ToInner(key), value, expiry, when, flags);
+
+        public bool SetAdd(RedisKey key, RedisValue[] values, Expiration expiry, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetAdd(ToInner(key), values, expiry, when, flags);
+
         public long SetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None) =>
             Inner.SetCombineAndStore(operation, ToInner(destination), ToInner(keys), flags);
 
@@ -491,6 +497,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public long SetLength(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetLength(ToInner(key), flags);
+
+        public ExpireResult[] SetMemberExpire(RedisKey key, RedisValue[] members, TimeSpan expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberExpire(ToInner(key), members, expiry, when, flags);
+
+        public ExpireResult[] SetMemberExpire(RedisKey key, RedisValue[] members, DateTime expiry, ExpireWhen when = ExpireWhen.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberExpire(ToInner(key), members, expiry, when, flags);
+
+        public long[] SetMemberGetExpireDateTime(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberGetExpireDateTime(ToInner(key), members, flags);
+
+        public long[] SetMemberGetTimeToLive(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberGetTimeToLive(ToInner(key), members, flags);
+
+        public PersistResult[] SetMemberPersist(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None) =>
+            Inner.SetMemberPersist(ToInner(key), members, flags);
 
         public RedisValue[] SetMembers(RedisKey key, CommandFlags flags = CommandFlags.None) =>
             Inner.SetMembers(ToInner(key), flags);

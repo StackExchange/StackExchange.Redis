@@ -42,6 +42,7 @@ Statuses: `policy` (excluded by design), `not-applicable` (not meaningful for a 
 |---|---|---|---|
 | `HTTL` | 7.4.0 | `not-applicable` | Second-precision twin of `HPTTL`; the library always reads `HPTTL`. |
 | `STTL` | 8.12.0 | `not-applicable` | Second-precision twin of `SPTTL`, as `HTTL`. |
+| `SEXPIRETIME` | 8.12.0 | `not-applicable` | Second-precision twin of `SPEXPIRETIME`, as `HTTL`; the library always reads `SPEXPIRETIME`. |
 | `RESET` | 6.2.0 | `not-applicable` | Discards the per-connection state the multiplexer negotiated (`HELLO`, `CLIENT SETNAME`, `SELECT`, subscriptions). Dispose and reconnect instead. |
 | `CLIENT REPLY` | 3.2.0 | `not-applicable` | Suppressing replies breaks the request/response pairing the multiplexer relies on; `CommandFlags.FireAndForget` is the client-side equivalent. |
 | `CLIENT UNBLOCK` | 5.0.0 | `not-applicable` | Unblocks a client parked in a blocking command, which this library does not issue. |
@@ -162,15 +163,6 @@ PRs welcome; follow the `implement-resp-command` skill. Pre-release server featu
 | `BLESS GET` | 8.12.0 | `todo` | As `BLESS`. |
 | `BLESS CLEAR` | 8.12.0 | `todo` | As `BLESS`. |
 | `BLESS SCAN` | 8.12.0 | `todo` | As `BLESS`. |
-| `SADDEX` | 8.12.0 | `todo` | Set member expiry; mirror the hash-field expiry surface (`HashFieldExpire` et al). |
-| `SEXPIRE` | 8.12.0 | `todo` | Set member expiry. |
-| `SEXPIREAT` | 8.12.0 | `todo` | Set member expiry. |
-| `SEXPIRETIME` | 8.12.0 | `todo` | Set member expiry (mirrors `HEXPIRETIME`). |
-| `SPERSIST` | 8.12.0 | `todo` | Set member expiry. |
-| `SPEXPIRE` | 8.12.0 | `todo` | Set member expiry. |
-| `SPEXPIREAT` | 8.12.0 | `todo` | Set member expiry. |
-| `SPEXPIRETIME` | 8.12.0 | `todo` | Set member expiry. |
-| `SPTTL` | 8.12.0 | `todo` | Set member expiry; the read path (see `STTL` above). |
 | `MEMORY USAGE` | 4.0.0 | `todo` | Per-key memory; `MEMORY DOCTOR`/`STATS`/`PURGE` are exposed, this one is the useful one for profiling. |
 | `CLUSTER INFO` | 3.0.0 | `todo` | Cluster state summary (`cluster_state`, slot counts, epoch) on `IServer`, next to `ClusterNodes`. |
 | `LATENCY HISTOGRAM` | 7.0.0 | `todo` | Per-command latency histograms on `IServer`, next to `LATENCY LATEST`/`HISTORY`. |
