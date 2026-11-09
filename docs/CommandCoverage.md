@@ -157,11 +157,6 @@ PRs welcome; follow the `implement-resp-command` skill. Pre-release server featu
 
 | Command | Since | Status | Notes |
 |---|---|---|---|
-| `BLESS` | 8.12.0 | `todo` | Key blessing (eviction protection). #3261, in progress on `marc/bless`. |
-| `BLESS SET` | 8.12.0 | `todo` | As `BLESS`. |
-| `BLESS GET` | 8.12.0 | `todo` | As `BLESS`. |
-| `BLESS CLEAR` | 8.12.0 | `todo` | As `BLESS`. |
-| `BLESS SCAN` | 8.12.0 | `todo` | As `BLESS`. |
 | `MEMORY USAGE` | 4.0.0 | `todo` | Per-key memory; `MEMORY DOCTOR`/`STATS`/`PURGE` are exposed, this one is the useful one for profiling. |
 | `CLUSTER INFO` | 3.0.0 | `todo` | Cluster state summary (`cluster_state`, slot counts, epoch) on `IServer`, next to `ClusterNodes`. |
 | `LATENCY HISTOGRAM` | 7.0.0 | `todo` | Per-command latency histograms on `IServer`, next to `LATENCY LATEST`/`HISTORY`. |
