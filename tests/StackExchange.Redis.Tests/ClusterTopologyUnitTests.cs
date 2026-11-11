@@ -188,13 +188,13 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
 
     [Fact]
     public async Task HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints()
-        => await HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints(defaultOnly: false);
+        => await RunHostnamePreferredClusterRoutesWithoutDuplicatingEndpoints(defaultOnly: false);
 
     [Fact]
     public async Task HostnamePreferredClusterDiscoversFromSingleSeed()
-        => await HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints(defaultOnly: true);
+        => await RunHostnamePreferredClusterRoutesWithoutDuplicatingEndpoints(defaultOnly: true);
 
-    private async Task HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints(bool defaultOnly)
+    private async Task RunHostnamePreferredClusterRoutesWithoutDuplicatingEndpoints(bool defaultOnly)
     {
         // SLOTS names the shard by hostname, while NODES reports its companion IP. Cover both already-seeded
         // endpoints and discovery from a single seed: either path must keep one server and dial with the hostname.
