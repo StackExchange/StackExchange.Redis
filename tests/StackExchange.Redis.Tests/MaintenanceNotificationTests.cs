@@ -528,11 +528,13 @@ public class MaintenanceNotificationTests(ITestOutputHelper log)
                 await Poll.UntilAsync(() => conn.GetEndPoints().All(ep => muxer.GetServerEndPoint(ep).IsMaintenanceRelaxed)),
                 "every node that was told should have relaxed its own timeouts");
 
-            // ...and the consumer sees it once
-            Assert.Equal(1, events.Count);
+            // ...and the consumer sees it once: the callback is dispatched after the relaxation, not before, so wait
+            // for the one event rather than counting at the instant the second node relaxed, then prove the other
+            // delivery did not become a second event
             var evt = await events.NextAsync();
             Assert.Equal(5, evt.SequenceId);
-            log.WriteLine($"{events.Count} event(s) from {delivered} deliveries: {evt.RawMessage}");
+            await events.AssertNoneAsync();
+            log.WriteLine($"1 event from {delivered} deliveries: {evt.RawMessage}");
             Assert.Contains(evt.EndPoint, conn.GetEndPoints()); // whichever told us first
         }
     }
