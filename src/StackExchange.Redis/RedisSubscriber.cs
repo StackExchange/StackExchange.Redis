@@ -84,7 +84,7 @@ namespace StackExchange.Redis
             ChannelMessageQueue? queues = null;
             if (subscriptions.TryGetValue(subscription, out Subscription? sub))
             {
-                if (source is not null && sub is SingleNodeSubscription single && !single.Accepts(source)) return;
+                if (source is not null && !sub.Accepts(source)) return;
                 completable = sub.ForInvoke(channel, payload, out queues);
             }
             if (queues != null)
@@ -266,10 +266,10 @@ namespace StackExchange.Redis
                 {
                     // we'll *try* for a simple resubscribe, following any -MOVED etc, but if that fails: fall back
                     // to full reconfigure; importantly, note that we've already recorded the disconnect
-                    var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false);
-                    _ = (sub is SingleNodeSubscription
+                    var restore = sub is SingleNodeSubscription
                         ? (Task)sub.EnsureSubscribedToServerAsync(this, channel, CommandFlags.None, false, serverEndPoint)
-                        : ExecuteAsync(message, sub.Processor, serverEndPoint)).ContinueWith(
+                        : ExecuteAsync(sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false), sub.Processor, serverEndPoint);
+                    _ = restore.ContinueWith(
                         t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
                         TaskContinuationOptions.OnlyOnFaulted);
                 }

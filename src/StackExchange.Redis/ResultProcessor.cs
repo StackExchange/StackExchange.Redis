@@ -558,23 +558,27 @@ namespace StackExchange.Redis
                         if (iter.Value.TryReadInt64(out long count))
                         {
                             connection.SubscriptionCount = count;
-                            var ep = connection.BridgeCouldBeNull?.ServerEndPoint;
-                            if (ep is not null)
+                            try
                             {
-                                switch (message.Command)
+                                var ep = connection.BridgeCouldBeNull?.ServerEndPoint;
+                                if (ep is not null)
                                 {
-                                    case RedisCommand.SUBSCRIBE:
-                                    case RedisCommand.SSUBSCRIBE:
-                                    case RedisCommand.PSUBSCRIBE:
-                                        if (_onSubscribed is not null) _onSubscribed(connection);
-                                        else Subscription?.AddEndpoint(ep);
-                                        break;
-                                    default:
-                                        Subscription?.TryRemoveEndpoint(ep);
-                                        break;
+                                    switch (message.Command)
+                                    {
+                                        case RedisCommand.SUBSCRIBE:
+                                        case RedisCommand.SSUBSCRIBE:
+                                        case RedisCommand.PSUBSCRIBE:
+                                            if (_onSubscribed is not null) _onSubscribed(connection);
+                                            else Subscription?.AddEndpoint(ep);
+                                            break;
+                                        default:
+                                            Subscription?.TryRemoveEndpoint(ep);
+                                            break;
+                                    }
                                 }
                             }
-                            SetResult(message, true);
+                            catch (Exception ex) { connection.BridgeCouldBeNull?.Multiplexer.OnInternalError(ex); }
+                            finally { SetResult(message, true); }
                             return true;
                         }
                     }

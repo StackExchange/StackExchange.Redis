@@ -51,12 +51,15 @@ public sealed class InProcessSentinelServer : InProcessTestServer
 
     private int _primaryQueries;
 
+    internal Action? BeforePrimaryQuery { get; set; }
+
     /// <summary>How many times a client has asked this sentinel for the primary.</summary>
     public int PrimaryQueries => Volatile.Read(ref _primaryQueries);
 
     [RedisCommand(3, nameof(RedisCommand.SENTINEL), "get-master-addr-by-name", LockFree = true)]
     private TypedRedisValue SentinelGetMasterAddrByName(RedisClient client, in RedisRequest request)
     {
+        BeforePrimaryQuery?.Invoke();
         Interlocked.Increment(ref _primaryQueries);
         if (!IsService(request)) return TypedRedisValue.NullArray(RespPrefix.Array);
         var host = GetHost(Primary, out var port);

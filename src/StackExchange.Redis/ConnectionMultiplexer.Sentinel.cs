@@ -19,6 +19,7 @@ public partial class ConnectionMultiplexer
     internal ConnectionMultiplexer? sentinelConnection;
     private int _sentinelInitialized;
     private int _demotedPrimaryRecoveryActive;
+    private int _sentinelSwitchInProgress;
 
     /// <summary>
     /// Initializes the connection as a Sentinel connection and adds the necessary event handlers to track changes to the managed primaries.
@@ -712,6 +713,15 @@ public partial class ConnectionMultiplexer
     /// timer, the demotion heartbeat) get a later attempt either way.</returns>
     internal bool SwitchPrimary(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? writer = null, EndPoint? reportedPrimary = null)
     {
+        // Keep a notification even if another switch or unrelated reconfigure wins the race.
+        if (reportedPrimary is not null) connection.currentSentinelPrimaryEndPoint = reportedPrimary;
+        if (Interlocked.CompareExchange(ref connection._sentinelSwitchInProgress, 1, 0) != 0) return false;
+        try { return SwitchPrimaryCore(switchBlame, connection, writer, reportedPrimary); }
+        finally { Volatile.Write(ref connection._sentinelSwitchInProgress, 0); }
+    }
+
+    private bool SwitchPrimaryCore(EndPoint? switchBlame, ConnectionMultiplexer connection, TextWriter? writer, EndPoint? reportedPrimary)
+    {
         var logger = Logger.With(writer);
         if (connection.RawConfig.ServiceName is not string serviceName)
         {
@@ -719,11 +729,15 @@ public partial class ConnectionMultiplexer
             return false;
         }
 
-        // Coalesce discovery too: simultaneous restore events otherwise fan out blocking Sentinel queries.
-        // Claim the reconfigure gate BEFORE reshaping the connection. ReconfigureAsync refuses to run while
-        // another reconfigure holds this gate, so rewriting the endpoint list and retiring servers first would
-        // leave the connection reshaped but unconfigured whenever we lose that race - and two concurrent
-        // switches could interleave their endpoint rewrites. Claim first and a lost race touches nothing.
+        // Discovery and recording Sentinel's answer do not reshape the connection. Keep blocking
+        // queries outside the claim, and retain the reported primary even if another reconfigure wins.
+        EndPoint newPrimaryEndPoint = reportedPrimary
+                                    ?? GetConfiguredPrimaryForService(serviceName)
+                                    ?? GetConfiguredPrimaryForService(serviceName)
+                                    ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
+        connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
+
+        // Claim before rewriting endpoints: a lost claim must not leave a half-reconfigured topology.
         string cause = $"Primary switch {serviceName}";
         if (!connection.TryClaimReconfigure(cause))
         {
@@ -734,14 +748,6 @@ public partial class ConnectionMultiplexer
         bool switched = false;
         try
         {
-            // Get new primary - try twice (unless the caller already holds sentinel's answer)
-            EndPoint newPrimaryEndPoint = reportedPrimary
-                                        ?? GetConfiguredPrimaryForService(serviceName)
-                                        ?? GetConfiguredPrimaryForService(serviceName)
-                                        ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, $"Sentinel: Failed connecting to switch primary for service: {serviceName}");
-
-            connection.currentSentinelPrimaryEndPoint = newPrimaryEndPoint;
-
             // Trigger a blocking reconfigure for the switch, then refresh the sentinel address list.
             // reconfigureAll:true forces every already-connected node to re-read its role before the
             // primary is re-elected (see IsStalePrimaryView); reconfigureAll:false matches the legacy
