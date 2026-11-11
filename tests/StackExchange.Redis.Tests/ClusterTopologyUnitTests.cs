@@ -115,7 +115,6 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
             ? new DnsEndPoint(Hostname, port)
             : new IPEndPoint(IPAddress.Loopback, port);
         Assert.Equal(expected, node.PreferredDialEndPoint);
-        Assert.Equal(node.Identities[0], node.PreferredDialEndPoint);
     }
 
     [Fact]
@@ -190,24 +189,18 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
     [Fact]
     public async Task HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints()
     {
-        // Discover the new shard from a single seed. SLOTS names it by hostname, while NODES reports its
-        // companion IP; routing and registration must use the hostname and retain the IP only as an alias.
+        // the case the flip exists for: SLOTS names every node by hostname while NODES names them by
+        // address, so a slot map fed from SLOTS must still resolve to the servers we already hold
         using var server = CreateServer(log, ClusterEndpointType.Hostname);
         GetHost(server.DefaultEndPoint, out var port);
         var other = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
         server.SetHostname(other, "host-2.redis.example.com");
         server.Migrate((RedisKey)"hostname-routed-key", other);
 
-        await using var conn = await server.ConnectAsync(defaultOnly: true);
+        await using var conn = await server.ConnectAsync();
         var db = conn.GetDatabase();
         await db.StringSetAsync("hostname-routed-key", "value");
         Assert.Equal("value", await db.StringGetAsync("hostname-routed-key"));
-
-        var hostnameEndpoint = new DnsEndPoint("host-2.redis.example.com", port + 1);
-        var companionIp = new IPEndPoint(IPAddress.Loopback, port + 1);
-        Assert.Contains(hostnameEndpoint, conn.GetEndPoints());
-        Assert.DoesNotContain(companionIp, conn.GetEndPoints());
-        Assert.Equal(hostnameEndpoint, conn.GetServer(companionIp).EndPoint);
 
         foreach (var ep in conn.GetEndPoints())
         {
@@ -217,6 +210,90 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
 
         // two nodes, two endpoints - not four
         Assert.Equal(2, conn.GetEndPoints().Length);
+    }
+
+    [Fact]
+    public async Task HostnameAnnouncedShardIsDiscoveredByHostname()
+    {
+        // the scenario from #3309: discover a new shard from a single seed. SLOTS names it by hostname while
+        // NODES reports its companion IP - often a pod address that is not reachable from the client - so
+        // discovery must dial the hostname and keep the IP only as an alias
+        using var server = CreateServer(log, ClusterEndpointType.Hostname);
+        GetHost(server.DefaultEndPoint, out var port);
+        var companionIp = new IPEndPoint(IPAddress.Loopback, port + 1);
+        var other = server.AddEmptyNode(companionIp);
+        server.SetHostname(other, "host-2.redis.example.com");
+        server.Migrate((RedisKey)"hostname-routed-key", other);
+
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
+        var db = conn.GetDatabase();
+        await db.StringSetAsync("hostname-routed-key", "value");
+        Assert.Equal("value", await db.StringGetAsync("hostname-routed-key"));
+
+        var hostnameEndpoint = new DnsEndPoint("host-2.redis.example.com", port + 1);
+        Assert.True(
+            await Poll.UntilAsync(() => conn.GetEndPoints().Contains(hostnameEndpoint)),
+            $"{hostnameEndpoint} was never discovered");
+
+        // one explicit pass, so the assertions observe an applied topology rather than racing the
+        // passes that ran during connect and redirect handling
+        await ApplyTopologyAsync(conn, server.DefaultEndPoint);
+
+        Assert.DoesNotContain(companionIp, conn.GetEndPoints());
+        Assert.Equal(hostnameEndpoint, conn.GetServer(companionIp).EndPoint); // the IP resolves as an alias
+
+        foreach (var ep in conn.GetEndPoints())
+        {
+            log.WriteLine($"endpoint: {ep}");
+        }
+        EndpointResolutionUnitTests.AssertOneEndpointPerNode(conn, log);
+    }
+
+    [Fact]
+    public async Task ShardHeldByAddressMovesToItsAnnouncedHostname()
+    {
+        // the durable half of #3309: the announced dial preference is applied on *every* topology
+        // application, not only at first discovery. A node already held by its companion address - learned
+        // while the deployment still preferred IPs, or created by a MOVED redirect or a NODES-only refresh -
+        // is re-homed to the hostname once the topology announces it
+        using var server = CreateServer(log, ClusterEndpointType.Ip);
+        GetHost(server.DefaultEndPoint, out var port);
+        var companionIp = new IPEndPoint(IPAddress.Loopback, port + 1);
+        var other = server.AddEmptyNode(companionIp);
+        server.SetHostname(other, "host-2.redis.example.com");
+        server.Migrate((RedisKey)"hostname-routed-key", other);
+
+        await using var conn = await server.ConnectAsync(defaultOnly: true);
+        Assert.True(
+            await Poll.UntilAsync(() => conn.GetEndPoints().Contains(companionIp)),
+            $"{companionIp} was never discovered");
+
+        // the deployment flips to hostname announcement...
+        server.PreferredEndpointType = ClusterEndpointType.Hostname;
+        await ApplyTopologyAsync(conn, server.DefaultEndPoint);
+
+        // ...and the shard moves to its hostname, with the address kept as an alias
+        var hostnameEndpoint = new DnsEndPoint("host-2.redis.example.com", port + 1);
+        Assert.Contains(hostnameEndpoint, conn.GetEndPoints());
+        Assert.DoesNotContain(companionIp, conn.GetEndPoints());
+        Assert.Equal(hostnameEndpoint, conn.GetServer(companionIp).EndPoint);
+
+        // the configured seed is exempt: an explicit endpoint is never re-homed from under the caller
+        Assert.Contains(server.DefaultEndPoint, conn.GetEndPoints());
+
+        EndpointResolutionUnitTests.AssertOneEndpointPerNode(conn, log);
+    }
+
+    /// <summary>
+    /// Applies one topology pass - slot map and generation, as the production path does - from a fresh
+    /// <c>CLUSTER SLOTS</c> call, so a test can observe the next application without waiting for one.
+    /// </summary>
+    private static async Task ApplyTopologyAsync(IConnectionMultiplexer conn, EndPoint askOf)
+    {
+        var mux = (ConnectionMultiplexer)conn;
+        var topology = await GetShadowAsync(conn, askOf);
+        mux.UpdateClusterRange(topology);
+        await mux.ApplyTopologyGenerationAsync(topology);
     }
 
     [Fact]

@@ -111,8 +111,9 @@ internal sealed class ClusterTopologyNode
     public IReadOnlyList<EndPoint> Identities => _identities ?? [];
 
     /// <summary>
-    /// The announced endpoint form to use for dialing. Companion identities such as an IP address must not be
-    /// registered as separate dialable servers when this preferred endpoint is a hostname.
+    /// The endpoint form the deployment announced first (<c>cluster-preferred-endpoint-type</c>), which is the
+    /// form the client prefers to dial: a certificate validates against a name, and a companion address may not
+    /// even be routable from the client. The other <see cref="Identities"/> are names the node also answers to.
     /// </summary>
     public EndPoint? PreferredDialEndPoint => Identities.Count > 0 ? Identities[0] : null;
 
