@@ -296,7 +296,9 @@ namespace StackExchange.Redis
         internal async Task BeginConnectAsync(ILogger? log)
         {
             var bridge = BridgeCouldBeNull;
-            var endpoint = bridge?.ServerEndPoint?.EndPoint;
+            var endpoint = bridge is { } currentBridge && currentBridge.ServerEndPoint is { } serverEndPoint
+                ? currentBridge.Multiplexer.GetDialEndPoint(serverEndPoint)
+                : null;
             if (bridge == null || endpoint == null)
             {
                 log?.LogErrorNoEndpoint(new ArgumentNullException(nameof(endpoint)));
@@ -309,9 +311,8 @@ namespace StackExchange.Redis
             var connectTo = endpoint;
 
             // A MOVING may name where to go next; prefer it over resolving the endpoint again, since not
-            // waiting for DNS is the point. Note this changes only the *socket target*: the endpoint itself is
-            // untouched, so identity, server selection and - importantly - the TLS host and SNI (derived from
-            // ServerEndPoint.EndPoint below) all stay exactly as configured.
+            // waiting for DNS is the point. It changes only the socket target; the preferred dial endpoint
+            // remains the source for TLS host and SNI.
             if (bridge.ServerEndPoint?.HandoffTarget is { } handoffTarget)
             {
                 Trace($"handoff: connecting to {Format.ToString(handoffTarget)} in place of {Format.ToString(endpoint)}");
@@ -1308,7 +1309,7 @@ namespace StackExchange.Redis
                 if (tunnel is not null)
                 {
                     _attemptStage = ConnectionAttemptStage.Tunnel;
-                    stream = await tunnel.BeforeAuthenticateAsync(bridge.ServerEndPoint.EndPoint, bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
+                    stream = await tunnel.BeforeAuthenticateAsync(bridge.Multiplexer.GetDialEndPoint(bridge.ServerEndPoint), bridge.ConnectionType, socket, CancellationToken.None).ForAwait();
                 }
 
                 static Stream DemandSocketStream(Socket? socket)
@@ -1318,7 +1319,7 @@ namespace StackExchange.Redis
                 {
                     _attemptStage = ConnectionAttemptStage.Tls;
                     log?.LogInformationConfiguringTLS();
-                    var host = _tlsHostName = config.ResolveTlsHostName(bridge.ServerEndPoint.EndPoint);
+                    var host = _tlsHostName = config.ResolveTlsHostName(bridge.Multiplexer.GetDialEndPoint(bridge.ServerEndPoint));
 
                     stream ??= DemandSocketStream(socket);
                     var certificateValidation = config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback();

@@ -532,9 +532,8 @@ namespace StackExchange.Redis
         public RedisFeatures GetFeatures() => new RedisFeatures(version);
 
         /// <summary>
-        /// The <c>CLUSTER SLOTS</c> view of the topology, keyed on node-id. Populated alongside
-        /// <see cref="ClusterConfiguration"/> but not yet used for routing, so the two can be compared
-        /// before anything depends on this one.
+        /// The <c>CLUSTER SLOTS</c> view of the topology, keyed on node-id. It drives slot routing when
+        /// available; <see cref="ClusterConfiguration"/> continues to provide node relations.
         /// </summary>
         internal ClusterTopology? ClusterTopology { get; private set; }
 
@@ -544,10 +543,10 @@ namespace StackExchange.Redis
             if (topology is not null)
             {
                 ClusterTopology = topology;
-                Multiplexer.Trace($"Shadow topology: {topology.Nodes.Count} nodes");
+                Multiplexer.Trace($"Cluster topology: {topology.Nodes.Count} nodes");
 
-                // not routing on this yet, but the identities are useful immediately: they let a node reached
-                // by its other name resolve to the server we already have, rather than becoming a duplicate
+                // Register identities immediately, so a node reached by its other name resolves to the
+                // existing server rather than becoming a duplicate.
                 Multiplexer.RegisterServerIdentities(topology);
             }
         }

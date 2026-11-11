@@ -115,7 +115,6 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
             ? new DnsEndPoint(Hostname, port)
             : new IPEndPoint(IPAddress.Loopback, port);
         Assert.Equal(expected, node.PreferredDialEndPoint);
-        Assert.Equal(node.Identities[0], node.PreferredDialEndPoint);
     }
 
     [Fact]
@@ -189,25 +188,43 @@ public class ClusterTopologyUnitTests(ITestOutputHelper log)
 
     [Fact]
     public async Task HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints()
+        => await HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints(defaultOnly: false);
+
+    [Fact]
+    public async Task HostnamePreferredClusterDiscoversFromSingleSeed()
+        => await HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints(defaultOnly: true);
+
+    private async Task HostnamePreferredClusterRoutesWithoutDuplicatingEndpoints(bool defaultOnly)
     {
-        // Discover the new shard from a single seed. SLOTS names it by hostname, while NODES reports its
-        // companion IP; routing and registration must use the hostname and retain the IP only as an alias.
+        // SLOTS names the shard by hostname, while NODES reports its companion IP. Cover both already-seeded
+        // endpoints and discovery from a single seed: either path must keep one server and dial with the hostname.
         using var server = CreateServer(log, ClusterEndpointType.Hostname);
         GetHost(server.DefaultEndPoint, out var port);
         var other = server.AddEmptyNode(new IPEndPoint(IPAddress.Loopback, port + 1));
         server.SetHostname(other, "host-2.redis.example.com");
         server.Migrate((RedisKey)"hostname-routed-key", other);
 
-        await using var conn = await server.ConnectAsync(defaultOnly: true);
+        await using var conn = await server.ConnectAsync(defaultOnly: defaultOnly);
         var db = conn.GetDatabase();
         await db.StringSetAsync("hostname-routed-key", "value");
         Assert.Equal("value", await db.StringGetAsync("hostname-routed-key"));
 
         var hostnameEndpoint = new DnsEndPoint("host-2.redis.example.com", port + 1);
         var companionIp = new IPEndPoint(IPAddress.Loopback, port + 1);
-        Assert.Contains(hostnameEndpoint, conn.GetEndPoints());
-        Assert.DoesNotContain(companionIp, conn.GetEndPoints());
-        Assert.Equal(hostnameEndpoint, conn.GetServer(companionIp).EndPoint);
+        if (defaultOnly)
+        {
+            Assert.Contains(hostnameEndpoint, conn.GetEndPoints());
+            Assert.DoesNotContain(companionIp, conn.GetEndPoints());
+        }
+        else
+        {
+            Assert.Contains(companionIp, conn.GetEndPoints());
+            Assert.DoesNotContain(hostnameEndpoint, conn.GetEndPoints());
+        }
+        var multiplexer = Assert.IsType<ConnectionMultiplexer>(conn);
+        var serverEndPoint = ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(companionIp);
+        Assert.Equal(hostnameEndpoint, multiplexer.GetDialEndPoint(serverEndPoint));
+        Assert.Equal(serverEndPoint, ((IInternalConnectionMultiplexer)conn).GetServerEndPoint(hostnameEndpoint));
 
         foreach (var ep in conn.GetEndPoints())
         {
