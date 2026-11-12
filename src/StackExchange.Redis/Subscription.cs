@@ -25,7 +25,10 @@ public partial class ConnectionMultiplexer
         internal abstract bool IsConnectedAny();
         internal abstract bool IsConnectedTo(EndPoint endpoint);
 
-        internal abstract void AddEndpoint(ServerEndPoint server);
+        // Called when a (P|S)SUBSCRIBE acknowledgement arrives; returns false when the ack is a
+        // stray (we are already confirmed on a different, connected server) and the caller should
+        // remove the server-side registration it represents.
+        internal abstract bool TryAdoptEndpoint(ServerEndPoint server);
 
         // conditional clear
         internal abstract bool TryRemoveEndpoint(ServerEndPoint expected);
@@ -77,7 +80,8 @@ public partial class ConnectionMultiplexer
             in RedisChannel channel,
             SubscriptionAction action,
             CommandFlags flags,
-            bool internalCall)
+            bool internalCall,
+            bool stripFireAndForget = false)
         {
             const RedisChannel.RedisChannelOptions OPTIONS_MASK = ~(
                 RedisChannel.RedisChannelOptions.KeyRouted | RedisChannel.RedisChannelOptions.IgnoreChannelPrefix);
@@ -108,7 +112,17 @@ public partial class ConnectionMultiplexer
                 };
 
             // TODO: Consider flags here - we need to pass Fire and Forget, but don't want to intermingle Primary/Replica
-            var msg = Message.Create(-1, Flags | flags, command, channel);
+            var effectiveFlags = Flags | flags;
+            if (stripFireAndForget)
+            {
+                // a fire-and-forget message has no result box, so nothing observes its completion;
+                // the subscribe-claim logic needs that signal (ack, error reply, connection failure
+                // or timeout) to release a pending claim, so the message itself must not be
+                // fire-and-forget even when the caller is (the caller then simply doesn't await it)
+                effectiveFlags &= ~CommandFlags.FireAndForget;
+            }
+
+            var msg = Message.Create(-1, effectiveFlags, command, channel);
             msg.SetForSubscriptionBridge();
             if (internalCall)
             {
@@ -206,7 +220,30 @@ public partial class ConnectionMultiplexer
             return server is { IsSubscriberConnected: true } && server.EndPoint == endpoint;
         }
 
-        internal override void AddEndpoint(ServerEndPoint server) => _currentServer = server;
+        internal override bool TryAdoptEndpoint(ServerEndPoint server)
+        {
+            // an ack from the pending claim's server resolves that claim, whether or not we adopt it
+            var pending = Volatile.Read(ref _pending);
+            if (pending is not null && pending.Server == server)
+            {
+                Interlocked.CompareExchange(ref _pending, null, pending);
+            }
+
+            var current = Volatile.Read(ref _currentServer);
+            while (true)
+            {
+                if (current is { IsSubscriberConnected: true } && current != server)
+                {
+                    // already confirmed on a different live server; the incoming ack is a stray
+                    // from an overlapping restore, and should be unsubscribed by the caller
+                    return false;
+                }
+
+                var seen = Interlocked.CompareExchange(ref _currentServer, server, current);
+                if (seen == current) return true;
+                current = seen;
+            }
+        }
 
         internal override bool TryRemoveEndpoint(ServerEndPoint expected)
         {
@@ -253,6 +290,12 @@ public partial class ConnectionMultiplexer
         }
 
         private ServerEndPoint? _currentServer;
+
+        // an in-flight subscribe attempt; while one is pending, other restore attempts back off,
+        // so that overlapping restores (reconnect + reconfigure racing during a failover) cannot
+        // register the same subscription on two different servers (#3336)
+        private PendingClaim? _pending;
+
         internal ServerEndPoint? GetCurrentServer() => Volatile.Read(ref _currentServer);
 
         internal override ServerEndPoint? GetAnyCurrentServer() => Volatile.Read(ref _currentServer);
@@ -267,6 +310,12 @@ public partial class ConnectionMultiplexer
             {
                 _currentServer = null;
             }
+
+            var pending = Volatile.Read(ref _pending);
+            if (pending is not null && !pending.Server.IsSubscriberConnected)
+            {
+                Interlocked.CompareExchange(ref _pending, null, pending);
+            }
         }
 
         internal override int EnsureSubscribedToServer(
@@ -278,13 +327,76 @@ public partial class ConnectionMultiplexer
             RemoveIncorrectRouting(subscriber, in channel, flags, internalCall);
             if (IsConnectedAny()) return 0;
 
+            bool callerIsFireAndForget = ((Flags | flags) & CommandFlags.FireAndForget) != 0;
+            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall, stripFireAndForget: true);
+            var selected = subscriber.multiplexer.SelectServer(message);
+            if (!TryClaim(selected, out var claim)) return 0;
+
             // we're not appropriately connected, so blank it out for eligible reconnection
             _currentServer = null;
-            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-            var selected = subscriber.multiplexer.SelectServer(message);
-            _ = subscriber.ExecuteSync(message, Processor, selected);
+            if (callerIsFireAndForget)
+            {
+                try
+                {
+                    // fire-and-observe: never block (restore paths run inside result processing),
+                    // but watch the outcome so a failed attempt releases the claim for retry
+                    ObserveClaim(subscriber.ExecuteAsync(message, Processor, selected), claim);
+                }
+                catch
+                {
+                    Release(claim);
+                    throw;
+                }
+            }
+            else
+            {
+                try
+                {
+                    _ = subscriber.ExecuteSync(message, Processor, selected);
+                }
+                finally
+                {
+                    // normally already resolved by the ack; backstop for failures
+                    Release(claim);
+                }
+            }
+
             return 1;
         }
+
+        private bool TryClaim(ServerEndPoint? selected, out PendingClaim? claim)
+        {
+            if (selected is null)
+            {
+                // nothing selectable right now; attempt unclaimed (ack-time reconciliation
+                // still protects against duplicates)
+                claim = null;
+                return true;
+            }
+
+            claim = new PendingClaim(this, selected);
+            // if another subscribe attempt is already in flight, back off; its completion
+            // (ack or failure) will resolve the state, retried via the usual restore paths
+            return Interlocked.CompareExchange(ref _pending, claim, null) is null;
+        }
+
+        private void Release(PendingClaim? claim)
+        {
+            if (claim is not null)
+            {
+                Interlocked.CompareExchange(ref _pending, null, claim);
+            }
+        }
+
+        private static void ObserveClaim(Task task, PendingClaim? claim)
+            => task.ContinueWith(
+                static (t, state) =>
+                {
+                    _ = t.Exception; // observed; the retry policy is simply "the next restore attempt"
+                    (state as PendingClaim)?.Release();
+                },
+                claim,
+                TaskContinuationOptions.ExecuteSynchronously);
 
         private void RemoveIncorrectRouting(RedisSubscriber subscriber, in RedisChannel channel, CommandFlags flags, bool internalCall)
         {
@@ -313,12 +425,47 @@ public partial class ConnectionMultiplexer
             RemoveIncorrectRouting(subscriber, in channel, flags, internalCall);
             if (IsConnectedAny()) return 0;
 
+            bool callerIsFireAndForget = ((Flags | flags) & CommandFlags.FireAndForget) != 0;
+            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall, stripFireAndForget: true);
+            server ??= subscriber.multiplexer.SelectServer(message);
+            if (!TryClaim(server, out var claim)) return 0;
+
             // we're not appropriately connected, so blank it out for eligible reconnection
             _currentServer = null;
-            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-            server ??= subscriber.multiplexer.SelectServer(message);
-            await subscriber.ExecuteAsync(message, Processor, server).ForAwait();
+            if (callerIsFireAndForget)
+            {
+                try
+                {
+                    // fire-and-observe; see EnsureSubscribedToServer
+                    ObserveClaim(subscriber.ExecuteAsync(message, Processor, server), claim);
+                }
+                catch
+                {
+                    Release(claim);
+                    throw;
+                }
+            }
+            else
+            {
+                try
+                {
+                    await subscriber.ExecuteAsync(message, Processor, server).ForAwait();
+                }
+                finally
+                {
+                    // normally already resolved by the ack; backstop for failures
+                    Release(claim);
+                }
+            }
+
             return 1;
+        }
+
+        private sealed class PendingClaim(SingleNodeSubscription owner, ServerEndPoint server)
+        {
+            public ServerEndPoint Server { get; } = server;
+
+            public void Release() => owner.Release(this);
         }
     }
 
@@ -352,13 +499,16 @@ public partial class ConnectionMultiplexer
             => _servers.TryGetValue(endpoint, out var server)
                && server.IsSubscriberConnected;
 
-        internal override void AddEndpoint(ServerEndPoint server)
+        internal override bool TryAdoptEndpoint(ServerEndPoint server)
         {
+            // multi-node subscriptions want every eligible node, so an ack is never a stray
             var ep = server.EndPoint;
             if (!_servers.TryAdd(ep, server))
             {
                 _servers[ep] = server;
             }
+
+            return true;
         }
 
         internal override bool TryRemoveEndpoint(ServerEndPoint expected)
