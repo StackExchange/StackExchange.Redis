@@ -459,6 +459,28 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task SortedSetMoveAsync()
+        {
+            await prefixed.SortedSetMoveAsync("key", "destination", Order.Descending, 3, CommandFlags.None);
+            await mock.Received().SortedSetMoveAsync("prefix:key", "prefix:destination", Order.Descending, 3, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task SortedSetMoveByScoreAsync()
+        {
+            await prefixed.SortedSetMoveByScoreAsync("key", "destination", 1, 2, Exclude.Start, 3, CommandFlags.None);
+            await mock.Received().SortedSetMoveByScoreAsync("prefix:key", "prefix:destination", 1, 2, Exclude.Start, 3, CommandFlags.None);
+        }
+
+        [Fact]
+        public async Task SortedSetMoveMembersAsync()
+        {
+            RedisValue[] members = ["a", "b"];
+            await prefixed.SortedSetMoveMembersAsync("key", "destination", members, When.NotExists, CommandFlags.None);
+            await mock.Received().SortedSetMoveMembersAsync("prefix:key", "prefix:destination", members, When.NotExists, CommandFlags.None);
+        }
+
+        [Fact]
         public async Task ListRangeAsync()
         {
             await prefixed.ListRangeAsync("key", 123, 456, CommandFlags.None);

@@ -506,6 +506,28 @@ public sealed class KeyPrefixedDatabaseTests
     }
 
     [Fact]
+    public void SortedSetMove()
+    {
+        prefixed.SortedSetMove("key", "destination", Order.Descending, 3, CommandFlags.None);
+        mock.Received().SortedSetMove("prefix:key", "prefix:destination", Order.Descending, 3, CommandFlags.None);
+    }
+
+    [Fact]
+    public void SortedSetMoveByScore()
+    {
+        prefixed.SortedSetMoveByScore("key", "destination", 1, 2, Exclude.Start, 3, CommandFlags.None);
+        mock.Received().SortedSetMoveByScore("prefix:key", "prefix:destination", 1, 2, Exclude.Start, 3, CommandFlags.None);
+    }
+
+    [Fact]
+    public void SortedSetMoveMembers()
+    {
+        RedisValue[] members = ["a", "b"];
+        prefixed.SortedSetMoveMembers("key", "destination", members, When.NotExists, CommandFlags.None);
+        mock.Received().SortedSetMoveMembers("prefix:key", "prefix:destination", members, When.NotExists, CommandFlags.None);
+    }
+
+    [Fact]
     public void ListRange()
     {
         prefixed.ListRange("key", 123, 456, CommandFlags.None);

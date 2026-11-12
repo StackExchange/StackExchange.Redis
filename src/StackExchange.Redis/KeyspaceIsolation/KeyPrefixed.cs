@@ -715,6 +715,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<SortedSetPopResult> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetPopAsync(ToInner(keys), count, order, flags);
 
+        public Task<SortedSetEntry[]?> SortedSetMoveAsync(RedisKey sourceKey, RedisKey destinationKey, Order order = Order.Ascending, long? count = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetMoveAsync(ToInner(sourceKey), ToInner(destinationKey), order, count, flags);
+
+        public Task<SortedSetEntry[]?> SortedSetMoveByScoreAsync(RedisKey sourceKey, RedisKey destinationKey, double start, double stop, Exclude exclude = Exclude.None, long? count = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetMoveByScoreAsync(ToInner(sourceKey), ToInner(destinationKey), start, stop, exclude, count, flags);
+
+        public Task<SortedSetEntry[]?> SortedSetMoveMembersAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue[] members, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetMoveMembersAsync(ToInner(sourceKey), ToInner(destinationKey), members, when, flags);
+
         public Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledgeAsync(ToInner(key), groupName, messageId, flags);
 

@@ -831,6 +831,13 @@ public sealed class TransactionAnalyzer : DiagnosticAnalyzer
                 return ("SetMove[Async](source, destination, value)", ServerVersion.Any, "key,value", "key,value");
             }
 
+            // Deliberately NOT mapped: SortedSetRemove + SortedSetAdd of the same member is not ZMOVEMEMBER
+            // (SortedSetMoveMembers, 8.12), however much it looks like the SMOVE pair above. A set member has no
+            // payload, so "remove here, add there" is the whole move; a sorted-set member has a score. The
+            // transaction writes the score the caller supplied, and adds the member whether or not the source had
+            // it; ZMOVEMEMBER carries the source's score across, and moves nothing when the source lacks the
+            // member. Same shape, different operation.
+
             return null;
 
             static bool SameKey(QueuedOperation a, QueuedOperation b)

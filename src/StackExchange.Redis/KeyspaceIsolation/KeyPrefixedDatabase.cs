@@ -679,6 +679,15 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None) =>
             Inner.SortedSetPop(ToInner(keys), count, order, flags);
 
+        public SortedSetEntry[]? SortedSetMove(RedisKey sourceKey, RedisKey destinationKey, Order order = Order.Ascending, long? count = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetMove(ToInner(sourceKey), ToInner(destinationKey), order, count, flags);
+
+        public SortedSetEntry[]? SortedSetMoveByScore(RedisKey sourceKey, RedisKey destinationKey, double start, double stop, Exclude exclude = Exclude.None, long? count = null, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetMoveByScore(ToInner(sourceKey), ToInner(destinationKey), start, stop, exclude, count, flags);
+
+        public SortedSetEntry[]? SortedSetMoveMembers(RedisKey sourceKey, RedisKey destinationKey, RedisValue[] members, When when = When.Always, CommandFlags flags = CommandFlags.None) =>
+            Inner.SortedSetMoveMembers(ToInner(sourceKey), ToInner(destinationKey), members, when, flags);
+
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None) =>
             Inner.StreamAcknowledge(ToInner(key), groupName, messageId, flags);
 

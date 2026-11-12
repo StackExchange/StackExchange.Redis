@@ -711,6 +711,18 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="IDatabase.SortedSetPop(RedisKey[], long, Order, CommandFlags)"/>
         Task<SortedSetPopResult> SortedSetPopAsync(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
+        /// <inheritdoc cref="IDatabase.SortedSetMove(RedisKey, RedisKey, Order, long?, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<SortedSetEntry[]?> SortedSetMoveAsync(RedisKey sourceKey, RedisKey destinationKey, Order order = Order.Ascending, long? count = null, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.SortedSetMoveByScore(RedisKey, RedisKey, double, double, Exclude, long?, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<SortedSetEntry[]?> SortedSetMoveByScoreAsync(RedisKey sourceKey, RedisKey destinationKey, double start, double stop, Exclude exclude = Exclude.None, long? count = null, CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="IDatabase.SortedSetMoveMembers(RedisKey, RedisKey, RedisValue[], When, CommandFlags)"/>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        Task<SortedSetEntry[]?> SortedSetMoveMembersAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue[] members, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
         /// <inheritdoc cref="IDatabase.StreamAcknowledge(RedisKey, RedisValue, RedisValue, CommandFlags)"/>
         Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None);
 
