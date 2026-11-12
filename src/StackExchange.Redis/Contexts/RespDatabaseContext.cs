@@ -91,6 +91,37 @@ namespace StackExchange.Redis
         /// <param name="maxAge">The oldest reply this context will accept from the cache.</param>
         public RespDatabaseContext WithMaxCacheAge(TimeSpan maxAge) => new(Raw.WithMaxCacheAge(maxAge));
 
+        /// <summary>
+        /// A copy of this context whose cached reads tell <paramref name="onRemoved"/> when a key they
+        /// served stops being servable from the client-side cache.
+        /// </summary>
+        /// <param name="onRemoved">
+        /// Told the key (exactly as stored, prefixes included, valid only for the callback) and why it
+        /// went. Called from the thread pool, never from the connection's reader.
+        /// </param>
+        /// <remarks>
+        /// <para>
+        /// <b>You hear about the keys you read, nothing else.</b> Enrollment rides the read: any serve
+        /// through this context - a cache hit, or the fill a miss performs - arms the observer on the keys
+        /// it depended on, and the first removal at or after that consumes the enrollment. Reading again
+        /// re-arms it. There is no connection-wide firehose to filter, and a key may have entered the
+        /// cache through a context with no observer at all: a later hit through this one still enrolls.
+        /// </para>
+        /// <para>
+        /// <b>Per enrollment, exactly one notification, and never a missed removal</b> - including a fill
+        /// that raced an invalidation, and a value served from the stale-grace window, both of which fire
+        /// immediately: a value that is already not current is announced, not silently handed over. A
+        /// notification can arrive after a racing re-read, so treat it as "drop derived state", which is
+        /// always safe; it is advice about staleness, not an ordered event stream.
+        /// </para>
+        /// <para>
+        /// Keep the observer <b>long-lived and cheap</b>: derive this context once and reuse it (the
+        /// handler reference is the identity enrollment dedupes on), and do only bookkeeping in the
+        /// callback - it shares the thread pool with everything else. Exceptions are swallowed.
+        /// </para>
+        /// </remarks>
+        public RespDatabaseContext WithRemovalHandler(Caching.CacheKeyRemovedHandler onRemoved) => new(Raw.WithRemovalHandler(onRemoved));
+
         /// <summary>A copy of this context using <paramref name="scripts"/> to remember loaded scripts.</summary>
         /// <param name="scripts">The script cache, or <see langword="null"/> for none.</param>
         internal RespDatabaseContext WithScriptCache(RespScriptCache? scripts) => new(Raw.WithScriptCache(scripts));

@@ -1118,7 +1118,7 @@ namespace StackExchange.Redis
             // not get a cached answer either, not merely that this reply is not kept
             if (cache is not null && UsesCache(executor, cache, flags))
             {
-                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, out var cached)) return cached;
+                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, context.RemovalHandler, out var cached)) return cached;
 
                 // NOTE: no in-flight wait here. Coalescing means waiting on someone else's Task, and doing
                 // that from a synchronous caller is the sync-over-async problem this design avoids
@@ -1151,7 +1151,7 @@ namespace StackExchange.Redis
                             return default!;
                         }
 
-                        cache.TryComplete(fill, filled);
+                        cache.TryComplete(fill, filled, context.RemovalHandler);
                         return Parse(handler, filled);
                     }
                     finally
@@ -1230,7 +1230,7 @@ namespace StackExchange.Redis
 
             if (cache is not null && UsesCache(executor, cache, flags))
             {
-                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, out var cached))
+                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, context.RemovalHandler, out var cached))
                 {
                     return new ValueTask<TResult>(cached);
                 }
@@ -1239,12 +1239,12 @@ namespace StackExchange.Redis
                 // copy. See design notes 6.15; this is the whole of the stampede fix at the call site.
                 if (cache.TryAwaitInFlight(request.AsLookupKey(), executor.Database, out var pending))
                 {
-                    return AwaitShared(executor, request.Detach(flags), pending, handler, cache, context.MaxCacheAgeTicks, cancellationToken);
+                    return AwaitShared(executor, request.Detach(flags), pending, handler, cache, context.MaxCacheAgeTicks, context.RemovalHandler, cancellationToken);
                 }
 
                 if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
                 {
-                    return AwaitFill(executor, fill, handler, cache, cancellationToken);
+                    return AwaitFill(executor, fill, handler, cache, context.RemovalHandler, cancellationToken);
                 }
             }
 
@@ -1533,9 +1533,10 @@ namespace StackExchange.Redis
             RespClientCache cache,
             long maxAgeTicks,
             CommandFlags flags,
+            Caching.CacheKeyRemovedHandler? onRemoved,
             [MaybeNullWhen(false)] out TResult result)
         {
-            if (!cache.TryGet(request.AsLookupKey(), executor.Database, maxAgeTicks, out var hit, out var refresh, out var reuse))
+            if (!cache.TryGet(request.AsLookupKey(), executor.Database, maxAgeTicks, out var hit, out var refresh, out var reuse, onRemoved))
             {
                 result = default;
                 return false;
@@ -1706,6 +1707,7 @@ namespace StackExchange.Redis
             RespClientCache.RespFill fill,
             IRespHandler<TResult> handler,
             RespClientCache cache,
+            Caching.CacheKeyRemovedHandler? onRemoved,
             CancellationToken cancellationToken)
         {
             RespPayload response;
@@ -1731,7 +1733,7 @@ namespace StackExchange.Redis
                     return default!;
                 }
 
-                cache.TryComplete(fill, response);
+                cache.TryComplete(fill, response, onRemoved);
                 return Parse(handler, response);
             }
             finally
@@ -1769,6 +1771,7 @@ namespace StackExchange.Redis
             IRespHandler<TResult> handler,
             RespClientCache cache,
             long maxAgeTicks,
+            Caching.CacheKeyRemovedHandler? onRemoved,
             CancellationToken cancellationToken)
         {
             try
@@ -1776,7 +1779,10 @@ namespace StackExchange.Redis
                 await pending.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (cache.TryGet(owned, executor.Database, maxAgeTicks, out var hit))
+                // NOTE: the fallback send below does not enroll onRemoved - it has no fill, so no captured
+                // dependencies. Rare (the leader's reply was not cacheable), and the consumer's own
+                // freshness bound covers it exactly as it covers an uncached read.
+                if (cache.TryGet(owned, executor.Database, maxAgeTicks, out var hit, out _, out _, onRemoved))
                 {
                     try
                     {

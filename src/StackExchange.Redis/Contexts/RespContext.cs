@@ -68,6 +68,7 @@ namespace StackExchange.Redis
             ScriptCache = TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
             ChannelPrefix = TryGetService<ChannelPrefixService>(out var prefix) ? prefix.Channel : default;
             MaxCacheAgeTicks = TryGetService<MaxCacheAgeService>(out var maxAge) ? maxAge.Ticks : long.MaxValue;
+            RemovalHandler = TryGetService<RemovalHandlerService>(out var removal) ? removal.Handler : null;
             IsBlocking = TryGetService<BlockingService>(out _);
         }
 
@@ -693,6 +694,16 @@ namespace StackExchange.Redis
 
         /// <summary>The caller's freshness requirement, if they stated one.</summary>
         internal long MaxCacheAgeTicks { get; }
+
+        /// <summary>
+        /// A copy of this context whose cached reads arm a removal observer on the keys they serve; see
+        /// <see cref="RespDatabaseContext.WithRemovalHandler"/> for the contract.
+        /// </summary>
+        internal RespContext WithRemovalHandler(CacheKeyRemovedHandler onRemoved)
+            => WithServices(new RemovalHandlerService(onRemoved ?? throw new ArgumentNullException(nameof(onRemoved))));
+
+        /// <summary>The caller's removal observer, if they enrolled one.</summary>
+        internal CacheKeyRemovedHandler? RemovalHandler { get; }
 
         /// <summary>
         /// Render a command. The <c>""</c> argument passes THIS CONTEXT - the receiver of the call - into the

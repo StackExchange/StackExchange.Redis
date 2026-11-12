@@ -37,6 +37,15 @@ StackExchange.Redis.Caching.CacheAdmission
 StackExchange.Redis.Caching.CacheAdmission.Default = 0 -> StackExchange.Redis.Caching.CacheAdmission
 StackExchange.Redis.Caching.CacheAdmission.OnFirstMiss = 1 -> StackExchange.Redis.Caching.CacheAdmission
 StackExchange.Redis.Caching.CacheAdmission.OnRepeatedMiss = 2 -> StackExchange.Redis.Caching.CacheAdmission
+StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Invalidated = 0 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.LocalWrite = 1 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Replaced = 2 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Expired = 3 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Evicted = 4 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Flushed = 5 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovedHandler
+virtual StackExchange.Redis.Caching.CacheKeyRemovedHandler.Invoke(System.ReadOnlySpan<byte> key, StackExchange.Redis.Caching.CacheKeyRemovalReason reason) -> void
 StackExchange.Redis.Caching.CacheOptions.Admission.get -> StackExchange.Redis.Caching.CacheAdmission
 StackExchange.Redis.Caching.CacheOptions.Admission.init -> void
 StackExchange.Redis.Caching.CacheOptions
@@ -450,6 +459,7 @@ StackExchange.Redis.RespDatabaseContext.RespDatabaseContext() -> void
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext(StackExchange.Redis.RespContext! context) -> void
 StackExchange.Redis.RespDatabaseContext.WithDatabase(int database) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespDatabaseContext
+StackExchange.Redis.RespDatabaseContext.WithRemovalHandler(StackExchange.Redis.Caching.CacheKeyRemovedHandler! onRemoved) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithServices(object? services) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithoutCache() -> StackExchange.Redis.RespDatabaseContext
 static StackExchange.Redis.RespDatabaseContext.explicit operator StackExchange.Redis.RespContext!(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespContext!

@@ -19,7 +19,10 @@ namespace StackExchange.Redis.Caching
     /// </para>
     /// <para>
     /// The freshness tolerance a particular caller will accept rides on the context - see
-    /// <see cref="RespContext.WithMaxCacheAge"/> - and is read-time for exactly the same reason.
+    /// <see cref="RespContext.WithMaxCacheAge"/> - and is read-time for exactly the same reason. So does
+    /// a removal observer (<see cref="RespDatabaseContext.WithRemovalHandler"/>): enrollment is armed by
+    /// the read, additive and idempotent, and never changes how the shared entry behaves for any other
+    /// caller - which is why it, too, is safe to vary per call.
     /// </para>
     /// <para>
     /// It also keeps <see cref="RespContext"/> at its 48 bytes: a context carries a reference to shared
@@ -208,5 +211,18 @@ namespace StackExchange.Redis.Caching
         internal TimeSpan MaxAge { get; } = maxAge;
 
         internal long Ticks { get; } = CachePolicy.ToTicks(maxAge);
+    }
+
+    /// <summary>
+    /// A per-context removal observer: reads through this context arm it on the keys they serve.
+    /// </summary>
+    /// <remarks>
+    /// Read-time state like <see cref="MaxCacheAgeService"/>, and safe to vary per call for the same
+    /// reason: enrollment is additive and idempotent, and never changes how the shared entry behaves for
+    /// any other caller. See <see cref="RespDatabaseContext.WithRemovalHandler"/>.
+    /// </remarks>
+    internal sealed class RemovalHandlerService(CacheKeyRemovedHandler handler)
+    {
+        internal CacheKeyRemovedHandler Handler { get; } = handler;
     }
 }

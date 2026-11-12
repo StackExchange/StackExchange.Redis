@@ -475,7 +475,7 @@ namespace StackExchange.Redis.Caching
 
         /// <summary>Fills refused because the reply was an error.</summary>
         /// <remarks>
-        /// See <see cref="TryComplete"/> for why errors are not cacheable. A non-trivial count here is
+        /// See <see cref="TryComplete(in RespFill, RespPayload)"/> for why errors are not cacheable. A non-trivial count here is
         /// worth investigating on its own: errors should be rare, and caching them would have hidden that.
         /// </remarks>
         public long RefusedError => Volatile.Read(ref _refusedError);
@@ -703,13 +703,18 @@ namespace StackExchange.Redis.Caching
         /// The served entry's memoized-result slot, through which the caller may skip parsing entirely -
         /// or record its parse for the next hit to skip. Empty on a miss, and harmlessly inert then.
         /// </param>
+        /// <param name="onRemoved">
+        /// A removal observer to arm on the served keys, or null. Armed only when something is actually
+        /// served - a miss arms nothing, because the caller holds nothing that could go stale.
+        /// </param>
         public bool TryGet(
             in RespRequest frame,
             int database,
             long maxAgeTicks,
             [NotNullWhen(true)] out RespPayload? payload,
             out bool shouldRefresh,
-            out ResultReuse reuse)
+            out ResultReuse reuse,
+            CacheKeyRemovedHandler? onRemoved = null)
         {
             shouldRefresh = false;
             reuse = default;
@@ -727,6 +732,16 @@ namespace StackExchange.Redis.Caching
                 if (TryServeStale(entry, maxAgeTicks, out payload, out shouldRefresh))
                 {
                     reuse = new ResultReuse(this, entry);
+                    if (onRemoved is not null)
+                    {
+                        // the caller is being handed a value that is ALREADY not current, so the honest
+                        // thing an observer can be told is exactly that, now - waiting for a removal that
+                        // has already happened would wait for ever. Arm-then-fire keeps the one-shot
+                        // contract: this enrollment is consumed immediately, and the next read re-arms.
+                        entry.Enroll(onRemoved);
+                        entry.NotifyRemoved(CacheKeyRemovalReason.Invalidated);
+                    }
+
                     return true;
                 }
 
@@ -758,6 +773,19 @@ namespace StackExchange.Redis.Caching
                         entry.Touch();
                         payload = entry.Payload;
                         reuse = new ResultReuse(this, entry);
+
+                        if (onRemoved is not null)
+                        {
+                            // ARM, then look again: an invalidation landing between the recheck above and
+                            // the arm would have taken a set this observer was not yet in, and the caller
+                            // would hold a value whose death was never announced. Arm first and the race
+                            // inverts: either the invalidation's take sees this observer, or this second
+                            // look sees the invalidation and fires it here. The serve itself stands - it
+                            // passed the same recheck every un-enrolled caller relies on.
+                            entry.Enroll(onRemoved);
+                            if (!entry.IsValid) entry.NotifyRemoved(CacheKeyRemovalReason.Invalidated);
+                        }
+
                         return true;
                     }
 
@@ -1128,7 +1156,18 @@ namespace StackExchange.Redis.Caching
         /// copied</b>. It is already in a pooled, reference-counted buffer; copying it into a second one to
         /// cache it would be pure waste.
         /// </remarks>
-        public bool TryComplete(in RespFill fill, RespPayload response)
+        public bool TryComplete(in RespFill fill, RespPayload response) => TryComplete(in fill, response, onRemoved: null);
+
+        /// <inheritdoc cref="TryComplete(in RespFill, RespPayload)"/>
+        /// <param name="fill">The fill to complete.</param>
+        /// <param name="response">The reply that arrived.</param>
+        /// <param name="onRemoved">
+        /// A removal observer to arm on the filled keys, or null. Armed whether or not the reply was
+        /// stored - the server is tracking these keys either way - EXCEPT when it provably is not
+        /// (the tracking prefix was dropped) or the reply was an error, where "you will be told" would
+        /// be a promise nothing can keep.
+        /// </param>
+        public bool TryComplete(in RespFill fill, RespPayload response, CacheKeyRemovedHandler? onRemoved)
         {
             if (response is null) throw new ArgumentNullException(nameof(response));
             if (fill.Key.IsEmpty) return false;
@@ -1136,7 +1175,23 @@ namespace StackExchange.Redis.Caching
             Unregister(in fill);
             try
             {
-                return TryCompleteCore(in fill, response);
+                var stored = TryCompleteCore(in fill, response, out var tracked);
+                if (tracked && onRemoved is not null)
+                {
+                    // LAST, after any store - and in particular after the store's own notification of the
+                    // entry it replaced, or this fill's consumer would be told its brand-new value is gone.
+                    // Arm, then look: a key that died in flight (or during the store) fires here and now,
+                    // because its removal already happened and will not announce itself again. That covers
+                    // the fill that raced an invalidation, which is otherwise the easiest death to miss.
+                    var dependencies = fill.Dependencies;
+                    foreach (var dependency in dependencies) dependency.Enroll(onRemoved);
+                    foreach (var dependency in dependencies)
+                    {
+                        if (!dependency.IsValid) dependency.NotifyRemoved(CacheKeyRemovalReason.Invalidated);
+                    }
+                }
+
+                return stored;
             }
             finally
             {
@@ -1147,12 +1202,15 @@ namespace StackExchange.Redis.Caching
             }
         }
 
-        private bool TryCompleteCore(in RespFill fill, RespPayload response)
+        private bool TryCompleteCore(in RespFill fill, RespPayload response, out bool tracked)
         {
+            tracked = true;
             if (response.PrefixDropped)
             {
                 // the server never saw the CLIENT CACHING YES, so under an opt-in mode it is not tracking these keys;
-                // stored, this reply would sit here until eviction with no invalidation ever coming
+                // stored, this reply would sit here until eviction with no invalidation ever coming - and for the
+                // same reason, no removal observer is armed: no invalidation is coming for it to hear
+                tracked = false;
                 Interlocked.Increment(ref _refusedUntracked);
                 fill.Key.Dispose();
                 return false;
@@ -1160,6 +1218,9 @@ namespace StackExchange.Redis.Caching
 
             if (!IsCacheableReply(response.Span))
             {
+                // no observer either: whether the server tracks keys named by an erroring command is not
+                // specified, and an enrollment that might never fire is worse than none
+                tracked = false;
                 Interlocked.Increment(ref _refusedError);
                 fill.Key.Dispose();
                 return false;
@@ -1214,6 +1275,17 @@ namespace StackExchange.Redis.Caching
                 && (fill.Replaces || !previous.IsValid || CachePolicy.IsOlderThan(previous.FilledAt, Policy.TimeToLiveTicks))
                 && _entries.TryUpdate(entryKey, entry, previous))
             {
+                // observers armed on the OLD value's serves: what they read is gone. Only when the previous
+                // entry was still valid - an invalidated one already announced itself, and firing again here
+                // would take enrollments that belong to the key's NEXT life (a fill arms after this returns).
+                // Expired-but-valid is the missed-invalidation backstop doing its job, and says so.
+                if (previous.IsValid)
+                {
+                    previous.NotifyRemoved(CachePolicy.IsOlderThan(previous.FilledAt, Policy.TimeToLiveTicks)
+                        ? CacheKeyRemovalReason.Expired
+                        : CacheKeyRemovalReason.Replaced);
+                }
+
                 Interlocked.Add(ref _bytes, entry.Bytes - previous.Bytes);
                 if (previous.TakeMemo() is { Bytes: not 0 } memo) Interlocked.Add(ref _bytes, -memo.Bytes);
                 previous.Payload.Dispose(); // the superseded reply
@@ -1271,7 +1343,9 @@ namespace StackExchange.Redis.Caching
                 if (entry.IsValid && !CachePolicy.IsOlderThan(entry.FilledAt, lifetime)) continue;
                 if (_entries.TryRemove(pair.Key, out var removing))
                 {
-                    Release(removing);
+                    // an entry the sweep reclaims is a corpse: invalidated (already announced, so the
+                    // reason goes unheard) or aged out, which is what Expired means
+                    Release(removing, CacheKeyRemovalReason.Expired);
                     removed++;
                 }
             }
@@ -1320,9 +1394,20 @@ namespace StackExchange.Redis.Caching
         /// <c>Release()</c> is a bare decrement with no idempotence guard.
         /// </remarks>
         /// <summary>Account for an entry that has just left the dictionary, and let its payload go.</summary>
-        /// <remarks>Called once per successful removal, which is what keeps <see cref="Count"/> exact.</remarks>
-        private void Release(Entry entry)
+        /// <remarks>
+        /// <para>Called once per successful removal, which is what keeps <see cref="Count"/> exact.</para>
+        /// <para>
+        /// The <paramref name="reason"/> reaches removal observers only when the entry was still VALID -
+        /// an invalidated entry announced itself when the invalidation landed, and anything armed since
+        /// belongs to the key's next life. Null skips the notification entirely: <see cref="Dispose"/>
+        /// passes it because its <see cref="RespKeyTable.InvalidateAll"/> says <see cref="CacheKeyRemovalReason.Flushed"/>
+        /// for everything, once.
+        /// </para>
+        /// </remarks>
+        private void Release(Entry entry, CacheKeyRemovalReason? reason)
         {
+            if (reason is { } why && entry.IsValid) entry.NotifyRemoved(why);
+
             Interlocked.Decrement(ref _count);
             Interlocked.Add(ref _bytes, -entry.Bytes);
             if (entry.TakeMemo() is { Bytes: not 0 } memo) Interlocked.Add(ref _bytes, -memo.Bytes);
@@ -1452,7 +1537,7 @@ namespace StackExchange.Redis.Caching
                 if (!entry.IsValid || CachePolicy.IsOlderThan(entry.FilledAt, lifetime))
                 {
                     // dead or expired, and we are holding its key: take it now
-                    if (TryRemoveSampled(candidate)) return true;
+                    if (TryRemoveSampled(candidate, CacheKeyRemovalReason.Expired)) return true;
                     continue;
                 }
 
@@ -1475,18 +1560,19 @@ namespace StackExchange.Redis.Caching
                 }
 
                 // live, and not read since it was stored or last examined
-                if (TryRemoveSampled(candidate)) return true;
+                if (TryRemoveSampled(candidate, CacheKeyRemovalReason.Evicted)) return true;
 
                 // somebody else took it between the look and the removal; keep looking
             }
 
             // every live entry in the window had been read: the longest-resident of them goes, its flag now
             // cleared. Its re-enqueued key is left behind as a stale one, which the allowance above absorbs
-            return haveFirstSpared && TryRemoveSampled(firstSparedKey);
+            return haveFirstSpared && TryRemoveSampled(firstSparedKey, CacheKeyRemovalReason.Evicted);
         }
 
         /// <summary>Remove an entry named by a key sampled from the live enumeration.</summary>
         /// <param name="sampled">A key copied out of the live enumeration.</param>
+        /// <param name="reason">What removal observers are told, if the entry was still valid.</param>
         /// <returns>Whether this call was the one that removed it.</returns>
         /// <remarks>
         /// Safe to probe with despite being a copy taken from a moving enumeration, because a cache key
@@ -1495,11 +1581,11 @@ namespace StackExchange.Redis.Caching
         /// ObjectDisposedException from the evictor, and the same race on the read path resolved as a
         /// lookup comparing against bytes that were back in the pool.
         /// </remarks>
-        private bool TryRemoveSampled(in EntryKey sampled)
+        private bool TryRemoveSampled(in EntryKey sampled, CacheKeyRemovalReason reason)
         {
             if (!_entries.TryRemove(sampled, out var removed)) return false;
 
-            Release(removed);
+            Release(removed, reason);
             return true;
         }
 
@@ -1508,8 +1594,9 @@ namespace StackExchange.Redis.Caching
         {
             foreach (var pair in _entries)
             {
+                // no per-entry notification: the InvalidateAll below says Flushed for every armed key, once
                 if (!_entries.TryRemove(pair.Key, out var entry)) continue;
-                Release(entry);
+                Release(entry, reason: null);
             }
 
             ReleaseCurrentSlab();
@@ -1683,6 +1770,12 @@ namespace StackExchange.Redis.Caching
 
             /// <summary>The earliest recorded invalidation of this one key, or zero; see the array form.</summary>
             internal long EarliestInvalidation() => IsValid ? 0 : _node.InvalidatedAt;
+
+            /// <summary>Arm a removal observer on this key's node; see <see cref="RespKeyTable.Node.Enroll"/>.</summary>
+            internal void Enroll(CacheKeyRemovedHandler handler) => _node.Enroll(handler);
+
+            /// <summary>Fire this key's armed observers; see <see cref="RespKeyTable.Node.NotifyRemoved"/>.</summary>
+            internal void NotifyRemoved(CacheKeyRemovalReason reason) => _node.NotifyRemoved(reason);
 
             internal static bool AllValid(Dependency[] dependencies)
             {
@@ -1876,6 +1969,38 @@ namespace StackExchange.Redis.Caching
             // the generation it compares (and one more mid-life object per entry). The fill's own array dies young.
             private readonly Dependency _single = dependencies.Length == 1 ? dependencies[0] : default;
             private readonly Dependency[]? _many = dependencies.Length == 1 ? null : dependencies;
+
+            /// <summary>Arm a removal observer on every key this entry depends on.</summary>
+            /// <remarks>
+            /// On the NODES, not on this entry, so slab compaction (<see cref="CopyForward"/>) is not a
+            /// removal and invalidation fires while the corpse is still resident. A multi-key entry arms
+            /// each dependency independently: the notification is per KEY, so a consumer may hear once per
+            /// dependency that dies, each fire naming its own key.
+            /// </remarks>
+            internal void Enroll(CacheKeyRemovedHandler handler)
+            {
+                if (_many is { } many)
+                {
+                    foreach (var dependency in many) dependency.Enroll(handler);
+                }
+                else
+                {
+                    _single.Enroll(handler);
+                }
+            }
+
+            /// <summary>Fire the armed observers of every key this entry depends on.</summary>
+            internal void NotifyRemoved(CacheKeyRemovalReason reason)
+            {
+                if (_many is { } many)
+                {
+                    foreach (var dependency in many) dependency.NotifyRemoved(reason);
+                }
+                else
+                {
+                    _single.NotifyRemoved(reason);
+                }
+            }
 
             /// <summary>The slab the reply lives in, or <see langword="null"/> when it has an array of its own.</summary>
             internal Slab? Slab { get; } = slab;
