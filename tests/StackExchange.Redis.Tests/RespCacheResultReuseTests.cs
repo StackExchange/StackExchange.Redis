@@ -196,11 +196,15 @@ public class RespCacheResultReuseTests
 
     private sealed class ReusablePocoHandler : IRespHandler<Poco>, IRespResultReuse<Poco>
     {
+        public const long DeclaredSize = 123;
+
         public static readonly ReusablePocoHandler Instance = new();
 
         public Poco Parse(ref RespReader reader) => new(reader.ScalarLength());
 
         public bool MayReuse(in Poco value) => true;
+
+        public long SizeOf(in Poco value) => DeclaredSize;
     }
 
     private sealed class PlainPocoHandler : IRespHandler<Poco>
@@ -225,10 +229,79 @@ public class RespCacheResultReuseTests
             Interlocked.Increment(ref _asked);
             return false;
         }
+
+        public long SizeOf(in Poco value) => 0;
     }
 
     private sealed class ScalingHandler(int factor) : IRespHandler<int>
     {
         public int Parse(ref RespReader reader) => reader.ScalarLength() * factor;
+    }
+
+    private sealed class UnsizedPocoHandler : IRespHandler<Poco>, IRespResultReuse<Poco>
+    {
+        public static readonly UnsizedPocoHandler Instance = new();
+
+        public Poco Parse(ref RespReader reader) => new(reader.ScalarLength());
+
+        public bool MayReuse(in Poco value) => true;
+
+        public long SizeOf(in Poco value) => 0; // shareable, but declines to guess a size
+    }
+
+    [Fact]
+    public async Task AMemoizedStringIsChargedToTheBudget()
+    {
+        var (context, cache, _) = Create("$5\r\nhello\r\n");
+        using (cache)
+        {
+            _ = await context.SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
+            var afterFill = cache.Bytes;
+
+            _ = await context.SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable); // memoizes
+            Assert.Equal(24 + (2 * 5), cache.Bytes - afterFill); // header + UTF-16, the core's string estimate
+
+            _ = await context.SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable); // served; no re-charge
+            Assert.Equal(24 + (2 * 5), cache.Bytes - afterFill);
+        }
+    }
+
+    [Fact]
+    public async Task AVolunteeredSizeIsChargedAndCreditedBack()
+    {
+        var (context, cache, _) = Create("$5\r\nhello\r\n", "+OK\r\n", "$5\r\nworld\r\n");
+        using (cache)
+        {
+            _ = await context.SendAsync($"{RedisCommand.GET}{(RedisKey)"k"}", Readable, ReusablePocoHandler.Instance);
+            var afterFill = cache.Bytes;
+
+            _ = await context.SendAsync($"{RedisCommand.GET}{(RedisKey)"k"}", Readable, ReusablePocoHandler.Instance);
+            Assert.Equal(ReusablePocoHandler.DeclaredSize, cache.Bytes - afterFill);
+
+            // our own write discards the entry; the refill's entry must carry no stale memo charge -
+            // the credit is paired with the memo object, so the budget returns to one entry + one memo
+            _ = await context.SendAsync<string>($"{RedisCommand.SET}{(RedisKey)"k"}{(RedisValue)"world"}", CommandFlags.None);
+            _ = await context.SendAsync($"{RedisCommand.GET}{(RedisKey)"k"}", Readable, ReusablePocoHandler.Instance);
+            _ = await context.SendAsync($"{RedisCommand.GET}{(RedisKey)"k"}", Readable, ReusablePocoHandler.Instance);
+
+            Assert.Equal(afterFill + ReusablePocoHandler.DeclaredSize, cache.Bytes);
+        }
+    }
+
+    [Fact]
+    public async Task AZeroSizeIsReusedButUncounted()
+    {
+        var (context, cache, _) = Create("$5\r\nhello\r\n");
+        using (cache)
+        {
+            _ = await context.SendAsync($"{RedisCommand.GET}{(RedisKey)"k"}", Readable, UnsizedPocoHandler.Instance);
+            var afterFill = cache.Bytes;
+
+            var parsed = await context.SendAsync($"{RedisCommand.GET}{(RedisKey)"k"}", Readable, UnsizedPocoHandler.Instance);
+            var reused = await context.SendAsync($"{RedisCommand.GET}{(RedisKey)"k"}", Readable, UnsizedPocoHandler.Instance);
+
+            Assert.Same(parsed, reused);       // still shared...
+            Assert.Equal(afterFill, cache.Bytes); // ...just invisible to the budget, as 0 asks
+        }
     }
 }

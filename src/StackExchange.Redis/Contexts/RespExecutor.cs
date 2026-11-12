@@ -1562,7 +1562,7 @@ namespace StackExchange.Redis
                 if (!reuse.TryGet(handler, out result))
                 {
                     result = Parse(handler, hit);
-                    if (MayShareResult(handler, in result)) reuse.TrySet(handler, result);
+                    if (MayShareResult(handler, in result)) reuse.TrySet(handler, result, EstimateMemoBytes(handler, in result));
                 }
 
                 return true;
@@ -1595,6 +1595,24 @@ namespace StackExchange.Redis
             => ResultSharing<TResult>.Always
                 || (handler is Protocol.IRespResultReuse<TResult> reuse && result is not null && reuse.MayReuse(in result));
 
+        /// <summary>What a memoized result charges to the cache's byte budget; 0 is uncounted.</summary>
+        /// <remarks>
+        /// The core sizes what it enrolls itself - a string is header plus UTF-16, a no-reference struct
+        /// is its box - and only a handler-opted result consults the handler's own
+        /// <see cref="Protocol.IRespResultReuse{TResult}.SizeOf"/>. Estimates, deliberately: the budget
+        /// wants honesty about scale, not an object-graph walker.
+        /// </remarks>
+        private static long EstimateMemoBytes<TResult>(IRespHandler<TResult> handler, in TResult result)
+        {
+            if (typeof(TResult) == typeof(string))
+            {
+                return result is string s ? 24 + (2L * s.Length) : 0;
+            }
+
+            if (ResultSharing<TResult>.Always) return ResultSharing<TResult>.BoxBytes;
+            return handler is Protocol.IRespResultReuse<TResult> reuse ? reuse.SizeOf(in result) : 0;
+        }
+
         /// <summary>The per-type half of <see cref="MayShareResult"/>, answered once per <typeparamref name="TResult"/>.</summary>
         private static class ResultSharing<TResult>
         {
@@ -1604,6 +1622,14 @@ namespace StackExchange.Redis
                 || !System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences<TResult>();
 #else
                 || typeof(TResult).IsPrimitive || typeof(TResult).IsEnum;
+#endif
+
+            /// <summary>What the memoized box of a no-reference struct costs: object header plus the value.</summary>
+            public static readonly long BoxBytes =
+#if NET
+                16 + System.Runtime.CompilerServices.Unsafe.SizeOf<TResult>();
+#else
+                24; // the fallback only enrolls primitives and enums, none larger than 8 bytes
 #endif
         }
 

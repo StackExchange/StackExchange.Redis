@@ -1215,6 +1215,7 @@ namespace StackExchange.Redis.Caching
                 && _entries.TryUpdate(entryKey, entry, previous))
             {
                 Interlocked.Add(ref _bytes, entry.Bytes - previous.Bytes);
+                if (previous.TakeMemo() is { Bytes: not 0 } memo) Interlocked.Add(ref _bytes, -memo.Bytes);
                 previous.Payload.Dispose(); // the superseded reply
                 if (previous.Slab is { } superseded) ReleaseSlab(superseded);
                 fill.Key.Dispose();
@@ -1324,6 +1325,7 @@ namespace StackExchange.Redis.Caching
         {
             Interlocked.Decrement(ref _count);
             Interlocked.Add(ref _bytes, -entry.Bytes);
+            if (entry.TakeMemo() is { Bytes: not 0 } memo) Interlocked.Add(ref _bytes, -memo.Bytes);
             entry.Payload.Dispose();
             if (entry.Slab is { } slab) ReleaseSlab(slab);
             entry.Key.Dispose(); // the reference the dictionary held, not whichever copy found it
@@ -1769,10 +1771,13 @@ namespace StackExchange.Redis.Caching
         /// (<see cref="Entry.CopyForward"/>), because the copied bytes parse to the same answer.
         /// </para>
         /// <para>
-        /// <b>The memo is not charged to <see cref="CacheOptions.MaxBytes"/></b>: the budget meters bytes
-        /// the cache stores, and the managed size of an arbitrary parsed object is not knowable. For a
-        /// memoized string the entry's true footprint roughly doubles; a budget tuned to the knife's edge
-        /// should allow for that.
+        /// <b>The memo is charged to <see cref="CacheOptions.MaxBytes"/> when its size is known</b>: the
+        /// core sizes the types it enrolls itself (a string's header-plus-UTF-16, a box), and an opted-in
+        /// handler volunteers an estimate through <see cref="Protocol.IRespResultReuse{TResult}.SizeOf"/> -
+        /// 0 meaning uncounted, because the true managed footprint of an arbitrary object graph is not
+        /// knowable and a wrong guess is worse than an honest shrug. The charge is paired with the
+        /// <see cref="Memo"/> object itself and credited back by whoever takes it, so the budget cannot
+        /// drift.
         /// </para>
         /// </remarks>
         internal readonly struct ResultReuse
@@ -1806,15 +1811,38 @@ namespace StackExchange.Redis.Caching
 
             /// <summary>Offer a parsed result for later hits; kept only if the slot is still empty.</summary>
             /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
-            public void TrySet<TResult>(Protocol.IRespHandler<TResult> handler, TResult value)
-                => (_entry as Entry)?.TrySetMemo(new Memo(handler, value));
+            /// <param name="handler">The handler whose parse this is.</param>
+            /// <param name="value">The parsed result.</param>
+            /// <param name="bytes">
+            /// The value's approximate retained size, charged to the byte budget; 0 leaves it uncounted.
+            /// </param>
+            public void TrySet<TResult>(Protocol.IRespHandler<TResult> handler, TResult value, long bytes = 0)
+            {
+                if (_entry is not Entry entry) return;
+
+                // the charge is paired with THIS memo object: whoever later takes the memo out of the
+                // entry (removal, replacement, Dispose) credits exactly memo.Bytes back, and a set that
+                // loses - to another setter, or to the tombstone a discard leaves - charges nothing. That
+                // is what keeps "credited by exactly what it was debited" true without a lock.
+                var memo = new Memo(handler, value, Math.Max(0, bytes));
+                if (entry.TrySetMemo(memo) && memo.Bytes != 0)
+                {
+                    Interlocked.Add(ref _cache!._bytes, memo.Bytes);
+                }
+            }
         }
 
         /// <summary>A parsed result and the handler whose parse it is; see <see cref="ResultReuse"/>.</summary>
-        private sealed class Memo(object handler, object? value)
+        private sealed class Memo(object handler, object? value, long bytes)
         {
+            /// <summary>The discard marker: a slot holding this can never be set again. See <see cref="Entry.TakeMemo"/>.</summary>
+            internal static readonly Memo Tombstone = new(null!, null, 0);
+
             internal object Handler { get; } = handler;
             internal object? Value { get; } = value;
+
+            /// <summary>What this memo charged to the budget; credited back by whoever takes it.</summary>
+            internal long Bytes { get; } = bytes;
         }
 
         private sealed class Entry(RespPayload payload, Dependency[] dependencies, RespRequest key, Slab? slab = null)
@@ -1822,10 +1850,26 @@ namespace StackExchange.Redis.Caching
             /// <summary>The memoized parse of this entry's payload, if anybody stored one; see <see cref="ResultReuse"/>.</summary>
             private Memo? _memo;
 
+            /// <remarks>The tombstone's handler is null, which no live handler is, so readers need no special case.</remarks>
             internal Memo? Memo => Volatile.Read(ref _memo);
 
             /// <summary>First writer wins; see <see cref="ResultReuse"/> for why.</summary>
-            internal void TrySetMemo(Memo memo) => Interlocked.CompareExchange(ref _memo, memo, null);
+            /// <returns>Whether this memo is the one kept - the caller charges the budget only then.</returns>
+            internal bool TrySetMemo(Memo memo) => Interlocked.CompareExchange(ref _memo, memo, null) is null;
+
+            /// <summary>
+            /// Take the memo out, leaving the slot permanently closed.
+            /// </summary>
+            /// <remarks>
+            /// The tombstone is what makes the budget exact under the race between a discard and a late
+            /// <see cref="TrySetMemo"/>: a setter that loses to it charges nothing, and a setter that won
+            /// first is credited here, by the same <see cref="Memo"/> object that carried the charge.
+            /// </remarks>
+            internal Memo? TakeMemo()
+            {
+                var taken = Interlocked.Exchange(ref _memo, Memo.Tombstone);
+                return ReferenceEquals(taken, Memo.Tombstone) ? null : taken;
+            }
 
             // A single dependency - every single-key command, which is most of them - is held inline, and an array
             // only for more. Every hit asks IsValid, and the array was one more dependent load between the entry and
@@ -1902,8 +1946,10 @@ namespace StackExchange.Redis.Caching
             {
                 var moved = new Entry(payload, _many ?? [_single], key, slab) { FilledAt = FilledAt };
 
-                // the copied bytes parse to the same answer, so the parse survives the move
-                moved._memo = Volatile.Read(ref _memo);
+                // the copied bytes parse to the same answer, so the parse survives the move - as a
+                // TRANSFER of ownership, so the charge it carries is credited exactly once, by whoever
+                // eventually takes it from the new entry rather than by the husk this leaves behind
+                moved._memo = TakeMemo();
                 return moved;
             }
 

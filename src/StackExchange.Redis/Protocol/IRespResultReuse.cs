@@ -30,5 +30,17 @@ namespace StackExchange.Redis.Protocol
         /// <summary>Whether this value may be handed to more than one caller.</summary>
         /// <param name="value">The value just parsed.</param>
         bool MayReuse(in TResult value);
+
+        /// <summary>The approximate retained size of this value, for the cache's byte budget.</summary>
+        /// <param name="value">The value just parsed; only consulted for values <see cref="MayReuse"/> admitted.</param>
+        /// <returns>An estimate in bytes, or 0 to leave the value uncounted.</returns>
+        /// <remarks>
+        /// A memoized result lives as long as its cache entry, so an unsized one is memory the budget
+        /// cannot see; returning an estimate keeps <see cref="StackExchange.Redis.Caching.CacheOptions.MaxBytes"/>
+        /// honest, and an estimate is all it can be - the true managed footprint of an object graph is not
+        /// knowable. Types the core enrolls by itself (strings, no-reference value types) are sized by the
+        /// core and do not consult this.
+        /// </remarks>
+        long SizeOf(in TResult value);
     }
 }
