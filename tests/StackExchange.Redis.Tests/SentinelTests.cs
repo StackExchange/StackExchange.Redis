@@ -500,7 +500,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         SkipOnWindowsRelease();
 
         // A managed connection pointed somewhere sentinel does not name: the primary it reports is an
-        // endpoint this connection has never seen, which is what drives SwitchPrimary's rebuild branch
+        // endpoint this connection has never seen, which is what drives SwitchPrimaryAsync's rebuild branch
         // (the real-world trigger is a node that came back on a brand-new address).
         await using var managed = await ConnectionMultiplexer.ConnectAsync(
             $"{TestConfig.Current.PrimaryServer}:{TestConfig.Current.PrimaryPort},allowAdmin=true",
@@ -510,7 +510,7 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         var strayEndPoint = managed.GetEndPoints().Single();
         Assert.Contains(strayEndPoint, managed.GetServerSnapshot().ToArray().Select(x => x.EndPoint));
 
-        Conn.SwitchPrimary(null, managed, Writer);
+        await Conn.SwitchPrimaryAsync(null, managed, Writer);
         await UntilConditionAsync(
             TimeSpan.FromSeconds(10),
             () => !managed.GetServerSnapshot().ToArray().Any(x => Equals(x.EndPoint, strayEndPoint)));
@@ -523,6 +523,32 @@ public class SentinelTests(ITestOutputHelper output) : SentinelBase(output)
         // ...and the rebuild still did its actual job
         Assert.NotEmpty(managed.GetEndPoints());
         await managed.GetDatabase().PingAsync();
+    }
+
+    [Fact]
+    public async Task SentinelDiscoveryKeepsConfiguredNamesAndPreviouslyKnownRoutes()
+    {
+        var options = ServiceOptions.Clone();
+        var seed = new DnsEndPoint("localhost", TestConfig.Current.SentinelPortA);
+        options.EndPoints.Add(seed);
+        await using var connection = await ConnectionMultiplexer.SentinelConnectAsync(options);
+        var missing = new IPEndPoint(IPAddress.Loopback, TcpForwarder.GetFreePort());
+        connection.EndPoints.TryAdd(missing);
+        connection.GetServerEndPoint(missing, ServerProvenance.Sentinel, activate: false);
+
+        await connection.UpdateSentinelAddressListAsync(ServiceName);
+        Assert.Contains(seed, connection.EndPoints);
+        Assert.Contains(seed, connection.GetEndPoints());
+        Assert.Contains(missing, connection.EndPoints);
+        Assert.Contains(missing, connection.GetEndPoints());
+        // Repeated replies can omit a route (including the responding sentinel itself); discovery only appends.
+        // Which sentinel answers first is a race, and a reply from another one can still add the first
+        // responder's own address - so a later refresh may grow the list, but must not shrink it.
+        await connection.UpdateSentinelAddressListAsync(ServiceName);
+        var endpoints = new HashSet<EndPoint>(connection.EndPoints);
+        await connection.UpdateSentinelAddressListAsync(ServiceName);
+        Assert.Superset(endpoints, new HashSet<EndPoint>(connection.EndPoints));
+        Assert.True(connection.IsConnected);
     }
 
     [Fact]

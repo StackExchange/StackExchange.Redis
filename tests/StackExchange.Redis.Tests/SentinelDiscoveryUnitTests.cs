@@ -1,0 +1,95 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Threading.Tasks;
+using Xunit;
+
+namespace StackExchange.Redis.Tests;
+
+public class SentinelDiscoveryUnitTests
+{
+    [Fact]
+    public async Task FirstAnswerDoesNotWaitForASlowSentinel()
+    {
+        var never = new TaskCompletionSource<string?>();
+        var answer = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var query = ConnectionMultiplexer.FirstSentinelResultAsync(
+            [never.Task, Task.FromResult<string?>(null), Task.FromException<string?>(new InvalidOperationException()), answer.Task], 10000);
+        Assert.False(query.IsCompleted);
+        answer.SetResult("primary");
+        Assert.Same(query, await Task.WhenAny(query, Task.Delay(5000)));
+        Assert.Equal("primary", await query);
+        Assert.False(never.Task.IsCompleted);
+    }
+
+    [Fact]
+    public async Task NoAnswerHasOneDeadlineForTheWholeQuery()
+    {
+        var never = new TaskCompletionSource<string?>();
+        var query = ConnectionMultiplexer.FirstSentinelResultAsync([never.Task, never.Task], 20);
+        Assert.Same(query, await Task.WhenAny(query, Task.Delay(5000)));
+        Assert.Null(await query);
+        Assert.Null(await ConnectionMultiplexer.FirstSentinelResultAsync(Array.Empty<Task<string?>>(), 20));
+    }
+
+    [Theory]
+    [InlineData("master", true, false)]
+    [InlineData("master,disconnected", true, false)]
+    [InlineData("master,s_down", false, true)]
+    [InlineData("master,o_down,s_down", false, true)]
+    [InlineData("slave", false, false)]
+    [InlineData(null, false, false)]
+    public void OnlyAHealthyMasterIsAValidPrimaryAnswer(string? flags, bool valid, bool heldDown)
+    {
+        // heldDown is the only null that passes the sentinel over; any other null asks get-master-addr-by-name
+        var row = new List<KeyValuePair<string, string>>
+        {
+            new("name", "mymaster"),
+            new("ip", "192.0.2.1"),
+            new("port", "6379"),
+        };
+        if (flags is not null) row.Add(new("flags", flags));
+        var primary = ConnectionMultiplexer.ParseHealthyPrimary(row.ToArray(), out var down);
+        if (valid) Assert.Equal(new IPEndPoint(IPAddress.Parse("192.0.2.1"), 6379), primary);
+        else Assert.Null(primary);
+        Assert.Equal(heldDown, down);
+    }
+
+    [Fact]
+    public void IPv6PrimaryAddressIsParsed()
+    {
+        KeyValuePair<string, string>[] row = [new("name", "m"), new("ip", "2001:db8::1"), new("port", "6379"), new("flags", "master")];
+        Assert.Equal(new IPEndPoint(IPAddress.Parse("2001:db8::1"), 6379), ConnectionMultiplexer.ParseHealthyPrimary(row, out _));
+    }
+
+    [Theory]
+    [InlineData("192.0.2.1", "1:2")]
+    [InlineData("192.0.2.1", "port")]
+    [InlineData("192.0.2.1", "")]
+    [InlineData("", "6379")]
+    public void MalformedAddressIsNotAValidPrimaryAnswer(string ip, string port)
+    {
+        // an answer with no usable address cannot be judged: the sentinel is asked get-master-addr-by-name instead
+        KeyValuePair<string, string>[] row = [new("name", "mymaster"), new("ip", ip), new("port", port), new("flags", "master")];
+        Assert.Null(ConnectionMultiplexer.ParseHealthyPrimary(row, out var heldDown));
+        Assert.False(heldDown);
+    }
+
+    [Fact]
+    public void AddressIsReadAsAHostNameNeverAsALocalSocket()
+    {
+        // "!path" is the configuration spelling of a Unix socket; an address sentinel reports is never one
+        KeyValuePair<string, string>[] row = [new("name", "m"), new("ip", "!/tmp/redis.sock"), new("port", "6379"), new("flags", "master")];
+        var primary = Assert.IsType<DnsEndPoint>(ConnectionMultiplexer.ParseHealthyPrimary(row, out _));
+        Assert.Equal("!/tmp/redis.sock", primary.Host);
+        Assert.Equal(6379, primary.Port);
+    }
+
+    [Theory]
+    [InlineData("master,s_down", true)]
+    [InlineData("master,o_down", true)]
+    [InlineData("master,disconnected", false)]
+    [InlineData("master", false)]
+    public void OnlyDownFlagsDisqualifyAPrimary(string flags, bool down)
+        => Assert.Equal(down, ConnectionMultiplexer.IsSentinelPrimaryDown(flags));
+}
