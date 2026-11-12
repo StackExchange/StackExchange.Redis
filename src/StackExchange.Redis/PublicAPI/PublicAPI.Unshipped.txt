@@ -260,6 +260,8 @@ StackExchange.Redis.Protocol.IRespFormattableArgument
 StackExchange.Redis.Protocol.IRespFormattableArgument.WriteTo(scoped ref StackExchange.Redis.Protocol.RespRequestBuilder handler, string? format) -> void
 StackExchange.Redis.Protocol.IRespHandler<TResult>
 StackExchange.Redis.Protocol.IRespHandler<TResult>.Parse(ref RESPite.Messages.RespReader reader) -> TResult
+StackExchange.Redis.Protocol.IRespResultReuse<TResult>
+StackExchange.Redis.Protocol.IRespResultReuse<TResult>.MayReuse(in TResult value) -> bool
 StackExchange.Redis.Protocol.KeyRange
 StackExchange.Redis.Protocol.KeyRange.KeyRange() -> void
 StackExchange.Redis.Protocol.KeyRange.KeyRange(int offset, int length) -> void

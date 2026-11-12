@@ -89,6 +89,7 @@ namespace StackExchange.Redis.Caching
         private long _expired;
         private long _refreshes;
         private long _servedStale;
+        private long _reused;
 
         /// <summary>Create a cache.</summary>
         /// <param name="options">How the cache is built; <see cref="CacheOptions.Default"/> when null.</param>
@@ -310,6 +311,14 @@ namespace StackExchange.Redis.Caching
         /// for one. Expiries rising alongside means the refresh window is too narrow to cover the fetch.
         /// </remarks>
         public long Refreshes => Volatile.Read(ref _refreshes);
+
+        /// <summary>Hits answered from a memoized parse, without touching the payload.</summary>
+        /// <remarks>
+        /// Each of these is a deserialization that did not happen: the entry had already been parsed by
+        /// the same handler, the result was declared shareable, and the earlier result was handed out
+        /// again. See <see cref="ResultReuse"/>.
+        /// </remarks>
+        public long Reused => Volatile.Read(ref _reused);
 
         /// <summary>Reads answered from an entry the server had already invalidated.</summary>
         /// <remarks>
@@ -682,8 +691,28 @@ namespace StackExchange.Redis.Caching
             long maxAgeTicks,
             [NotNullWhen(true)] out RespPayload? payload,
             out bool shouldRefresh)
+            => TryGet(in frame, database, maxAgeTicks, out payload, out shouldRefresh, out _);
+
+        /// <inheritdoc cref="TryGet(in RespRequest, int, long, out RespPayload?, out bool)"/>
+        /// <param name="frame">The rendered request.</param>
+        /// <param name="database">The database the request ran against.</param>
+        /// <param name="maxAgeTicks">The caller's own freshness requirement.</param>
+        /// <param name="payload">The cached reply, retained.</param>
+        /// <param name="shouldRefresh">Whether this caller claimed the refresh; see the other overload.</param>
+        /// <param name="reuse">
+        /// The served entry's memoized-result slot, through which the caller may skip parsing entirely -
+        /// or record its parse for the next hit to skip. Empty on a miss, and harmlessly inert then.
+        /// </param>
+        public bool TryGet(
+            in RespRequest frame,
+            int database,
+            long maxAgeTicks,
+            [NotNullWhen(true)] out RespPayload? payload,
+            out bool shouldRefresh,
+            out ResultReuse reuse)
         {
             shouldRefresh = false;
+            reuse = default;
 
             if (!_entries.TryGetValue(new EntryKey(frame, database), out var entry))
             {
@@ -693,7 +722,16 @@ namespace StackExchange.Redis.Caching
 
             // invalidated, but perhaps still servable for a moment - see TryServeStale for why that is a
             // decision rather than a shortcut
-            if (!entry.IsValid) return TryServeStale(entry, maxAgeTicks, out payload, out shouldRefresh);
+            if (!entry.IsValid)
+            {
+                if (TryServeStale(entry, maxAgeTicks, out payload, out shouldRefresh))
+                {
+                    reuse = new ResultReuse(this, entry);
+                    return true;
+                }
+
+                return false;
+            }
 
             if (entry.Payload.TryRetain())
             {
@@ -719,6 +757,7 @@ namespace StackExchange.Redis.Caching
                         // line is written once per eviction cycle, not once per hit - see Entry.Touch
                         entry.Touch();
                         payload = entry.Payload;
+                        reuse = new ResultReuse(this, entry);
                         return true;
                     }
 
@@ -765,7 +804,7 @@ namespace StackExchange.Redis.Caching
         /// </description></item>
         /// </list>
         /// </remarks>
-        private bool TryServeStale(Entry entry, long maxAgeTicks, out RespPayload? payload, out bool shouldRefresh)
+        private bool TryServeStale(Entry entry, long maxAgeTicks, [NotNullWhen(true)] out RespPayload? payload, out bool shouldRefresh)
         {
             shouldRefresh = false;
             payload = null;
@@ -1701,8 +1740,93 @@ namespace StackExchange.Redis.Caching
             }
         }
 
+        /// <summary>
+        /// A served entry's memoized-result slot: the way a hit can skip deserialization entirely.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The cache stores the raw reply, so every hit normally re-parses it - correct, but wasted work
+        /// when the parse always produces the same answer and that answer is safe to hand to more than one
+        /// caller. This slot pairs the entry with <b>one</b> parsed result and the handler that produced
+        /// it; a later hit with the <i>same handler instance</i> takes the result without touching the
+        /// payload.
+        /// </para>
+        /// <para>
+        /// <b>Keyed by handler identity, not by result type.</b> The same frame can legitimately be read
+        /// through different deserializers, and handing one handler an object another produced is type
+        /// confusion wearing a performance hat. Reference equality makes the check one compare, and the
+        /// handlers that matter - the inbuilt ones, a serializer per type - are singletons anyway.
+        /// </para>
+        /// <para>
+        /// <b>Whether a result is safe to share is the caller's decision</b>, made before <see cref="TrySet"/>;
+        /// this type only stores and serves. First writer wins: one slot per entry, so a key read through
+        /// two handlers memoizes whichever parsed first and re-parses for the other - a bounded loss, where
+        /// a last-writer slot would let two hot readers evict each other forever.
+        /// </para>
+        /// <para>
+        /// Lifetime is the entry's, by construction: invalidation, expiry and eviction all discard the
+        /// entry, and the memo goes with it. A slab compaction carries it forward
+        /// (<see cref="Entry.CopyForward"/>), because the copied bytes parse to the same answer.
+        /// </para>
+        /// <para>
+        /// <b>The memo is not charged to <see cref="CacheOptions.MaxBytes"/></b>: the budget meters bytes
+        /// the cache stores, and the managed size of an arbitrary parsed object is not knowable. For a
+        /// memoized string the entry's true footprint roughly doubles; a budget tuned to the knife's edge
+        /// should allow for that.
+        /// </para>
+        /// </remarks>
+        internal readonly struct ResultReuse
+        {
+            private readonly RespClientCache? _cache;
+
+            // typed object because the ctor is internal and Entry is private: this struct can SEE Entry
+            // (nested types see their container's privates), but cannot NAME it in an internal signature
+            private readonly object? _entry;
+
+            internal ResultReuse(RespClientCache cache, object entry)
+            {
+                _cache = cache;
+                _entry = entry;
+            }
+
+            /// <summary>Take the memoized result, if this handler is the one that produced it.</summary>
+            /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
+            public bool TryGet<TResult>(Protocol.IRespHandler<TResult> handler, out TResult value)
+            {
+                if (_entry is Entry entry && entry.Memo is { } memo && ReferenceEquals(memo.Handler, handler))
+                {
+                    value = (TResult)memo.Value!;
+                    Interlocked.Increment(ref _cache!._reused);
+                    return true;
+                }
+
+                value = default!;
+                return false;
+            }
+
+            /// <summary>Offer a parsed result for later hits; kept only if the slot is still empty.</summary>
+            /// <typeparam name="TResult">What parsing the reply produces.</typeparam>
+            public void TrySet<TResult>(Protocol.IRespHandler<TResult> handler, TResult value)
+                => (_entry as Entry)?.TrySetMemo(new Memo(handler, value));
+        }
+
+        /// <summary>A parsed result and the handler whose parse it is; see <see cref="ResultReuse"/>.</summary>
+        private sealed class Memo(object handler, object? value)
+        {
+            internal object Handler { get; } = handler;
+            internal object? Value { get; } = value;
+        }
+
         private sealed class Entry(RespPayload payload, Dependency[] dependencies, RespRequest key, Slab? slab = null)
         {
+            /// <summary>The memoized parse of this entry's payload, if anybody stored one; see <see cref="ResultReuse"/>.</summary>
+            private Memo? _memo;
+
+            internal Memo? Memo => Volatile.Read(ref _memo);
+
+            /// <summary>First writer wins; see <see cref="ResultReuse"/> for why.</summary>
+            internal void TrySetMemo(Memo memo) => Interlocked.CompareExchange(ref _memo, memo, null);
+
             // A single dependency - every single-key command, which is most of them - is held inline, and an array
             // only for more. Every hit asks IsValid, and the array was one more dependent load between the entry and
             // the generation it compares (and one more mid-life object per entry). The fill's own array dies young.
@@ -1775,7 +1899,13 @@ namespace StackExchange.Redis.Caching
             /// there. The referenced flag starts cleared.
             /// </summary>
             internal Entry CopyForward(RespPayload payload, RespRequest key, Slab? slab)
-                => new(payload, _many ?? [_single], key, slab) { FilledAt = FilledAt };
+            {
+                var moved = new Entry(payload, _many ?? [_single], key, slab) { FilledAt = FilledAt };
+
+                // the copied bytes parse to the same answer, so the parse survives the move
+                moved._memo = Volatile.Read(ref _memo);
+                return moved;
+            }
 
             internal bool IsValid => _many is null ? _single.IsValid : Dependency.AllValid(_many);
 

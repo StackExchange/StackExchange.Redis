@@ -1535,7 +1535,7 @@ namespace StackExchange.Redis
             CommandFlags flags,
             [MaybeNullWhen(false)] out TResult result)
         {
-            if (!cache.TryGet(request.AsLookupKey(), executor.Database, maxAgeTicks, out var hit, out var refresh))
+            if (!cache.TryGet(request.AsLookupKey(), executor.Database, maxAgeTicks, out var hit, out var refresh, out var reuse))
             {
                 result = default;
                 return false;
@@ -1556,13 +1556,55 @@ namespace StackExchange.Redis
 
             try
             {
-                result = Parse(handler, hit);
+                // a memoized parse of this very payload - same handler, same bytes, so the same answer -
+                // served without touching the reader; else parse, and offer the result to the NEXT hit if
+                // the rules say it is safe to share
+                if (!reuse.TryGet(handler, out result))
+                {
+                    result = Parse(handler, hit);
+                    if (MayShareResult(handler, in result)) reuse.TrySet(handler, result);
+                }
+
                 return true;
             }
             finally
             {
                 hit.Release();
             }
+        }
+
+        /// <summary>Whether a parsed result may be handed to more than one caller.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The core enrolls only what it can prove.</b> A <see cref="string"/> is immutable, and a value
+        /// type without inner references travels by copy - the memo holds the box, every caller unboxes
+        /// their own copy, and nothing one caller does is visible to another. Everything else - arrays,
+        /// mutable objects, structs that carry references (<see cref="RedisValue"/> among them) - is only
+        /// shared when the handler says so: it is the deserializer, so it is the one that knows whether
+        /// what it builds is immutable. That is the <see cref="Protocol.IRespResultReuse{TResult}"/>
+        /// opt-in, asked per value so the answer can depend on the runtime type, not just the declared one.
+        /// </para>
+        /// <para>
+        /// Down-level the reference detection does not exist, so the fallback enrolls only primitives and
+        /// enums: the mistakes are not the same size - a skipped share costs a re-parse, a wrong one hands
+        /// two callers the same mutable object. The same split as <c>ReadOnlyLease.ClearOnReturn</c>, with
+        /// the error direction flipped.
+        /// </para>
+        /// </remarks>
+        private static bool MayShareResult<TResult>(IRespHandler<TResult> handler, in TResult result)
+            => ResultSharing<TResult>.Always
+                || (handler is Protocol.IRespResultReuse<TResult> reuse && result is not null && reuse.MayReuse(in result));
+
+        /// <summary>The per-type half of <see cref="MayShareResult"/>, answered once per <typeparamref name="TResult"/>.</summary>
+        private static class ResultSharing<TResult>
+        {
+            public static readonly bool Always =
+                typeof(TResult) == typeof(string)
+#if NET
+                || !System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences<TResult>();
+#else
+                || typeof(TResult).IsPrimitive || typeof(TResult).IsEnum;
+#endif
         }
 
         /// <summary>
