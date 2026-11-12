@@ -565,7 +565,24 @@ namespace StackExchange.Redis
                                     case RedisCommand.SUBSCRIBE:
                                     case RedisCommand.SSUBSCRIBE:
                                     case RedisCommand.PSUBSCRIBE:
-                                        Subscription?.AddEndpoint(ep);
+                                        if (Subscription is { } sub && !sub.TryAdoptEndpoint(ep))
+                                        {
+                                            // the subscription is already confirmed on a different live server:
+                                            // this ack is a stray from an overlapping restore (#3336); remove
+                                            // the server-side registration it created, or it would deliver
+                                            // duplicate messages indefinitely (fire-and-forget: we are on the
+                                            // read loop, so we must not block)
+                                            if (message is Message.CommandChannelBase channelMessage)
+                                            {
+                                                var unsubscribe = sub.GetSubscriptionMessage(
+                                                    channelMessage.Channel,
+                                                    ConnectionMultiplexer.SubscriptionAction.Unsubscribe,
+                                                    CommandFlags.FireAndForget,
+                                                    internalCall: true);
+                                                connection.BridgeCouldBeNull?.Multiplexer.ExecuteSyncImpl(unsubscribe, this, ep);
+                                            }
+                                        }
+
                                         break;
                                     default:
                                         Subscription?.TryRemoveEndpoint(ep);
