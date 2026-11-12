@@ -268,7 +268,12 @@ namespace StackExchange.Redis.Caching
                 }
                 else if (entries.Remove(new KeyValuePair<EntryKey, Entry>(key, entry)))
                 {
-                    Release(entry);
+                    // aged out, or live-but-unread in the slab being taken: Expired or Evicted says which;
+                    // an invalidated one already announced itself and Release says nothing for it
+                    var reason = CachePolicy.IsOlderThan(entry.FilledAt, lifetime)
+                        ? CacheKeyRemovalReason.Expired
+                        : CacheKeyRemovalReason.Evicted;
+                    Release(entry, reason);
                     evicted++;
                 }
             }
@@ -320,8 +325,8 @@ namespace StackExchange.Redis.Caching
             }
 
             // a fill re-added the key between the remove and the add; theirs is as good as ours, and the old entry
-            // is simply gone
-            Release(entry);
+            // is simply gone - superseded by that fill, which is what Replaced means
+            Release(entry, CacheKeyRemovalReason.Replaced);
             if (slab is not null) ReleaseSlab(slab);
             evicted++;
         }

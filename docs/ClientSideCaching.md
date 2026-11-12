@@ -122,8 +122,9 @@ Controlling it
 | `TimeToLive` | 1 minute | The longest an entry is ever served, whether or not it was invalidated. A safety bound against missed invalidations and key expiry. |
 | `RefreshAfter` | off | Once an entry is this old, a read still gets it, *and* a refresh is started in the background - so a hot key never goes from "cached" to "missing" for everyone at once. |
 | `InvalidationGracePeriod` | off | After *another client's* change invalidates an entry, keep serving the old value for up to this long while a refresh runs. This deliberately serves a value the server has said is out of date, to protect a very hot key from every reader missing at the same instant. It never applies to your own writes. |
+| `RemovalHandler` | none | An observer told when a key read under this policy stops being servable - invalidated, replaced, evicted, expired or flushed - for layers that keep derived state coherent with cached keys. On the `DefaultPolicy` it hears about every cached read; on a per-caller policy (see [below](#per-caller-policy-withcachepolicy)) only about that caller's. |
 
-Entry ages - `TimeToLive`, `RefreshAfter` and `WithMaxCacheAge` - are measured on a coarse clock that is cheap enough to read on every hit, so they are accurate to a few milliseconds (about 16 ms on Windows). `InvalidationGracePeriod` is measured precisely.
+Everything in a `CachePolicy` is applied when an entry is *read*, never stamped when it is stored - the entry is shared, and one copy serves callers with different tolerances. Entry ages - `TimeToLive` and `RefreshAfter` - are measured on a coarse clock that is cheap enough to read on every hit, so they are accurate to a few milliseconds (about 16 ms on Windows). `InvalidationGracePeriod` is measured precisely.
 
 ### Serving stale while refreshing
 
@@ -139,7 +140,7 @@ How the window behaves, for both:
 - **A failed refresh is retried by a later read.** The old value goes on being served for the rest of the window, then the entry expires as usual.
 - **A change wins over a refresh in flight.** If the key changes while a refresh is on the wire, the refresh's reply is not stored, exactly as for an ordinary fill.
 - **The grace period is measured from the invalidation**, not from the first read to notice it, and it is the cap. A key nobody reads during the window simply expires - nothing resurrects it later - and on a key written faster than it can be refreshed, stale answers stop when the window ends rather than continuing indefinitely.
-- **Neither extends an entry's life.** `TimeToLive` remains the longest any entry is served, and a context's `WithMaxCacheAge` is honoured inside the window too: a caller who asked for fresher gets a miss, not a stale answer.
+- **Neither extends an entry's life.** `TimeToLive` remains the longest any entry is served, and a caller's own policy (`WithCachePolicy`) is honoured inside the window too: a caller who asked for fresher gets a miss, not a stale answer.
 
 When the window does **not** apply:
 
@@ -271,12 +272,23 @@ What that gives you:
   var hot = await db.Strings.GetAsync(key, CommandFlags.CacheOptIn);
   ```
 
-- **`WithMaxCacheAge(TimeSpan)`** - a context that accepts cached answers only up to a given age. It can only tighten `TimeToLive`, never extend it:
+- <span id="per-caller-policy-withcachepolicy">**`WithCachePolicy(CachePolicy)`**</span> - a context whose reads follow their own policy instead of the cache's `DefaultPolicy`. It *replaces* the default for those reads rather than merging with it, so derive it from the policy you mean (`policy with { ... }`), and it narrows rather than widens: the default policy's `TimeToLive` remains a ceiling, and how long the shared entry actually lives stays the cache's own business. A caller who wants very fresh answers, for instance:
 
   ```csharp
-  var fresh = db.Context.WithMaxCacheAge(TimeSpan.FromSeconds(1));
+  var fresh = db.Context.WithCachePolicy(new CachePolicy { TimeToLive = TimeSpan.FromSeconds(1) });
   var value = await fresh.Strings.GetAsync(key);
   ```
+
+  The same policy object carries a `RemovalHandler`, for a caller that wants to hear when the keys *it* read stop being current:
+
+  ```csharp
+  var observed = db.Context.WithCachePolicy(new CachePolicy
+  {
+      RemovalHandler = static (key, reason) => InvalidateDerivedState(key),
+  });
+  ```
+
+  Enrollment rides the read: each read arms one notification for that key, the first removal at or after it fires it (from the thread pool, never the connection's reader), and reading again re-arms. Contexts and policies are cheap and immutable - build them once and reuse them.
 
 - **`WithoutCache()`** - a context that bypasses the cache entirely:
 
@@ -314,5 +326,5 @@ See also
 
 - [Using RESP3](Resp3)
 - [Configuration](Configuration)
-- [Command groups](Groups) - contexts, and where `WithMaxCacheAge` / `WithoutCache` fit
+- [Command groups](Groups) - contexts, and where `WithCachePolicy` / `WithoutCache` fit
 - [Redis: client-side caching](https://redis.io/docs/latest/develop/reference/client-side-caching/)
