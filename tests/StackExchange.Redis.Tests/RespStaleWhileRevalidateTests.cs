@@ -258,13 +258,14 @@ public class RespStaleWhileRevalidateTests
     [Fact]
     public async Task TheGracePeriodHonoursTheCallersMaxAge()
     {
-        // WithMaxCacheAge is the caller's own freshness requirement; the grace period is the POLICY's
+        // a read policy's TimeToLive is the caller's own freshness requirement; the grace period is a
         // willingness to serve stale, and cannot overrule a caller who asked for fresher
-        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy
+        var policy = new CachePolicy
         {
             InvalidationGracePeriod = TimeSpan.FromSeconds(5),
             TimeToLive = TimeSpan.FromMinutes(5),
-        } });
+        };
+        using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = policy });
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = Context(executor, cache);
 
@@ -272,7 +273,7 @@ public class RespStaleWhileRevalidateTests
         await Task.Delay(200);
         cache.OnInvalidate(Encoding.UTF8.GetBytes("k"));
 
-        var strict = context.WithMaxCacheAge(TimeSpan.FromMilliseconds(100));
+        var strict = context.WithCachePolicy(policy with { TimeToLive = TimeSpan.FromMilliseconds(100) });
         Assert.Equal("b", await Get(strict));
         Assert.Equal(0, cache.ServedStale);
         Assert.Equal(2, executor.Sends);

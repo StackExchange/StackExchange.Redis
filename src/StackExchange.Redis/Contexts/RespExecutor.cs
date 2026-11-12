@@ -1118,7 +1118,7 @@ namespace StackExchange.Redis
             // not get a cached answer either, not merely that this reply is not kept
             if (cache is not null && UsesCache(executor, cache, flags))
             {
-                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, out var cached)) return cached;
+                if (TryServeFromCache(executor, ref request, handler, cache, context.CachePolicy, flags, out var cached)) return cached;
 
                 // NOTE: no in-flight wait here. Coalescing means waiting on someone else's Task, and doing
                 // that from a synchronous caller is the sync-over-async problem this design avoids
@@ -1151,7 +1151,7 @@ namespace StackExchange.Redis
                             return default!;
                         }
 
-                        cache.TryComplete(fill, filled);
+                        cache.TryComplete(fill, filled, context.CachePolicy);
                         return Parse(handler, filled);
                     }
                     finally
@@ -1230,7 +1230,7 @@ namespace StackExchange.Redis
 
             if (cache is not null && UsesCache(executor, cache, flags))
             {
-                if (TryServeFromCache(executor, ref request, handler, cache, context.MaxCacheAgeTicks, flags, out var cached))
+                if (TryServeFromCache(executor, ref request, handler, cache, context.CachePolicy, flags, out var cached))
                 {
                     return new ValueTask<TResult>(cached);
                 }
@@ -1239,12 +1239,12 @@ namespace StackExchange.Redis
                 // copy. See design notes 6.15; this is the whole of the stampede fix at the call site.
                 if (cache.TryAwaitInFlight(request.AsLookupKey(), executor.Database, out var pending))
                 {
-                    return AwaitShared(executor, request.Detach(flags), pending, handler, cache, context.MaxCacheAgeTicks, cancellationToken);
+                    return AwaitShared(executor, request.Detach(flags), pending, handler, cache, context.CachePolicy, cancellationToken);
                 }
 
                 if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
                 {
-                    return AwaitFill(executor, fill, handler, cache, cancellationToken);
+                    return AwaitFill(executor, fill, handler, cache, context.CachePolicy, cancellationToken);
                 }
             }
 
@@ -1531,11 +1531,11 @@ namespace StackExchange.Redis
             ref RespRequestFrame request,
             IRespHandler<TResult> handler,
             RespClientCache cache,
-            long maxAgeTicks,
+            Caching.CachePolicy? policy,
             CommandFlags flags,
             [MaybeNullWhen(false)] out TResult result)
         {
-            if (!cache.TryGet(request.AsLookupKey(), executor.Database, maxAgeTicks, out var hit, out var refresh))
+            if (!cache.TryGet(request.AsLookupKey(), executor.Database, policy, out var hit, out var refresh, out var reuse))
             {
                 result = default;
                 return false;
@@ -1556,13 +1556,81 @@ namespace StackExchange.Redis
 
             try
             {
-                result = Parse(handler, hit);
+                // a memoized parse of this very payload - same handler, same bytes, so the same answer -
+                // served without touching the reader; else parse, and offer the result to the NEXT hit if
+                // the rules say it is safe to share
+                if (!reuse.TryGet(handler, out result))
+                {
+                    result = Parse(handler, hit);
+                    if (MayShareResult(handler, in result)) reuse.TrySet(handler, result, EstimateMemoBytes(handler, in result));
+                }
+
                 return true;
             }
             finally
             {
                 hit.Release();
             }
+        }
+
+        /// <summary>Whether a parsed result may be handed to more than one caller.</summary>
+        /// <remarks>
+        /// <para>
+        /// <b>The core enrolls only what it can prove.</b> A <see cref="string"/> is immutable, and a value
+        /// type without inner references travels by copy - the memo holds the box, every caller unboxes
+        /// their own copy, and nothing one caller does is visible to another. Everything else - arrays,
+        /// mutable objects, structs that carry references (<see cref="RedisValue"/> among them) - is only
+        /// shared when the handler says so: it is the deserializer, so it is the one that knows whether
+        /// what it builds is immutable. That is the <see cref="Protocol.IRespResultReuse{TResult}"/>
+        /// opt-in, asked per value so the answer can depend on the runtime type, not just the declared one.
+        /// </para>
+        /// <para>
+        /// Down-level the reference detection does not exist, so the fallback enrolls only primitives and
+        /// enums: the mistakes are not the same size - a skipped share costs a re-parse, a wrong one hands
+        /// two callers the same mutable object. The same split as <c>ReadOnlyLease.ClearOnReturn</c>, with
+        /// the error direction flipped.
+        /// </para>
+        /// </remarks>
+        private static bool MayShareResult<TResult>(IRespHandler<TResult> handler, in TResult result)
+            => ResultSharing<TResult>.Always
+                || (handler is Protocol.IRespResultReuse<TResult> reuse && result is not null && reuse.MayReuse(in result));
+
+        /// <summary>What a memoized result charges to the cache's byte budget; 0 is uncounted.</summary>
+        /// <remarks>
+        /// The core sizes what it enrolls itself - a string is header plus UTF-16, a no-reference struct
+        /// is its box - and only a handler-opted result consults the handler's own
+        /// <see cref="Protocol.IRespResultReuse{TResult}.SizeOf"/>. Estimates, deliberately: the budget
+        /// wants honesty about scale, not an object-graph walker.
+        /// </remarks>
+        private static long EstimateMemoBytes<TResult>(IRespHandler<TResult> handler, in TResult result)
+        {
+            if (typeof(TResult) == typeof(string))
+            {
+                return result is string s ? 24 + (2L * s.Length) : 0;
+            }
+
+            if (ResultSharing<TResult>.Always) return ResultSharing<TResult>.BoxBytes;
+            return handler is Protocol.IRespResultReuse<TResult> reuse ? reuse.SizeOf(in result) : 0;
+        }
+
+        /// <summary>The per-type half of <see cref="MayShareResult"/>, answered once per <typeparamref name="TResult"/>.</summary>
+        private static class ResultSharing<TResult>
+        {
+            public static readonly bool Always =
+                typeof(TResult) == typeof(string)
+#if NET
+                || !System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences<TResult>();
+#else
+                || typeof(TResult).IsPrimitive || typeof(TResult).IsEnum;
+#endif
+
+            /// <summary>What the memoized box of a no-reference struct costs: object header plus the value.</summary>
+            public static readonly long BoxBytes =
+#if NET
+                16 + System.Runtime.CompilerServices.Unsafe.SizeOf<TResult>();
+#else
+                24; // the fallback only enrolls primitives and enums, none larger than 8 bytes
+#endif
         }
 
         /// <summary>
@@ -1638,6 +1706,7 @@ namespace StackExchange.Redis
             RespClientCache.RespFill fill,
             IRespHandler<TResult> handler,
             RespClientCache cache,
+            Caching.CachePolicy? policy,
             CancellationToken cancellationToken)
         {
             RespPayload response;
@@ -1663,7 +1732,7 @@ namespace StackExchange.Redis
                     return default!;
                 }
 
-                cache.TryComplete(fill, response);
+                cache.TryComplete(fill, response, policy);
                 return Parse(handler, response);
             }
             finally
@@ -1700,7 +1769,7 @@ namespace StackExchange.Redis
             Task pending,
             IRespHandler<TResult> handler,
             RespClientCache cache,
-            long maxAgeTicks,
+            Caching.CachePolicy? policy,
             CancellationToken cancellationToken)
         {
             try
@@ -1708,7 +1777,10 @@ namespace StackExchange.Redis
                 await pending.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (cache.TryGet(owned, executor.Database, maxAgeTicks, out var hit))
+                // NOTE: the fallback send below does not enroll the policy's removal observer - it has no
+                // fill, so no captured dependencies. Rare (the leader's reply was not cacheable), and the
+                // consumer's own freshness bound covers it exactly as it covers an uncached read.
+                if (cache.TryGet(owned, executor.Database, policy, out var hit, out _, out _))
                 {
                     try
                     {

@@ -87,9 +87,30 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="RespContext.Multiplexer"/>
         public IConnectionMultiplexer? Multiplexer => Raw.Multiplexer;
 
-        /// <summary>A copy of this context that will not serve a cached reply older than <paramref name="maxAge"/>.</summary>
-        /// <param name="maxAge">The oldest reply this context will accept from the cache.</param>
-        public RespDatabaseContext WithMaxCacheAge(TimeSpan maxAge) => new(Raw.WithMaxCacheAge(maxAge));
+        /// <summary>
+        /// A copy of this context whose cached reads follow <paramref name="policy"/> instead of the
+        /// cache's <see cref="Caching.CacheOptions.DefaultPolicy"/>.
+        /// </summary>
+        /// <param name="policy">
+        /// How this caller's reads treat cached entries: freshness tolerance, early refresh, stale-grace
+        /// willingness, and a removal observer (<see cref="Caching.CachePolicy.RemovalHandler"/>). Build it
+        /// once and reuse the derived context.
+        /// </param>
+        /// <remarks>
+        /// <para>
+        /// Everything in a <see cref="Caching.CachePolicy"/> is applied when an entry is <b>read</b>, never
+        /// stamped when it is stored - which is exactly what makes a per-caller policy safe: the entry is
+        /// shared, and one copy serves callers with different tolerances.
+        /// </para>
+        /// <para>
+        /// It <b>replaces</b> the default policy for these reads rather than merging with it, so derive it
+        /// from the policy you mean: <c>policy with { TimeToLive = ... }</c>. And it <b>narrows, never
+        /// widens</b>: the default policy's <see cref="Caching.CachePolicy.TimeToLive"/> remains a ceiling,
+        /// and entry lifetime and reclamation stay the cache's own business - this changes what these reads
+        /// will accept, never how long the shared entry lives.
+        /// </para>
+        /// </remarks>
+        public RespDatabaseContext WithCachePolicy(Caching.CachePolicy policy) => new(Raw.WithCachePolicy(policy));
 
         /// <summary>A copy of this context using <paramref name="scripts"/> to remember loaded scripts.</summary>
         /// <param name="scripts">The script cache, or <see langword="null"/> for none.</param>

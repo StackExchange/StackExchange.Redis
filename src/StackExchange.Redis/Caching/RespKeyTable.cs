@@ -66,6 +66,18 @@ namespace StackExchange.Redis
             private long _localWriteAt;
             private long _invalidatedAt;
 
+            /// <summary>
+            /// Removal observers armed on this key: null, one <see cref="CacheKeyRemovedHandler"/>, or an
+            /// array of them. See <see cref="Enroll"/> and <see cref="NotifyRemoved"/>.
+            /// </summary>
+            /// <remarks>
+            /// On the NODE rather than on any cache entry, because the node is what an invalidation
+            /// touches: entry release is lazy (a corpse sits until a sweep), and an observer that waited
+            /// for it would hold stale derived state for the whole invalid-but-resident window. The cost
+            /// is one field on every tracked key, paid whether or not anybody enrolls.
+            /// </remarks>
+            private object? _observers;
+
             internal Node(byte[] key, int hash, long generation)
             {
                 Key = key;
@@ -98,10 +110,105 @@ namespace StackExchange.Redis
             /// rely on the timestamp already being there.
             /// </para>
             /// </remarks>
-            internal void Invalidate(bool stampTime)
+            internal void Invalidate(bool stampTime) => Invalidate(stampTime, CacheKeyRemovalReason.Invalidated);
+
+            /// <inheritdoc cref="Invalidate(bool)"/>
+            /// <param name="stampTime">Whether to record when this happened, for a grace period.</param>
+            /// <param name="reason">What armed observers are told; see <see cref="NotifyRemoved"/>.</param>
+            internal void Invalidate(bool stampTime, CacheKeyRemovalReason reason)
             {
                 if (stampTime) Volatile.Write(ref _invalidatedAt, Stopwatch.GetTimestamp());
                 Volatile.Write(ref _generation, Invalid);
+
+                // AFTER the generation, so a handler that reacts by re-reading cannot be served the value
+                // it was just told about. Repeat invalidations of a dead key fire nothing: the first one
+                // took the observers.
+                NotifyRemoved(reason);
+            }
+
+            /// <summary>
+            /// Arm a removal observer: the next removal of this key - and only the next - will tell it.
+            /// </summary>
+            /// <remarks>
+            /// <para>
+            /// <b>One-shot, re-armed by serving.</b> An enrollment is consumed by the first removal at or
+            /// after it (<see cref="NotifyRemoved"/> takes the whole set), and the consumer's next read
+            /// re-arms it. That makes "exactly once per enrollment" structural - no death sequence, no
+            /// per-observer bookkeeping - and it bounds dangling handlers: a consumer that stops reading a
+            /// key is told about at most one more removal, instead of every removal for the life of the
+            /// connection. It also matches the consumer's own state machine: after the notification their
+            /// derived state is gone, and they are indifferent to further removals until they read again.
+            /// </para>
+            /// <para>
+            /// Idempotent per handler instance (reference equality), so a hot key's every hit costs a read
+            /// and a compare, not an allocation. Inline-one-plus-overflow, like <c>Entry</c>'s
+            /// dependencies: the common case is one observer, and two consumers reading the same key
+            /// through different contexts must both hear.
+            /// </para>
+            /// </remarks>
+            internal void Enroll(CacheKeyRemovedHandler handler)
+            {
+                while (true)
+                {
+                    var current = Volatile.Read(ref _observers);
+                    object updated;
+                    switch (current)
+                    {
+                        case null:
+                            updated = handler;
+                            break;
+                        case CacheKeyRemovedHandler single:
+                            if (ReferenceEquals(single, handler)) return;
+                            updated = new[] { single, handler };
+                            break;
+                        case CacheKeyRemovedHandler[] many:
+                            foreach (var existing in many)
+                            {
+                                if (ReferenceEquals(existing, handler)) return;
+                            }
+
+                            var grown = new CacheKeyRemovedHandler[many.Length + 1];
+                            Array.Copy(many, grown, many.Length);
+                            grown[many.Length] = handler;
+                            updated = grown;
+                            break;
+                        default:
+                            return; // unreachable; fail safe rather than spin
+                    }
+
+                    if (ReferenceEquals(Interlocked.CompareExchange(ref _observers, updated, current), current)) return;
+                }
+            }
+
+            /// <summary>
+            /// Take every armed observer and tell them, from the thread pool.
+            /// </summary>
+            /// <remarks>
+            /// <para>
+            /// <b>Never on the calling thread.</b> Removals happen on the socket reader (an invalidation
+            /// push), under the table's own locks (<see cref="InvalidateAll"/>), and on whoever's thread
+            /// evicts or sweeps - all places user code must not borrow. The same dispatch model as pub/sub
+            /// handlers and connection events (<c>ConnectionMultiplexer.CompleteAsWorker</c>): queue to
+            /// the pool and move on. The queueing itself is non-blocking, so firing under a lock is safe.
+            /// </para>
+            /// <para>
+            /// No key copy either: <see cref="Key"/> is already an immortal array - nodes are carried by
+            /// reference across table growth precisely because entries point at them - so the deferred
+            /// callback reads a span over bytes that cannot go away.
+            /// </para>
+            /// <para>
+            /// The take is the dedupe: whichever removal gets here first owns the set, and every other
+            /// path - a repeat invalidation, the sweep reclaiming an already-announced corpse - takes
+            /// null and fires nothing.
+            /// </para>
+            /// </remarks>
+            internal void NotifyRemoved(CacheKeyRemovalReason reason)
+            {
+                if (Volatile.Read(ref _observers) is not null
+                    && Interlocked.Exchange(ref _observers, null) is { } taken)
+                {
+                    ThreadPool.QueueUserWorkItem(PendingRemoval.Fire, new PendingRemoval(taken, Key, reason));
+                }
             }
 
             /// <summary>When this key was last invalidated, if anybody asked for that to be recorded.</summary>
@@ -138,7 +245,7 @@ namespace StackExchange.Redis
                     if (Interlocked.CompareExchange(ref _localWriteAt, ticket, current) == current) break;
                 }
 
-                Invalidate(stampTime);
+                Invalidate(stampTime, CacheKeyRemovalReason.LocalWrite);
             }
 
             /// <summary>
@@ -159,6 +266,43 @@ namespace StackExchange.Redis
 
                     var ticket = NextTicket();
                     if (Interlocked.CompareExchange(ref _generation, ticket, Invalid) == Invalid) return ticket;
+                }
+            }
+        }
+
+        /// <summary>One queued removal notification: the observers taken, the key, and why.</summary>
+        /// <remarks>
+        /// Exceptions are swallowed per handler: a notification is advice, and one consumer's throw must
+        /// not silence another's - nor surface on a pool thread as a process-level event.
+        /// </remarks>
+        private sealed class PendingRemoval(object observers, byte[] key, CacheKeyRemovalReason reason)
+        {
+            internal static readonly WaitCallback Fire = static state => ((PendingRemoval)state!).Invoke();
+
+            private void Invoke()
+            {
+                if (observers is CacheKeyRemovedHandler single)
+                {
+                    try
+                    {
+                        single(key, reason);
+                    }
+                    catch
+                    {
+                    }
+                }
+                else if (observers is CacheKeyRemovedHandler[] many)
+                {
+                    foreach (var handler in many)
+                    {
+                        try
+                        {
+                            handler(key, reason);
+                        }
+                        catch
+                        {
+                        }
+                    }
                 }
             }
         }
@@ -224,7 +368,10 @@ namespace StackExchange.Redis
                 foreach (var bucket in _buckets)
                 {
                     if (bucket is null) continue;
-                    foreach (var node in bucket) node.Invalidate(); // stamp before dropping; see the type remarks
+
+                    // stamp before dropping; see the type remarks. Observers hear Flushed promptly - the
+                    // dispatch only QUEUES under these locks, no user code runs here
+                    foreach (var node in bucket) node.Invalidate(stampTime: false, CacheKeyRemovalReason.Flushed);
                 }
 
                 _buckets = new Node[]?[_buckets.Length];

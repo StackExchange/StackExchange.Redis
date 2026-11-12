@@ -37,6 +37,15 @@ StackExchange.Redis.Caching.CacheAdmission
 StackExchange.Redis.Caching.CacheAdmission.Default = 0 -> StackExchange.Redis.Caching.CacheAdmission
 StackExchange.Redis.Caching.CacheAdmission.OnFirstMiss = 1 -> StackExchange.Redis.Caching.CacheAdmission
 StackExchange.Redis.Caching.CacheAdmission.OnRepeatedMiss = 2 -> StackExchange.Redis.Caching.CacheAdmission
+StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Invalidated = 0 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.LocalWrite = 1 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Replaced = 2 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Expired = 3 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Evicted = 4 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovalReason.Flushed = 5 -> StackExchange.Redis.Caching.CacheKeyRemovalReason
+StackExchange.Redis.Caching.CacheKeyRemovedHandler
+virtual StackExchange.Redis.Caching.CacheKeyRemovedHandler.Invoke(System.ReadOnlySpan<byte> key, StackExchange.Redis.Caching.CacheKeyRemovalReason reason) -> void
 StackExchange.Redis.Caching.CacheOptions.Admission.get -> StackExchange.Redis.Caching.CacheAdmission
 StackExchange.Redis.Caching.CacheOptions.Admission.init -> void
 StackExchange.Redis.Caching.CacheOptions
@@ -62,11 +71,20 @@ StackExchange.Redis.Caching.CacheOptions.TrackingMode.get -> StackExchange.Redis
 StackExchange.Redis.Caching.CacheOptions.TrackingMode.init -> void
 StackExchange.Redis.Caching.CachePolicy
 StackExchange.Redis.Caching.CachePolicy.CachePolicy() -> void
+StackExchange.Redis.Caching.CachePolicy.<Clone>$() -> StackExchange.Redis.Caching.CachePolicy!
+StackExchange.Redis.Caching.CachePolicy.Equals(StackExchange.Redis.Caching.CachePolicy? other) -> bool
+override StackExchange.Redis.Caching.CachePolicy.Equals(object? obj) -> bool
+override StackExchange.Redis.Caching.CachePolicy.GetHashCode() -> int
+override StackExchange.Redis.Caching.CachePolicy.ToString() -> string!
+static StackExchange.Redis.Caching.CachePolicy.operator !=(StackExchange.Redis.Caching.CachePolicy? left, StackExchange.Redis.Caching.CachePolicy? right) -> bool
+static StackExchange.Redis.Caching.CachePolicy.operator ==(StackExchange.Redis.Caching.CachePolicy? left, StackExchange.Redis.Caching.CachePolicy? right) -> bool
 static StackExchange.Redis.Caching.CachePolicy.Default.get -> StackExchange.Redis.Caching.CachePolicy!
 StackExchange.Redis.Caching.CachePolicy.InvalidationGracePeriod.get -> System.TimeSpan
 StackExchange.Redis.Caching.CachePolicy.InvalidationGracePeriod.init -> void
 StackExchange.Redis.Caching.CachePolicy.RefreshAfter.get -> System.TimeSpan
 StackExchange.Redis.Caching.CachePolicy.RefreshAfter.init -> void
+StackExchange.Redis.Caching.CachePolicy.RemovalHandler.get -> StackExchange.Redis.Caching.CacheKeyRemovedHandler?
+StackExchange.Redis.Caching.CachePolicy.RemovalHandler.init -> void
 StackExchange.Redis.Caching.CachePolicy.TimeToLive.get -> System.TimeSpan
 StackExchange.Redis.Caching.CachePolicy.TimeToLive.init -> void
 StackExchange.Redis.Caching.CacheTrackingMode
@@ -260,6 +278,9 @@ StackExchange.Redis.Protocol.IRespFormattableArgument
 StackExchange.Redis.Protocol.IRespFormattableArgument.WriteTo(scoped ref StackExchange.Redis.Protocol.RespRequestBuilder handler, string? format) -> void
 StackExchange.Redis.Protocol.IRespHandler<TResult>
 StackExchange.Redis.Protocol.IRespHandler<TResult>.Parse(ref RESPite.Messages.RespReader reader) -> TResult
+StackExchange.Redis.Protocol.IRespResultReuse<TResult>
+StackExchange.Redis.Protocol.IRespResultReuse<TResult>.MayReuse(in TResult value) -> bool
+StackExchange.Redis.Protocol.IRespResultReuse<TResult>.SizeOf(in TResult value) -> long
 StackExchange.Redis.Protocol.KeyRange
 StackExchange.Redis.Protocol.KeyRange.KeyRange() -> void
 StackExchange.Redis.Protocol.KeyRange.KeyRange(int offset, int length) -> void
@@ -446,7 +467,7 @@ StackExchange.Redis.RespDatabaseContext.Database.get -> int
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext() -> void
 StackExchange.Redis.RespDatabaseContext.RespDatabaseContext(StackExchange.Redis.RespContext! context) -> void
 StackExchange.Redis.RespDatabaseContext.WithDatabase(int database) -> StackExchange.Redis.RespDatabaseContext
-StackExchange.Redis.RespDatabaseContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespDatabaseContext
+StackExchange.Redis.RespDatabaseContext.WithCachePolicy(StackExchange.Redis.Caching.CachePolicy! policy) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithServices(object? services) -> StackExchange.Redis.RespDatabaseContext
 StackExchange.Redis.RespDatabaseContext.WithoutCache() -> StackExchange.Redis.RespDatabaseContext
 static StackExchange.Redis.RespDatabaseContext.explicit operator StackExchange.Redis.RespContext!(StackExchange.Redis.RespDatabaseContext context) -> StackExchange.Redis.RespContext!
@@ -557,8 +578,8 @@ StackExchange.Redis.RespServerContext.Blocking() -> StackExchange.Redis.RespServ
 StackExchange.Redis.RespServerContext.Multiplexer.get -> StackExchange.Redis.IConnectionMultiplexer?
 StackExchange.Redis.RespServerContext.RespServerContext() -> void
 StackExchange.Redis.RespServerContext.RespServerContext(StackExchange.Redis.RespContext! context) -> void
-StackExchange.Redis.RespServerContext.WithMaxCacheAge(System.TimeSpan maxAge) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.WithServices(object? services) -> StackExchange.Redis.RespServerContext
+StackExchange.Redis.RespServerContext.WithCachePolicy(StackExchange.Redis.Caching.CachePolicy! policy) -> StackExchange.Redis.RespServerContext
 StackExchange.Redis.RespServerContext.WithoutCache() -> StackExchange.Redis.RespServerContext
 static StackExchange.Redis.RespServerContext.explicit operator StackExchange.Redis.RespContext!(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespContext!
 static StackExchange.Redis.RespServerContext.explicit operator StackExchange.Redis.RespContext(StackExchange.Redis.RespServerContext context) -> StackExchange.Redis.RespContext
