@@ -1126,9 +1126,6 @@ namespace StackExchange.Redis
                     // Clear the unselectable flag ASAP since we are open for business
                     ClearUnselectable(UnselectableFlags.DidNotRespond);
 
-                    // whatever a handoff pointed us at, we are connected now: resume normal resolution
-                    ClearHandoffTarget();
-
                     // is *this specific* connection using RESP3? (without reference to config preferences)
                     bool isResp3 = connection?.Protocol is >= RedisProtocol.Resp3;
                     // and if so, is pub/sub sharing it? (if not, subscriptions live on a dedicated connection)

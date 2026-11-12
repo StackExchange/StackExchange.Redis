@@ -132,6 +132,70 @@ namespace StackExchange.Redis
         /// </summary>
         internal void MarkNeedsReconnect() => Volatile.Write(ref _needsReconnect, true);
 
+        /// <summary>
+        /// A maintenance handoff is draining the current connection: a caller's work is held in the backlog for the
+        /// replacement rather than written to a socket the server is about to close. Without this the drain could
+        /// never finish under steady traffic - there was always something in flight - so the recycle waited for the
+        /// end of the announced window and then failed whatever was in flight at that instant.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately only a flag, and only while the connection is live: once it has been replaced, the ordinary
+        /// disconnected rules and the backlog policy apply, and the held work is flushed by the same path that
+        /// flushes any other backlog when the replacement establishes. The hold is not raced against the write lock,
+        /// so a writer that passed this gate before the hold began and reached the lock after the recycle gets a
+        /// write fault, exactly as it would have before; and a held command is covered by the relaxed window rather
+        /// than by anything per-message, so with relaxation turned off and a timeout shorter than the hold it can
+        /// time out in the backlog - as it would in the backlog of any other reconnect.
+        /// </remarks>
+        private volatile bool _holdForHandoff;
+
+        internal void BeginHandoffHold() => _holdForHandoff = true;
+
+        /// <summary>Ends the hold; the connection it was draining has been replaced (or there was none).</summary>
+        internal void EndHandoffHold()
+        {
+            _holdForHandoff = false;
+            // the usual case is that the connection has just been recycled, and the reconnect's establishment flushes
+            // the backlog; this covers the one where nothing was recycled, so that nothing else would
+            if (BacklogHasItems) StartBacklogProcessor();
+        }
+
+        /// <summary>
+        /// Whether a message is held for the handoff rather than written: a caller's work (internal traffic such as
+        /// keep-alives still goes to the old connection, and QUIT is never queued), on a live connection.
+        /// </summary>
+        private bool ShouldHoldForHandoff(Message message)
+            => _holdForHandoff && !message.IsInternalCall && message.Command != RedisCommand.QUIT && IsConnected && !NeedsReconnect;
+
+        /// <summary>Queues a message the hold diverted; queued counts as success, as it does for a disconnected backlog.</summary>
+        private WriteResult HoldForHandoff(Message message)
+        {
+            message.SetEnqueued(null);
+            BacklogEnqueue(message);
+            // the hold may have ended between the check and the enqueue; the processor itself does nothing while it
+            // stands, so starting it is always safe, and starting it here means nothing is stranded in that race
+            StartBacklogProcessor();
+            return WriteResult.Success;
+        }
+
+        /// <summary>
+        /// A batch is written as a unit, so it is held as a unit: when it carries any holdable message and no QUIT.
+        /// An internal member rides along with the rest, because splitting the batch would be worse than holding it.
+        /// </summary>
+        private static bool ShouldHoldBatch(List<Message> messages)
+        {
+            bool any = false;
+            foreach (var message in messages)
+            {
+                if (message.Command == RedisCommand.QUIT) return false;
+                any |= !message.IsInternalCall;
+            }
+            return any;
+        }
+
+        /// <summary>Whether a caller is waiting for a reply on the current connection; the backlog is not counted.</summary>
+        internal bool HasCallerMessagesInFlight() => physical?.HasCallerMessagesAwaitingResponse() == true;
+
         public void Dispose()
         {
             isDisposed = true;
@@ -212,6 +276,7 @@ namespace StackExchange.Redis
         public WriteResult TryWriteSync(Message message, bool isReplica)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
+            if (ShouldHoldForHandoff(message)) return HoldForHandoff(message);
             if (!IsConnected || NeedsReconnect) return QueueOrFailMessage(message);
 
             var physical = this.physical;
@@ -236,6 +301,7 @@ namespace StackExchange.Redis
         public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica, bool bypassBacklog = false)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
+            if (!bypassBacklog && ShouldHoldForHandoff(message)) return new ValueTask<WriteResult>(HoldForHandoff(message));
             if ((!IsConnected || NeedsReconnect) && !bypassBacklog) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
 
             var physical = this.physical;
@@ -477,8 +543,10 @@ namespace StackExchange.Redis
                 Multiplexer.Logger?.LogErrorConnectionIssue(innerException, innerException.Message);
             }
             Trace($"OnConnectionFailed: {connection}");
-            // If we're configured to, fail all pending backlogged messages
-            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true)
+            // If we're configured to, fail all pending backlogged messages - but not for a maintenance handoff: that
+            // is a replacement we chose, and the backlog then holds work diverted off a live connection, which would
+            // have been written and answered; it is for the replacement to flush
+            if (Multiplexer.RawConfig.BacklogPolicy?.AbortPendingOnConnectionFailure == true && failureType != ConnectionFailureType.MaintenanceHandoff)
             {
                 AbandonPendingBacklog(innerException, connection);
             }
@@ -775,6 +843,18 @@ namespace StackExchange.Redis
             if (messages == null || messages.Count == 0) return true;
 
             if (isDisposed) throw new ObjectDisposedException(Name);
+
+            if (_holdForHandoff && IsConnected && !NeedsReconnect && ShouldHoldBatch(messages))
+            {
+                // a maintenance handoff is draining the connection: hold the batch, as a unit, for the replacement
+                foreach (var message in messages)
+                {
+                    message.SetEnqueued(null);
+                    BacklogEnqueue(message);
+                }
+                StartBacklogProcessor();
+                return true;
+            }
 
             if (!IsConnected || NeedsReconnect)
             {
@@ -1262,6 +1342,10 @@ namespace StackExchange.Redis
                     // check whether the backlog is empty *before* even trying to get the lock
                     if (_backlog.IsEmpty) return; // nothing to do
 
+                    // a maintenance handoff is holding work back from the connection about to be replaced: nothing
+                    // would be written; the recycle and the reconnect that follows it kick this again
+                    if (_holdForHandoff) return;
+
                     // try and get the lock; if unsuccessful, retry
                     gotLock = _singleWriter.TryTakeSync();
                     if (gotLock) break; // got the lock; now go do something with it
@@ -1272,7 +1356,7 @@ namespace StackExchange.Redis
                 // Timeouts are handled above, so we're exclusively into backlog items eligible to write at this point.
                 // If we can't write them, abort and wait for the next heartbeat or activation to try this again.
                 bool flush = false;
-                while (IsConnected)
+                while (IsConnected && !_holdForHandoff) // not while a handoff is holding work back from the connection about to be replaced
                 {
                     // Snapshot the connection for the whole of this message: OnDisconnected nulls the field
                     // without waiting for the write lock, so re-reading it (as the loop guard used to) can hand
