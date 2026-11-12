@@ -337,7 +337,7 @@ public class ArrayGrepRequest
     }
 
     private sealed class ArrayGrepMessage(int db, RedisKey key, ArrayGrepRequest request, CommandFlags flags)
-        : Message(db, flags, RedisCommand.ARGREP)
+        : Message.CommandKeyBase(db, flags, RedisCommand.ARGREP, key)
     {
         public override int ArgCount
         {
@@ -374,7 +374,7 @@ public class ArrayGrepRequest
         protected override void WriteImpl(in MessageWriter writer)
         {
             writer.WriteHeader(Command, ArgCount);
-            writer.Write(key);
+            writer.Write(Key);
             if (request.IsReversed)
             {
                 AddIndex(writer, request.End, "$1\r\n+\r\n"u8);

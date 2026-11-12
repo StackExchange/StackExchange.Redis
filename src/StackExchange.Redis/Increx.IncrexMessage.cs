@@ -9,9 +9,8 @@ internal partial class RedisDatabase
         CommandFlags flags,
         RedisKey key,
         Expiration expiry,
-        IncrementOptions options) : Message(database, flags, RedisCommand.INCREX)
+        IncrementOptions options) : Message.CommandKeyBase(database, flags, RedisCommand.INCREX, key)
     {
-        protected RedisKey Key => key;
         protected Expiration Expiry => expiry;
         protected IncrementOptions Options => options;
 
