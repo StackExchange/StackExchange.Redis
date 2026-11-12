@@ -18,21 +18,32 @@ namespace StackExchange.Redis.Caching
     /// about the connection and live on <see cref="CacheOptions"/> instead.
     /// </para>
     /// <para>
-    /// The freshness tolerance a particular caller will accept rides on the context - see
-    /// <see cref="RespContext.WithMaxCacheAge"/> - and is read-time for exactly the same reason. So does
-    /// a removal observer (<see cref="RespDatabaseContext.WithRemovalHandler"/>): enrollment is armed by
-    /// the read, additive and idempotent, and never changes how the shared entry behaves for any other
-    /// caller - which is why it, too, is safe to vary per call.
+    /// The same read-time nature is what lets a <b>whole policy ride on the context</b> - see
+    /// <see cref="RespDatabaseContext.WithCachePolicy"/> - so a caller with a different freshness
+    /// tolerance, or a removal observer to arm, states it per call without changing how the shared entry
+    /// behaves for anyone else. A per-read policy <b>replaces</b> the cache's
+    /// <see cref="CacheOptions.DefaultPolicy"/> for those reads rather than merging with it, so derive it
+    /// from the policy you mean: <c>policy with { TimeToLive = ... }</c>.
     /// </para>
     /// <para>
-    /// It also keeps <see cref="RespContext"/> at its 48 bytes: a context carries a reference to shared
-    /// policy plus at most one override, rather than a field per knob.
+    /// It also keeps <see cref="RespContext"/> at its 48 bytes: a context carries a reference to a shared
+    /// policy, rather than a field per knob.
     /// </para>
     /// </remarks>
-    public sealed class CachePolicy
+    public sealed record CachePolicy
     {
+        // BEFORE Default: statics initialise in declaration order, and Default's construction reads this
+        private static readonly TimeSpan DefaultTimeToLive = TimeSpan.FromMinutes(1);
+
         /// <summary>The default policy, used when none is given.</summary>
         public static CachePolicy Default { get; } = new();
+
+        private readonly TimeSpan _timeToLive = DefaultTimeToLive;
+        private readonly TimeSpan _refreshAfter;
+        private readonly TimeSpan _invalidationGracePeriod;
+        private readonly long _timeToLiveTicks = ToTicks(DefaultTimeToLive);
+        private readonly long _refreshAfterTicks;
+        private readonly long _serveStaleTicks;
 
         /// <summary>
         /// The longest an entry may be served after it was fetched, regardless of invalidation.
@@ -52,8 +63,27 @@ namespace StackExchange.Redis.Caching
         /// seconds, so the default of one minute is comfortably longer than detection while still bounding
         /// the damage when detection itself fails.
         /// </para>
+        /// <para>
+        /// On a per-read policy (<see cref="RespDatabaseContext.WithCachePolicy"/>) this is the caller's
+        /// own freshness requirement, and it <b>narrows, never widens</b>: the
+        /// <see cref="CacheOptions.DefaultPolicy"/>'s lifetime remains a ceiling, and reclamation follows
+        /// the default policy alone - a read policy changes what its own reads will accept, never how long
+        /// the shared entry lives.
+        /// </para>
         /// </remarks>
-        public TimeSpan TimeToLive { get; init; } = TimeSpan.FromMinutes(1);
+        public TimeSpan TimeToLive
+        {
+            get
+            {
+                return _timeToLive;
+            }
+
+            init
+            {
+                _timeToLive = value;
+                _timeToLiveTicks = ToTicks(value);
+            }
+        }
 
         /// <summary>
         /// How old an entry may get before a read refreshes it in the background, while still being served.
@@ -78,7 +108,19 @@ namespace StackExchange.Redis.Caching
         /// retained to make it possible.
         /// </para>
         /// </remarks>
-        public TimeSpan RefreshAfter { get; init; } = TimeSpan.Zero;
+        public TimeSpan RefreshAfter
+        {
+            get
+            {
+                return _refreshAfter;
+            }
+
+            init
+            {
+                _refreshAfter = value;
+                _refreshAfterTicks = ToTicks(value);
+            }
+        }
 
         /// <summary>
         /// A grace period after an invalidation, during which the old value may still be served while a
@@ -120,8 +162,61 @@ namespace StackExchange.Redis.Caching
         /// which is otherwise a few nanoseconds wide and sees every key the server mentions - so the cost
         /// lands only on those who asked for the feature.
         /// </para>
+        /// <para>
+        /// That stamping decision belongs to the <see cref="CacheOptions.DefaultPolicy"/>, because the
+        /// invalidation path cannot know which context will read next. So on a per-read policy this window
+        /// only functions when the default policy enabled one too; given that, the window used is this
+        /// policy's own - a caller can opt out of stale serving, or use a different window, still inside
+        /// <see cref="TimeToLive"/>.
+        /// </para>
         /// </remarks>
-        public TimeSpan InvalidationGracePeriod { get; init; } = TimeSpan.Zero;
+        public TimeSpan InvalidationGracePeriod
+        {
+            get
+            {
+                return _invalidationGracePeriod;
+            }
+
+            init
+            {
+                _invalidationGracePeriod = value;
+                _serveStaleTicks = ToPreciseTicks(value);
+            }
+        }
+
+        /// <summary>
+        /// A removal observer: reads that follow this policy arm it on the keys they serve, and it is told
+        /// when such a key stops being servable from the client-side cache.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>You hear about the keys you read, nothing else.</b> Enrollment rides the read: any serve
+        /// under this policy - a cache hit, or the fill a miss performs - arms the observer on the keys it
+        /// depended on, and the first removal at or after that consumes the enrollment. Reading again
+        /// re-arms it. A key may have entered the cache through a context with no observer at all: a later
+        /// hit under this policy still enrolls.
+        /// </para>
+        /// <para>
+        /// <b>Per enrollment, exactly one notification, and never a missed removal</b> - including a fill
+        /// that raced an invalidation, and a value served from the stale-grace window, both of which fire
+        /// immediately: a value that is already not current is announced, not silently handed over. A
+        /// notification can arrive after a racing re-read, so treat it as "drop derived state", which is
+        /// always safe; it is advice about staleness, not an ordered event stream.
+        /// </para>
+        /// <para>
+        /// The observer is told the key (exactly as stored, prefixes included, valid only for the
+        /// callback) and why it went. It is called from the thread pool, never from the connection's
+        /// reader. Keep it <b>long-lived and cheap</b>: build the policy once and reuse it (the handler
+        /// reference is the identity enrollment dedupes on), and do only bookkeeping in the callback - it
+        /// shares the thread pool with everything else. Exceptions are swallowed.
+        /// </para>
+        /// <para>
+        /// On the <see cref="CacheOptions.DefaultPolicy"/> it is <b>connection-wide</b>: every cached read
+        /// enrolls it, and so does a background refresh completing - so a watched key stays watched across
+        /// its own replacement, for as long as anything keeps reading it.
+        /// </para>
+        /// </remarks>
+        public CacheKeyRemovedHandler? RemovalHandler { get; init; }
 
         /// <summary>Whether this policy asks for background refresh at all.</summary>
         internal bool RefreshesEarly => RefreshAfter > TimeSpan.Zero && RefreshAfter < TimeToLive;
@@ -134,13 +229,13 @@ namespace StackExchange.Redis.Caching
         /// the ages below: a grace window can be tens of milliseconds, and it is only consulted for an entry that
         /// has already been invalidated, so its clock read is off the hit path.
         /// </summary>
-        internal long ServeStaleTicks => ToPreciseTicks(InvalidationGracePeriod);
+        internal long ServeStaleTicks => _serveStaleTicks;
 
-        /// <summary><see cref="RefreshAfter"/> in <see cref="CacheClock"/> ticks.</summary>
-        internal long RefreshAfterTicks => ToTicks(RefreshAfter);
+        /// <summary><see cref="RefreshAfter"/> in <see cref="CacheClock"/> ticks; memoised, the hit path reads it per serve.</summary>
+        internal long RefreshAfterTicks => _refreshAfterTicks;
 
-        /// <summary><see cref="TimeToLive"/> in <see cref="CacheClock"/> ticks.</summary>
-        internal long TimeToLiveTicks => ToTicks(TimeToLive);
+        /// <summary><see cref="TimeToLive"/> in <see cref="CacheClock"/> ticks; memoised, the hit path reads it per serve.</summary>
+        internal long TimeToLiveTicks => _timeToLiveTicks;
 
         /// <summary>A span in <see cref="CacheClock"/> ticks: the coarse clock that entry ages are measured on.</summary>
         internal static long ToTicks(TimeSpan value)
@@ -191,38 +286,5 @@ namespace StackExchange.Redis.Caching
 
         internal static long Now => Stopwatch.GetTimestamp();
 #endif
-    }
-
-    /// <summary>
-    /// A per-context override of how stale an answer the caller will accept.
-    /// </summary>
-    /// <remarks>
-    /// The one piece of cache configuration that cannot be added to the existing surface:
-    /// <c>IDatabase.StringGet</c> cannot grow a parameter without a binary break, whereas the context
-    /// reaches every command without touching a single signature.
-    /// <para>
-    /// Applied when the entry is <b>read</b>, never stamped when it is stored - the entry is shared, so one
-    /// copy has to serve callers with different tolerances. Stamping at store time would force identical
-    /// replies to be cached once per distinct lifetime, which is the opposite of what a shared cache is for.
-    /// </para>
-    /// </remarks>
-    internal sealed class MaxCacheAgeService(TimeSpan maxAge)
-    {
-        internal TimeSpan MaxAge { get; } = maxAge;
-
-        internal long Ticks { get; } = CachePolicy.ToTicks(maxAge);
-    }
-
-    /// <summary>
-    /// A per-context removal observer: reads through this context arm it on the keys they serve.
-    /// </summary>
-    /// <remarks>
-    /// Read-time state like <see cref="MaxCacheAgeService"/>, and safe to vary per call for the same
-    /// reason: enrollment is additive and idempotent, and never changes how the shared entry behaves for
-    /// any other caller. See <see cref="RespDatabaseContext.WithRemovalHandler"/>.
-    /// </remarks>
-    internal sealed class RemovalHandlerService(CacheKeyRemovedHandler handler)
-    {
-        internal CacheKeyRemovedHandler Handler { get; } = handler;
     }
 }

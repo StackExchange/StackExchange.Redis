@@ -75,9 +75,8 @@ namespace StackExchange.Redis
         /// <inheritdoc cref="RespContext.Multiplexer"/>
         public IConnectionMultiplexer? Multiplexer => Raw.Multiplexer;
 
-        /// <summary>A copy of this context that will not serve a cached reply older than <paramref name="maxAge"/>.</summary>
-        /// <param name="maxAge">The oldest reply this context will accept from the cache.</param>
-        public RespServerContext WithMaxCacheAge(TimeSpan maxAge) => new(Raw.WithMaxCacheAge(maxAge));
+        /// <inheritdoc cref="RespDatabaseContext.WithCachePolicy"/>
+        public RespServerContext WithCachePolicy(Caching.CachePolicy policy) => new(Raw.WithCachePolicy(policy));
 
         /// <summary>A copy of this context using <paramref name="scripts"/> to remember loaded scripts.</summary>
         /// <param name="scripts">The script cache, or <see langword="null"/> for none.</param>

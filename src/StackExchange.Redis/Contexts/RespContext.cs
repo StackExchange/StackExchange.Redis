@@ -67,8 +67,7 @@ namespace StackExchange.Redis
             _cache = TryGetService<RespClientCache>(out var cache) ? cache : null;
             ScriptCache = TryGetService<RespScriptCache>(out var scripts) ? scripts : null;
             ChannelPrefix = TryGetService<ChannelPrefixService>(out var prefix) ? prefix.Channel : default;
-            MaxCacheAgeTicks = TryGetService<MaxCacheAgeService>(out var maxAge) ? maxAge.Ticks : long.MaxValue;
-            RemovalHandler = TryGetService<RemovalHandlerService>(out var removal) ? removal.Handler : null;
+            CachePolicy = TryGetService<CachePolicy>(out var policy) ? policy : null;
             IsBlocking = TryGetService<BlockingService>(out _);
         }
 
@@ -677,33 +676,17 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>A context whose cached answers must be no older than <paramref name="maxAge"/>.</summary>
-        /// <param name="maxAge">The oldest answer this caller will accept.</param>
-        /// <remarks>
-        /// Narrows, never widens: the cache's own <see cref="CachePolicy.TimeToLive"/> is a ceiling, and
-        /// this cannot raise it. So a caller can ask for fresher, never for staler than the deployment
-        /// allows.
-        /// <para>
-        /// This is the one knob that belongs on the context rather than on the policy, because freshness
-        /// tolerance is a property of the call and not of the connection or the deployment - and it is the
-        /// one that could not be added to <c>IDatabase</c> at all without a binary break.
-        /// </para>
-        /// </remarks>
-        internal RespContext WithMaxCacheAge(TimeSpan maxAge)
-            => WithServices(new MaxCacheAgeService(maxAge));
-
-        /// <summary>The caller's freshness requirement, if they stated one.</summary>
-        internal long MaxCacheAgeTicks { get; }
-
         /// <summary>
-        /// A copy of this context whose cached reads arm a removal observer on the keys they serve; see
-        /// <see cref="RespDatabaseContext.WithRemovalHandler"/> for the contract.
+        /// A copy of this context whose cached reads follow <paramref name="policy"/> instead of the
+        /// cache's <see cref="CacheOptions.DefaultPolicy"/>; see
+        /// <see cref="RespDatabaseContext.WithCachePolicy"/> for the contract.
         /// </summary>
-        internal RespContext WithRemovalHandler(CacheKeyRemovedHandler onRemoved)
-            => WithServices(new RemovalHandlerService(onRemoved ?? throw new ArgumentNullException(nameof(onRemoved))));
+        /// <param name="policy">The read policy for this caller.</param>
+        internal RespContext WithCachePolicy(CachePolicy policy)
+            => WithServices(policy ?? throw new ArgumentNullException(nameof(policy)));
 
-        /// <summary>The caller's removal observer, if they enrolled one.</summary>
-        internal CacheKeyRemovedHandler? RemovalHandler { get; }
+        /// <summary>The caller's own read policy, when they stated one; null means the cache's default.</summary>
+        internal CachePolicy? CachePolicy { get; }
 
         /// <summary>
         /// Render a command. The <c>""</c> argument passes THIS CONTEXT - the receiver of the call - into the

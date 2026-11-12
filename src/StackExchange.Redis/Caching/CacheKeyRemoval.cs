@@ -41,8 +41,8 @@ namespace StackExchange.Redis.Caching
     }
 
     /// <summary>
-    /// Told when a key read through an enrolled context stops being servable from the client-side
-    /// cache; see <see cref="RespDatabaseContext.WithRemovalHandler"/>.
+    /// Told when a key read under an enrolled policy stops being servable from the client-side
+    /// cache; see <see cref="CachePolicy.RemovalHandler"/>.
     /// </summary>
     /// <param name="key">
     /// The key exactly as stored - prefixes included - valid only for the duration of the callback.

@@ -91,12 +91,12 @@ public class RespCacheLifetimeTests
     [Fact]
     public async Task AContextCanDemandSomethingFresherThanThePolicy()
     {
-        // the one knob that is per-call, because freshness tolerance is a property of the caller - and the
-        // one that could not be added to IDatabase at all without a binary break
+        // the policy is per-call, because freshness tolerance is a property of the caller - and the
+        // thing that could not be added to IDatabase at all without a binary break
         using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var relaxed = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
-        var picky = relaxed.WithMaxCacheAge(TimeSpan.FromMilliseconds(50));
+        var picky = relaxed.WithCachePolicy(new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(50) });
 
         Assert.Equal("a", await Get(relaxed));
         await Task.Delay(150);
@@ -118,7 +118,7 @@ public class RespCacheLifetimeTests
         using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromHours(1) } });
         var executor = new FakeExecutor("$1\r\na\r\n");
         var relaxed = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
-        var picky = relaxed.WithMaxCacheAge(TimeSpan.FromMinutes(30));
+        var picky = relaxed.WithCachePolicy(new CachePolicy { TimeToLive = TimeSpan.FromMinutes(30) });
 
         Assert.Equal("a", await Get(relaxed));
         Assert.Equal("a", await Get(picky));
@@ -134,7 +134,7 @@ public class RespCacheLifetimeTests
         using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, DefaultPolicy = new CachePolicy { TimeToLive = TimeSpan.FromMilliseconds(80) } });
         var executor = new FakeExecutor("$1\r\na\r\n", "$1\r\nb\r\n");
         var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache)
-            .WithMaxCacheAge(TimeSpan.FromHours(1)));
+            .WithCachePolicy(new CachePolicy { TimeToLive = TimeSpan.FromHours(1) }));
 
         Assert.Equal("a", await Get(context));
         await Task.Delay(200);

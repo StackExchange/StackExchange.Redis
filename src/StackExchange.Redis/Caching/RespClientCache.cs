@@ -646,20 +646,20 @@ namespace StackExchange.Redis.Caching
         /// the parse is done.
         /// </summary>
         public bool TryGet(in RespRequest frame, int database, [NotNullWhen(true)] out RespPayload? payload)
-            => TryGet(in frame, database, long.MaxValue, out payload);
+            => TryGet(in frame, database, policy: null, out payload);
 
-        /// <summary>Look for a cached response, subject to a freshness requirement.</summary>
+        /// <summary>Look for a cached response, subject to a caller's own read policy.</summary>
         /// <param name="frame">The rendered request.</param>
         /// <param name="database">The database the request ran against.</param>
-        /// <param name="maxAgeTicks">
-        /// The caller's own freshness requirement, from <see cref="RespContext.WithMaxCacheAge"/>;
-        /// <see cref="long.MaxValue"/> when they did not state one.
+        /// <param name="policy">
+        /// The caller's own read policy, from <see cref="RespContext.WithCachePolicy"/>; null when they
+        /// did not state one, meaning the cache's <see cref="Policy"/>.
         /// </param>
         /// <param name="payload">The cached reply, retained.</param>
         /// <remarks>
         /// <para>
-        /// Age is checked on <b>read</b>, against the stricter of the policy's lifetime and the caller's
-        /// requirement - never stamped when the entry was stored. The entry is shared, so one copy serves
+        /// Age is checked on <b>read</b>, against the stricter of the cache policy's lifetime and the
+        /// caller's - never stamped when the entry was stored. The entry is shared, so one copy serves
         /// callers with different tolerances; stamping at store time would force identical replies to be
         /// cached once per distinct lifetime, which is the opposite of what a shared cache is for.
         /// </para>
@@ -668,13 +668,13 @@ namespace StackExchange.Redis.Caching
         /// a read path, and <see cref="Sweep"/> is where entries go.
         /// </para>
         /// </remarks>
-        public bool TryGet(in RespRequest frame, int database, long maxAgeTicks, [NotNullWhen(true)] out RespPayload? payload)
-            => TryGet(in frame, database, maxAgeTicks, out payload, out _);
+        public bool TryGet(in RespRequest frame, int database, CachePolicy? policy, [NotNullWhen(true)] out RespPayload? payload)
+            => TryGet(in frame, database, policy, out payload, out _);
 
-        /// <inheritdoc cref="TryGet(in RespRequest, int, long, out RespPayload?)"/>
+        /// <inheritdoc cref="TryGet(in RespRequest, int, CachePolicy?, out RespPayload?)"/>
         /// <param name="frame">The rendered request.</param>
         /// <param name="database">The database the request ran against.</param>
-        /// <param name="maxAgeTicks">The caller's own freshness requirement.</param>
+        /// <param name="policy">The caller's own read policy, or null for the cache's.</param>
         /// <param name="payload">The cached reply, retained.</param>
         /// <param name="shouldRefresh">
         /// <c>true</c> if this caller has <b>claimed</b> the job of refreshing an ageing entry, and must
@@ -688,36 +688,37 @@ namespace StackExchange.Redis.Caching
         public bool TryGet(
             in RespRequest frame,
             int database,
-            long maxAgeTicks,
+            CachePolicy? policy,
             [NotNullWhen(true)] out RespPayload? payload,
             out bool shouldRefresh)
-            => TryGet(in frame, database, maxAgeTicks, out payload, out shouldRefresh, out _);
+            => TryGet(in frame, database, policy, out payload, out shouldRefresh, out _);
 
-        /// <inheritdoc cref="TryGet(in RespRequest, int, long, out RespPayload?, out bool)"/>
+        /// <inheritdoc cref="TryGet(in RespRequest, int, CachePolicy?, out RespPayload?, out bool)"/>
         /// <param name="frame">The rendered request.</param>
         /// <param name="database">The database the request ran against.</param>
-        /// <param name="maxAgeTicks">The caller's own freshness requirement.</param>
+        /// <param name="policy">
+        /// The caller's own read policy, or null for the cache's. Its
+        /// <see cref="CachePolicy.RemovalHandler"/>, when it has one, is armed only when something is
+        /// actually served - a miss arms nothing, because the caller holds nothing that could go stale.
+        /// </param>
         /// <param name="payload">The cached reply, retained.</param>
         /// <param name="shouldRefresh">Whether this caller claimed the refresh; see the other overload.</param>
         /// <param name="reuse">
         /// The served entry's memoized-result slot, through which the caller may skip parsing entirely -
         /// or record its parse for the next hit to skip. Empty on a miss, and harmlessly inert then.
         /// </param>
-        /// <param name="onRemoved">
-        /// A removal observer to arm on the served keys, or null. Armed only when something is actually
-        /// served - a miss arms nothing, because the caller holds nothing that could go stale.
-        /// </param>
         public bool TryGet(
             in RespRequest frame,
             int database,
-            long maxAgeTicks,
+            CachePolicy? policy,
             [NotNullWhen(true)] out RespPayload? payload,
             out bool shouldRefresh,
-            out ResultReuse reuse,
-            CacheKeyRemovedHandler? onRemoved = null)
+            out ResultReuse reuse)
         {
             shouldRefresh = false;
             reuse = default;
+            policy ??= Policy;
+            var onRemoved = policy.RemovalHandler;
 
             if (!_entries.TryGetValue(new EntryKey(frame, database), out var entry))
             {
@@ -729,7 +730,7 @@ namespace StackExchange.Redis.Caching
             // decision rather than a shortcut
             if (!entry.IsValid)
             {
-                if (TryServeStale(entry, maxAgeTicks, out payload, out shouldRefresh))
+                if (TryServeStale(entry, policy, out payload, out shouldRefresh))
                 {
                     reuse = new ResultReuse(this, entry);
                     if (onRemoved is not null)
@@ -754,14 +755,15 @@ namespace StackExchange.Redis.Caching
                 // let one stale read through the door it had already closed
                 if (entry.IsValid)
                 {
-                    var limit = Math.Min(Policy.TimeToLiveTicks, maxAgeTicks);
+                    // the stricter of the cache's lifetime and the caller's: a read policy narrows, never widens
+                    var limit = Math.Min(Policy.TimeToLiveTicks, policy.TimeToLiveTicks);
                     if (!CachePolicy.IsOlderThan(entry.FilledAt, limit))
                     {
                         // served either way; the only question is whether this reader also goes and gets a
-                        // newer one. Note the soft threshold is the POLICY's, not the caller's: a caller
-                        // asking for fresher than it gets a miss, which is a stronger answer than a refresh.
-                        if (Policy.RefreshesEarly
-                            && CachePolicy.IsOlderThan(entry.FilledAt, Policy.RefreshAfterTicks)
+                        // newer one. The soft threshold is the read policy's own: past the caller's own
+                        // LIFETIME they get a miss, which is a stronger answer than a refresh.
+                        if (policy.RefreshesEarly
+                            && CachePolicy.IsOlderThan(entry.FilledAt, policy.RefreshAfterTicks)
                             && entry.TryClaimRefresh())
                         {
                             Interlocked.Increment(ref _refreshes);
@@ -827,23 +829,27 @@ namespace StackExchange.Redis.Caching
         /// </description></item>
         /// <item><description>
         /// <b>Within the same age limits as a valid entry</b>: <see cref="CachePolicy.TimeToLive"/>, the backstop
-        /// against missed invalidations, and the caller's own <see cref="RespContext.WithMaxCacheAge"/>. The grace
+        /// against missed invalidations, from both the cache's policy and the caller's own. The grace
         /// period shortens an entry's life after an invalidation; it never extends it.
         /// </description></item>
         /// </list>
+        /// The policy consulted is the CALLER's (<paramref name="policy"/>): a caller can opt out of stale
+        /// serving, or use its own window - but only when the cache's own <see cref="Policy"/> enabled the
+        /// feature too, because that is what turns on the invalidation-time stamping this is measured
+        /// against; unstamped, <see cref="Entry.StaleSince"/> is zero and every window refuses.
         /// </remarks>
-        private bool TryServeStale(Entry entry, long maxAgeTicks, [NotNullWhen(true)] out RespPayload? payload, out bool shouldRefresh)
+        private bool TryServeStale(Entry entry, CachePolicy policy, [NotNullWhen(true)] out RespPayload? payload, out bool shouldRefresh)
         {
             shouldRefresh = false;
             payload = null;
 
-            if (!Policy.ServesStale || entry.WrittenLocally) return false;
+            if (!policy.ServesStale || entry.WrittenLocally) return false;
 
             // measured from the INVALIDATION, not from whenever somebody first looked: a key nobody has read
             // for an hour should expire, not be resurrected by the next reader to wander past
             var staleSince = entry.StaleSince;
-            if (staleSince == 0 || CachePolicy.IsOlderThanPrecise(staleSince, Policy.ServeStaleTicks)) return false;
-            if (CachePolicy.IsOlderThan(entry.FilledAt, Math.Min(Policy.TimeToLiveTicks, maxAgeTicks))) return false;
+            if (staleSince == 0 || CachePolicy.IsOlderThanPrecise(staleSince, policy.ServeStaleTicks)) return false;
+            if (CachePolicy.IsOlderThan(entry.FilledAt, Math.Min(Policy.TimeToLiveTicks, policy.TimeToLiveTicks))) return false;
 
             if (!entry.Payload.TryRetain()) return false;
 
@@ -1156,22 +1162,24 @@ namespace StackExchange.Redis.Caching
         /// copied</b>. It is already in a pooled, reference-counted buffer; copying it into a second one to
         /// cache it would be pure waste.
         /// </remarks>
-        public bool TryComplete(in RespFill fill, RespPayload response) => TryComplete(in fill, response, onRemoved: null);
+        public bool TryComplete(in RespFill fill, RespPayload response) => TryComplete(in fill, response, policy: null);
 
         /// <inheritdoc cref="TryComplete(in RespFill, RespPayload)"/>
         /// <param name="fill">The fill to complete.</param>
         /// <param name="response">The reply that arrived.</param>
-        /// <param name="onRemoved">
-        /// A removal observer to arm on the filled keys, or null. Armed whether or not the reply was
-        /// stored - the server is tracking these keys either way - EXCEPT when it provably is not
-        /// (the tracking prefix was dropped) or the reply was an error, where "you will be told" would
-        /// be a promise nothing can keep.
+        /// <param name="policy">
+        /// The read policy of the caller this fill serves, or null for the cache's own. Its
+        /// <see cref="CachePolicy.RemovalHandler"/>, when it has one, is armed on the filled keys whether
+        /// or not the reply was stored - the server is tracking these keys either way - EXCEPT when it
+        /// provably is not (the tracking prefix was dropped) or the reply was an error, where "you will
+        /// be told" would be a promise nothing can keep.
         /// </param>
-        public bool TryComplete(in RespFill fill, RespPayload response, CacheKeyRemovedHandler? onRemoved)
+        public bool TryComplete(in RespFill fill, RespPayload response, CachePolicy? policy)
         {
             if (response is null) throw new ArgumentNullException(nameof(response));
             if (fill.Key.IsEmpty) return false;
 
+            var onRemoved = (policy ?? Policy).RemovalHandler;
             Unregister(in fill);
             try
             {

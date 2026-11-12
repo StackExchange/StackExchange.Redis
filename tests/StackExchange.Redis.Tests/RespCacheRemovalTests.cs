@@ -12,8 +12,9 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 /// <summary>
-/// Per-key removal notification: a context enrolled via <see cref="RespDatabaseContext.WithRemovalHandler"/>
-/// is told when a key it read stops being servable from the client-side cache.
+/// Per-key removal notification: a <see cref="CachePolicy.RemovalHandler"/> - per caller via
+/// <see cref="RespDatabaseContext.WithCachePolicy"/>, or connection-wide on the default policy - is
+/// told when a key read under it stops being servable from the client-side cache.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -38,11 +39,14 @@ public class RespCacheRemovalTests
         CacheOptions? options = null,
         params string[] replies)
     {
-        var cache = new RespClientCache(options ?? new CacheOptions { Admission = CacheAdmission.OnFirstMiss });
+        options ??= new CacheOptions { Admission = CacheAdmission.OnFirstMiss };
+        var cache = new RespClientCache(options);
         var executor = new FakeExecutor(replies);
         var recorder = new Recorder();
+
+        // the caller's read policy is the cache's own, plus the observer: derive, don't rebuild
         var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache))
-            .WithRemovalHandler(recorder.Handler);
+            .WithCachePolicy(options.DefaultPolicy with { RemovalHandler = recorder.Handler });
         return (context, cache, executor, recorder);
     }
 
@@ -119,7 +123,7 @@ public class RespCacheRemovalTests
         var executor = new InvalidatingExecutor(cache, "k", "$1\r\na\r\n");
         var recorder = new Recorder();
         var context = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache))
-            .WithRemovalHandler(recorder.Handler);
+            .WithCachePolicy(new CachePolicy { RemovalHandler = recorder.Handler });
         using (cache)
         {
             var value = await context.SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
@@ -227,8 +231,8 @@ public class RespCacheRemovalTests
         var second = new Recorder();
         using (cache)
         {
-            _ = await shared.WithRemovalHandler(first.Handler).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
-            _ = await shared.WithRemovalHandler(second.Handler).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
+            _ = await shared.WithCachePolicy(new CachePolicy { RemovalHandler = first.Handler }).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
+            _ = await shared.WithCachePolicy(new CachePolicy { RemovalHandler = second.Handler }).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
 
             cache.OnInvalidate("k"u8);
 
@@ -248,8 +252,8 @@ public class RespCacheRemovalTests
         using (cache)
         {
             // the throwing handler enrolls FIRST, so a propagated exception would take the second with it
-            _ = await shared.WithRemovalHandler(throwing).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
-            _ = await shared.WithRemovalHandler(recorder.Handler).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
+            _ = await shared.WithCachePolicy(new CachePolicy { RemovalHandler = throwing }).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
+            _ = await shared.WithCachePolicy(new CachePolicy { RemovalHandler = recorder.Handler }).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
 
             cache.OnInvalidate("k"u8);
 
@@ -267,7 +271,31 @@ public class RespCacheRemovalTests
         using (cache)
         {
             _ = await plain.SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable); // fill, no observer
-            _ = await plain.WithRemovalHandler(recorder.Handler).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable); // hit enrolls
+            _ = await plain.WithCachePolicy(new CachePolicy { RemovalHandler = recorder.Handler }).SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable); // hit enrolls
+
+            cache.OnInvalidate("k"u8);
+
+            Assert.Equal(("k", CacheKeyRemovalReason.Invalidated), await recorder.NextAsync());
+            await recorder.AssertNoFurtherAsync();
+        }
+    }
+
+    [Fact]
+    public async Task AHandlerOnTheDefaultPolicyIsConnectionWide()
+    {
+        // no per-context policy anywhere: the observer rides the cache's own DefaultPolicy, so EVERY
+        // read enrolls it - the firehose a backplane wants, with the same read-armed one-shot contract
+        var recorder = new Recorder();
+        var cache = new RespClientCache(new CacheOptions
+        {
+            Admission = CacheAdmission.OnFirstMiss,
+            DefaultPolicy = new CachePolicy { RemovalHandler = recorder.Handler },
+        });
+        var executor = new FakeExecutor("$1\r\na\r\n");
+        var plain = new RespDatabaseContext(new RespContext().WithExecutor(executor).WithCache(cache));
+        using (cache)
+        {
+            _ = await plain.SendAsync<string>($"{RedisCommand.GET}{(RedisKey)"k"}", Readable);
 
             cache.OnInvalidate("k"u8);
 
@@ -324,16 +352,17 @@ public class RespCacheRemovalTests
         const long budget = 4L * 1024 * 1024;
         var reply = "$8000\r\n" + new string('x', 8000) + "\r\n";
         var recorder = new Recorder();
+        var observing = new CachePolicy { RemovalHandler = recorder.Handler };
         using var cache = new RespClientCache(new CacheOptions { Admission = CacheAdmission.OnFirstMiss, MaxBytes = budget });
 
-        Fill(cache, "hot", reply, recorder.Handler);
+        Fill(cache, "hot", reply, observing);
         for (var i = 0; i < 10_000 && cache.Promoted == 0; i++)
         {
             Fill(cache, "filler" + i, reply);
             if (i % 4 == 0)
             {
                 using var frame = Renderer.Render($"{RedisCommand.GET}{(RedisKey)"hot"}");
-                Assert.True(cache.TryGet(frame.AsLookupKey(Readable), 0, long.MaxValue, out var payload, out _, out _, recorder.Handler));
+                Assert.True(cache.TryGet(frame.AsLookupKey(Readable), 0, observing, out var payload, out _, out _));
                 payload.Release();
             }
         }
@@ -347,8 +376,8 @@ public class RespCacheRemovalTests
         Assert.Equal(CacheKeyRemovalReason.Invalidated, reason);
     }
 
-    /// <summary>Render, fill, and complete - optionally arming an observer, as the funnel would.</summary>
-    private static void Fill(RespClientCache cache, string key, string response, CacheKeyRemovedHandler? onRemoved = null)
+    /// <summary>Render, fill, and complete - optionally under an observing policy, as the funnel would.</summary>
+    private static void Fill(RespClientCache cache, string key, string response, CachePolicy? policy = null)
     {
         var frame = Renderer.Render($"{RedisCommand.GET}{(RedisKey)key}");
         if (!cache.TryBeginFill(ref frame, 0, Readable, out var fill))
@@ -357,15 +386,15 @@ public class RespCacheRemovalTests
             return;
         }
 
-        Complete(cache, fill, response, onRemoved);
+        Complete(cache, fill, response, policy);
     }
 
-    private static void Complete(RespClientCache cache, in RespClientCache.RespFill fill, string response, CacheKeyRemovedHandler? onRemoved = null)
+    private static void Complete(RespClientCache cache, in RespClientCache.RespFill fill, string response, CachePolicy? policy = null)
     {
         var payload = RespPayload.Create(Encoding.UTF8.GetBytes(response));
         try
         {
-            cache.TryComplete(fill, payload, onRemoved);
+            cache.TryComplete(fill, payload, policy);
         }
         finally
         {
