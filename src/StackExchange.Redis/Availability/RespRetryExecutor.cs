@@ -12,13 +12,13 @@ namespace StackExchange.Redis.Availability;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>The same policy as <see cref="RetryDatabase"/>, and a fraction of the code.</b> That one has to
-/// capture every argument of every command into a generated state struct so it can replay the call, own
-/// pooled copies of any <c>Memory&lt;T&gt;</c> arguments for as long as the replaying lasts, and dispose
-/// the capture when the last attempt is done - because what it is replaying is a <i>method call</i>. Here
-/// the thing being replayed is a rendered frame that already exists, so there is nothing to capture,
-/// nothing to own and nothing to map: the loop is the whole of it. Both call the same
-/// <see cref="RetryController"/>, so the two paths cannot disagree about policy.
+/// <b>A rendered frame is the thing replayed, which is why this is small.</b> The capture-and-replay
+/// wrapper this replaced had to capture every argument of every command into a generated state struct so
+/// it could replay the call, own pooled copies of any <c>Memory&lt;T&gt;</c> arguments for as long as the
+/// replaying lasted, and dispose the capture when the last attempt was done - because what it replayed
+/// was a <i>method call</i>. Here the frame already exists, so there is nothing to capture, nothing to
+/// own and nothing to map: the loop is the whole of it, and <see cref="RetryController"/> makes every
+/// policy decision.
 /// </para>
 /// <para>
 /// <b>Synchronous too.</b> A synchronous send - which is what a <see cref="RespContext.Blocking"/> context
@@ -29,11 +29,11 @@ namespace StackExchange.Redis.Availability;
 /// context the one kind that could not serve a library's synchronous methods.
 /// </para>
 /// <para>
-/// <b>Failover is not wired up yet.</b> <see cref="RetryDatabase"/> takes its next-failover token from
-/// <c>IDatabaseAsync.GetNextFailover()</c>; an executor has no equivalent, so this takes an optional
-/// source and is built without <see cref="DatabaseFeatureFlags.Failover"/> when there is none - which
-/// makes <see cref="RetryController.TracksFailover"/> false and the failover rungs unreachable, rather
-/// than silently pretending a failover could happen.
+/// <b>Failover comes from the executor chain.</b> The source is optional, and this is built without
+/// <see cref="DatabaseFeatureFlags.Failover"/> when there is none - which makes
+/// <see cref="RetryController.TracksFailover"/> false and the failover rungs unreachable, rather than
+/// silently pretending a failover could happen. A multi-group chain supplies one
+/// (<c>RespGroupExecutor.GetFailoverSource</c>); a single connection has nothing to fail over to.
 /// </para>
 /// </remarks>
 internal sealed class RespRetryExecutor : RespExecutorBase
@@ -43,31 +43,20 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     private readonly Func<CancellationToken>? _failoverSource;
 
     internal RespRetryExecutor(RespExecutorBase inner, RetryPolicy policy, Func<CancellationToken>? failoverSource = null)
-        : this(
-            inner,
-            new RetryController(
-                policy ?? throw new ArgumentNullException(nameof(policy)),
-                failoverSource is null ? DatabaseFeatureFlags.None : DatabaseFeatureFlags.Failover),
-            failoverSource)
-    {
-    }
-
-    /// <summary>Share an existing controller, rather than deriving a second one from the same policy.</summary>
-    /// <remarks>
-    /// For <see cref="RetryDatabase"/>, whose context is this executor over the inner one: sharing the
-    /// controller means the database path and the context path are not merely configured alike, they are
-    /// configured by the same object - including the failover feature flag, which a policy alone does not
-    /// carry.
-    /// </remarks>
-    internal RespRetryExecutor(RespExecutorBase inner, RetryController controller, Func<CancellationToken>? failoverSource)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
-        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _controller = new RetryController(
+            policy ?? throw new ArgumentNullException(nameof(policy)),
+            failoverSource is null ? DatabaseFeatureFlags.None : DatabaseFeatureFlags.Failover);
         _failoverSource = failoverSource;
     }
 
     /// <summary>The policy in force; read by the tests, which assert how a policy was resolved.</summary>
     internal RetryPolicy Policy => _controller.Policy;
+
+    /// <summary>The controller, shared with <see cref="RespRetryTransactionExecutor"/> so a transaction
+    /// created from a retrying database applies exactly the policy the database does.</summary>
+    internal RetryController Controller => _controller;
 
     /// <summary>The executor underneath, so a second <c>WithRetry</c> can refuse rather than nest.</summary>
     internal RespExecutorBase Inner => _inner;
@@ -208,7 +197,7 @@ internal sealed class RespRetryExecutor : RespExecutorBase
         }
     }
 
-    /// <summary>The retry loop, borrowed whole from <see cref="RetryDatabase"/>.</summary>
+    /// <summary>The retry loop.</summary>
     /// <remarks>
     /// <para>
     /// Every decision is the controller's: whether the fault is transient, whether attempts remain,
@@ -216,9 +205,9 @@ internal sealed class RespRetryExecutor : RespExecutorBase
     /// shape of the loop.
     /// </para>
     /// <para>
-    /// <b>The failover token is captured before the first attempt is awaited</b>, as it is there and for
-    /// the same reason: taken afterwards, a failover happening between the failure and the fetch would be
-    /// missed, and the retry would wait for one that had already been and gone.
+    /// <b>The failover token is captured before the first attempt is awaited</b>: taken afterwards, a
+    /// failover happening between the failure and the fetch would be missed, and the retry would wait
+    /// for one that had already been and gone.
     /// </para>
     /// </remarks>
     private async ValueTask<RespPayload> Awaited(ValueTask<RespPayload> pending, RespRequest request, CancellationToken cancellationToken)

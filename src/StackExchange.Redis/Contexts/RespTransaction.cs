@@ -36,7 +36,28 @@ namespace StackExchange.Redis
     /// exactly this distinction, and §7f, where the handshake collapsed the same way.
     /// </para>
     /// </remarks>
-    internal sealed class RespTransactionExecutor : RespExecutorBase
+    /// <summary>
+    /// What <see cref="RedisTransaction"/> needs from the executor underneath it, beyond
+    /// <see cref="RespExecutorBase"/>: the shape is shared by the plain one-connection unit
+    /// (<see cref="RespTransactionExecutor"/>) and the retrying one that replays the unit per attempt
+    /// (<c>RespRetryTransactionExecutor</c>).
+    /// </summary>
+    internal interface ITransactionExecutor
+    {
+        /// <inheritdoc cref="RespTransactionExecutor.AddCondition"/>
+        void AddCondition(Condition condition, Action<bool>? onVerdict = null);
+
+        /// <inheritdoc cref="RespTransactionExecutor.ExecuteAsync"/>
+        Task<bool> ExecuteAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <inheritdoc cref="RespTransactionExecutor.WasWatchConflict"/>
+        bool WasWatchConflict { get; }
+
+        /// <inheritdoc cref="RespTransactionExecutor.AggregateRetryCategory"/>
+        CommandFlags AggregateRetryCategory { get; }
+    }
+
+    internal sealed class RespTransactionExecutor : RespExecutorBase, ITransactionExecutor
     {
         private readonly RespExecutorBase _inner;
         private readonly RespContext _context;
@@ -89,7 +110,7 @@ namespace StackExchange.Redis
         /// retry: a failed condition means the state is not what you wanted, where a watch conflict means
         /// it was, and somebody moved first. Only the second is worth re-reading and trying again.
         /// </remarks>
-        internal bool WasWatchConflict => _watchConflict;
+        public bool WasWatchConflict => _watchConflict;
 
         /// <summary>Whether this transaction has been executed or discarded; either way, nothing more will be sent.</summary>
         internal bool IsSent
@@ -133,7 +154,9 @@ namespace StackExchange.Redis
             var operation = RespPayloadOperation<TResult>.Rent(handler, this);
             try
             {
-                if (!Enqueue(operation, in request, cancellationToken)) return new ValueTask<TResult>(default(TResult)!);
+                // the SHARED completed-default task, not a fresh default(TResult): a declined reply has
+                // nothing per-call to carry, and TaskBridge hands the backing task out untouched
+                if (!Enqueue(operation, in request, cancellationToken)) return new ValueTask<TResult>(CompletedTask<TResult>.Default(null)!);
             }
             catch (Exception ex)
             {
@@ -220,7 +243,7 @@ namespace StackExchange.Redis
         /// surface hands the caller a <c>ConditionResult</c> when the condition is added and fills it in
         /// later, so "which one failed?" stays answerable; a single overall bool cannot say that.
         /// </param>
-        internal void AddCondition(Condition condition, Action<bool>? onVerdict = null)
+        public void AddCondition(Condition condition, Action<bool>? onVerdict = null)
         {
             if (condition is null) throw new ArgumentNullException(nameof(condition));
             lock (_sync)
@@ -240,7 +263,7 @@ namespace StackExchange.Redis
         /// does it: they live in the conditions rather than the queue, and re-issuing them is what makes a
         /// replay safe in the first place.
         /// </remarks>
-        internal CommandFlags AggregateRetryCategory
+        public CommandFlags AggregateRetryCategory
         {
             get
             {
@@ -278,7 +301,7 @@ namespace StackExchange.Redis
         /// <c>Monitor</c> handshakes on result boxes inside the write lock to get the same effect.
         /// </para>
         /// </remarks>
-        internal async Task<bool> ExecuteAsync(CommandFlags flags = CommandFlags.None)
+        public async Task<bool> ExecuteAsync(CommandFlags flags = CommandFlags.None)
         {
             List<QueuedOperation>? queue;
             List<Condition>? conditions;

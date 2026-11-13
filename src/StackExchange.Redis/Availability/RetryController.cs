@@ -8,8 +8,8 @@ namespace StackExchange.Redis.Availability;
 
 /// <summary>
 /// Holds the retry configuration derived from a <see cref="RetryPolicy"/> (attempt counts, delays,
-/// failover gating) and makes the per-attempt retry decision. This is shared by <see cref="RetryDatabase"/>
-/// and <see cref="RetryTransaction"/> so the two paths apply identical policy math.
+/// failover gating) and makes the per-attempt retry decision, so that <see cref="RespRetryExecutor"/>
+/// is only the shape of the loop.
 /// </summary>
 internal sealed class RetryController
 {

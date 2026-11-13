@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests;
 /// at all, if a command were quietly still being forwarded. So these assert the other half: that the
 /// members those suites call are implemented by the class itself rather than generated.
 /// <para>
-/// <c>[AutoDatabase]</c> emits EXPLICIT interface implementations, so the interface map is what tells the
+/// <c>[AutoDatabase]</c> emitted EXPLICIT interface implementations, so the interface map is what told the
 /// two apart - a hand-written member maps to a public method, a generated one to a private explicit one.
 /// Nothing else can see the difference, which is the same reason RedisDatabaseTests goes through
 /// IDatabase rather than the concrete type.
@@ -213,18 +213,9 @@ public class DatabaseCoverageTests
         Assert.Equal(["CreateTransaction(Object)"], Generated(string.Empty, typeof(IDatabaseAsync)));
     }
 
-    /// <summary>
-    /// The control for every <c>Assert.Empty</c> above: the query really can see a generated member, so
-    /// "nothing is generated" means nothing is generated rather than "the query stopped working".
-    /// </summary>
-    /// <remarks>
-    /// <see cref="Availability.RetryDatabase"/> is <c>[AutoDatabase(Replays = true)]</c> and is generated
-    /// on purpose - capture-and-replay wrappers are what the generator is <i>for</i>, and it keeps that
-    /// job after the transitional database stops needing it. So this control cannot go stale by being
-    /// right, which is how the previous one kept failing.
-    /// </remarks>
-    [Fact]
-    public void TheGeneratedQueryCanStillSeeAGeneratedMember()
-        => Assert.NotEmpty(Generated(typeof(Availability.RetryDatabase), "String", typeof(IDatabaseAsync)));
+    // The control that used to sit here - "the query really can see a generated member" - went with the
+    // [AutoDatabase] generator itself: its last consumer, RetryTransaction, was replaced by the frame-level
+    // RespRetryTransactionExecutor, so NOTHING in the assembly is generated and the Assert.Empty pins above
+    // now guard against hand-written explicit implementations creeping back rather than generated ones.
 }
 

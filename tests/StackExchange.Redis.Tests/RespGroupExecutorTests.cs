@@ -180,14 +180,16 @@ public class RespGroupExecutorTests
     }
 
     [Fact]
-    public async Task ADefaultedDatabaseIndexStillNeedsAMember()
+    public async Task ADefaultedDatabaseIndexIsConfiguration()
     {
-        // the honest asymmetry: -1 means "whatever the active member defaults to", which cannot be known
-        // with nothing connected. Throwing matches what the Database property itself already does, so the
-        // context surface is not inventing a new failure mode here.
+        // -1 used to mean "whatever the active member defaults to", which needed a member - but the group
+        // REFUSES construction when members disagree about DefaultDatabase, so the default is member 0's
+        // configuration and is fully determined with nothing reachable. Both the property and the context
+        // answer while everything is down.
         var config = ConfigurationOptions.Parse("127.0.0.1:6399");
         config.AbortOnConnectFail = false;
         config.ConnectTimeout = 500;
+        config.DefaultDatabase = 3;
 
         IConnectionGroup group;
         try
@@ -203,8 +205,8 @@ public class RespGroupExecutorTests
         await using var owner = group;
 
         var db = group.GetDatabase();
-        Assert.Throws<RedisConnectionException>(() => db.Database);      // the shipped property
-        Assert.Throws<RedisConnectionException>(() => _ = db.Context);   // and the context agrees
+        Assert.Equal(3, db.Database);
+        Assert.Equal(3, db.Context.Database);
     }
 
     [Fact]

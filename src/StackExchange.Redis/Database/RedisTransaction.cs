@@ -23,7 +23,7 @@ namespace StackExchange.Redis
     /// notes §3c and §7r.
     /// </para>
     /// </remarks>
-    internal sealed class RedisTransaction : RedisBatch, ITransaction, IInternalTransaction
+    internal sealed class RedisTransaction : RedisBatch, ITransaction
     {
         /// <inheritdoc/>
         /// <remarks>
@@ -32,11 +32,11 @@ namespace StackExchange.Redis
         /// </remarks>
         private protected sealed override DatabaseFeatureFlags OwnFeatures => DatabaseFeatureFlags.Transaction;
 
-        private readonly RespTransactionExecutor _executor;
+        private readonly ITransactionExecutor _executor;
 
         private RedisTransaction(
             RespDatabaseContext queueing,
-            RespTransactionExecutor executor,
+            ITransactionExecutor executor,
             IConnectionMultiplexer multiplexer,
             object? asyncState)
             : base(queueing, executor: null, multiplexer, asyncState)
@@ -50,6 +50,33 @@ namespace StackExchange.Redis
                 "This context has no executor, so there is nothing to run a transaction through.");
 
             var executor = new RespTransactionExecutor(inner, raw, reusable: true); // as the shipped ITransaction
+            return new RedisTransaction(new RespDatabaseContext(raw.WithExecutor(executor)), executor, multiplexer, asyncState);
+        }
+
+        /// <summary>Wrap a retrying context so its transaction replays as a unit.</summary>
+        /// <remarks>
+        /// <para>
+        /// The queueing context keeps everything the database's context had EXCEPT the retry link - the
+        /// unit is what retries, so a per-frame retry inside it would re-send individual queued commands,
+        /// which is not a retry of anything the caller asked for. The retrying executor shares the
+        /// database's <see cref="Availability.RetryController"/>, so budgets and failover tracking are the
+        /// same ones a plain command sees.
+        /// </para>
+        /// <para>
+        /// <b>Not reusable, where the plain transaction is</b>: a replayed unit releases its recorded
+        /// requests when it finishes, so "execute, then queue more onto the same object" has nothing left
+        /// to compose onto. The capture-replay <c>RetryTransaction</c> made the same call.
+        /// </para>
+        /// </remarks>
+        internal static RedisTransaction CreateRetryingTransaction(
+            RespDatabaseContext source,
+            Availability.RespRetryExecutor retry,
+            IConnectionMultiplexer multiplexer,
+            object? asyncState)
+        {
+            var raw = source.Raw;
+            var plain = raw.WithExecutor(retry.Inner);
+            var executor = new Availability.RespRetryTransactionExecutor(retry.Inner, plain, retry.Controller);
             return new RedisTransaction(new RespDatabaseContext(raw.WithExecutor(executor)), executor, multiplexer, asyncState);
         }
 
@@ -71,15 +98,6 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public bool WasWatchConflict => _executor.WasWatchConflict;
-
-        /// <inheritdoc/>
-        /// <remarks>
-        /// <b>Without this the retry layer cannot retry a transaction at all.</b> It asks the transaction
-        /// what a replay would do, and a transaction that does not answer is assumed to be
-        /// <see cref="CommandFlags.CommandRetryNever"/> - so a transient fault the caller explicitly asked
-        /// to ride out is rethrown instead, and their retry policy silently does nothing.
-        /// </remarks>
-        CommandFlags IInternalTransaction.GetAggregateRetryCategory() => _executor.AggregateRetryCategory;
 
         /// <inheritdoc/>
         /// <remarks>

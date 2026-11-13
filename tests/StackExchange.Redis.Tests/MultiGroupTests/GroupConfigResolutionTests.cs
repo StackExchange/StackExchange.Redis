@@ -44,13 +44,15 @@ public class GroupConfigResolutionTests(ITestOutputHelper log)
         await using var conn = await ConnectionMultiplexer.ConnectGroupAsync(members, options);
 
         // the parameterless overload resolves the policy from the group it is attached to
-        var retrying = Assert.IsType<RetryDatabase>(conn.GetDatabase().WithRetry());
-        Assert.Same(groupPolicy, retrying.Policy);
+        var retrying = conn.GetDatabase().WithRetry();
+        var executor = Assert.IsType<RespRetryExecutor>(retrying.Context.Raw.Executor);
+        Assert.Same(groupPolicy, executor.Policy);
 
         // ...and an explicit policy still wins
         RetryPolicy explicitPolicy = new RetryPolicy.Builder { MaxAttempts = 2 };
-        var explicitlyRetrying = Assert.IsType<RetryDatabase>(conn.GetDatabase().WithRetry(explicitPolicy));
-        Assert.Same(explicitPolicy, explicitlyRetrying.Policy);
+        var explicitlyRetrying = conn.GetDatabase().WithRetry(explicitPolicy);
+        var explicitExecutor = Assert.IsType<RespRetryExecutor>(explicitlyRetrying.Context.Raw.Executor);
+        Assert.Same(explicitPolicy, explicitExecutor.Policy);
     }
 
     [Fact]

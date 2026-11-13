@@ -1379,12 +1379,29 @@ namespace StackExchange.Redis
 
             public IDatabase GetDatabase(int db = -1, object? asyncState = null)
             {
-                if ((asyncState is null) & (db >= -1) & (db <= ConnectionMultiplexer.MaxCachedDatabaseInstance))
+                if (db < -1) throw new ArgumentOutOfRangeException(nameof(db));
+
+                // a defaulted index is configuration, not connection state: every member must agree about
+                // DefaultDatabase (ValidateConsistentConfiguration refuses a group that disagrees), so the
+                // group's default is member 0's and needs no member to be reachable
+                if (db < 0) db = DefaultDatabase;
+
+                if ((asyncState is null) & (db <= ConnectionMultiplexer.MaxCachedDatabaseInstance))
                 {
                     return _databases[db + 1] ??= new MultiGroupDatabase(this, db, null);
                 }
 
                 return new MultiGroupDatabase(this, db, asyncState);
+            }
+
+            /// <summary>The database a defaulted index resolves to; configuration, shared by every member.</summary>
+            internal int DefaultDatabase
+            {
+                get
+                {
+                    var members = _members;
+                    return (members.Length == 0 ? null : members[0].Configuration.DefaultDatabase) ?? 0;
+                }
             }
 
             private readonly IDatabase?[] _databases =

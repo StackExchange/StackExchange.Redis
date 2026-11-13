@@ -155,6 +155,25 @@ public static partial class Keys
         // pattern with a '*' looks anything up: BY nosort, a starless BY, and GET # read nothing else.
         if (ReadsOtherKeys(by, get)) flags = flags.NeverCached();
 
+        // The patterns name keys, but travel as VALUES, so the render-time key prefix cannot see them;
+        // a prefixed context maps them here instead, exactly as the old KeyPrefixedDatabase did. The two
+        // operand spellings are exempt: BY nosort and GET # are instructions, not patterns.
+        if (!context.KeyPrefixSpan.IsEmpty)
+        {
+            if (!by.IsNull && by != RedisLiterals.nosort) by = PrefixPattern(context, by);
+            if (!get.IsEmpty)
+            {
+                var mapped = new RedisValue[get.Length];
+                for (var i = 0; i < get.Length; i++)
+                {
+                    var pattern = get[i];
+                    mapped[i] = pattern == RedisLiterals.HashSymbol ? pattern : PrefixPattern(context, pattern);
+                }
+
+                get = mapped;
+            }
+        }
+
         var command = SelectCommand(context, in destination, in key, ref flags);
 
         // these defaults mean "everything", and the server already assumes them
@@ -204,6 +223,10 @@ public static partial class Keys
         var frame = cmd.Complete();
         return context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require(), default);
     }
+
+    /// <summary>A BY/GET pattern with the context's key prefix prepended.</summary>
+    private static RedisValue PrefixPattern(RespContext context, RedisValue pattern)
+        => RedisKey.ConcatenateBytes((byte[]?)context.KeyPrefix, null, (byte[]?)pattern);
 
     /// <summary>SORT or SORT_RO, and what that means for retries and routing.</summary>
     private static bool ReadsOtherKeys(RedisValue by, ReadOnlySpan<RedisValue> get)

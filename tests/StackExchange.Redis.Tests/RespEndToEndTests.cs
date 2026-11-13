@@ -567,23 +567,28 @@ public class RespEndToEndTests(ITestOutputHelper output, SharedConnectionFixture
         Assert.Equal("solo", (string?)await context.Strings.GetAsync(key));
     }
 
-    /// <summary>A retrying TRANSACTION still refuses, and for a reason of its own.</summary>
+    /// <summary>A retrying TRANSACTION exposes a working context too, and it queues rather than sends.</summary>
     /// <remarks>
-    /// A retrying database replays one operation, so decorating its executor reproduces it exactly. A
-    /// retrying transaction replays the whole recorded unit - conditions, queued operations and
-    /// <c>EXEC</c> together - which a per-frame retry executor cannot express: it would re-send individual
-    /// frames inside a transaction, retrying something nobody asked for.
+    /// This used to assert a refusal: the capture-and-replay wrapper recorded <i>method calls</i>, so a
+    /// context - which produces rendered frames - had nothing to record into, and asking for one threw.
+    /// The frame-replaying executor records rendered frames, which is exactly what a context emits, so the
+    /// refusal went with the wrapper: a command queued through the context here is recorded, replayed and
+    /// answered through the same durable proxy as an interface call.
     /// </remarks>
     [Fact]
-    public async Task ARetryingTransactionStillRefusesAContext()
+    public async Task ARetryingTransactionContextQueuesInsteadOfSending()
     {
         await using var conn = Create();
+        var key = Me();
         var retrying = conn.GetDatabase().WithRetry(
             new RetryPolicy.Builder { MaxAttempts = 3, RetryDelay = TimeSpan.Zero, JitterMax = TimeSpan.Zero });
+        await retrying.StringSetAsync(key, "tranned");
 
         var tran = retrying.CreateTransaction();
-        var ex = Assert.Throws<NotImplementedException>(() => ((IRespKeyspaceTarget)tran).Context);
-        Assert.Contains("replayed as a unit", ex.Message);
+        var pending = ((IRespKeyspaceTarget)tran).Context.Strings.GetAsync(key);
+        Assert.False(pending.IsCompleted, "DEFERRED-OK: transaction did not send immediately");
+        Assert.True(await tran.ExecuteAsync(), "EXEC-OK");
+        Assert.Equal("tranned", (string?)await pending);
     }
 
     /// <summary>And so does a transaction's, for an ordinary single-frame command.</summary>

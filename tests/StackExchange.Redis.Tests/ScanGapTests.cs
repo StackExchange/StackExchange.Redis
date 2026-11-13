@@ -11,14 +11,16 @@ using Xunit;
 namespace StackExchange.Redis.Tests;
 
 /// <summary>
-/// The deferred-execution members on <see cref="IDatabase"/>, which SER352 cannot see.
+/// The deferred-execution members on <see cref="IDatabase"/>, which SER352 could not see.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>[AutoDatabase]</c> skips every <c>IEnumerable&lt;T&gt;</c>/<c>IAsyncEnumerable&lt;T&gt;</c> member -
-/// deferred execution does not fit capture-and-replay - so these are hand-written, and the generator has
-/// no way to tell a real implementation from a forwarding throw. To it they are simply "declared", so the
-/// SER352 count omits them entirely. This file is the tripwire in the one place that can see them.
+/// <c>[AutoDatabase]</c> skipped every <c>IEnumerable&lt;T&gt;</c>/<c>IAsyncEnumerable&lt;T&gt;</c> member -
+/// deferred execution does not fit capture-and-replay - so these were hand-written, and the generator had
+/// no way to tell a real implementation from a forwarding throw. To it they were simply "declared", so the
+/// SER352 count omitted them entirely. This file was the tripwire in the one place that could see them,
+/// and it outlives the generator: the members are still forwarded one at a time, so the gap it watches
+/// is still a gap something has to watch.
 /// </para>
 /// <para>
 /// It earned that description immediately: wiring the scans to the context surface made the previous
