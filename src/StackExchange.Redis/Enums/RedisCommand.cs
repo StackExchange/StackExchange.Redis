@@ -299,6 +299,8 @@ internal enum RedisCommand
     ZINTERCARD,
     ZINTERSTORE,
     ZLEXCOUNT,
+    ZMOVE,
+    ZMOVEMEMBER,
     ZMPOP,
     ZMSCORE,
     ZPOPMAX,
@@ -455,6 +457,8 @@ internal static class RedisCommandExtensions
             case RedisCommand.ZDIFFSTORE:
             case RedisCommand.ZINTERSTORE:
             case RedisCommand.ZINCRBY:
+            case RedisCommand.ZMOVE:
+            case RedisCommand.ZMOVEMEMBER:
             case RedisCommand.ZMPOP:
             case RedisCommand.ZPOPMAX:
             case RedisCommand.ZPOPMIN:

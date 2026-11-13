@@ -32,6 +32,7 @@ Statuses: `policy` (excluded by design), `not-applicable` (not meaningful for a 
 | `BLMOVE` | 6.2.0 | `policy` | Blocking; `ListMove` covers `LMOVE`. |
 | `BLMOVEM` | 8.10.0 | `policy` | Blocking; the non-blocking `LMOVEM` is implemented. |
 | `BLMPOP` | 7.0.0 | `policy` | Blocking; `ListLeftPop`/`ListRightPop` cover `LMPOP`. |
+| `BZMOVE` | 8.12.0 | `policy` | Blocking; `SortedSetMove` covers `ZMOVE` (the `MIN`/`MAX` forms `BZMOVE` offers). |
 | `BZMPOP` | 7.0.0 | `policy` | Blocking; `SortedSetPop` covers `ZMPOP`. |
 | `BZPOPMAX` | 5.0.0 | `policy` | Blocking; `SortedSetPop` covers `ZPOPMAX`. |
 | `BZPOPMIN` | 5.0.0 | `policy` | Blocking; `SortedSetPop` covers `ZPOPMIN`. |

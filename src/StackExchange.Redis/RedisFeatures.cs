@@ -52,7 +52,8 @@ namespace StackExchange.Redis
                                          v8_6_0 = new Version(8, 6, 0),
                                          v8_8_0 = new Version(8, 7, 225), // 8.8 is version 8.7.225
                                          v8_10_0 = new Version(8, 9, 241), // 8.10 preview is version 8.9.241
-                                         v8_12_0 = new Version(8, 11, 241); // 8.12 RC2 is version 8.11.241
+                                         v8_12_0 = new Version(8, 11, 241), // 8.12 RC2 is version 8.11.241
+                                         v8_12_0_rc3 = new Version(8, 11, 242); // 8.12 RC3 is version 8.11.242
 
 #pragma warning restore SA1310 // Field names should not contain underscore
 #pragma warning restore SA1311 // Static readonly fields should begin with upper-case letter
@@ -342,6 +343,11 @@ namespace StackExchange.Redis
         /// Are key eviction-protection flags (<c>BLESS</c>) available?
         /// </summary>
         public bool Bless => Version.IsAtLeast(v8_12_0);
+
+        /// <summary>
+        /// Are atomic sorted-set moves (<c>ZMOVE</c>, <c>ZMOVEMEMBER</c>) available?
+        /// </summary>
+        public bool SortedSetMove => Version.IsAtLeast(v8_12_0_rc3);
 
 #pragma warning restore 1629 // Documentation text should end with a period.
 

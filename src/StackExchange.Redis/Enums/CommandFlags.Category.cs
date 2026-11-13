@@ -287,6 +287,8 @@ internal static class CommandFlagsExtensions
                 case RedisCommand.ZPOPMIN:
                 case RedisCommand.ZPOPMAX:
                 case RedisCommand.ZMPOP:
+                case RedisCommand.ZMOVE: // a replay moves further members (MIN/MAX), or finds the first batch already gone
+                case RedisCommand.ZMOVEMEMBER:
                 case RedisCommand.XADD: // explicit ids and IDMP/IDMPAUTO are demoted where we can see the args
                 case RedisCommand.PFMERGE: // destination accumulates union each call
                 case RedisCommand.BITFIELD: // INCRBY sub-ops compound; demoted to last-wins when the payload has none

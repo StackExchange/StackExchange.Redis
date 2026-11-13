@@ -2910,6 +2910,70 @@ namespace StackExchange.Redis
         SortedSetPopResult SortedSetPop(RedisKey[] keys, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Atomically moves entries from the low-score or high-score end of the sorted set at <paramref name="sourceKey"/>
+        /// to the sorted set at <paramref name="destinationKey"/>, keeping their scores. A source that becomes empty is
+        /// deleted; an entry that already exists in the destination takes the score from the source.
+        /// </summary>
+        /// <param name="sourceKey">The key of the sorted set to move entries from.</param>
+        /// <param name="destinationKey">The key of the sorted set to move entries to; it is created if it does not exist.</param>
+        /// <param name="order"><see cref="Order.Ascending"/> moves the lowest scores first (<c>MIN</c>); <see cref="Order.Descending"/> moves the highest scores first (<c>MAX</c>).</param>
+        /// <param name="count">The maximum number of entries to move; when omitted no <c>COUNT</c> is sent, and the server moves one entry.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The entries moved, in the order they were taken, or <see langword="null"/> if nothing was moved.</returns>
+        /// <remarks>
+        /// <para>Both keys must be in the same hash slot on a cluster.</para>
+        /// <para>The blocking form, <c>BZMOVE</c>, is not exposed: see <see href="https://seredis.dev/CommandCoverage"/>.</para>
+        /// <seealso href="https://redis.io/commands/zmove"/>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        SortedSetEntry[]? SortedSetMove(RedisKey sourceKey, RedisKey destinationKey, Order order = Order.Ascending, long? count = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Atomically moves the entries with a score between <paramref name="start"/> and <paramref name="stop"/> (inclusive by default),
+        /// lowest score first, from the sorted set at <paramref name="sourceKey"/> to the sorted set at <paramref name="destinationKey"/>,
+        /// keeping their scores. A source that becomes empty is deleted; an entry that already exists in the destination takes
+        /// the score from the source.
+        /// </summary>
+        /// <param name="sourceKey">The key of the sorted set to move entries from.</param>
+        /// <param name="destinationKey">The key of the sorted set to move entries to; it is created if it does not exist.</param>
+        /// <param name="start">The minimum score to move.</param>
+        /// <param name="stop">The maximum score to move.</param>
+        /// <param name="exclude">Which of <paramref name="start"/> and <paramref name="stop"/> to exclude (defaults to both inclusive).</param>
+        /// <param name="count">
+        /// The maximum number of entries to move. When omitted no <c>COUNT</c> is sent, and the server moves <b>every</b> entry in
+        /// the range in a single command; on a large range that occupies the server for the duration.
+        /// </param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The entries moved, lowest score first, or <see langword="null"/> if nothing was moved.</returns>
+        /// <remarks>
+        /// <para>Both keys must be in the same hash slot on a cluster.</para>
+        /// <seealso href="https://redis.io/commands/zmove"/>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        SortedSetEntry[]? SortedSetMoveByScore(RedisKey sourceKey, RedisKey destinationKey, double start, double stop, Exclude exclude = Exclude.None, long? count = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Atomically moves the specified <paramref name="members"/> from the sorted set at <paramref name="sourceKey"/> to the
+        /// sorted set at <paramref name="destinationKey"/>, keeping their scores. A source that becomes empty is deleted.
+        /// </summary>
+        /// <param name="sourceKey">The key of the sorted set to move members from.</param>
+        /// <param name="destinationKey">The key of the sorted set to move members to; it is created if it does not exist.</param>
+        /// <param name="members">The members to move; a member that is not in the source is skipped, and a member given twice moves once.</param>
+        /// <param name="when">
+        /// The condition on the <b>destination</b>, evaluated per member: <see cref="When.Always"/> moves the member and overwrites any
+        /// score it has in the destination; <see cref="When.NotExists"/> (<c>NX</c>) moves it only if the destination does not have it;
+        /// <see cref="When.Exists"/> (<c>XX</c>) moves it only if the destination already has it. A member that fails the condition stays in the source.
+        /// </param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The entries moved, in the order of <paramref name="members"/>, or <see langword="null"/> if nothing was moved.</returns>
+        /// <remarks>
+        /// <para>Both keys must be in the same hash slot on a cluster.</para>
+        /// <seealso href="https://redis.io/commands/zmovemember"/>
+        /// </remarks>
+        [Experimental(Experiments.Server_8_12, UrlFormat = Experiments.UrlFormat)]
+        SortedSetEntry[]? SortedSetMoveMembers(RedisKey sourceKey, RedisKey destinationKey, RedisValue[] members, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Same as <see cref="SortedSetAdd(RedisKey, SortedSetEntry[], SortedSetWhen, CommandFlags)" /> but return the number of the elements changed.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
