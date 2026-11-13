@@ -41,6 +41,9 @@ internal class FakeExecutor(params string[] replies) : RespExecutorBase
     /// <summary>The flags each request carried, for the tests that assert what reached the wire.</summary>
     public List<CommandFlags> Flags { get; } = [];
 
+    /// <summary>The cluster slot each request carried, for the tests that assert how a command would route.</summary>
+    public List<int> Slots { get; } = [];
+
     /// <summary>What this fake server claims to support, or null for "no idea".</summary>
     /// <remarks>
     /// Null is the honest default and the interesting one: several command choices turn on a feature,
@@ -98,6 +101,7 @@ internal class FakeExecutor(params string[] replies) : RespExecutorBase
         {
             Sent.Add(Text(request.Span));
             Flags.Add(request.Flags);
+            Slots.Add(request.Slot);
             if (CaptureKeys) RecordKeys(in request);
             reply = replies[Math.Min(_next++, replies.Length - 1)];
         }

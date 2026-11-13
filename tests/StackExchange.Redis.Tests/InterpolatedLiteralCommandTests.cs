@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests;
 public class InterpolatedLiteralCommandTests
 {
     // these tests exist to exercise the form SER309 warns about, so the warning is suppressed here and
-    // nowhere wider - the same discipline the generator uses for SER011
+    // nowhere wider - the same discipline the generator uses for SER101
 #pragma warning disable SER309
 
     private static string Text(in RespRequestFrame frame) =>

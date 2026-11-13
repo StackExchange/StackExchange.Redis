@@ -27,7 +27,7 @@ public class SER309CodeFix : CodeFixVerifier<RespInterpolationAnalyzer, RespLite
         """;
 
     private const string Declarations = """
-        #pragma warning disable SER011
+        #pragma warning disable SER101
         using StackExchange.Redis;
         using StackExchange.Redis.Protocol;
 

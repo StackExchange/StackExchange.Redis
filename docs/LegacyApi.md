@@ -365,8 +365,8 @@ Generated from the v4 `IDatabase` implementation by `eng/docs/api-map.py`; each 
 
 | `IDatabase` | grouped |
 |---|---|
-| `CreateBatch` | unchanged; or `db.BeginBatch()` ([SER014](exp/SER014), experimental) |
-| `CreateTransaction` | unchanged; or `db.BeginTransaction()` ([SER014](exp/SER014), experimental) |
+| `CreateBatch` | unchanged; or `db.BeginBatch()` ([SER103](exp/SER103), experimental) |
+| `CreateTransaction` | unchanged; or `db.BeginTransaction()` ([SER103](exp/SER103), experimental) |
 | `Execute` | `db.Context.SendAsync<T>($"...")` - see [Extending the client](Extending) |
 | `ExecuteResp` | `db.Context.SendAsync<T>($"...")` - see [Extending the client](Extending) |
 | `GeoRadius` | `db.Geospatial.SearchAsync` (`GEORADIUS` is deprecated by the server in favour of `GEOSEARCH`) |

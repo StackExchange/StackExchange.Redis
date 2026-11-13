@@ -30,6 +30,13 @@
         public const string Respite = "SER004";
         public const string UnitTesting = "SER005";
         public const string Transport = "SER009";
+        public const string ClusterSlotStats = "SER012"; // SER011 is Server_8_12, on the open set-member-expiry PR
+
+        // Numbering convention: the 3.x line allocates SER0xx as features release there, and those
+        // numbers ship - so this branch can never claim the next free SER0xx without racing it (the
+        // SER010 collision above, and SER011/SER012 after it, were exactly that race). Branch-only
+        // experiments therefore live in a SER1xx block that 3.x will never reach; released numbers
+        // always win, and a SER1xx experiment keeps its number even after a merge.
 
         /// <summary>
         /// Constructing a <c>RespFragment</c> by hand. Deliberately NOT in the global NoWarn: the whole point
@@ -40,7 +47,7 @@
         /// surface being supported does not blunt.
         /// </para>
         /// </summary>
-        public const string HandWrittenRespFragment = "SER011";
+        public const string HandWrittenRespFragment = "SER101"; // renumbered from SER011 when 3.x reserved that for Server_8_12
 
         /// <summary>
         /// Borrowed reply values: <c>RespValue</c> and the commands that hand back leases of them.
@@ -51,13 +58,13 @@
         /// can be answered differently. Turning this one off says how much of a codebase depends on the
         /// borrowing.
         /// </remarks>
-        public const string BorrowedValues = "SER012";
+        public const string BorrowedValues = "SER102"; // renumbered from SER012 when 3.x released that as ClusterSlotStats
 
         /// <summary>
         /// Batches and transactions on the context surface: <c>RespBatch</c>, <c>RespTransaction</c>, and
         /// <c>BeginBatch</c>/<c>BeginTransaction</c>.
         /// </summary>
-        public const string Batching = "SER014";
+        public const string Batching = "SER103"; // renumbered from SER014, clearing the whole contested range
 
         // ReSharper restore InconsistentNaming
 

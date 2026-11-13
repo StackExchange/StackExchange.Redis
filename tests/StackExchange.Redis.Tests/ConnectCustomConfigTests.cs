@@ -123,6 +123,6 @@ public class ConnectCustomConfigTests(ITestOutputHelper output) : TestBase(outpu
         var opCount = postCount - preCount;
         Log("OperationCount (diff): " + opCount);
 
-        Assert.True(minExpected <= opCount && opCount >= minExpected, $"Expected opcount ({opCount}) between {minExpected}-{maxExpected}");
+        Assert.True(minExpected <= opCount && opCount <= maxExpected, $"Expected opcount ({opCount}) between {minExpected}-{maxExpected}");
     }
 }

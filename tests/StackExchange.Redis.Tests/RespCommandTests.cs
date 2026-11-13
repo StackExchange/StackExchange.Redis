@@ -194,8 +194,8 @@ public partial class RespCommandTests
 
     internal static partial class RespLiterals
     {
-#pragma warning disable SER011 // stands in for the generator
+#pragma warning disable SER101 // stands in for the generator
         internal static RespFragment Info => new("$4\r\nINFO\r\n"u8);
-#pragma warning restore SER011
+#pragma warning restore SER101
     }
 }

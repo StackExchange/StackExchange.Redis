@@ -81,7 +81,7 @@ whatever each rule's own page lists.
 These are heuristics, and the list above is where the effort has gone - but it is meant to make a false positive
 rare, not impossible. If one of these rules flags something it should not have, that is a bug in the rule rather
 than something to work around: please
-[report it](https://github.com/StackExchange/StackExchange.Redis/issues/new) with the transaction as written.
+[report it](https://github.com/seredis/StackExchange.Redis/issues/new) with the transaction as written.
 
 Four rules are not in this family, because they are not suggesting an improvement to working code: `SER350`
 reports a build problem, and [SER305](SER305)/[SER306](SER306)/[SER307](../SyncOverAsync) report code that does

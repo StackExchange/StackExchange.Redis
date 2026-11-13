@@ -111,9 +111,11 @@ or `ServerDefault` to ask for nothing at all, which is what earlier versions did
 | `MIGRATING`, `FAILING_OVER`, `SMIGRATING` | relaxes command timeouts for that server while the disruption lasts |
 | `MIGRATED`, `FAILED_OVER` | ends the window, but keeps timeouts relaxed for a short tail while things settle |
 | `SMIGRATED` | as above, and re-reads the cluster topology, and re-subscribes any sharded channels whose slots moved |
-| `MOVING` | works out the replacement address, lets in-flight work finish, then replaces the connections |
+| `MOVING` | works out the replacement address, holds new commands back while in-flight ones finish (for up to half the relaxed timeout, with timeouts relaxed meanwhile), then replaces the connections and sends the held commands on the replacement |
 
 So an application that does nothing at all still benefits: commands that would have timed out during a migration are given more room, a moved slot is learned without waiting to be redirected, and a `MOVING` is acted on before the server closes the socket.
+
+During a `MOVING` handoff, commands the application issues are not written to the connection being retired: they wait in the backlog and are sent on the replacement once it is established, in the order they were issued. This happens whatever the `backlogPolicy`, because that connection is live and the command would otherwise have been written to it; and a `FailFast` policy does not abandon the held work when the old connection is closed, since a handoff is a replacement the client chose rather than a failure. The hold lasts until the commands already in flight have been answered, and at most half of `maintRelaxedTimeout` (five seconds by default), never more than half of what is left of the announced window, and never less than a second. Timeouts are relaxed for the hold and the reconnect, so with relaxation on nothing is timed out by the hold itself; an application that has turned relaxation off (`maintRelaxedTimeout=0`) and runs timeouts shorter than the hold can see held commands time out in the backlog, as they would in the backlog of any other reconnect. A command still in flight when the hold runs out - a long blocking read - is failed by the replacement, as the server's close would have failed it, so that it cannot stall everything else for the rest of the window.
 
 ### Notifications that arrive as you connect
 
@@ -254,7 +256,7 @@ multiplexer.ServerMaintenanceEvent += (object sender, ServerMaintenanceEvent e) 
     }
 };
 ```
-You can see the schema for the `AzureMaintenanceEvent` class [here](https://github.com/StackExchange/StackExchange.Redis/blob/main/src/StackExchange.Redis/Maintenance/AzureMaintenanceEvent.cs). Note that the library automatically sets the `ReceivedTimeUtc` timestamp when the event is received, so if you see in your logs that `ReceivedTimeUtc` is after `StartTimeUtc`, this may indicate that your connections are under high load.
+You can see the schema for the `AzureMaintenanceEvent` class [here](https://github.com/seredis/StackExchange.Redis/blob/main/src/StackExchange.Redis/Maintenance/AzureMaintenanceEvent.cs). Note that the library automatically sets the `ReceivedTimeUtc` timestamp when the event is received, so if you see in your logs that `ReceivedTimeUtc` is after `StartTimeUtc`, this may indicate that your connections are under high load.
 
 ## Walking through a sample maintenance event
 

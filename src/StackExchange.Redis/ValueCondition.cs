@@ -309,9 +309,9 @@ public readonly struct ValueCondition : IRespArgument
         var keyword = KeywordResp;
         if (keyword.IsEmpty) return; // ValueCondition.Always contributes no arguments
 
-#pragma warning disable SER011 // pre-framed constants owned by this type; see Expiration for the reasoning
+#pragma warning disable SER101 // pre-framed constants owned by this type; see Expiration for the reasoning
         handler.AppendFormatted(new RespFragment(keyword));
-#pragma warning restore SER011
+#pragma warning restore SER101
         if (IsValueTest)
         {
             handler.AppendFormatted(_value);

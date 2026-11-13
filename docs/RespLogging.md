@@ -107,7 +107,7 @@ If the RESP streams are *not* valid, an exception will provide further details.
 **An exception here is strong evidence that there is a fault either in the redis server, or an intermediate proxy**.
 
 Conversely, if the library reported a protocol failure but the validation step here *does not* report an error, then
-that is strong evidence of a library error; [**please report this**](https://github.com/StackExchange/StackExchange.Redis/issues/new) (with details).
+that is strong evidence of a library error; [**please report this**](https://github.com/seredis/StackExchange.Redis/issues/new) (with details).
 
 You can also *replay* the conversation locally, seeing the individual requests and responses:
 

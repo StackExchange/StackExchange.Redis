@@ -54,9 +54,9 @@ public readonly partial struct BitFieldOperation
         if (_kind != OperationKind.Get && Overflow != overflow)
         {
             overflow = Overflow;
-#pragma warning disable SER011 // pre-framed constants owned by this type; see Expiration for the reasoning
+#pragma warning disable SER101 // pre-framed constants owned by this type; see Expiration for the reasoning
             handler.AppendFormatted(new RespFragment(OverflowResp(overflow), argCount: 2));
-#pragma warning restore SER011
+#pragma warning restore SER101
         }
 
         var kind = KindResp;
@@ -68,9 +68,9 @@ public readonly partial struct BitFieldOperation
             throw new InvalidOperationException($"A default {nameof(BitFieldOperation)} is not a valid operation.");
         }
 
-#pragma warning disable SER011 // as above
+#pragma warning disable SER101 // as above
         handler.AppendFormatted(new RespFragment(kind));
-#pragma warning restore SER011
+#pragma warning restore SER101
         Encoding.WriteTo(ref handler);
         Offset.WriteTo(ref handler);
         if (_kind != OperationKind.Get) handler.AppendFormatted(Value);

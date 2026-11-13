@@ -79,7 +79,7 @@ namespace StackExchange.Redis
         /// <param name="reusable">
         /// Whether executing leaves the transaction open for another. The shipped <see cref="ITransaction"/>
         /// always was - commands and conditions added after <c>Execute</c> went into a fresh queue - so the
-        /// adapter over it asks for this; the SER014 <see cref="RespTransaction"/> does not.
+        /// adapter over it asks for this; the SER103 <see cref="RespTransaction"/> does not.
         /// </param>
         internal RespTransactionExecutor(RespExecutorBase inner, RespContext? context = null, bool reusable = false)
         {

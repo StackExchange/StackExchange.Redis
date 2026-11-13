@@ -329,7 +329,7 @@ wrong twice over**: Redis ships a fault injection service for exactly this, *and
 test tier built on it.*
 
 **`tests/StackExchange.Redis.FaultInjector.Tests`** exists on `marc/maint-optin-server`, open as
-**[#3191](https://github.com/StackExchange/StackExchange.Redis/pull/3191)** (107 files, +13,160,
+**[#3191](https://github.com/seredis/StackExchange.Redis/pull/3191)** (107 files, +13,160,
 unmerged at the time of writing). Per its README it drives *"a real Redis Enterprise deployment
 through the fault injector, and watch[es] how SE.Redis reacts … the tier that can observe what no
 in-process fake can: real DNS, real TLS identity, real timing."* Gating is

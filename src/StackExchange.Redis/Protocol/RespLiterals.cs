@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     /// <para>
     /// The author writes the declaration; <c>RespFragmentGenerator</c> emits the bytes, the length
     /// prefixes and the argument count, so all three are correct by construction rather than by review.
-    /// Hand-written fragments are gated behind SER011 precisely because a mistake in any of them desyncs
+    /// Hand-written fragments are gated behind SER101 precisely because a mistake in any of them desyncs
     /// the connection, with the first symptom appearing somewhere unrelated.
     /// </para>
     /// <para>
@@ -89,6 +89,38 @@ namespace StackExchange.Redis
         /// <summary>The <c>SLOTS</c> sub-command, as used by <c>CLUSTER SLOTS</c>.</summary>
         [Resp]
         internal static partial RespFragment Slots { get; }
+
+        /// <summary>The <c>SLOT-STATS</c> sub-command of <c>CLUSTER</c>.</summary>
+        [Resp("SLOT-STATS")]
+        internal static partial RespFragment SlotStats { get; }
+
+        /// <summary>The <c>SLOTSRANGE</c> operand of <c>CLUSTER SLOT-STATS</c>; an inclusive slot range follows it.</summary>
+        [Resp]
+        internal static partial RespFragment SlotsRange { get; }
+
+        /// <summary>The <c>ORDERBY</c> operand of <c>CLUSTER SLOT-STATS</c>; a metric name follows it.</summary>
+        [Resp]
+        internal static partial RespFragment OrderBy { get; }
+
+        /// <summary>The <c>key-count</c> metric of <c>CLUSTER SLOT-STATS ORDERBY</c>; the server spells the metrics lower-case.</summary>
+        [Resp("key-count")]
+        internal static partial RespFragment KeyCountMetric { get; }
+
+        /// <summary>The <c>cpu-usec</c> metric of <c>CLUSTER SLOT-STATS ORDERBY</c>.</summary>
+        [Resp("cpu-usec")]
+        internal static partial RespFragment CpuUsecMetric { get; }
+
+        /// <summary>The <c>memory-bytes</c> metric of <c>CLUSTER SLOT-STATS ORDERBY</c>.</summary>
+        [Resp("memory-bytes")]
+        internal static partial RespFragment MemoryBytesMetric { get; }
+
+        /// <summary>The <c>network-bytes-in</c> metric of <c>CLUSTER SLOT-STATS ORDERBY</c>.</summary>
+        [Resp("network-bytes-in")]
+        internal static partial RespFragment NetworkBytesInMetric { get; }
+
+        /// <summary>The <c>network-bytes-out</c> metric of <c>CLUSTER SLOT-STATS ORDERBY</c>.</summary>
+        [Resp("network-bytes-out")]
+        internal static partial RespFragment NetworkBytesOutMetric { get; }
 
         /// <summary>The <c>IDX</c> operand of <c>LCS</c>.</summary>
         [Resp]

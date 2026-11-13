@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests;
 
 /// <summary>
 /// Covers the commands whose retry category depends on their *arguments* rather than just the command name
-/// (see https://github.com/StackExchange/StackExchange.Redis/issues/3148). Each command is issued through the
+/// (see https://github.com/seredis/StackExchange.Redis/issues/3148). Each command is issued through the
 /// new surface against a fake executor, and the category is read off the flags the request reached the
 /// executor with - so nothing here needs a real Redis.
 /// </summary>

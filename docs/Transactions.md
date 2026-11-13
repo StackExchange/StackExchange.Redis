@@ -79,7 +79,7 @@ Note that the object returned from `CreateTransaction` only has access to the *a
 each operation will not be known until after `Execute` (or `ExecuteAsync`) has completed. If the operations are not applied, all the `Task`s
 will be marked as cancelled - otherwise, *after* the command has executed you can fetch the results of each as normal.
 
-The transaction carries the same command groups as the database (`tran.Strings`, `tran.Hashes`, ...), so commands are queued with the same spelling you would use outside it. There is also an experimental `db.BeginTransaction()` / `db.BeginBatch()` pair, where execution is explicit and leaving a `using` scope discards rather than sends; it is gated behind [SER014](exp/SER014) while its shape settles, so `CreateTransaction()` remains the one to reach for.
+The transaction carries the same command groups as the database (`tran.Strings`, `tran.Hashes`, ...), so commands are queued with the same spelling you would use outside it. There is also an experimental `db.BeginTransaction()` / `db.BeginBatch()` pair, where execution is explicit and leaving a `using` scope discards rather than sends; it is gated behind [SER103](exp/SER103) while its shape settles, so `CreateTransaction()` remains the one to reach for.
 
 The set of available *conditions* is not extensive, but covers the most common scenarios; please contact me (or better: submit a pull-request) if
 there are additional conditions that you would like to see.

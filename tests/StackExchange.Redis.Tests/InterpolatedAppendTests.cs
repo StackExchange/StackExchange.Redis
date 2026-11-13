@@ -19,9 +19,9 @@ public partial class InterpolatedAppendTests
 
     internal static partial class RespLiterals
     {
-#pragma warning disable SER011 // stands in for the generator
+#pragma warning disable SER101 // stands in for the generator
         internal static RespFragment EX => new("$2\r\nEX\r\n"u8);
-#pragma warning restore SER011
+#pragma warning restore SER101
     }
 
     [Fact]
