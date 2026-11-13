@@ -210,6 +210,10 @@ namespace StackExchange.Redis
         // 4194304 (bit 22): "never cached" - set by the command surface for reads whose reply is not a function
         // of their keys; never user-specified, so not visible on the public API (see CommandFlagsInternal.NeverCachedFlag)
 
+        // bits 23-24: CacheNoLocalServe and CacheNoLocalStore - declared at the END of the enum, because
+        // declaring them here flips which of the duplicate-valued names ToString() picks (see the warning
+        // at the top); their values keep them in this cache cluster regardless
+
         // 1024: used for "no flush"; never user-specified, so not visible on the public API
 
         // 2048: Use subscription connection type; never user-specified, so not visible on the public API
@@ -276,6 +280,65 @@ namespace StackExchange.Redis
         /// The command should never be retried.
         /// </summary>
         CommandRetryNever = 31 << 13, // pre-shift value 31 (the full retry-category region)
+
+        /// <summary>
+        /// The reply for this command is never served from the client-side cache: a round trip is always
+        /// performed. The reply is still eligible to be stored, and a
+        /// <see cref="Caching.CachePolicy.RemovalHandler"/> still arms, exactly as on any other round trip.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// For the one-off freshness-critical read: the caller wants <i>this</i> answer from the server,
+        /// without giving up the cache for everyone else - or for themselves next time. It is weaker than
+        /// <see cref="CacheOptOut"/> on every axis, deliberately: the key stays tracked, the reply may still
+        /// be admitted, and other callers keep being served.
+        /// </para>
+        /// <para>
+        /// "A round trip is always performed" includes declining to attach to an identical request already
+        /// in flight: that reply answers a question asked before this one, and this flag is precisely the
+        /// claim that an earlier answer will not do.
+        /// </para>
+        /// <para>
+        /// It is not a "refresh now" button. The forced round trip's reply is stored only where any fill's
+        /// would be: a resident entry that is still valid is left alone (first fill wins; invalidation is
+        /// what decides an entry's death), and admission applies as usual.
+        /// </para>
+        /// <para>
+        /// On a command that does not participate in caching - a write, fire-and-forget,
+        /// <see cref="CacheOptOut"/>, a non-deterministic read - it is inert: there is no local serve to
+        /// decline.
+        /// </para>
+        /// </remarks>
+        CacheNoLocalServe = 1 << 23,
+
+        /// <summary>
+        /// The reply for this command is never stored in the client-side cache. An entry already present may
+        /// still be served - serving is not storing - and re-arms a
+        /// <see cref="Caching.CachePolicy.RemovalHandler"/> as usual; on a round trip, the reply is not
+        /// kept, and no removal enrollment arises from it.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// For the large or scan-shaped read that would evict entries worth more than it is: read through,
+        /// and leave the cache as it was.
+        /// </para>
+        /// <para>
+        /// <b>Nothing kept means nothing watched.</b> The discarded reply begins no fill at all: no store,
+        /// no removal enrollment, and no single-flight leadership that would make a concurrent reader wait
+        /// on a reply it can never find. A layer that wants the opposite coupling - keys tracked and
+        /// announced while the values live somewhere else - is not one flag away from this; that is
+        /// <see cref="Caching.CacheStorage.External"/>, on the policy, where the
+        /// <see cref="Caching.CachePolicy.RemovalHandler"/> it requires already lives.
+        /// </para>
+        /// <para>
+        /// Combined with <see cref="CacheNoLocalServe"/>, the command behaves as one that never
+        /// participated in caching at all. Combined with <see cref="CacheOptOut"/>, it is redundant but
+        /// harmless - the command already does not participate - and on any other non-participating
+        /// command (a write, fire-and-forget, a non-deterministic read) it is equally inert: nothing would
+        /// have been stored anyway.
+        /// </para>
+        /// </remarks>
+        CacheNoLocalStore = 1 << 24,
 
         // 262144 (bit 18): "server specific" - the command is tied to a specific endpoint and must never be
         // retried on a different endpoint (for example cursor-based operations); orthogonal to the retry-category

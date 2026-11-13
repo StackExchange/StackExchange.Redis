@@ -1113,6 +1113,7 @@ namespace StackExchange.Redis
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
             NoteLocalWrite(cache, in request, flags);
+            flags = WithPolicyOptIn(flags, cache, context.CachePolicy);
 
             // CacheOptOut suppresses the PROBE as well as the store: opting out must mean the caller does
             // not get a cached answer either, not merely that this reply is not kept
@@ -1125,7 +1126,10 @@ namespace StackExchange.Redis
                 // elsewhere; sync callers therefore still send their own copy, exactly as before. Sync is
                 // deprioritised (see RedisDatabase), so this is a deliberate gap rather than an
                 // oversight - it closes when the executor gains a synchronous wait.
-                if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
+                // CacheNoLocalStore begins no fill: a reply the caller told us not to keep has no store,
+                // no removal enrollment, and no single-flight leadership to offer anyone.
+                if ((flags & CommandFlags.CacheNoLocalStore) == 0
+                    && cache.TryBeginFill(ref request, executor.Database, flags, context.CachePolicy, out var fill))
                 {
                     RespPayload filled;
                     try
@@ -1227,6 +1231,7 @@ namespace StackExchange.Redis
             var executor = context.Executor ?? ThrowNoExecutor(ref request);
             var cache = context.Cache;
             NoteLocalWrite(cache, in request, flags);
+            flags = WithPolicyOptIn(flags, cache, context.CachePolicy);
 
             if (cache is not null && UsesCache(executor, cache, flags))
             {
@@ -1237,12 +1242,18 @@ namespace StackExchange.Redis
 
                 // somebody is already fetching exactly this - wait for them instead of sending a second
                 // copy. See design notes 6.15; this is the whole of the stampede fix at the call site.
-                if (cache.TryAwaitInFlight(request.AsLookupKey(), executor.Database, out var pending))
+                // Not under CacheNoLocalServe: the in-flight reply answers a question asked before this
+                // one, and the wait resolves by re-probing the cache - both are what that flag declines.
+                if ((flags & CommandFlags.CacheNoLocalServe) == 0
+                    && cache.TryAwaitInFlight(request.AsLookupKey(), executor.Database, out var pending))
                 {
                     return AwaitShared(executor, request.Detach(flags), pending, handler, cache, context.CachePolicy, cancellationToken);
                 }
 
-                if (cache.TryBeginFill(ref request, executor.Database, flags, out var fill))
+                // CacheNoLocalStore begins no fill: a reply the caller told us not to keep has no store,
+                // no removal enrollment, and no single-flight leadership to offer anyone.
+                if ((flags & CommandFlags.CacheNoLocalStore) == 0
+                    && cache.TryBeginFill(ref request, executor.Database, flags, context.CachePolicy, out var fill))
                 {
                     return AwaitFill(executor, fill, handler, cache, context.CachePolicy, cancellationToken);
                 }
@@ -1495,6 +1506,25 @@ namespace StackExchange.Redis
         private static bool UsesCache(RespExecutorBase executor, Caching.RespClientCache cache, CommandFlags flags)
             => !executor.Transactional && cache.PermitsCaching(flags);
 
+        /// <summary>
+        /// A read under an external-storage policy behaves as if it had said
+        /// <see cref="CommandFlags.CacheOptIn"/>.
+        /// </summary>
+        /// <remarks>
+        /// The read's purpose is enrollment - the external layer hears about a key by reading it - so the
+        /// gates that drop reads not worth <i>keeping</i> (the admission doorkeeper, an opt-in tracking
+        /// mode's default-off) must not drop it silently. The client-cache flag field being non-zero means
+        /// the caller already took a position: <see cref="CommandFlags.CacheOptIn"/> needs no help, and
+        /// <see cref="CommandFlags.CacheOptOut"/> is the stronger, narrower statement - ORing opt-in beside
+        /// it would also trip the reserved-pair check that already ran.
+        /// </remarks>
+        private static CommandFlags WithPolicyOptIn(CommandFlags flags, Caching.RespClientCache? cache, Caching.CachePolicy? policy)
+            => cache is not null
+               && (flags & CommandFlagsInternal.MaskClientCache) == 0
+               && (policy ?? cache.Policy).Storage == Caching.CacheStorage.External
+                ? flags | CommandFlags.CacheOptIn
+                : flags;
+
         /// <summary>Whether a send through <paramref name="context"/> should block, rather than go the asynchronous way.</summary>
         /// <remarks>
         /// <b>Asked of the executor as well as the context</b>, because not every executor can: one that queues
@@ -1535,6 +1565,14 @@ namespace StackExchange.Redis
             CommandFlags flags,
             [MaybeNullWhen(false)] out TResult result)
         {
+            if ((flags & CommandFlags.CacheNoLocalServe) != 0)
+            {
+                // the caller said "my answer comes from the server". No probe - and no refresh claim
+                // either, because the round trip this forces is fresher than any refresh it could claim
+                result = default;
+                return false;
+            }
+
             if (!cache.TryGet(request.AsLookupKey(), executor.Database, policy, out var hit, out var refresh, out var reuse))
             {
                 result = default;

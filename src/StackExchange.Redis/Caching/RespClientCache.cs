@@ -85,6 +85,7 @@ namespace StackExchange.Redis.Caching
         private long _redundantFills;
         private long _refusedError;
         private long _refusedUntracked;
+        private long _refusedExternal;
         private long _coalesced;
         private long _expired;
         private long _refreshes;
@@ -490,6 +491,13 @@ namespace StackExchange.Redis.Caching
         /// read of a key mid-migration is served uncached. Expect zero outside a slot migration.
         /// </remarks>
         public long RefusedUntracked => Volatile.Read(ref _refusedUntracked);
+
+        /// <summary>
+        /// Fills not stored because the read's <see cref="CachePolicy.Storage"/> is
+        /// <see cref="CacheStorage.External"/>: the external layer keeps the value, and the fill existed for
+        /// its tracking and removal enrollment.
+        /// </summary>
+        public long RefusedExternal => Volatile.Read(ref _refusedExternal);
 
         /// <summary>
         /// Invalidate one key, as reported by the server. Allocation-free, and cheap when the key is not
@@ -985,6 +993,20 @@ namespace StackExchange.Redis.Caching
         /// </para>
         /// </remarks>
         public bool TryBeginFill(ref RespRequestFrame frame, int database, CommandFlags flags, out RespFill fill)
+            => TryBeginFill(ref frame, database, flags, policy: null, out fill);
+
+        /// <inheritdoc cref="TryBeginFill(ref RespRequestFrame, int, CommandFlags, out RespFill)"/>
+        /// <param name="frame">The rendered request.</param>
+        /// <param name="database">The database the request runs against.</param>
+        /// <param name="flags">The command's flags; see the overload without a policy.</param>
+        /// <param name="policy">
+        /// The caller's own read policy, or null for the cache's. Only its <see cref="CachePolicy.Storage"/>
+        /// matters here: an external-storage fill registers no single-flight leadership, because it will
+        /// store nothing - a waiter attaching to it would wake, re-probe, find nothing, and send for itself
+        /// anyway, having gained only the wait.
+        /// </param>
+        /// <param name="fill">The fill to complete once the reply arrives.</param>
+        public bool TryBeginFill(ref RespRequestFrame frame, int database, CommandFlags flags, CachePolicy? policy, out RespFill fill)
         {
             if (!IsCacheable(flags))
             {
@@ -1065,11 +1087,16 @@ namespace StackExchange.Redis.Caching
             // Register as the leader for this request, so concurrent misses can wait on us instead of each
             // sending their own copy. Losing the race is not a failure: we simply lead without a slot, which
             // is exactly the behaviour before single-flight existed, and RedundantFills still counts it.
-            var slot = new InFlight(deps);
+            // An external-storage fill never registers: see the policy parameter.
+            InFlight? slot = null;
+            if ((policy ?? Policy).Storage != CacheStorage.External)
+            {
+                slot = new InFlight(deps);
 
-            // a COPY, because this key outlives the caller's own reference: fill.Key is disposed when the
-            // fill completes, while another thread may still be looking this up. See CopyForCacheKey.
-            if (!_inFlight.TryAdd(new EntryKey(key.CopyForCacheKey(), database), slot)) slot = null;
+                // a COPY, because this key outlives the caller's own reference: fill.Key is disposed when the
+                // fill completes, while another thread may still be looking this up. See CopyForCacheKey.
+                if (!_inFlight.TryAdd(new EntryKey(key.CopyForCacheKey(), database), slot)) slot = null;
+            }
 
             fill = new RespFill(key, database, deps, this, slot);
             return true;
@@ -1179,11 +1206,12 @@ namespace StackExchange.Redis.Caching
             if (response is null) throw new ArgumentNullException(nameof(response));
             if (fill.Key.IsEmpty) return false;
 
-            var onRemoved = (policy ?? Policy).RemovalHandler;
+            policy ??= Policy;
+            var onRemoved = policy.RemovalHandler;
             Unregister(in fill);
             try
             {
-                var stored = TryCompleteCore(in fill, response, out var tracked);
+                var stored = TryCompleteCore(in fill, response, policy, out var tracked);
                 if (tracked && onRemoved is not null)
                 {
                     // LAST, after any store - and in particular after the store's own notification of the
@@ -1210,7 +1238,7 @@ namespace StackExchange.Redis.Caching
             }
         }
 
-        private bool TryCompleteCore(in RespFill fill, RespPayload response, out bool tracked)
+        private bool TryCompleteCore(in RespFill fill, RespPayload response, CachePolicy policy, out bool tracked)
         {
             tracked = true;
             if (response.PrefixDropped)
@@ -1230,6 +1258,18 @@ namespace StackExchange.Redis.Caching
                 // specified, and an enrollment that might never fire is worse than none
                 tracked = false;
                 Interlocked.Increment(ref _refusedError);
+                fill.Key.Dispose();
+                return false;
+            }
+
+            // the values live elsewhere, by policy: nothing is stored, but tracked stays TRUE - this fill
+            // went to the server exactly as a storing one would, so the keys ARE tracked, and arming the
+            // removal handler on them is the fill's whole point. Before the raced check, deliberately:
+            // raced-or-not changes nothing about a store that was never going to happen, and the arm-then-
+            // recheck in TryComplete already fires immediately for a key that died in flight.
+            if (policy.Storage == CacheStorage.External)
+            {
+                Interlocked.Increment(ref _refusedExternal);
                 fill.Key.Dispose();
                 return false;
             }

@@ -85,8 +85,13 @@ StackExchange.Redis.Caching.CachePolicy.RefreshAfter.get -> System.TimeSpan
 StackExchange.Redis.Caching.CachePolicy.RefreshAfter.init -> void
 StackExchange.Redis.Caching.CachePolicy.RemovalHandler.get -> StackExchange.Redis.Caching.CacheKeyRemovedHandler?
 StackExchange.Redis.Caching.CachePolicy.RemovalHandler.init -> void
+StackExchange.Redis.Caching.CachePolicy.Storage.get -> StackExchange.Redis.Caching.CacheStorage
+StackExchange.Redis.Caching.CachePolicy.Storage.init -> void
 StackExchange.Redis.Caching.CachePolicy.TimeToLive.get -> System.TimeSpan
 StackExchange.Redis.Caching.CachePolicy.TimeToLive.init -> void
+StackExchange.Redis.Caching.CacheStorage
+StackExchange.Redis.Caching.CacheStorage.Local = 0 -> StackExchange.Redis.Caching.CacheStorage
+StackExchange.Redis.Caching.CacheStorage.External = 1 -> StackExchange.Redis.Caching.CacheStorage
 StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Broadcast = 2 -> StackExchange.Redis.Caching.CacheTrackingMode
 StackExchange.Redis.Caching.CacheTrackingMode.Default = 1 -> StackExchange.Redis.Caching.CacheTrackingMode
@@ -110,6 +115,8 @@ StackExchange.Redis.Caching.ClientCache.Refreshes.get -> long
 StackExchange.Redis.Caching.ClientCache.ServedStale.get -> long
 StackExchange.Redis.Caching.ClientCache.Stored.get -> long
 StackExchange.Redis.Caching.ClientCache.TrackedKeys.get -> int
+StackExchange.Redis.CommandFlags.CacheNoLocalServe = 8388608 -> StackExchange.Redis.CommandFlags
+StackExchange.Redis.CommandFlags.CacheNoLocalStore = 16777216 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlags.CacheOptIn = 2097152 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlags.CacheOptOut = 1048576 -> StackExchange.Redis.CommandFlags
 StackExchange.Redis.CommandFlagsExtensions
