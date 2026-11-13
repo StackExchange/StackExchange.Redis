@@ -10,10 +10,10 @@ namespace StackExchange.Redis;
 /// </content>
 /// <remarks>
 /// <para>
-/// <b>These are hand-written because <c>[AutoDatabase]</c> skips them</b>, and it skips them for a real
-/// reason: deferred execution does not fit capture-and-replay, so an <see cref="IEnumerable{T}"/>-returning
-/// member cannot be generated. That also means the generator cannot see whether they are implemented, so
-/// SER352 has never counted them - <c>ScanGapTests</c> is what watches this file instead.
+/// <b>These were hand-written from the first day, because <c>[AutoDatabase]</c> skipped them</b> - deferred
+/// execution does not fit capture-and-replay, so an <see cref="IEnumerable{T}"/>-returning member could not
+/// be generated. That also meant the generator could not see whether they were implemented, so SER352 never
+/// counted them. Generator and rule are both gone now; <c>ScanGapTests</c> still watches this file.
 /// </para>
 /// <para>
 /// <b>Each pair of members returns the same object</b>, because the shipped contract says a scan is both

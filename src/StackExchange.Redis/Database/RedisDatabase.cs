@@ -26,8 +26,9 @@ namespace StackExchange.Redis
     /// <b>Losing it is an improvement, not a regression.</b> A command added to the interface used to
     /// produce a generated throw and a warning; now it does not compile until it is implemented, which is
     /// the same guarantee <c>RedisDatabase</c> has always had and a better one than a tripwire. The
-    /// generator itself stays - <c>RetryTransaction</c> is a capture-and-replay
-    /// wrapper, which is what it is really for.
+    /// generator itself is gone too: its last consumer, the capture-and-replay <c>RetryTransaction</c>,
+    /// was replaced by <c>RespRetryTransactionExecutor</c>, which replays rendered frames instead of
+    /// method calls and needs nothing generated.
     /// </para>
     /// <para>
     /// <b>There is no fallback.</b> This once forwarded anything not yet moved to the v3 <c>RedisDatabase</c>, and
@@ -184,7 +185,7 @@ namespace StackExchange.Redis
         /// <param name="pending">The operation to wait for.</param>
         private void Wait(ValueTask pending) => SyncWait.Wait(pending, multiplexer);
 
-        // ---- members the generator deliberately skips (see AutoDatabaseGenerator.SkipMethod) -------------
+        // ---- members the (now deleted) [AutoDatabase] generator deliberately skipped -------------
 
         /// <inheritdoc/>
         /// <remarks>
@@ -224,20 +225,13 @@ namespace StackExchange.Redis
             if (this is IBatch) throw new NotSupportedException("Nested transactions are not supported");
 
             // A retrying database replays a transaction AS A UNIT - conditions, queued commands and EXEC
-            // together - which the per-frame retry executor cannot express; that is RetryTransaction's
-            // job. It records against a plain view over the executor underneath the retry link, building
-            // a fresh inner transaction per attempt, and the durable proxy tasks it hands out cannot
-            // carry an asyncState - so one is refused rather than silently dropped.
+            // together - which the per-frame retry executor cannot express. RespRetryTransactionExecutor
+            // records the rendered frames and the conditions, replays them into a fresh one-shot unit per
+            // attempt, and settles the durable tasks it handed out only when the unit has finished for
+            // good - which is also why asyncState works here: the tasks the caller holds are ours.
             if (_inner.Raw.Executor is Availability.RespRetryExecutor retry)
             {
-                if ((asyncState ?? AsyncState) is not null)
-                {
-                    throw new InvalidOperationException(
-                        "Retrying transactions do not support asyncState; the tasks they hand back are not the tasks that were sent to the server.");
-                }
-
-                var plain = new RedisDatabase(new RespDatabaseContext(_inner.Raw.WithExecutor(retry.Inner)), multiplexer, null);
-                return new Availability.RetryTransaction(plain, retry.Controller);
+                return RedisTransaction.CreateRetryingTransaction(_inner, retry, multiplexer, asyncState ?? AsyncState);
             }
 
             // CanWriteTransactions, not CanWriteRuns: an executor can write a batch without being able to

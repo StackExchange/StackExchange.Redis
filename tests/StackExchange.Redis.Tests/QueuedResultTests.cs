@@ -93,16 +93,16 @@ public class QueuedResultTests(ITestOutputHelper output, SharedConnectionFixture
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is a regression test for a real divergence. <c>RetryTransaction</c> records every queued call and
-    /// hands back a durable proxy task; it used to do so without regard to the flags - which it could not see,
-    /// as they are captured inside the generated per-command state - so a fire-and-forget result stayed
-    /// incomplete until <c>ExecuteAsync</c> forwarded it.
+    /// This is a regression test for a real divergence. A retrying transaction records every queued call and
+    /// hands back a durable proxy task; the capture-replay wrapper this started life against used to do so
+    /// without regard to the flags - which it could not see, as they were captured inside generated
+    /// per-command state - so a fire-and-forget result stayed incomplete until <c>ExecuteAsync</c> forwarded it.
     /// </para>
     /// <para>
     /// The effect was that identical caller code returned instantly on a plain transaction and blocked for
     /// good on a retrying one, which is precisely the drop-in substitution <c>WithRetry</c> is meant to
-    /// support. The generated state now exposes its <c>CommandFlags</c> (<c>IFlaggedRedisArgs</c>) so the two
-    /// agree.
+    /// support. <c>RespRetryTransactionExecutor</c> sees the flags on the rendered request, so the two agree
+    /// by construction - and this pins that they stay agreeing.
     /// </para>
     /// </remarks>
     [Fact]
