@@ -298,11 +298,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public void KeyRestore(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None)
-            => Wait(Blocking.Keys.RestoreAsync(key, Required(value, nameof(value)), expiry, flags));
+            => Wait(Blocking.Keys.RestoreCore(key, Required(value, nameof(value)), expiry, flags));
 
         /// <inheritdoc/>
         public Task KeyRestoreAsync(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None)
-            => _inner.Keys.RestoreAsync(key, Required(value, nameof(value)), expiry, flags).AsTask(AsyncState, flags);
+            => _inner.Keys.RestoreCore(key, Required(value, nameof(value)), expiry, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public void KeyMigrate(RedisKey key, System.Net.EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)

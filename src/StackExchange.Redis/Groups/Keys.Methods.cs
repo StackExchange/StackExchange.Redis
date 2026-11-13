@@ -472,7 +472,9 @@ public static partial class Keys
     /// <param name="keys">The key command group.</param>
     /// <param name="key">The key to create.</param>
     /// <param name="value">The serialised value, as <c>DUMP</c> returned it.</param>
-    /// <param name="expiry">How long the key should live; no expiry when omitted.</param>
+    /// <param name="expiry">When the key should expire - relative, absolute (<c>ABSTTL</c>), or not at
+    /// all when omitted. <see cref="Expiration.KeepTtl"/> and <see cref="Expiration.Persist"/> mean
+    /// nothing here - a restored key has no expiry to keep - and are rejected.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
     /// <remarks>
@@ -485,7 +487,44 @@ public static partial class Keys
         this RespKeys keys,
         RedisKey key,
         scoped ReadOnlySpan<byte> value,
-        TimeSpan? expiry = null,
+        Expiration expiry = default,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        // RESTORE's ttl is a positional millisecond argument - zero for none, with ABSTTL turning it
+        // into an absolute unix-time deadline - rather than the EX/PXAT token families Expiration
+        // normally renders, so the modes are spelled out here instead of letting the operand write itself
+        if (expiry.IsNone)
+        {
+            return keys.Context.SendAsync($"{RedisCommand.RESTORE}{key}{0L}{value}", flags, cancellationToken);
+        }
+
+        if (expiry.IsKeepTtl || expiry.IsPersist || expiry.IsExpireIfNotExists)
+        {
+            throw new ArgumentException(
+                "RESTORE takes a deadline or nothing: KEEPTTL, PERSIST and ENX have no spelling there.", nameof(expiry));
+        }
+
+        var millis = expiry.IsMilliseconds ? expiry.Value : expiry.Value * 1000;
+        return expiry.IsAbsolute
+            ? keys.Context.SendAsync($"{RedisCommand.RESTORE}{key}{millis}{value}{RespLiterals.AbsTtl}", flags, cancellationToken)
+            : keys.Context.SendAsync($"{RedisCommand.RESTORE}{key}{millis}{value}", flags, cancellationToken);
+    }
+
+    /// <summary>RESTORE for the old <c>IDatabase</c> surface, whose "no expiry" arrives as
+    /// <see langword="null"/> or <see cref="TimeSpan.MaxValue"/>; the public spelling is
+    /// <see cref="RestoreAsync"/>.</summary>
+    /// <param name="keys">The key command group.</param>
+    /// <param name="key">The key to create.</param>
+    /// <param name="value">The serialised value, as <c>DUMP</c> returned it.</param>
+    /// <param name="expiry">How long the key should live; no expiry when omitted.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    internal static ValueTask RestoreCore(
+        this RespKeys keys,
+        RedisKey key,
+        scoped ReadOnlySpan<byte> value,
+        TimeSpan? expiry,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {

@@ -16,7 +16,7 @@ db.KeyDelete(key);                          await db.Keys.UnlinkAsync(key);
 What actually changed
 ---
 
-**The prefix became a group.** `db.StringGet` is `db.Strings.GetAsync`; `db.SortedSetRangeByScore` is `db.SortedSets.RangeByScoreAsync`. The prefix was always naming a data type - it just had nowhere to live, because one interface had to hold every command. Now the receiver says which family you are in, so IntelliSense lists twenty members instead of four hundred, and the name stops repeating what the receiver already said.
+**The prefix became a group.** `db.StringGet` is `db.Strings.GetAsync`; `db.SortedSetRangeByScore` is `db.SortedSets.RangeAsync` with a `SortedSetRange.ByScore(...)` operand. The prefix was always naming a data type - it just had nowhere to live, because one interface had to hold every command. Now the receiver says which family you are in, so IntelliSense lists twenty members instead of four hundred, and the name stops repeating what the receiver already said.
 
 **It is async-only.** There is no `db.Strings.Get`. The synchronous half of the old API exists because it always has, and it stays for the code that uses it, but blocking on a multiplexed connection is the single most common cause of the timeouts this library gets reported - see [Sync over async](SyncOverAsync). A new surface that offered a sync twin would be inviting the problem back in.
 
@@ -47,7 +47,7 @@ Mechanical, with three rules: drop the type prefix, use it as the group, add `As
 | `db.SetAdd(key, value)` | `await db.Sets.AddAsync(key, value)` |
 | `db.SetMembers(key)` | `await db.Sets.MembersAsync(key)` |
 | `db.SortedSetAdd(key, member, score)` | `await db.SortedSets.AddAsync(key, member, score)` |
-| `db.SortedSetRangeByScore(key)` | `await db.SortedSets.RangeByScoreAsync(key)` |
+| `db.SortedSetRangeByScore(key)` | `await db.SortedSets.RangeAsync(key, SortedSetRange.ByScore())` |
 | `db.GeoAdd(key, lon, lat, member)` | `await db.Geospatial.AddAsync(key, lon, lat, member)` |
 | `db.HyperLogLogAdd(key, value)` | `await db.HyperLogLog.AddAsync(key, value)` |
 | `db.StringBitCount(key)` | `await db.Bitmaps.CountAsync(key)` |
@@ -206,23 +206,23 @@ Generated from the v4 `IDatabase` implementation by `eng/docs/api-map.py`; each 
 | `SortedSetCombineWithScores` | `db.SortedSets.CombineWithScoresAsync` |
 | `SortedSetIncrement` | `db.SortedSets.IncrementAsync` |
 | `SortedSetIntersectionLength` | `db.SortedSets.CombineLengthAsync` |
-| `SortedSetLength` | `db.SortedSets.LengthAsync` |
-| `SortedSetLengthByValue` | `db.SortedSets.LengthByValueAsync` |
+| `SortedSetLength` | `db.SortedSets.LengthAsync`, or `RangeLengthAsync` with a score range |
+| `SortedSetLengthByValue` | `db.SortedSets.RangeLengthAsync` with `SortedSetRange.ByValue(...)` |
 | `SortedSetPop` | `db.SortedSets.PopAsync` |
 | `SortedSetRandomMember` | `db.SortedSets.RandomMemberAsync` |
 | `SortedSetRandomMembers` | `db.SortedSets.RandomMembersAsync` |
 | `SortedSetRandomMembersWithScores` | `db.SortedSets.RandomMembersWithScoresAsync` |
-| `SortedSetRangeAndStore` | `db.SortedSets.RangeAndStoreAsync` |
-| `SortedSetRangeByRank` | `db.SortedSets.RangeByRankAsync` |
-| `SortedSetRangeByRankWithScores` | `db.SortedSets.RangeByRankWithScoresAsync` |
-| `SortedSetRangeByScore` | `db.SortedSets.RangeByScoreAsync` |
-| `SortedSetRangeByScoreWithScores` | `db.SortedSets.RangeByScoreWithScoresAsync` |
-| `SortedSetRangeByValue` | `db.SortedSets.RangeByValueAsync` |
+| `SortedSetRangeAndStore` | `db.SortedSets.RangeAndStoreAsync` with a `SortedSetRange` |
+| `SortedSetRangeByRank` | `db.SortedSets.RangeAsync` with `SortedSetRange.ByRank(...)` |
+| `SortedSetRangeByRankWithScores` | `db.SortedSets.RangeWithScoresAsync` with `SortedSetRange.ByRank(...)` |
+| `SortedSetRangeByScore` | `db.SortedSets.RangeAsync` with `SortedSetRange.ByScore(...)` |
+| `SortedSetRangeByScoreWithScores` | `db.SortedSets.RangeWithScoresAsync` with `SortedSetRange.ByScore(...)` |
+| `SortedSetRangeByValue` | `db.SortedSets.RangeAsync` with `SortedSetRange.ByValue(...)` |
 | `SortedSetRank` | `db.SortedSets.RankAsync` |
 | `SortedSetRemove` | `db.SortedSets.RemoveAsync` |
-| `SortedSetRemoveRangeByRank` | `db.SortedSets.RemoveRangeByRankAsync` |
-| `SortedSetRemoveRangeByScore` | `db.SortedSets.RemoveRangeByScoreAsync` |
-| `SortedSetRemoveRangeByValue` | `db.SortedSets.RemoveRangeByValueAsync` |
+| `SortedSetRemoveRangeByRank` | `db.SortedSets.RemoveRangeAsync` with `SortedSetRange.ByRank(...)` |
+| `SortedSetRemoveRangeByScore` | `db.SortedSets.RemoveRangeAsync` with `SortedSetRange.ByScore(...)` |
+| `SortedSetRemoveRangeByValue` | `db.SortedSets.RemoveRangeAsync` with `SortedSetRange.ByValue(...)` |
 | `SortedSetScan` | `db.SortedSets.ScanAsync` |
 | `SortedSetScore` | `db.SortedSets.ScoreAsync` |
 | `SortedSetScores` | `db.SortedSets.ScoresAsync` |
@@ -245,7 +245,7 @@ Generated from the v4 `IDatabase` implementation by `eng/docs/api-map.py`; each 
 | `KeyRandom` | `db.Keys.RandomAsync` |
 | `KeyRefCount` | `db.Keys.RefCountAsync` |
 | `KeyRename` | `db.Keys.RenameAsync` |
-| `KeyRestore` | `db.Keys.RestoreAsync` |
+| `KeyRestore` | `db.Keys.RestoreAsync` - takes an `Expiration`, so an absolute deadline (`ABSTTL`) works too |
 | `KeyTimeToLive` | `db.Keys.TimeToLiveAsync` |
 | `KeyTouch` | `db.Keys.TouchAsync` |
 | `KeyType` | `db.Keys.TypeAsync` |
@@ -291,8 +291,8 @@ Generated from the v4 `IDatabase` implementation by `eng/docs/api-map.py`; each 
 | `GeoHash` | `db.Geospatial.HashAsync` |
 | `GeoPosition` | `db.Geospatial.PositionAsync` |
 | `GeoRemove` | `db.Geospatial.RemoveAsync` |
-| `GeoSearch` | `db.Geospatial.SearchAsync` |
-| `GeoSearchAndStore` | `db.Geospatial.SearchAndStoreAsync` |
+| `GeoSearch` | `db.Geospatial.SearchAsync` - one method; the member/position pair became a `GeoCenter` |
+| `GeoSearchAndStore` | `db.Geospatial.SearchAndStoreAsync` - likewise via `GeoCenter` |
 
 **HyperLogLog**
 

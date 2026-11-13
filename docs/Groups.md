@@ -31,7 +31,7 @@ On a database (`IDatabase`, and anything else that carries a database - see belo
 | `Hashes` | [hashes](https://redis.io/docs/latest/develop/data-types/hashes/) | `GetAsync`, `SetAsync`, `GetAllAsync` |
 | `Lists` | [lists](https://redis.io/docs/latest/develop/data-types/lists/) | `LeftPushAsync`, `RightPopAsync`, `RangeAsync` |
 | `Sets` | [sets](https://redis.io/docs/latest/develop/data-types/sets/) | `AddAsync`, `ContainsAsync`, `MembersAsync` |
-| `SortedSets` | [sorted sets](https://redis.io/docs/latest/develop/data-types/sorted-sets/) | `AddAsync`, `RangeByScoreAsync`, `PopAsync` |
+| `SortedSets` | [sorted sets](https://redis.io/docs/latest/develop/data-types/sorted-sets/) | `AddAsync`, `RangeAsync`, `PopAsync` |
 | `Streams` | [streams](https://redis.io/docs/latest/develop/data-types/streams/) | `AddAsync`, `ReadAsync`, `ReadGroupAsync` |
 | `Keys` | any key | `DeleteAsync`, `ExistsAsync`, `ExpireAsync` |
 | `Geospatial` | [geospatial indexes](https://redis.io/docs/latest/develop/data-types/geospatial/) | `AddAsync`, `SearchAsync` |

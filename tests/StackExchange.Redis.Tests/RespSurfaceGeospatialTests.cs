@@ -109,7 +109,7 @@ public class RespSurfaceGeospatialTests
         var (ctx, exec) = Target();
 
         using (await ctx.Geospatial.SearchAsync("k", "a", new GeoSearchCircle(5, GeoUnit.Kilometers), options: GeoRadiusOptions.None)) { }
-        using (await ctx.Geospatial.SearchAsync("k", 1, 2, new GeoSearchBox(3, 4, GeoUnit.Meters), options: GeoRadiusOptions.None)) { }
+        using (await ctx.Geospatial.SearchAsync("k", GeoCenter.Position(1, 2), new GeoSearchBox(3, 4, GeoUnit.Meters), options: GeoRadiusOptions.None)) { }
 
         Assert.Equal(
             new[]
@@ -155,6 +155,19 @@ public class RespSurfaceGeospatialTests
         var ex = Assert.Throws<ArgumentException>(
             () => ctx.Geospatial.SearchAsync("k", "a", new GeoSearchCircle(5), demandClosest: false));
         Assert.Contains("demandClosest", ex.Message);
+    }
+
+    [Fact]
+    public void ADefaultCenterIsRejected()
+    {
+        var (ctx, _) = Target();
+
+        // default(GeoCenter) is neither a member nor a position; sending it would quietly search
+        // somewhere, so it throws instead
+        var ex = Assert.Throws<ArgumentException>(
+            () => ctx.Geospatial.SearchAsync("k", default, new GeoSearchCircle(5)));
+        Assert.Equal("center", ex.ParamName);
+        Assert.Throws<ArgumentNullException>(() => GeoCenter.Member(RedisValue.Null));
     }
 
     [Fact]

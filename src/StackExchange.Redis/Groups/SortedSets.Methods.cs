@@ -189,7 +189,22 @@ public static partial class SortedSets
             : sortedSets.Context.SendAsync<double?[]>(
                 $"{RedisCommand.ZMSCORE}{key}{members}", flags, cancellationToken: cancellationToken);
 
-    /// <summary>ZCARD, or ZCOUNT when a score range is given.</summary>
+    /// <summary>ZCARD: how many members the set has.</summary>
+    /// <param name="sortedSets">The sorted-set command group.</param>
+    /// <param name="key">The key to measure.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <remarks>How many fall in part of the set is <see cref="RangeLengthAsync"/>.</remarks>
+    public static ValueTask<long> LengthAsync(
+        this RespSortedSets sortedSets,
+        RedisKey key,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => sortedSets.Context.SendAsync<long>(
+            $"{RedisCommand.ZCARD}{key}", flags, cancellationToken: cancellationToken);
+
+    /// <summary>ZCARD, or ZCOUNT when a score range is given, for the old <c>IDatabase</c> surface;
+    /// the public spelling is <see cref="LengthAsync"/> / <see cref="RangeLengthAsync"/>.</summary>
     /// <param name="sortedSets">The sorted-set command group.</param>
     /// <param name="key">The key to measure.</param>
     /// <param name="min">The lowest score to count.</param>
@@ -202,12 +217,12 @@ public static partial class SortedSets
     /// walk anything - so the default arguments pick a different command, exactly as the old surface
     /// does.
     /// </remarks>
-    public static ValueTask<long> LengthAsync(
+    internal static ValueTask<long> LengthCore(
         this RespSortedSets sortedSets,
         RedisKey key,
-        double min = double.NegativeInfinity,
-        double max = double.PositiveInfinity,
-        Exclude exclude = Exclude.None,
+        double min,
+        double max,
+        Exclude exclude,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
     {
@@ -223,7 +238,8 @@ public static partial class SortedSets
             cancellationToken: cancellationToken);
     }
 
-    /// <summary>ZLEXCOUNT: how many members fall in a lexical range.</summary>
+    /// <summary>ZLEXCOUNT: how many members fall in a lexical range, for the old <c>IDatabase</c>
+    /// surface; the public spelling is <see cref="RangeLengthAsync"/>.</summary>
     /// <param name="sortedSets">The sorted-set command group.</param>
     /// <param name="key">The key to measure.</param>
     /// <param name="min">The lowest member to count.</param>
@@ -231,7 +247,7 @@ public static partial class SortedSets
     /// <param name="exclude">Which bounds are exclusive.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
-    public static ValueTask<long> LengthByValueAsync(
+    internal static ValueTask<long> LengthByValueAsync(
         this RespSortedSets sortedSets,
         RedisKey key,
         RedisValue min,
@@ -327,8 +343,201 @@ public static partial class SortedSets
     }
 
     // ---- ranges ------------------------------------------------------------------------------------
+    // One public method per OPERATION, each taking a SortedSetRange whose axis - rank, score or
+    // member value - is data rather than a method-name suffix. The per-axis internals below them keep
+    // the wire spelling (and still serve the old IDatabase surface). Where the server has no command
+    // for a cell - WITHSCORES over a lexical range, LIMIT over a rank range, a count of a rank range -
+    // the dispatcher throws rather than quietly answering a different question.
 
-    /// <summary>ZRANGE/ZREVRANGE by rank.</summary>
+    /// <summary>
+    /// Read a range of the set: <c>ZRANGE</c>/<c>ZREVRANGE</c>, <c>ZRANGEBYSCORE</c>/<c>ZREVRANGEBYSCORE</c>
+    /// or <c>ZRANGEBYLEX</c>/<c>ZREVRANGEBYLEX</c>, by the range's axis and the order.
+    /// </summary>
+    /// <param name="sortedSets">The sorted-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="range">Which part of the set to read; see <see cref="SortedSetRange"/>.</param>
+    /// <param name="order">Which end to read from.</param>
+    /// <param name="skip">How many to discard from the front; not available for a by-rank range.</param>
+    /// <param name="take">How many to return, -1 for all; not available for a by-rank range.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <remarks>
+    /// A by-rank range has no skip/take on the server - the window <i>is</i> the rank bounds - so
+    /// passing one throws rather than silently reading a different range.
+    /// </remarks>
+    public static ValueTask<ReadOnlyLease<RespValue>> RangeAsync(
+        this RespSortedSets sortedSets,
+        RedisKey key,
+        SortedSetRange range,
+        Order order = Order.Ascending,
+        long skip = 0,
+        long take = -1,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => range.Axis switch
+        {
+            SortedSetRange.RangeAxis.Score => RangeByScoreAsync(sortedSets, key, range.ScoreMin, range.ScoreMax, range.Exclude, order, skip, take, flags, cancellationToken),
+            SortedSetRange.RangeAxis.Value => RangeByValueAsync(sortedSets, key, range.ValueMin, range.ValueMax, range.Exclude, order, skip, take, flags, cancellationToken),
+            _ => RangeByRankAsync(sortedSets, key, RankStartNoWindow(range, skip, take), range.RankStop, order, flags, cancellationToken),
+        };
+
+    /// <summary>
+    /// Read a range of the set with the scores: <c>ZRANGE</c>/<c>ZREVRANGE</c> or
+    /// <c>ZRANGEBYSCORE</c>/<c>ZREVRANGEBYSCORE</c> with <c>WITHSCORES</c>, by the range's axis and the
+    /// order. Not available for a by-value range, whose members all share one score by definition -
+    /// the server has no <c>WITHSCORES</c> there.
+    /// </summary>
+    /// <param name="sortedSets">The sorted-set command group.</param>
+    /// <param name="key">The key to read.</param>
+    /// <param name="range">Which part of the set to read; see <see cref="SortedSetRange"/>.</param>
+    /// <param name="order">Which end to read from.</param>
+    /// <param name="skip">How many to discard from the front; not available for a by-rank range.</param>
+    /// <param name="take">How many to return, -1 for all; not available for a by-rank range.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <remarks><inheritdoc cref="RangeAsync" path="/remarks"/></remarks>
+    public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeWithScoresAsync(
+        this RespSortedSets sortedSets,
+        RedisKey key,
+        SortedSetRange range,
+        Order order = Order.Ascending,
+        long skip = 0,
+        long take = -1,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => range.Axis switch
+        {
+            SortedSetRange.RangeAxis.Score => RangeByScoreWithScoresAsync(sortedSets, key, range.ScoreMin, range.ScoreMax, range.Exclude, order, skip, take, flags, cancellationToken),
+            SortedSetRange.RangeAxis.Value => throw new ArgumentException(
+                "The server has no WITHSCORES for a by-value (lexical) range: every member of such a set has the same score by definition. Use RangeAsync.", nameof(range)),
+            _ => RangeByRankWithScoresAsync(sortedSets, key, RankStartNoWindow(range, skip, take), range.RankStop, order, flags, cancellationToken),
+        };
+
+    /// <summary>
+    /// ZRANGESTORE: copy a range of <paramref name="sourceKey"/> into
+    /// <paramref name="destinationKey"/>, by the range's axis and the order; the reply is the
+    /// destination's size.
+    /// </summary>
+    /// <param name="sortedSets">The sorted-set command group.</param>
+    /// <param name="sourceKey">The key to read.</param>
+    /// <param name="destinationKey">The key to write the result to.</param>
+    /// <param name="range">Which part of the source to store; see <see cref="SortedSetRange"/>.</param>
+    /// <param name="order">Which end to read from.</param>
+    /// <param name="skip">How many to discard from the front; not available for a by-rank range.</param>
+    /// <param name="take">How many to store, <see langword="null"/> for all; not available for a by-rank range.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    /// <remarks><inheritdoc cref="RangeAsync" path="/remarks"/></remarks>
+    public static ValueTask<long> RangeAndStoreAsync(
+        this RespSortedSets sortedSets,
+        RedisKey sourceKey,
+        RedisKey destinationKey,
+        SortedSetRange range,
+        Order order = Order.Ascending,
+        long skip = 0,
+        long? take = null,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+    {
+        switch (range.Axis)
+        {
+            case SortedSetRange.RangeAxis.Score:
+                // with REV the server wants the bounds high-then-low, exclusivity travelling with its
+                // bound - the same normalization the read path applies inside RangeByScoreCore
+                var (lo, hi, scoreExclude) = (range.ScoreMin, range.ScoreMax, range.Exclude);
+                if (order == Order.Descending)
+                {
+                    (lo, hi) = (hi, lo);
+                    scoreExclude = SwapBounds(scoreExclude);
+                }
+
+                return RangeAndStoreCore(sortedSets, sourceKey, destinationKey, lo, hi, SortedSetOrder.ByScore, scoreExclude, order, skip, take, flags, cancellationToken);
+
+            case SortedSetRange.RangeAxis.Value:
+                // composed here rather than via the legacy-shaped internal: an open (null) bound must
+                // render as -/+, which LexBound spells and the RedisValue-typed internal cannot
+                var (min, max, exclude) = (range.ValueMin, range.ValueMax, range.Exclude);
+                SortedSets.ReverseLimits(order, ref exclude, ref min, ref max);
+                var rev = RespLiterals.Rev.When(order == Order.Descending);
+                var limit = take is > 0 ? new RespLimitRange(skip, take.GetValueOrDefault()) : RespLimitRange.None;
+                return sortedSets.Context.SendAsync<long>(
+                    $"{RedisCommand.ZRANGESTORE}{destinationKey}{sourceKey}{Lex(min, exclude, isStart: true, order)}{Lex(max, exclude, isStart: false, order)}{RespLiterals.ByLex}{rev}{limit}",
+                    flags.WithDefaultCategory(RedisCommand.ZRANGESTORE),
+                    cancellationToken: cancellationToken);
+
+            default:
+                _ = RankStartNoWindow(range, skip, take ?? -1);
+                return RangeAndStoreCore(sortedSets, sourceKey, destinationKey, range.RankStart, range.RankStop, SortedSetOrder.ByRank, Exclude.None, order, 0, null, flags, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// ZREMRANGEBYRANK/ZREMRANGEBYSCORE/ZREMRANGEBYLEX, by the range's axis; the reply is how many were
+    /// removed.
+    /// </summary>
+    /// <param name="sortedSets">The sorted-set command group.</param>
+    /// <param name="key">The key to write.</param>
+    /// <param name="range">Which part of the set to remove; see <see cref="SortedSetRange"/>.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> RemoveRangeAsync(
+        this RespSortedSets sortedSets,
+        RedisKey key,
+        SortedSetRange range,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => range.Axis switch
+        {
+            SortedSetRange.RangeAxis.Score => RemoveRangeByScoreAsync(sortedSets, key, range.ScoreMin, range.ScoreMax, range.Exclude, flags, cancellationToken),
+            SortedSetRange.RangeAxis.Value => RemoveRangeByValueAsync(sortedSets, key, range.ValueMin, range.ValueMax, range.Exclude, flags, cancellationToken),
+            _ => RemoveRangeByRankAsync(sortedSets, key, range.RankStart, range.RankStop, flags, cancellationToken),
+        };
+
+    /// <summary>
+    /// ZCOUNT/ZLEXCOUNT, by the range's axis: how many members fall in the range. Not available for a
+    /// by-rank range - the server has no such command, because the answer is arithmetic over the rank
+    /// bounds and <see cref="LengthAsync"/>.
+    /// </summary>
+    /// <param name="sortedSets">The sorted-set command group.</param>
+    /// <param name="key">The key to measure.</param>
+    /// <param name="range">Which part of the set to count; see <see cref="SortedSetRange"/>.</param>
+    /// <param name="flags">Command flags.</param>
+    /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
+    public static ValueTask<long> RangeLengthAsync(
+        this RespSortedSets sortedSets,
+        RedisKey key,
+        SortedSetRange range,
+        CommandFlags flags = CommandFlags.None,
+        CancellationToken cancellationToken = default)
+        => range.Axis switch
+        {
+            SortedSetRange.RangeAxis.Score => LengthCore(sortedSets, key, range.ScoreMin, range.ScoreMax, range.Exclude, flags, cancellationToken),
+            SortedSetRange.RangeAxis.Value => LengthByValueAsync(sortedSets, key, range.ValueMin, range.ValueMax, range.Exclude, flags, cancellationToken),
+            _ => throw new ArgumentException(
+                "The server has no command that counts a by-rank range: clamp the rank bounds against LengthAsync and the count is (stop - start + 1).", nameof(range)),
+        };
+
+    /// <summary>The rank start of a range that must not carry a window, because the by-rank commands have no LIMIT.</summary>
+    private static long RankStartNoWindow(in SortedSetRange range, long skip, long take)
+    {
+        if (skip != 0 || take != -1)
+        {
+            throw new ArgumentException(
+                "A by-rank range has no skip/take on the server: fold the window into the rank bounds themselves.", nameof(skip));
+        }
+
+        return range.RankStart;
+    }
+
+    /// <summary>Swap which end of a range an exclusion applies to, for when the bounds themselves swap.</summary>
+    private static Exclude SwapBounds(Exclude exclude) => exclude switch
+    {
+        Exclude.Start => Exclude.Stop,
+        Exclude.Stop => Exclude.Start,
+        _ => exclude,
+    };
+
+    /// <summary>ZRANGE/ZREVRANGE by rank; the public spelling is <see cref="RangeAsync"/>.</summary>
     /// <param name="sortedSets">The sorted-set command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="start">The first rank to take.</param>
@@ -336,7 +545,7 @@ public static partial class SortedSets
     /// <param name="order">Which end to count from.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
-    public static ValueTask<ReadOnlyLease<RespValue>> RangeByRankAsync(
+    internal static ValueTask<ReadOnlyLease<RespValue>> RangeByRankAsync(
         this RespSortedSets sortedSets,
         RedisKey key,
         long start = 0,
@@ -382,7 +591,7 @@ public static partial class SortedSets
     /// <param name="order">Which end to count from.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
-    public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByRankWithScoresAsync(
+    internal static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByRankWithScoresAsync(
         this RespSortedSets sortedSets,
         RedisKey key,
         long start = 0,
@@ -420,7 +629,7 @@ public static partial class SortedSets
         return sortedSets.Context.SendAsync<SortedSetEntry[]>(ref cmd, flags, cancellationToken: cancellationToken);
     }
 
-    /// <summary>ZRANGEBYSCORE/ZREVRANGEBYSCORE.</summary>
+    /// <summary>ZRANGEBYSCORE/ZREVRANGEBYSCORE; the public spelling is <see cref="RangeAsync"/>.</summary>
     /// <param name="sortedSets">The sorted-set command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="start">The lowest score to take.</param>
@@ -437,7 +646,7 @@ public static partial class SortedSets
     /// asked to walk. That is the old builder's rule, kept exactly, because a caller who passed
     /// <c>(10, 1)</c> descending has always meant the same thing.
     /// </remarks>
-    public static ValueTask<ReadOnlyLease<RespValue>> RangeByScoreAsync(
+    internal static ValueTask<ReadOnlyLease<RespValue>> RangeByScoreAsync(
         this RespSortedSets sortedSets,
         RedisKey key,
         double start = double.NegativeInfinity,
@@ -448,7 +657,11 @@ public static partial class SortedSets
         long take = -1,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => RangeByScoreCore<ReadOnlyLease<RespValue>>(sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags);
+        => RangeByScoreCore<ReadOnlyLease<RespValue>>(sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags, cancellationToken);
+
+    // (visibility note: the per-axis methods above and below are internal because the public surface
+    // is the SortedSetRange-operand family; the wire spelling, bound-swapping and documentation all
+    // stay here, where the per-axis commands are actually composed.)
 
     /// <summary>RangeByScore, as an array, for the old <c>IDatabase</c> surface.</summary>
     /// <remarks>
@@ -473,7 +686,7 @@ public static partial class SortedSets
         long take = -1,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => RangeByScoreCore<RedisValue[]>(sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags);
+        => RangeByScoreCore<RedisValue[]>(sortedSets, key, start, stop, exclude, order, skip, take, withScores: false, flags, cancellationToken);
 
     /// <inheritdoc cref="RangeByScoreAsync"/>
     /// <param name="sortedSets">The sorted-set command group.</param>
@@ -486,7 +699,7 @@ public static partial class SortedSets
     /// <param name="take">How many to return; -1 for all.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
-    public static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByScoreWithScoresAsync(
+    internal static ValueTask<ReadOnlyLease<SortedSetEntry>> RangeByScoreWithScoresAsync(
         this RespSortedSets sortedSets,
         RedisKey key,
         double start = double.NegativeInfinity,
@@ -497,7 +710,7 @@ public static partial class SortedSets
         long take = -1,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => RangeByScoreCore<ReadOnlyLease<SortedSetEntry>>(sortedSets, key, start, stop, exclude, order, skip, take, withScores: true, flags);
+        => RangeByScoreCore<ReadOnlyLease<SortedSetEntry>>(sortedSets, key, start, stop, exclude, order, skip, take, withScores: true, flags, cancellationToken);
 
     /// <summary>RangeByScoreWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
     /// <remarks>
@@ -522,9 +735,9 @@ public static partial class SortedSets
         long take = -1,
         CommandFlags flags = CommandFlags.None,
         CancellationToken cancellationToken = default)
-        => RangeByScoreCore<SortedSetEntry[]>(sortedSets, key, start, stop, exclude, order, skip, take, withScores: true, flags);
+        => RangeByScoreCore<SortedSetEntry[]>(sortedSets, key, start, stop, exclude, order, skip, take, withScores: true, flags, cancellationToken);
 
-    /// <summary>ZRANGEBYLEX/ZREVRANGEBYLEX.</summary>
+    /// <summary>ZRANGEBYLEX/ZREVRANGEBYLEX; the public spelling is <see cref="RangeAsync"/>.</summary>
     /// <param name="sortedSets">The sorted-set command group.</param>
     /// <param name="key">The key to read.</param>
     /// <param name="min">The lowest member to take.</param>
@@ -540,7 +753,7 @@ public static partial class SortedSets
     /// the open bounds then flip too, which is why <c>-</c> and <c>+</c> are chosen by the order
     /// rather than by the position.
     /// </remarks>
-    public static ValueTask<ReadOnlyLease<RespValue>> RangeByValueAsync(
+    internal static ValueTask<ReadOnlyLease<RespValue>> RangeByValueAsync(
         this RespSortedSets sortedSets,
         RedisKey key,
         RedisValue min = default,
@@ -600,7 +813,9 @@ public static partial class SortedSets
             cancellationToken: cancellationToken);
     }
 
-    /// <summary>ZRANGESTORE; the reply is the destination's size.</summary>
+    /// <summary>ZRANGESTORE for the old <c>IDatabase</c> surface, whose axis arrives as
+    /// <see cref="SortedSetOrder"/> and whose bounds arrive pre-spelled; the public spelling is
+    /// <see cref="RangeAndStoreAsync"/>. The reply is the destination's size.</summary>
     /// <param name="sortedSets">The sorted-set command group.</param>
     /// <param name="sourceKey">The key to read.</param>
     /// <param name="destinationKey">The key to write the result to.</param>
@@ -618,7 +833,7 @@ public static partial class SortedSets
     /// are rejected - the server has no operand for either in that mode, so silently dropping them
     /// would store a different range than was asked for.
     /// </remarks>
-    public static ValueTask<long> RangeAndStoreAsync(
+    internal static ValueTask<long> RangeAndStoreCore(
         this RespSortedSets sortedSets,
         RedisKey sourceKey,
         RedisKey destinationKey,
@@ -668,18 +883,18 @@ public static partial class SortedSets
 
     // ---- removal by range --------------------------------------------------------------------------
 
-    /// <summary>ZREMRANGEBYRANK.</summary>
+    /// <summary>ZREMRANGEBYRANK; the public spelling is <see cref="RemoveRangeAsync"/>.</summary>
     /// <param name="sortedSets">The sorted-set command group.</param>
     /// <param name="key">The key to write.</param>
     /// <param name="start">The first rank to remove.</param>
     /// <param name="stop">The last rank to remove.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
-    public static ValueTask<long> RemoveRangeByRankAsync(this RespSortedSets sortedSets, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    internal static ValueTask<long> RemoveRangeByRankAsync(this RespSortedSets sortedSets, RedisKey key, long start, long stop, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sortedSets.Context.SendAsync<long>(
             $"{RedisCommand.ZREMRANGEBYRANK}{key}{start}{stop}", flags, cancellationToken: cancellationToken);
 
-    /// <summary>ZREMRANGEBYSCORE.</summary>
+    /// <summary>ZREMRANGEBYSCORE; the public spelling is <see cref="RemoveRangeAsync"/>.</summary>
     /// <param name="sortedSets">The sorted-set command group.</param>
     /// <param name="key">The key to write.</param>
     /// <param name="start">The lowest score to remove.</param>
@@ -687,13 +902,13 @@ public static partial class SortedSets
     /// <param name="exclude">Which bounds are exclusive.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
-    public static ValueTask<long> RemoveRangeByScoreAsync(this RespSortedSets sortedSets, RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    internal static ValueTask<long> RemoveRangeByScoreAsync(this RespSortedSets sortedSets, RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
         => sortedSets.Context.SendAsync<long>(
             $"{RedisCommand.ZREMRANGEBYSCORE}{key}{SortedSets.GetRange(start, exclude, isStart: true)}{SortedSets.GetRange(stop, exclude, isStart: false)}",
             flags,
             cancellationToken: cancellationToken);
 
-    /// <summary>ZREMRANGEBYLEX.</summary>
+    /// <summary>ZREMRANGEBYLEX; the public spelling is <see cref="RemoveRangeAsync"/>.</summary>
     /// <param name="sortedSets">The sorted-set command group.</param>
     /// <param name="key">The key to write.</param>
     /// <param name="min">The lowest member to remove.</param>
@@ -701,7 +916,7 @@ public static partial class SortedSets
     /// <param name="exclude">Which bounds are exclusive.</param>
     /// <param name="flags">Command flags.</param>
     /// <param name="cancellationToken">Cancels the request: one not yet written is never sent; one already written still runs on the server, and its reply is discarded.</param>
-    public static ValueTask<long> RemoveRangeByValueAsync(this RespSortedSets sortedSets, RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
+    internal static ValueTask<long> RemoveRangeByValueAsync(this RespSortedSets sortedSets, RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None, CancellationToken cancellationToken = default)
     {
         SortedSets.ReverseLimits(Order.Ascending, ref exclude, ref min, ref max);
         return sortedSets.Context.SendAsync<long>(
@@ -730,7 +945,7 @@ public static partial class SortedSets
         CancellationToken cancellationToken = default)
     {
         var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
-        return CombineCore<ReadOnlyLease<RespValue>>(sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags);
+        return CombineCore<ReadOnlyLease<RespValue>>(sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags, cancellationToken);
     }
 
     /// <summary>Combine, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -755,7 +970,7 @@ public static partial class SortedSets
         CancellationToken cancellationToken = default)
     {
         var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
-        return CombineCore<RedisValue[]>(sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags);
+        return CombineCore<RedisValue[]>(sortedSets, command, destination: default, keys, weights, aggregate, withScores: false, flags, cancellationToken);
     }
 
     /// <inheritdoc cref="SortedSets.CombineAsync(RespSortedSets, SetOperation, ReadOnlySpan{RedisKey}, ReadOnlySpan{double}, Aggregate, CommandFlags, CancellationToken)"/>
@@ -776,7 +991,7 @@ public static partial class SortedSets
         CancellationToken cancellationToken = default)
     {
         var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
-        return CombineCore<ReadOnlyLease<SortedSetEntry>>(sortedSets, command, destination: default, keys, weights, aggregate, withScores: true, flags);
+        return CombineCore<ReadOnlyLease<SortedSetEntry>>(sortedSets, command, destination: default, keys, weights, aggregate, withScores: true, flags, cancellationToken);
     }
 
     /// <summary>CombineWithScores, as an array, for the old <c>IDatabase</c> surface.</summary>
@@ -801,7 +1016,7 @@ public static partial class SortedSets
         CancellationToken cancellationToken = default)
     {
         var command = ValidateCombine(operation.ToSortedSetCommand(), keys, weights, aggregate);
-        return CombineCore<SortedSetEntry[]>(sortedSets, command, destination: default, keys, weights, aggregate, withScores: true, flags);
+        return CombineCore<SortedSetEntry[]>(sortedSets, command, destination: default, keys, weights, aggregate, withScores: true, flags, cancellationToken);
     }
 
     /// <summary>ZUNIONSTORE/ZINTERSTORE/ZDIFFSTORE; the reply is the destination's size.</summary>
@@ -824,7 +1039,7 @@ public static partial class SortedSets
         CancellationToken cancellationToken = default)
     {
         var command = ValidateCombine(operation.ToSortedSetStoreCommand(), keys, weights, aggregate);
-        return CombineCore<long>(sortedSets, command, destination, keys, weights, aggregate, withScores: false, flags);
+        return CombineCore<long>(sortedSets, command, destination, keys, weights, aggregate, withScores: false, flags, cancellationToken);
     }
 
     /// <summary>ZINTERCARD: the size of an intersection, without building it.</summary>
@@ -952,7 +1167,8 @@ public static partial class SortedSets
         long skip,
         long take,
         bool withScores,
-        CommandFlags flags)
+        CommandFlags flags,
+        CancellationToken cancellationToken)
     {
         var command = order == Order.Descending ? RedisCommand.ZREVRANGEBYSCORE : RedisCommand.ZRANGEBYSCORE;
 
@@ -975,7 +1191,8 @@ public static partial class SortedSets
 
         return sortedSets.Context.SendAsync<TResult>(
             $"{command}{key}{from}{to}{scores}{new RespLimitRange(skip, take)}",
-            flags);
+            flags,
+            cancellationToken: cancellationToken);
     }
 
     /// <summary>The checks the combination commands share, and the command they resolve to.</summary>
@@ -1016,7 +1233,8 @@ public static partial class SortedSets
         ReadOnlySpan<double> weights,
         Aggregate aggregate,
         bool withScores,
-        CommandFlags flags)
+        CommandFlags flags,
+        CancellationToken cancellationToken)
     {
         var argHint = 2 + keys.Length + (weights.IsEmpty ? 0 : 1 + weights.Length) + 3;
         var cmd = sortedSets.Context.Compose(command, argHint);
@@ -1045,7 +1263,7 @@ public static partial class SortedSets
         }
 
         var frame = cmd.Complete();
-        return sortedSets.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require(), default);
+        return sortedSets.Context.SendAsync(ref frame, flags, RespHandlers.Inbuilt<TResult>.Require(), cancellationToken);
     }
 
     /// <summary>A lexical bound, shared with the MessageWriter path.</summary>
