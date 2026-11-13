@@ -86,6 +86,10 @@ namespace StackExchange.Redis
         [Resp]
         internal static partial RespFragment Len { get; }
 
+        /// <summary>The <c>ABSTTL</c> operand of <c>RESTORE</c>: the ttl argument is an absolute unix-time deadline in milliseconds.</summary>
+        [Resp]
+        internal static partial RespFragment AbsTtl { get; }
+
         /// <summary>The <c>SLOTS</c> sub-command, as used by <c>CLUSTER SLOTS</c>.</summary>
         [Resp]
         internal static partial RespFragment Slots { get; }

@@ -153,11 +153,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetLength(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => Wait(Blocking.SortedSets.LengthAsync(key, min, max, exclude, flags));
+            => Wait(Blocking.SortedSets.LengthCore(key, min, max, exclude, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetLengthAsync(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
-            => _inner.SortedSets.LengthAsync(key, min, max, exclude, flags).AsTask(AsyncState, flags);
+            => _inner.SortedSets.LengthCore(key, min, max, exclude, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
@@ -251,11 +251,11 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long SortedSetRangeAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue start, RedisValue stop, SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long? take = null, CommandFlags flags = CommandFlags.None)
-            => Wait(Blocking.SortedSets.RangeAndStoreAsync(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags));
+            => Wait(Blocking.SortedSets.RangeAndStoreCore(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags));
 
         /// <inheritdoc/>
         public Task<long> SortedSetRangeAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue start, RedisValue stop, SortedSetOrder sortedSetOrder = SortedSetOrder.ByRank, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long? take = null, CommandFlags flags = CommandFlags.None)
-            => _inner.SortedSets.RangeAndStoreAsync(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags).AsTask(AsyncState, flags);
+            => _inner.SortedSets.RangeAndStoreCore(sourceKey, destinationKey, start, stop, sortedSetOrder, exclude, order, skip, take, flags).AsTask(AsyncState, flags);
 
         // ---- removal by range --------------------------------------------------------------------------
 

@@ -43,7 +43,7 @@ public static partial class Geospatial
 /// <c>GEOREM</c>, and there never was.
 /// </para>
 /// <para>
-/// The group's own method is <see cref="Geospatial.SearchAsync(RespGeospatial, RedisKey, RedisValue, GeoSearchShape, int, bool, Order?, GeoRadiusOptions, CommandFlags, CancellationToken)"/>;
+/// The group's own method is <see cref="Geospatial.SearchAsync"/>;
 /// <c>GEORADIUS</c> has no method here at all, exactly as <c>GETSET</c> and <c>RPOPLPUSH</c> have none.
 /// It survives as an internal sibling so that a caller of the old <c>GeoRadius</c> keeps working on a
 /// server that predates <c>GEOSEARCH</c>.

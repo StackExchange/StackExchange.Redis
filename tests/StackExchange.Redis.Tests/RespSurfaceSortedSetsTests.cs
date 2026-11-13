@@ -102,16 +102,22 @@ public class RespSurfaceSortedSetsTests
         var (ctx, exec) = Target();
 
         await ctx.SortedSets.LengthAsync("k");
-        await ctx.SortedSets.LengthAsync("k", 1, 10);
-        await ctx.SortedSets.LengthAsync("k", 1, 10, Exclude.Start);
+        await ctx.SortedSets.RangeLengthAsync("k", SortedSetRange.ByScore());
+        await ctx.SortedSets.RangeLengthAsync("k", SortedSetRange.ByScore(1, 10));
+        await ctx.SortedSets.RangeLengthAsync("k", SortedSetRange.ByScore(1, 10, Exclude.Start));
+        await ctx.SortedSets.RangeLengthAsync("k", SortedSetRange.ByValue("a", "j"));
 
-        // the whole set is what ZCARD answers without walking anything; and an exclusive bound is a '('
+        // the whole set is what ZCARD answers without walking anything - including an unbounded score
+        // range, which means the same thing; an exclusive bound is a '(', and a lexical count is its
+        // own command
         Assert.Equal(
             new[]
             {
                 "*2|$5|ZCARD|$1|k|",
+                "*2|$5|ZCARD|$1|k|",
                 "*4|$6|ZCOUNT|$1|k|$1|1|$2|10|",
                 "*4|$6|ZCOUNT|$1|k|$2|(1|$2|10|",
+                "*4|$9|ZLEXCOUNT|$1|k|$2|[a|$2|[j|",
             },
             exec.Sent);
     }
@@ -121,21 +127,19 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target("*0\r\n");
 
-        await ctx.SortedSets.RangeByScoreAsync("k", 1, 10);
-        await ctx.SortedSets.RangeByScoreAsync("k", 10, 1, order: Order.Descending);
-        await ctx.SortedSets.RangeByScoreAsync("k", 10, 1, Exclude.Start, Order.Descending);
-        await ctx.SortedSets.RangeByScoreAsync("k", 1, 10, Exclude.Start, Order.Descending);
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByScore(1, 10));
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByScore(1, 10), Order.Descending);
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByScore(1, 10, Exclude.Start), Order.Descending);
 
-        // each command wants its bounds in the direction it walks - ascending low-then-high, descending
-        // high-then-low - so a caller who wrote them the other way round gets them swapped, and the
-        // exclusivity swaps with them or the range quietly moves by one member. The first three are
-        // already in the right order for their command and pass through; the fourth is not.
+        // the operand always speaks min-then-max; each command wants the bounds in the direction it
+        // walks - ascending low-then-high, descending high-then-low - so the descending forms get them
+        // swapped on the way out, and the exclusivity travels with its own bound: Exclude.Start is the
+        // MIN bound whichever direction the walk goes, or the range quietly moves by one member.
         Assert.Equal(
             new[]
             {
                 "*4|$13|ZRANGEBYSCORE|$1|k|$1|1|$2|10|",
                 "*4|$16|ZREVRANGEBYSCORE|$1|k|$2|10|$1|1|",
-                "*4|$16|ZREVRANGEBYSCORE|$1|k|$3|(10|$1|1|",
                 "*4|$16|ZREVRANGEBYSCORE|$1|k|$2|10|$2|(1|",
             },
             exec.Sent);
@@ -146,9 +150,9 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target("*0\r\n");
 
-        await ctx.SortedSets.RangeByScoreAsync("k", 1, 10);
-        await ctx.SortedSets.RangeByScoreAsync("k", 1, 10, skip: 5, take: 2);
-        await ctx.SortedSets.RangeByScoreWithScoresAsync("k", 1, 10, skip: 5, take: 2);
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByScore(1, 10));
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByScore(1, 10), skip: 5, take: 2);
+        await ctx.SortedSets.RangeWithScoresAsync("k", SortedSetRange.ByScore(1, 10), skip: 5, take: 2);
 
         Assert.Equal(
             new[]
@@ -165,10 +169,10 @@ public class RespSurfaceSortedSetsTests
     {
         var (ctx, exec) = Target("*0\r\n");
 
-        await ctx.SortedSets.RangeByValueAsync("k");
-        await ctx.SortedSets.RangeByValueAsync("k", order: Order.Descending);
-        await ctx.SortedSets.RangeByValueAsync("k", "a", "j");
-        await ctx.SortedSets.RangeByValueAsync("k", "a", "j", Exclude.Both);
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByValue());
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByValue(), Order.Descending);
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByValue("a", "j"));
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByValue("a", "j", Exclude.Both));
 
         // '-' and '+' are chosen by the ORDER, not by the position; the bounds themselves stay in
         // start-then-stop order even for the reversed command
@@ -184,14 +188,37 @@ public class RespSurfaceSortedSetsTests
     }
 
     [Fact]
+    public async Task ARankRangeIsTheRankCommands()
+    {
+        var (ctx, exec) = Target("*0\r\n");
+
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByRank());
+        await ctx.SortedSets.RangeAsync("k", default); // a default range is the whole set, by rank
+        await ctx.SortedSets.RangeAsync("k", SortedSetRange.ByRank(2, 5), Order.Descending);
+        await ctx.SortedSets.RangeWithScoresAsync("k", SortedSetRange.ByRank());
+
+        // descending rank bounds pass through unswapped: ZREVRANGE counts its ranks from the other end,
+        // which is the whole of what the command means
+        Assert.Equal(
+            new[]
+            {
+                "*4|$6|ZRANGE|$1|k|$1|0|$2|-1|",
+                "*4|$6|ZRANGE|$1|k|$1|0|$2|-1|",
+                "*4|$9|ZREVRANGE|$1|k|$1|2|$1|5|",
+                "*5|$6|ZRANGE|$1|k|$1|0|$2|-1|$10|WITHSCORES|",
+            },
+            exec.Sent);
+    }
+
+    [Fact]
     public async Task RangeAndStoreBracketsAnInclusiveLexicalBound()
     {
         var (ctx, exec) = Target();
 
-        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", 0, -1);
-        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", "a", "j", SortedSetOrder.ByLex);
-        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", 1, 10, SortedSetOrder.ByScore);
-        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", "a", "j", SortedSetOrder.ByLex, take: 3);
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", SortedSetRange.ByRank());
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", SortedSetRange.ByValue("a", "j"));
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", SortedSetRange.ByScore(1, 10));
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", SortedSetRange.ByValue("a", "j"), take: 3);
 
         // the destination comes FIRST, and a by-lex bound is bracketed where a by-score one is bare -
         // an asymmetry that belongs to the server and is exactly what gets "tidied" into a bug
@@ -207,14 +234,41 @@ public class RespSurfaceSortedSetsTests
     }
 
     [Fact]
-    public void RangeAndStoreRefusesOperandsItHasNowhereToPut()
+    public async Task ADescendingStoreSwapsItsBoundsLikeTheReads()
+    {
+        var (ctx, exec) = Target();
+
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", SortedSetRange.ByScore(1, 10, Exclude.Start), Order.Descending);
+        await ctx.SortedSets.RangeAndStoreAsync("src", "dst", SortedSetRange.ByValue(), Order.Descending);
+
+        // with REV the server wants the bounds high-then-low; the exclusivity travels with its own
+        // bound, and an open lexical bound flips to the symbol for its end - the same normalization the
+        // reads apply, which the SortedSetOrder-shaped legacy surface left to the caller
+        Assert.Equal(
+            new[]
+            {
+                "*7|$11|ZRANGESTORE|$3|dst|$3|src|$2|10|$2|(1|$7|BYSCORE|$3|REV|",
+                "*7|$11|ZRANGESTORE|$3|dst|$3|src|$1|+|$1|-|$5|BYLEX|$3|REV|",
+            },
+            exec.Sent);
+    }
+
+    [Fact]
+    public void RangesRefuseWhatTheServerCannotSpell()
     {
         var (ctx, _) = Target();
 
-        // by rank the server has no operand for either, so dropping them silently would store a
-        // different range than was asked for
-        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAndStoreAsync("s", "d", 0, -1, take: 3));
-        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAndStoreAsync("s", "d", 0, -1, exclude: Exclude.Start));
+        // a by-rank range has no LIMIT - the window IS the rank bounds - and no count command; a
+        // by-value range has no WITHSCORES, because every member of such a set shares one score. Each
+        // throws rather than quietly answering a different question. (A by-rank exclusivity, which the
+        // old surface also had to reject at runtime, is no longer representable at all.)
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAsync("k", SortedSetRange.ByRank(), skip: 1));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAsync("k", SortedSetRange.ByRank(), take: 3));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeWithScoresAsync("k", SortedSetRange.ByRank(), skip: 1));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeWithScoresAsync("k", SortedSetRange.ByValue("a", "j")));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAndStoreAsync("s", "d", SortedSetRange.ByRank(), take: 3));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeAndStoreAsync("s", "d", SortedSetRange.ByRank(), skip: 1));
+        Assert.Throws<ArgumentException>(() => ctx.SortedSets.RangeLengthAsync("k", SortedSetRange.ByRank()));
     }
 
     [Fact]

@@ -133,19 +133,19 @@ namespace StackExchange.Redis
 
         /// <inheritdoc/>
         public long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => Wait(Blocking.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, member, shape, count, demandClosest, order, storeDistances, flags));
+            => Wait(Blocking.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, GeoCenter.Member(member), shape, count, demandClosest, order, storeDistances, flags));
 
         /// <inheritdoc/>
         public Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, RedisValue member, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => _inner.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, member, shape, count, demandClosest, order, storeDistances, flags).AsTask(AsyncState, flags);
+            => _inner.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, GeoCenter.Member(member), shape, count, demandClosest, order, storeDistances, flags).AsTask(AsyncState, flags);
 
         /// <inheritdoc/>
         public long GeoSearchAndStore(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => Wait(Blocking.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, longitude, latitude, shape, count, demandClosest, order, storeDistances, flags));
+            => Wait(Blocking.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, GeoCenter.Position(longitude, latitude), shape, count, demandClosest, order, storeDistances, flags));
 
         /// <inheritdoc/>
         public Task<long> GeoSearchAndStoreAsync(RedisKey sourceKey, RedisKey destinationKey, double longitude, double latitude, GeoSearchShape shape, int count = -1, bool demandClosest = true, Order? order = null, bool storeDistances = false, CommandFlags flags = CommandFlags.None)
-            => _inner.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, longitude, latitude, shape, count, demandClosest, order, storeDistances, flags).AsTask(AsyncState, flags);
+            => _inner.Geospatial.SearchAndStoreAsync(destinationKey, sourceKey, GeoCenter.Position(longitude, latitude), shape, count, demandClosest, order, storeDistances, flags).AsTask(AsyncState, flags);
 
         /// <summary>
         /// The old surface rejects a numeric member here, because it is almost certainly a longitude that

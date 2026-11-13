@@ -46,6 +46,37 @@ public class RespSurfaceKeysTests
             exec.Sent);
     }
 
+    [Fact]
+    public async Task RestoreSpellsItsDeadlineAsMilliseconds()
+    {
+        var (ctx, exec) = Target("+OK\r\n");
+
+        await ctx.Keys.RestoreAsync("k", "abc"u8);
+        await ctx.Keys.RestoreAsync("k", "abc"u8, TimeSpan.FromSeconds(30));
+        await ctx.Keys.RestoreAsync("k", "abc"u8, new DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        // RESTORE's ttl is positional milliseconds - zero for none - and an absolute deadline is the
+        // same argument reinterpreted by the ABSTTL trailer, not a different token family
+        Assert.Equal(
+            new[]
+            {
+                "*4|$7|RESTORE|$1|k|$1|0|$3|abc|",
+                "*4|$7|RESTORE|$1|k|$5|30000|$3|abc|",
+                "*5|$7|RESTORE|$1|k|$13|1893456000000|$3|abc|$6|ABSTTL|",
+            },
+            exec.Sent);
+    }
+
+    [Fact]
+    public void RestoreRejectsExpirationsThatAreNotDeadlines()
+    {
+        var (ctx, _) = Target();
+
+        // a restored key has no existing expiry to keep or shed, so KEEPTTL and PERSIST mean nothing
+        Assert.Throws<ArgumentException>(() => ctx.Keys.RestoreAsync("k", "abc"u8, Expiration.KeepTtl));
+        Assert.Throws<ArgumentException>(() => ctx.Keys.RestoreAsync("k", "abc"u8, Expiration.Persist));
+    }
+
     /// <summary>The OBJECT family renders as one command with a fixed subcommand token.</summary>
     [Fact]
     public async Task TheObjectFamilyRendersItsSubcommand()
