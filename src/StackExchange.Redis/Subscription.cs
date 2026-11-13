@@ -22,6 +22,8 @@ public partial class ConnectionMultiplexer
         public CommandFlags Flags { get; }
         public ResultProcessor.TrackSubscriptionsProcessor Processor { get; }
 
+        internal virtual bool Accepts(PhysicalConnection connection) => true;
+
         internal abstract bool IsConnectedAny();
         internal abstract bool IsConnectedTo(EndPoint endpoint);
 
@@ -77,7 +79,8 @@ public partial class ConnectionMultiplexer
             in RedisChannel channel,
             SubscriptionAction action,
             CommandFlags flags,
-            bool internalCall)
+            bool internalCall,
+            bool trackReply = false)
         {
             const RedisChannel.RedisChannelOptions OPTIONS_MASK = ~(
                 RedisChannel.RedisChannelOptions.KeyRouted | RedisChannel.RedisChannelOptions.IgnoreChannelPrefix);
@@ -108,7 +111,9 @@ public partial class ConnectionMultiplexer
                 };
 
             // TODO: Consider flags here - we need to pass Fire and Forget, but don't want to intermingle Primary/Replica
-            var msg = Message.Create(-1, Flags | flags, command, channel);
+            var effectiveFlags = Flags | flags;
+            if (trackReply) effectiveFlags &= ~CommandFlags.FireAndForget;
+            var msg = Message.Create(-1, effectiveFlags, command, channel);
             msg.SetForSubscriptionBridge();
             if (internalCall)
             {
@@ -196,129 +201,383 @@ public partial class ConnectionMultiplexer
     // used for most subscriptions; routed to a single node
     internal sealed class SingleNodeSubscription(CommandFlags flags) : Subscription(flags)
     {
-        internal override bool IsConnectedAny() => _currentServer is { IsSubscriberConnected: true };
+        private readonly SemaphoreSlim _operationLock = new(1, 1);
+        private readonly object _stateLock = new();
+        private ServerEndPoint? _currentServer;
+        private PhysicalConnection? _currentConnection;
+        private RestoreOperation? _pendingRestore;
+        private System.Collections.Generic.List<CleanupRequest>? _cleanup;
+        private bool _unsubscribed;
+        private bool _needsRestore;
 
-        internal override int GetConnectionCount() => IsConnectedAny() ? 1 : 0;
-
-        internal override bool IsConnectedTo(EndPoint endpoint)
+        internal override bool IsConnectedAny()
         {
-            var server = _currentServer;
-            return server is { IsSubscriberConnected: true } && server.EndPoint == endpoint;
+            var connection = Volatile.Read(ref _currentConnection);
+            return !Volatile.Read(ref _unsubscribed)
+                && _currentServer is { IsSubscriberConnected: true }
+                && connection is not null && ReferenceEquals(connection.BridgeCouldBeNull?.Physical, connection);
         }
+        internal override int GetConnectionCount() => IsConnectedAny() ? 1 : 0;
+        internal override bool IsConnectedTo(EndPoint endpoint)
+            => IsConnectedAny() && _currentServer?.EndPoint == endpoint;
 
-        internal override void AddEndpoint(ServerEndPoint server) => _currentServer = server;
+        internal override bool Accepts(PhysicalConnection connection)
+            => !Volatile.Read(ref _unsubscribed) && ReferenceEquals(Volatile.Read(ref _currentConnection), connection);
+
+        internal override void AddEndpoint(ServerEndPoint server) { lock (_stateLock) _currentServer = server; }
 
         internal override bool TryRemoveEndpoint(ServerEndPoint expected)
         {
-            if (_currentServer == expected)
+            lock (_stateLock)
             {
-                _currentServer = null;
+                if (_currentServer != expected) return false;
+                _needsRestore = true;
+                if (!IsConnectedAny())
+                {
+                    _currentServer = null;
+                    Volatile.Write(ref _currentConnection, null);
+                }
                 return true;
             }
-
-            return false;
         }
 
-        internal override bool UnsubscribeFromServer(
-            RedisSubscriber subscriber,
-            in RedisChannel channel,
-            CommandFlags flags,
-            bool internalCall)
+        internal ServerEndPoint? GetCurrentServer() => Volatile.Read(ref _currentServer);
+        internal override ServerEndPoint? GetAnyCurrentServer() => GetCurrentServer();
+
+        internal override void RemoveDisconnectedEndpoints()
         {
-            var server = _currentServer;
-            if (server is not null)
+            RestoreOperation? superseded = null;
+            lock (_stateLock)
             {
-                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
+                if (_currentServer is not null && !IsConnectedAny())
+                {
+                    _currentServer = null;
+                    Volatile.Write(ref _currentConnection, null);
+                }
+                // A redirected sharded restore can be backlogged on a retired node. Once the
+                // topology has a live owner, don't hold every later restore behind that old reply.
+                if (_pendingRestore is { } pending && pending.Channel.IsKeyRouted && pending.Message.IsBacklogged)
+                {
+                    var muxer = pending.Subscriber.multiplexer;
+                    var selected = muxer.SelectServer(pending.Message);
+                    if (selected is { IsSubscriberConnected: true }
+                        && muxer.ServerSelectionStrategy.CanServeSlot(selected, pending.Channel))
+                        superseded = pending;
+                }
+            }
+            superseded?.Supersede();
+        }
+
+        internal override int EnsureSubscribedToServer(RedisSubscriber subscriber, in RedisChannel channel, CommandFlags flags, bool internalCall)
+        {
+            RemoveDisconnectedEndpoints();
+            bool fireAndForget = ((Flags | flags) & CommandFlags.FireAndForget) != 0;
+            if (!Enter(subscriber, fireAndForget)) return 0;
+            RestoreOperation? operation = null;
+            bool transferred = false;
+            try
+            {
+                operation = BeginRestore(subscriber, channel, flags, internalCall, null);
+                if (operation is null) return 0;
+                if (fireAndForget)
+                {
+                    transferred = true;
+                    _ = CompleteRestoreAsync(operation).ObserveErrors();
+                    return 1;
+                }
+                subscriber.ExecuteSync(operation.Message, operation.Processor, operation.Server);
+                return 1;
+            }
+            finally
+            {
+                if (!transferred) EndOperation(operation);
+            }
+        }
+
+        internal override async Task<int> EnsureSubscribedToServerAsync(RedisSubscriber subscriber, RedisChannel channel, CommandFlags flags, bool internalCall, ServerEndPoint? server = null)
+        {
+            RemoveDisconnectedEndpoints();
+            bool fireAndForget = ((Flags | flags) & CommandFlags.FireAndForget) != 0;
+            if (fireAndForget)
+            {
+                if (!Enter(subscriber, true)) return 0;
+            }
+            else if (!await _operationLock.WaitAsync(subscriber.multiplexer.AsyncTimeoutMilliseconds).ForAwait())
+            {
+                throw WaitingTimeout(subscriber);
+            }
+            RestoreOperation? operation = null;
+            bool transferred = false;
+            try
+            {
+                operation = BeginRestore(subscriber, channel, flags, internalCall, server);
+                if (operation is null) return 0;
+                if (fireAndForget)
+                {
+                    transferred = true;
+                    _ = CompleteRestoreAsync(operation).ObserveErrors();
+                    return 1;
+                }
+                await AwaitRestoreAsync(operation).ForAwait();
+                return 1;
+            }
+            finally { if (!transferred) EndOperation(operation); }
+        }
+
+        private bool Enter(RedisSubscriber subscriber, bool fireAndForget)
+        {
+            if (_operationLock.Wait(fireAndForget ? 0 : subscriber.multiplexer.TimeoutMilliseconds)) return true;
+            if (fireAndForget) return false;
+            throw WaitingTimeout(subscriber);
+        }
+
+        private Exception WaitingTimeout(RedisSubscriber subscriber)
+            => ExceptionFactory.Timeout(subscriber.multiplexer, "Timeout waiting for an in-flight subscription operation.", null, _currentServer);
+
+        private RestoreOperation? BeginRestore(RedisSubscriber subscriber, RedisChannel channel, CommandFlags flags, bool internalCall, ServerEndPoint? server)
+        {
+            lock (_stateLock)
+            {
+                if (_unsubscribed) return null;
+                bool incorrectRouting = channel.IsKeyRouted
+                    && _currentServer is { ServerType: ServerType.Cluster } current
+                    && !subscriber.multiplexer.ServerSelectionStrategy.CanServeSlot(current, channel);
+                if (!_needsRestore && !incorrectRouting && IsConnectedAny()) return null;
+                // Keep the previous delivery route until the replacement is acknowledged.
+                // The read thread switches ownership before processing the next incoming message.
+                // Keep an actual reply task even for fire-and-forget restoration: sending is not acknowledgement.
+                var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall, trackReply: true);
+                server ??= subscriber.multiplexer.SelectServer(message);
+                return _pendingRestore = new RestoreOperation(this, subscriber, channel, message, server);
+            }
+        }
+
+        private async Task CompleteRestoreAsync(RestoreOperation operation)
+        {
+            try { await AwaitRestoreAsync(operation).ForAwait(); }
+            finally { EndOperation(operation); }
+        }
+
+        private static async Task AwaitRestoreAsync(RestoreOperation operation)
+        {
+            var reply = operation.Subscriber.ExecuteAsync(operation.Message, operation.Processor, operation.Server);
+            if (await Task.WhenAny(reply, operation.Superseded).ForAwait() != reply)
+            {
+                _ = reply.ObserveErrors();
+                throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.None, "The subscription restore was superseded by a live routing owner.");
+            }
+            await reply.ForAwait();
+        }
+
+        private void EndOperation(RestoreOperation? operation)
+        {
+            lock (_stateLock)
+            {
+                if (ReferenceEquals(_pendingRestore, operation)) _pendingRestore = null;
+                _operationLock.Release();
+            }
+            DrainCleanup();
+            if (operation is not null && operation.Superseded.IsCompleted && !_unsubscribed && !IsConnectedAny())
+            {
+                var muxer = operation.Subscriber.multiplexer;
+                if (muxer.TryGetSubscription(operation.Channel, out var active) && ReferenceEquals(active, this)
+                    && muxer.SelectServer(operation.Message) is { IsSubscriberConnected: true } selected)
+                    operation.Subscriber.ResubscribeToServer(this, operation.Channel, selected, "superseded sharded restoration");
+            }
+        }
+
+        private void OnSubscribed(RestoreOperation operation, PhysicalConnection connection)
+        {
+            var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+            if (server is null) return;
+            CleanupRequest? cleanup = null;
+            lock (_stateLock)
+            {
+                if (ReferenceEquals(_pendingRestore, operation) && !_unsubscribed && !operation.Superseded.IsCompleted)
+                {
+                    if (_currentServer is { } previous && !ReferenceEquals(previous, server))
+                        cleanup = new CleanupRequest(operation.Subscriber, operation.Channel, previous);
+                    _currentServer = server;
+                    Volatile.Write(ref _currentConnection, connection);
+                    _needsRestore = false;
+                }
+                else
+                {
+                    // An obsolete acknowledgement must not change the confirmed delivery route.
+                    cleanup = new CleanupRequest(operation.Subscriber, operation.Channel, server);
+                }
+            }
+            if (cleanup is not null) QueueCleanup(cleanup);
+        }
+
+        private void QueueCleanup(CleanupRequest request)
+        {
+            lock (_stateLock)
+            {
+                (_cleanup ??= new()).Add(request);
+            }
+            DrainCleanup();
+        }
+
+        private void DrainCleanup()
+        {
+            // Serialize cleanup writes with restoration, but never write or forward under _stateLock.
+            if (!_operationLock.Wait(0)) return;
+            bool ownsOperation = true;
+            try
+            {
+                while (true)
+                {
+                    System.Collections.Generic.List<CleanupRequest>? cleanup;
+                    lock (_stateLock)
+                    {
+                        cleanup = _cleanup;
+                        _cleanup = null;
+                        if (cleanup is null)
+                        {
+                            // QueueCleanup cannot miss this release: it takes the same state lock.
+                            _operationLock.Release();
+                            ownsOperation = false;
+                            return;
+                        }
+                    }
+                    foreach (var request in cleanup)
+                    {
+                        var muxer = request.Subscriber.multiplexer;
+                        if (muxer.TryGetSubscription(request.Channel, out var active) && !ReferenceEquals(active, this))
+                        {
+                            if (active is SingleNodeSubscription single)
+                            {
+                                single.QueueCleanup(request);
+                                continue;
+                            }
+                            if (active.IsConnectedTo(request.Server.EndPoint)) continue;
+                        }
+                        if (!_unsubscribed && ReferenceEquals(_currentServer, request.Server)) continue;
+                        try
+                        {
+                            var message = GetSubscriptionMessage(request.Channel, SubscriptionAction.Unsubscribe, CommandFlags.FireAndForget, true);
+                            muxer.ExecuteAsyncImpl(message, ResultProcessor.TrackSubscriptions, null, request.Server).ObserveErrors();
+                        }
+                        catch (Exception ex) { muxer.OnInternalError(ex); }
+                    }
+                }
+            }
+            finally { if (ownsOperation) _operationLock.Release(); }
+        }
+
+        private void QueueUnsubscribeCleanup(RedisSubscriber subscriber, RedisChannel channel)
+        {
+            lock (_stateLock)
+            {
+                if (_currentServer is { } current)
+                    (_cleanup ??= new()).Add(new CleanupRequest(subscriber, channel, current));
+                if (_pendingRestore?.Server is { } pending && !ReferenceEquals(pending, _currentServer))
+                    (_cleanup ??= new()).Add(new CleanupRequest(subscriber, channel, pending));
+            }
+            DrainCleanup();
+        }
+
+        internal override bool UnsubscribeFromServer(RedisSubscriber subscriber, in RedisChannel channel, CommandFlags flags, bool internalCall)
+        {
+            Volatile.Write(ref _unsubscribed, true);
+            if (((Flags | flags) & CommandFlags.FireAndForget) != 0)
+            {
+                UnsubscribeCoreAsync(subscriber, channel, flags, null, internalCall).ObserveErrors();
+                return true;
+            }
+            if (!_operationLock.Wait(subscriber.multiplexer.TimeoutMilliseconds))
+            {
+                QueueUnsubscribeCleanup(subscriber, channel);
+                return true;
+            }
+            try
+            {
+                var server = _currentServer;
+                if (server is null) return true;
+                if (ForwardCleanup(subscriber, channel, server)) return true;
+                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall, trackReply: true);
                 return subscriber.multiplexer.ExecuteSyncImpl(message, Processor, server);
             }
-
-            return true;
+            finally { EndOperation(null); }
         }
 
-        internal override Task<bool> UnsubscribeFromServerAsync(
-            RedisSubscriber subscriber,
-            RedisChannel channel,
-            CommandFlags flags,
-            object? asyncState,
-            bool internalCall)
+        internal override Task<bool> UnsubscribeFromServerAsync(RedisSubscriber subscriber, RedisChannel channel, CommandFlags flags, object? asyncState, bool internalCall)
         {
-            var server = _currentServer;
-            if (server is not null)
+            Volatile.Write(ref _unsubscribed, true);
+            var task = UnsubscribeCoreAsync(subscriber, channel, flags, asyncState, internalCall);
+            if (((Flags | flags) & CommandFlags.FireAndForget) == 0)
             {
-                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall);
-                return subscriber.multiplexer.ExecuteAsyncImpl(message, Processor, asyncState, server);
+                var completion = TaskSource.Create<bool>(asyncState, TaskCreationOptions.RunContinuationsAsynchronously);
+                CompleteUnsubscribeAsync(task, completion).ObserveErrors();
+                return completion.Task;
             }
-
+            task.ObserveErrors();
             return CompletedTask<bool>.FromResult(true, asyncState);
         }
 
-        private ServerEndPoint? _currentServer;
-        internal ServerEndPoint? GetCurrentServer() => Volatile.Read(ref _currentServer);
-
-        internal override ServerEndPoint? GetAnyCurrentServer() => Volatile.Read(ref _currentServer);
-
-        /// <summary>
-        /// Evaluates state and if we're not currently connected, clears the server reference.
-        /// </summary>
-        internal override void RemoveDisconnectedEndpoints()
+        private static async Task CompleteUnsubscribeAsync(Task<bool> operation, TaskCompletionSource<bool> completion)
         {
-            var server = _currentServer;
-            if (server is { IsSubscriberConnected: false })
+            try { completion.TrySetResult(await operation.ForAwait()); }
+            catch (OperationCanceledException) when (operation.IsCanceled) { completion.TrySetCanceled(); }
+            catch (Exception ex) { completion.TrySetException(ex); }
+        }
+
+        private async Task<bool> UnsubscribeCoreAsync(RedisSubscriber subscriber, RedisChannel channel, CommandFlags flags, object? asyncState, bool internalCall)
+        {
+            if (!await _operationLock.WaitAsync(subscriber.multiplexer.AsyncTimeoutMilliseconds).ForAwait())
             {
-                _currentServer = null;
+                QueueUnsubscribeCleanup(subscriber, channel);
+                return true;
             }
-        }
-
-        internal override int EnsureSubscribedToServer(
-            RedisSubscriber subscriber,
-            in RedisChannel channel,
-            CommandFlags flags,
-            bool internalCall)
-        {
-            RemoveIncorrectRouting(subscriber, in channel, flags, internalCall);
-            if (IsConnectedAny()) return 0;
-
-            // we're not appropriately connected, so blank it out for eligible reconnection
-            _currentServer = null;
-            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-            var selected = subscriber.multiplexer.SelectServer(message);
-            _ = subscriber.ExecuteSync(message, Processor, selected);
-            return 1;
-        }
-
-        private void RemoveIncorrectRouting(RedisSubscriber subscriber, in RedisChannel channel, CommandFlags flags, bool internalCall)
-        {
-            // only applies to cluster, when using key-routed channels (sharded, explicit key-routed, or
-            // a single-key keyspace notification); is the subscribed server still handling that channel?
-            if (channel.IsKeyRouted && _currentServer is { ServerType: ServerType.Cluster } current)
+            try
             {
-                // if we consider replicas, there can be multiple valid target servers; we can't ask
-                // "is this the correct server?", but we can ask "is it suitable?", based on the slot
-                if (!subscriber.multiplexer.ServerSelectionStrategy.CanServeSlot(_currentServer, channel))
-                {
-                    var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags | CommandFlags.FireAndForget, internalCall);
-                    subscriber.multiplexer.ExecuteSyncImpl(message, Processor, current);
-                    _currentServer = null; // pre-emptively disconnect - F+F
-                }
+                var server = _currentServer;
+                if (server is null) return true;
+                if (ForwardCleanup(subscriber, channel, server)) return true;
+                var message = GetSubscriptionMessage(channel, SubscriptionAction.Unsubscribe, flags, internalCall, trackReply: true);
+                return await subscriber.multiplexer.ExecuteAsyncImpl(message, Processor, asyncState, server).ForAwait();
             }
+            finally { EndOperation(null); }
         }
 
-        internal override async Task<int> EnsureSubscribedToServerAsync(
-            RedisSubscriber subscriber,
-            RedisChannel channel,
-            CommandFlags flags,
-            bool internalCall,
-            ServerEndPoint? server = null)
+        private bool ForwardCleanup(RedisSubscriber subscriber, RedisChannel channel, ServerEndPoint server)
         {
-            RemoveIncorrectRouting(subscriber, in channel, flags, internalCall);
-            if (IsConnectedAny()) return 0;
+            if (subscriber.multiplexer.TryGetSubscription(channel, out var active) && !ReferenceEquals(active, this))
+            {
+                if (active is SingleNodeSubscription single) single.QueueCleanup(new CleanupRequest(subscriber, channel, server));
+                else if (!active.IsConnectedTo(server.EndPoint)) QueueCleanup(new CleanupRequest(subscriber, channel, server));
+                return true;
+            }
+            return false;
+        }
 
-            // we're not appropriately connected, so blank it out for eligible reconnection
-            _currentServer = null;
-            var message = GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, flags, internalCall);
-            server ??= subscriber.multiplexer.SelectServer(message);
-            await subscriber.ExecuteAsync(message, Processor, server).ForAwait();
-            return 1;
+        private sealed class RestoreOperation
+        {
+            private readonly TaskCompletionSource<bool> _superseded = TaskSource.Create<bool>(null, TaskCreationOptions.RunContinuationsAsynchronously);
+            public Task Superseded => _superseded.Task;
+            public void Supersede() => _superseded.TrySetResult(true);
+
+            public RestoreOperation(SingleNodeSubscription owner, RedisSubscriber subscriber, RedisChannel channel, Message message, ServerEndPoint? server)
+            {
+                Subscriber = subscriber;
+                Channel = channel;
+                Message = message;
+                Server = server;
+                Processor = new ResultProcessor.TrackSubscriptionsProcessor(owner, connection => owner.OnSubscribed(this, connection));
+            }
+            public RedisSubscriber Subscriber { get; }
+            public RedisChannel Channel { get; }
+            public Message Message { get; }
+            public ServerEndPoint? Server { get; }
+            public ResultProcessor.TrackSubscriptionsProcessor Processor { get; }
+        }
+
+        private sealed class CleanupRequest(RedisSubscriber subscriber, RedisChannel channel, ServerEndPoint server)
+        {
+            public RedisSubscriber Subscriber { get; } = subscriber;
+            public RedisChannel Channel { get; } = channel;
+            public ServerEndPoint Server { get; } = server;
         }
     }
 

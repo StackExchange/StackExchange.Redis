@@ -694,13 +694,13 @@ internal sealed partial class PhysicalConnection
         {
             case RespPrefix.BulkString:
             case RespPrefix.SimpleString:
-                muxer.OnMessage(subscriptionChannel, messageChannel, reader.ReadRedisValue());
+                muxer.OnMessage(subscriptionChannel, messageChannel, reader.ReadRedisValue(), this);
                 break;
             case RespPrefix.Array:
                 var iter = reader.AggregateChildren();
                 while (iter.MoveNext())
                 {
-                    muxer.OnMessage(subscriptionChannel, messageChannel, iter.Value.ReadRedisValue());
+                    muxer.OnMessage(subscriptionChannel, messageChannel, iter.Value.ReadRedisValue(), this);
                 }
 
                 break;

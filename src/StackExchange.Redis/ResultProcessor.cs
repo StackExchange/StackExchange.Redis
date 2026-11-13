@@ -537,7 +537,10 @@ namespace StackExchange.Redis
         public sealed class TrackSubscriptionsProcessor : ResultProcessor<bool>
         {
             private ConnectionMultiplexer.Subscription? Subscription { get; }
+            private readonly Action<PhysicalConnection>? _onSubscribed;
             public TrackSubscriptionsProcessor(ConnectionMultiplexer.Subscription? sub) => Subscription = sub;
+            internal TrackSubscriptionsProcessor(ConnectionMultiplexer.Subscription sub, Action<PhysicalConnection> onSubscribed)
+                : this(sub) => _onSubscribed = onSubscribed;
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, ref RespReader reader)
             {
@@ -555,23 +558,27 @@ namespace StackExchange.Redis
                         if (iter.Value.TryReadInt64(out long count))
                         {
                             connection.SubscriptionCount = count;
-                            SetResult(message, true);
-
-                            var ep = connection.BridgeCouldBeNull?.ServerEndPoint;
-                            if (ep is not null)
+                            try
                             {
-                                switch (message.Command)
+                                var ep = connection.BridgeCouldBeNull?.ServerEndPoint;
+                                if (ep is not null)
                                 {
-                                    case RedisCommand.SUBSCRIBE:
-                                    case RedisCommand.SSUBSCRIBE:
-                                    case RedisCommand.PSUBSCRIBE:
-                                        Subscription?.AddEndpoint(ep);
-                                        break;
-                                    default:
-                                        Subscription?.TryRemoveEndpoint(ep);
-                                        break;
+                                    switch (message.Command)
+                                    {
+                                        case RedisCommand.SUBSCRIBE:
+                                        case RedisCommand.SSUBSCRIBE:
+                                        case RedisCommand.PSUBSCRIBE:
+                                            if (_onSubscribed is not null) _onSubscribed(connection);
+                                            else Subscription?.AddEndpoint(ep);
+                                            break;
+                                        default:
+                                            Subscription?.TryRemoveEndpoint(ep);
+                                            break;
+                                    }
                                 }
                             }
+                            catch (Exception ex) { connection.BridgeCouldBeNull?.Multiplexer.OnInternalError(ex); }
+                            finally { SetResult(message, true); }
                             return true;
                         }
                     }

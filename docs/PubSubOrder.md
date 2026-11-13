@@ -23,3 +23,11 @@ multiplexer.GetSubscriber().Subscribe("messages", (channel, message) => {
     Console.WriteLine((string)message);
 });
 ```
+Reconnection
+---
+
+Single-node subscription restoration is coordinated until Redis acknowledges the subscription. Concurrent restoration triggers cannot establish independent routes for the same logical subscription, and late acknowledgements do not replace a newer confirmed connection. This applies to callback and queue subscriptions, including pattern channels; the processing-order choices above remain unchanged.
+
+A previously confirmed, still-live connection remains the delivery route while its replacement awaits acknowledgement. Ownership changes on the read thread when the replacement is acknowledged; later deliveries from the previous connection are rejected. Connection-state checks describe that confirmed delivery route, not a pending restore. Messages already admitted to a handler may finish after the handover. This does not make the handover atomic with publication across Redis nodes.
+
+Redis Pub/Sub does not replay messages missed during a disconnect or failover. Work already queued for a handler may still complete after unsubscribe; applications requiring durable delivery need a replay-capable messaging design.

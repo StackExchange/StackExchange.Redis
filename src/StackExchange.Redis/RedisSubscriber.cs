@@ -76,11 +76,15 @@ namespace StackExchange.Redis
         /// Handler that executes whenever a message comes in, this doles out messages to any registered handlers.
         /// </summary>
         internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, in RedisValue payload)
+            => OnMessage(subscription, channel, payload, null);
+
+        internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, in RedisValue payload, PhysicalConnection? source)
         {
             ICompletable? completable = null;
             ChannelMessageQueue? queues = null;
             if (subscriptions.TryGetValue(subscription, out Subscription? sub))
             {
+                if (source is not null && !sub.Accepts(source)) return;
                 completable = sub.ForInvoke(channel, payload, out queues);
             }
             if (queues != null)
@@ -262,8 +266,10 @@ namespace StackExchange.Redis
                 {
                     // we'll *try* for a simple resubscribe, following any -MOVED etc, but if that fails: fall back
                     // to full reconfigure; importantly, note that we've already recorded the disconnect
-                    var message = sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false);
-                    _ = ExecuteAsync(message, sub.Processor, serverEndPoint).ContinueWith(
+                    var restore = sub is SingleNodeSubscription
+                        ? (Task)sub.EnsureSubscribedToServerAsync(this, channel, CommandFlags.None, false, serverEndPoint)
+                        : ExecuteAsync(sub.GetSubscriptionMessage(channel, SubscriptionAction.Subscribe, CommandFlags.None, false), sub.Processor, serverEndPoint);
+                    _ = restore.ContinueWith(
                         t => multiplexer.ReconfigureIfNeeded(serverEndPoint.EndPoint, false, cause: cause),
                         TaskContinuationOptions.OnlyOnFaulted);
                 }
