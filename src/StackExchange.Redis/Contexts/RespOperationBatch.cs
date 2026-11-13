@@ -75,7 +75,7 @@ namespace StackExchange.Redis
         /// Whether executing leaves the batch open for more. The shipped <see cref="IBatch"/> always was:
         /// <c>Execute</c> took what was pending and anything queued afterwards went into the next run, so
         /// code that holds one batch and executes it repeatedly is legitimate and must keep working. The
-        /// SER014 <see cref="RespBatch"/> is execute-or-discard, and copies of it share this queue, so it
+        /// SER103 <see cref="RespBatch"/> is execute-or-discard, and copies of it share this queue, so it
         /// stays one-shot.
         /// </param>
         internal RespOperationBatchExecutor(RespExecutorBase inner, bool reusable = false)

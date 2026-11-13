@@ -325,11 +325,11 @@ public readonly struct Expiration : IRespArgument
         var operand = OperandResp;
         if (operand.IsEmpty) return; // Expiration.Default contributes no arguments
 
-        // SER011 gates hand-written pre-framed fragments, because nothing validates the claim that the
+        // SER101 gates hand-written pre-framed fragments, because nothing validates the claim that the
         // bytes are correctly framed. These are compile-time constants owned by this type and shared with
         // the MessageWriter path (OperandResp), so the claim is as checked as it can be - and they are
         // ALREADY framed, so AppendBulk, which frames what it is given, is not the right primitive.
-#pragma warning disable SER011
+#pragma warning disable SER101
         handler.AppendFormatted(new RespFragment(operand));
         if (HasExpirationValue)
         {
@@ -337,6 +337,6 @@ public readonly struct Expiration : IRespArgument
             var enx = ExpireIfNotExistsResp;
             if (!enx.IsEmpty) handler.AppendFormatted(new RespFragment(enx));
         }
-#pragma warning restore SER011
+#pragma warning restore SER101
     }
 }

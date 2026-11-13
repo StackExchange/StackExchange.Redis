@@ -398,7 +398,7 @@ public class ScanTests(ITestOutputHelper output, SharedConnectionFixture fixture
     }
 
     /// <summary>
-    /// See <see href="https://github.com/StackExchange/StackExchange.Redis/issues/729"/>.
+    /// See <see href="https://github.com/seredis/StackExchange.Redis/issues/729"/>.
     /// </summary>
     [Fact]
     public async Task HashScanThresholds()

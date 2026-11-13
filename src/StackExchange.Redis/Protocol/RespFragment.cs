@@ -33,7 +33,7 @@ namespace StackExchange.Redis.Protocol
         /// wider.
         /// </remarks>
         // NOTE: no Message = here - ExperimentalAttribute.Message is .NET 9+, and this has to compile on
-        // net461/netstandard2.0/net472/net8.0 too. SER011.md carries the explanation; UrlFormat links to it.
+        // net461/netstandard2.0/net472/net8.0 too. SER101.md carries the explanation; UrlFormat links to it.
         [Experimental(Experiments.HandWrittenRespFragment, UrlFormat = Experiments.UrlFormat)]
         public RespFragment(ReadOnlySpan<byte> bytes, int argCount = 1)
         {
@@ -129,13 +129,13 @@ namespace StackExchange.Redis.Protocol
 
             if (found != argCount) throw Malformed($"contains {found} bulk string(s), but {argCount} was declared");
 
-            // SER011 guards hand-constructing a fragment, because nothing else checks that the bytes really
+            // SER101 guards hand-constructing a fragment, because nothing else checks that the bytes really
             // are well-formed RESP. THIS is the code that checks - everything above this line is that check -
             // so this call site is the sanctioned one, and it is the reason the guard can be strict
             // everywhere else. Scoped to the single statement rather than the file, deliberately.
-#pragma warning disable SER011
+#pragma warning disable SER101
             return new RespFragment(bytes, argCount);
-#pragma warning restore SER011
+#pragma warning restore SER101
         }
 
         private static ArgumentException Malformed(string detail)

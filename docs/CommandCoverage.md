@@ -4,7 +4,7 @@ Which server commands StackExchange.Redis does not expose as typed APIs, and why
 
 Upstream: redis/redis@6a5fee67583480de1fec323649f43fd000001b49 (`src/commands`, unstable, 2026-11-01). Maintained by the `audit-command-coverage` skill under `.claude/skills/`, which re-diffs this file against upstream and reports only what changed.
 
-This supersedes the hand-maintained list in [#2055](https://github.com/StackExchange/StackExchange.Redis/issues/2055).
+This supersedes the hand-maintained list in [#2055](https://github.com/seredis/StackExchange.Redis/issues/2055).
 
 ## Rules
 
@@ -150,7 +150,6 @@ Operator tooling. All of it works through `Execute` on an `IServer`; none of it 
 | `CLIENT NO-TOUCH` | 7.2.0 | `deferred` | Per-connection flag, as `NO-EVICT`. |
 | `CLUSTER SHARDS` | 7.0.0 | `deferred` | Not used anywhere today: `ClusterConfiguration` is built from `CLUSTER NODES`, and configuration export captures `NODES` and `SLOTS`. Moving topology discovery to `SHARDS`, or exposing it typed, is a design question. |
 | `CLUSTER LINKS` | 7.0.0 | `deferred` | Topology introspection. |
-| `CLUSTER SLOT-STATS` | 8.2.0 | `deferred` | Per-slot statistics; pairs with hot-key tooling. |
 
 ## Todo: accepted gaps
 

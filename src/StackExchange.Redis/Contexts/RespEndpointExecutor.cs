@@ -127,6 +127,65 @@ namespace StackExchange.Redis
         /// <summary>Whoever is waiting for the write slot, in the order they asked.</summary>
         private Queue<TaskCompletionSource<bool>>? _writeWaiters;
 
+        /// <summary>
+        /// Whether a <c>MOVING</c> handoff is draining this executor's connection: new caller work goes to the
+        /// backlog instead of a connection about to be replaced, and the backlog is not flushed while it stands.
+        /// </summary>
+        /// <remarks>
+        /// Holding new work back is what makes the drain finish: under steady traffic there is always a command
+        /// in flight, so a drain that waits for "no caller work" waits out the whole announced window and then
+        /// recycles with work in flight - the failure the handoff exists to remove. Internal traffic (probes,
+        /// keep-alives) still goes to the old connection, which is alive and serving; it must not be held behind
+        /// a hold whose end it cannot see.
+        /// </remarks>
+        private bool _handoffHold;
+
+        /// <summary>Whether the hold diverts this command: a caller's work, while the hold stands.</summary>
+        private bool ShouldHoldForHandoff(CommandFlags flags)
+            => _handoffHold && (flags & CommandFlagsInternal.InternalCallFlag) == 0;
+
+        /// <summary>Starts holding new caller work in the backlog; see <see cref="_handoffHold"/>.</summary>
+        internal void BeginHandoffHold()
+        {
+            lock (_sync) { _handoffHold = true; }
+        }
+
+        /// <summary>Ends the hold; the connection it was draining has been replaced (or there was none).</summary>
+        /// <remarks>
+        /// The usual case is that the connection has just been recycled and the reconnect's establishment
+        /// flushes the held work; this covers the one where nothing was recycled, so that nothing else would.
+        /// </remarks>
+        internal void EndHandoffHold()
+        {
+            bool drain;
+            lock (_sync)
+            {
+                _handoffHold = false;
+                var live = _connection is { IsClosed: false };
+                var queued = _backlog is { Count: > 0 };
+                drain = live && queued && !_writeSlotHeld;
+                // held work enqueued against a live connection never asked for a dial; if that connection
+                // died without being recycled, somebody has to
+                if (!live && queued && !_disposed) EnsureConnecting();
+            }
+
+            if (drain) DrainBacklog();
+        }
+
+        /// <summary>Whether a caller is waiting for a reply on the current connection; the backlog is not counted.</summary>
+        /// <remarks>
+        /// <b>What the handoff's drain actually waits for.</b> Distinct from <see cref="HasCallerWork"/>, which
+        /// also counts the backlog - where the hold itself is putting work, so a drain waiting on it would be
+        /// waiting on its own shadow.
+        /// </remarks>
+        internal bool HasCallerMessagesInFlight()
+        {
+            lock (_sync)
+            {
+                return _connection is { IsClosed: false } live && live.UnfinishedPendingCount > 0;
+            }
+        }
+
         /// <summary>Create an executor that owns a connection to one endpoint.</summary>
         /// <param name="connect">Establishes and hands back a ready-to-use connection.</param>
         /// <param name="database">The database this executor sends to.</param>
@@ -872,7 +931,7 @@ namespace StackExchange.Redis
             RespConnection? connection;
             lock (_sync)
             {
-                connection = _disposed || _writeSlotHeld ? null : _connection;
+                connection = _disposed || _writeSlotHeld || _handoffHold ? null : _connection;
 
                 // No connection yet (or somebody holds the write slot), so there is nothing to pair ON.
                 // Do what an executor WITHOUT the capability does - send them in sequence - rather than
@@ -1339,9 +1398,9 @@ namespace StackExchange.Redis
                 if (_disposed) return false;
 
                 connection = _connection;
-                if (connection is null || connection.IsClosed || _writeSlotHeld)
+                if (connection is null || connection.IsClosed || _writeSlotHeld || ShouldHoldForHandoff(operation.Flags))
                 {
-                    if (!_queueWhileDisconnected && !_writeSlotHeld && !NeverConnected) return false;
+                    if (!_queueWhileDisconnected && !_writeSlotHeld && !NeverConnected && !ShouldHoldForHandoff(operation.Flags)) return false;
 
                     operation.MarkQueued();
                     (_backlog ??= new()).Enqueue(operation);
@@ -1844,7 +1903,10 @@ namespace StackExchange.Redis
         {
             if (Server is not { } server) return;
 
-            var always = server.Multiplexer.RawConfig.HeartbeatConsistencyChecks;
+            // Interactive only, as the v3 bridge gated it: the check exists to notice a dropped stream on the
+            // connection carrying caller traffic, and the subscription connection keeps the idle schedule -
+            // which is also what keeps HeartbeatConsistencyCheckPingsAsync's operation count honest.
+            var always = server.Multiplexer.RawConfig.HeartbeatConsistencyChecks && !IsSubscriptionEndpoint;
             if (!always)
             {
                 var writeEverySeconds = server.WriteEverySeconds;
@@ -2124,11 +2186,13 @@ namespace StackExchange.Redis
                 }
 
                 connection = _connection;
-                if (connection is null || connection.IsClosed || _writeSlotHeld)
+                if (connection is null || connection.IsClosed || _writeSlotHeld || ShouldHoldForHandoff(request.Flags))
                 {
                     // a claim is deliberately handled by the SAME branch as no-connection: both mean
-                    // "not writable right now", and both are answered by the backlog, in arrival order
-                    if (!_queueWhileDisconnected && !_writeSlotHeld && !NeverConnected)
+                    // "not writable right now", and both are answered by the backlog, in arrival order.
+                    // A handoff hold is the same shape again - and a FailFast policy does not abandon held
+                    // work for the handoff's own disconnect: the hold IS the plan for delivering it.
+                    if (!_queueWhileDisconnected && !_writeSlotHeld && !NeverConnected && !ShouldHoldForHandoff(request.Flags))
                     {
                         operation.EnsureFaulted(request.Flags, NoConnection(request.Command, operation.CommandAndKey));
                         return operation;
@@ -2361,8 +2425,9 @@ namespace StackExchange.Redis
                 lock (_sync)
                 {
                     // re-checked under the lock rather than assumed: freeing the slot with anything still
-                    // queued would reopen the overtaking window the slot exists to close, one level down
-                    if (_connection is { IsClosed: false } && _backlog is { Count: > 0 }) continue;
+                    // queued would reopen the overtaking window the slot exists to close, one level down.
+                    // Not during a handoff hold, whose drain declines, or this would spin until it ends.
+                    if (_connection is { IsClosed: false } && _backlog is { Count: > 0 } && !_handoffHold) continue;
 
                     if (_writeWaiters is { Count: > 0 })
                     {
@@ -2387,8 +2452,9 @@ namespace StackExchange.Redis
                 lock (_sync)
                 {
                     // only drain what a live connection can take; otherwise leave it for the connect,
-                    // which is the path that already knows how
-                    if (_connection is not { IsClosed: false } || _backlog is not { Count: > 0 }) return;
+                    // which is the path that already knows how. A handoff hold declines outright: what is
+                    // queued is being held AWAY from this connection, for its replacement.
+                    if (_connection is not { IsClosed: false } || _backlog is not { Count: > 0 } || _handoffHold) return;
 
                     waiting = _backlog;
                     _backlog = null;

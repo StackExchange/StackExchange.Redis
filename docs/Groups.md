@@ -82,7 +82,7 @@ ValueTask<TResult> SomethingAsync(/* the command's arguments */,
 - **`ValueTask`, not `Task`.** It completes without allocating when the reply is already known (a client-side cache hit, say), and otherwise costs no more than a `Task` would. Await it once; don't store it to await twice. If you need a `Task` (to pass to `Task.WhenAll`, say), `.AsTask()` gives you one. A `ValueTask` has no `AsyncState`; if you rely on `Task.AsyncState`, use the original `IDatabase` methods.
 - **`CommandFlags`** work as they always have: `FireAndForget`, replica preference, retry categories.
 - **`CancellationToken`** cancels the *wait*: a command not yet written is never sent; one already written still runs on the server, and its reply is discarded.
-- **Leases.** A reply of variable length - several values, several counts, several members - comes back as a `ReadOnlyLease<T>`: a pooled array rather than a fresh one per call. Dispose it when you are done with it (`using var members = await db.Sets.MembersAsync(key);`); `.Span` reads it and `.Span.ToArray()` copies it out if you need to keep it. A single large or binary value often has a `...LeaseAsync` form too (`Strings.GetLeaseAsync`, for example). Leases of `RespValue` borrow from the reply buffer itself; see [SER012](exp/SER012).
+- **Leases.** A reply of variable length - several values, several counts, several members - comes back as a `ReadOnlyLease<T>`: a pooled array rather than a fresh one per call. Dispose it when you are done with it (`using var members = await db.Sets.MembersAsync(key);`); `.Span` reads it and `.Span.ToArray()` copies it out if you need to keep it. A single large or binary value often has a `...LeaseAsync` form too (`Strings.GetLeaseAsync`, for example). Leases of `RespValue` borrow from the reply buffer itself; see [SER102](exp/SER102).
 
 There is no synchronous *twin* of each method. If you need to block, either use the original `IDatabase` methods, or make the context blocking - every group method then sends and waits on the calling thread, and returns a `ValueTask` that has already completed:
 
@@ -106,7 +106,7 @@ await batch.ExecuteAsync();          // sent as one contiguous run
 RedisValue first = await a, second = await b;
 ```
 
-Nothing is sent until `ExecuteAsync`, so don't await a command's result before then - it has not been asked for yet. `BeginTransaction()` is the same, inside `MULTI`/`EXEC`. See [Transactions](Transactions) and [SER014](exp/SER014).
+Nothing is sent until `ExecuteAsync`, so don't await a command's result before then - it has not been asked for yet. `BeginTransaction()` is the same, inside `MULTI`/`EXEC`. See [Transactions](Transactions) and [SER103](exp/SER103).
 
 Commands that aren't in a group
 ---

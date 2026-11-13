@@ -13,15 +13,15 @@
     <!-- SER001/SER002/SER003/SER006/SER007/SER008/SER010/SER013 retired (vector sets, Redis 8.4/8.6/8.8/8.10
          features, geo-redundant failover, maintenance notifications, and the interpolated writer, no longer
          experimental); IDs reserved, see Experiments.cs.
-         SER011 is deliberately absent: hand-written RespFragment is meant to be seen at every call site. -->
-    <NoWarn>$(NoWarn);NU5105;NU1507;SER004;SER005;SER009;SER012;SER014</NoWarn>
-    <PackageReleaseNotes>https://github.com/StackExchange/StackExchange.Redis/releases</PackageReleaseNotes>
+         SER101 is deliberately absent: hand-written RespFragment is meant to be seen at every call site. -->
+    <NoWarn>$(NoWarn);NU5105;NU1507;SER004;SER005;SER009;SER012;SER102;SER103</NoWarn>
+    <PackageReleaseNotes>https://github.com/seredis/StackExchange.Redis/releases</PackageReleaseNotes>
     <PackageProjectUrl>https://seredis.dev/</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
     <LangVersion>14</LangVersion>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/StackExchange/StackExchange.Redis/</RepositoryUrl>
+    <RepositoryUrl>https://github.com/seredis/StackExchange.Redis/</RepositoryUrl>
 
     <DebugSymbols>true</DebugSymbols>
     <DebugType>embedded</DebugType>

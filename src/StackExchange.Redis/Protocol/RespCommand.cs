@@ -109,7 +109,7 @@ namespace StackExchange.Redis.Protocol
         /// <remarks>
         /// Validation happens here rather than per call, and rejects anything that would desynchronise the
         /// connection if it reached the wire - which is the whole reason hand-built fragments are gated
-        /// behind <c>SER011</c>. Here the library does the framing, so the caller cannot get it wrong; only
+        /// behind <c>SER101</c>. Here the library does the framing, so the caller cannot get it wrong; only
         /// the name is theirs, and it is checked.
         /// </remarks>
         /// <param name="name">The command name, for example <c>"GET"</c> or <c>"FT.SEARCH"</c>.</param>
@@ -162,7 +162,7 @@ namespace StackExchange.Redis.Protocol
         /// <see cref="RedisCommandMetadata.TryParseCI(ReadOnlySpan{byte}, out RedisCommand)"/> matches on
         /// bytes directly, so this needs no transcoding even for known commands. Note this takes the command
         /// <b>name</b>, not framed RESP: the framing is ours to get right, which is what separates this from
-        /// a hand-built <c>RespFragment</c> and its <c>SER011</c> gate.
+        /// a hand-built <c>RespFragment</c> and its <c>SER101</c> gate.
         /// </remarks>
         public static RespCommand Command(this ReadOnlySpan<byte> name)
         {
@@ -185,7 +185,7 @@ namespace StackExchange.Redis.Protocol
             if (c > ' ' && c <= '~') return;
 
             // a CR, LF or space reaching the wire desynchronises the connection for every command that
-            // follows - the SER011 hazard - so it is rejected here, once, rather than risked per call
+            // follows - the SER101 hazard - so it is rejected here, once, rather than risked per call
             throw new ArgumentException(
                 $"Command names must be printable ASCII without whitespace; got '{name ?? "<utf8>"}'.",
                 nameof(name));

@@ -356,15 +356,6 @@ internal sealed partial class ServerEndPoint
         _handoffTarget = target;
     }
 
-    /// <summary>
-    /// Forgets any handoff target, once a connection has been established.
-    /// </summary>
-    /// <remarks>
-    /// Called on full establishment rather than on the connect attempt: if the attempt fails we want the next
-    /// one to try the target again, within its window. Once a connection is up, normal resolution resumes -
-    /// by then DNS has usually caught up anyway.
-    /// </remarks>
-    internal void ClearHandoffTarget() => _handoffTarget = null;
     private volatile string? _lastHandoffOutcome;
 
     /// <summary>
@@ -403,18 +394,21 @@ internal sealed partial class ServerEndPoint
     /// </param>
     internal void OnMovingAnnounced(TimeSpan? window, EndPoint? successor, IPAddress? current)
     {
-        // One at a time per server. A rolling operation delivers one MOVING per connection, so a second one
-        // arriving while a handoff is in flight is a repeat or a much later event; either way, starting a
-        // second poll against the same endpoint achieves nothing.
-        if (Interlocked.CompareExchange(ref _handoffInFlight, 1, 0) != 0)
-        {
-            Multiplexer.Trace("MOVING: a handoff is already in flight", ToString());
-            return;
-        }
-
         var budget = window is { } value && value > TimeSpan.Zero
             ? value
             : Multiplexer.RawConfig.MaintenanceRelaxedTimeout; // no window given: use the relaxation floor
+
+        // One at a time per server: two drains on the same connections would end each other's holds. A second
+        // MOVING arriving while one is in flight (which can be most of a window: the jitter, the DNS poll, the
+        // drain) is not acted on separately - the handoff in flight replaces the connections - but if it names a
+        // successor, that is where the reconnect should go, so the pin is updated and the next dial takes it.
+        if (Interlocked.CompareExchange(ref _handoffInFlight, 1, 0) != 0)
+        {
+            if (successor is not null) SetHandoffTarget(successor, budget);
+            Multiplexer.Trace(successor is null ? "MOVING: a handoff is already in flight" : "MOVING: a handoff is already in flight; successor noted", ToString());
+            return;
+        }
+
         _ = HandoffAsync(budget, successor, current);
     }
 
@@ -438,6 +432,11 @@ internal sealed partial class ServerEndPoint
                 pollInterval: TimeSpan.FromSeconds(1), // records carry a 5s TTL, so this is several looks per record
                 resolve: Multiplexer.AddressResolver,
                 log: message => Multiplexer.Trace(message, ToString())).ForAwait();
+
+            // the decision may have spent a good part of the window polling DNS (4 to 19 seconds of a 15 second
+            // window has been measured); what the drain has to work with is what is actually left
+            remaining = window - TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
+            if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
 
             Multiplexer.Trace($"MOVING: {decision}", ToString());
             _lastHandoffOutcome = decision.ToString();
@@ -488,35 +487,96 @@ internal sealed partial class ServerEndPoint
     }
 
     /// <summary>
-    /// Lets in-flight caller work finish, then replaces the connections.
+    /// How long the handoff holds new work and waits for in-flight commands before replacing the connections
+    /// regardless: half the relaxed timeout (five seconds by default), never more than half of what is left of the
+    /// window, never less than <see cref="DrainFloor"/>, and never more than the window itself.
+    /// </summary>
+    /// <remarks>
+    /// Two things pull in opposite directions. A blocking command in flight - BLPOP, XREAD BLOCK, WAIT - is failed
+    /// by the replacement if the wait is too short, when the server's close would have let it finish; but every
+    /// command the application issues during the wait is held, so a long wait is a latency spike for everyone.
+    /// Half the relaxed timeout lets a blocking command with a timeout up to that complete, keeps the hold well
+    /// inside the relaxed timeout that covers the held work, and follows the one setting an application already
+    /// uses to say how patient it is prepared to be during maintenance. Half of what is left of the window is a
+    /// ceiling whatever the relaxed timeout: a generous one must not turn the hold into a full-window stall that
+    /// recycles at the deadline with work in flight, which is the failure this exists to remove.
+    /// </remarks>
+    private TimeSpan DrainCap(TimeSpan budget)
+    {
+        var cap = TimeSpan.FromTicks(Multiplexer.RawConfig.MaintenanceRelaxedTimeout.Ticks / 2);
+        var halfWindow = TimeSpan.FromTicks(budget.Ticks / 2);
+        if (cap > halfWindow) cap = halfWindow;
+        if (cap < DrainFloor) cap = DrainFloor; // a relaxed timeout of zero disables relaxation; it must not disable the drain
+        return cap > budget ? budget : cap;
+    }
+
+    /// <summary>The least the drain waits for in-flight commands, whatever the relaxed timeout: one round trip on any network, with room to spare.</summary>
+    private static readonly TimeSpan DrainFloor = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Holds new caller work back, lets what has already been written finish, then replaces the connections.
     /// </summary>
     /// <remarks>
     /// Draining first because the socket is still working: anything already written may still be answered, and
-    /// dropping it would fail commands that were about to succeed. Bounded by what is left of the window,
-    /// because the server closes the socket at the end of it regardless - so anything not drained by then was
-    /// going to fail either way, and draining strictly dominates.
+    /// dropping it would fail commands that were about to succeed.
+    /// <para>
+    /// Holding new work back is what makes the drain finish. Measured live on a connection carrying about 450
+    /// operations a second: there was always something in flight, so a drain that waited for "no caller work"
+    /// waited out the entire 15s window and then recycled at the deadline - failing the eight commands in flight
+    /// at that instant, with no time left to establish the replacement. With new work held in the backlog, the
+    /// written commands complete within a round trip, the recycle follows, and the held work is flushed to the
+    /// replacement by the same path that flushes any backlog when a connection establishes.
+    /// </para>
+    /// <para>
+    /// The wait is bounded by <see cref="DrainCap"/>, and timeouts are relaxed for the hold and the reconnect so
+    /// that the held work is not timed out by the hold itself. Past the cap the connections are replaced regardless,
+    /// and whatever was still in flight fails as the server's close would have failed it.
+    /// </para>
     /// <para>
     /// Every connection to the node, not just the one that was told. The measured blast radius is the *node*:
     /// four connections to one proxy, differing only in handshake, all closed simultaneously, and only the ones
     /// that had opted in were warned.
     /// </para>
     /// </remarks>
+    /// <param name="budget">What is left of the announced window.</param>
+    /// <param name="reason">Why; for the trace.</param>
     private async Task DrainThenRecycleAsync(TimeSpan budget, string reason)
     {
         var watch = ValueStopwatch.StartNew();
-        while (HasCallerWork() && watch.ElapsedMilliseconds < budget.TotalMilliseconds)
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
-        }
+        var cap = DrainCap(budget);
 
-        var drained = !HasCallerWork();
-        // the handoff exists to stop using a connection before the server closes it
-        var recycled = Multiplexer.ConnectionsIfCreated?.RecycleConnections(EndPoint) == true;
-        if (recycled) Interlocked.Increment(ref _handoffRecycles);
-        Multiplexer.Trace(
-            $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
-            + (drained ? " (drained)" : " (still busy; the window ran out)"),
-            ToString());
+        // The held work waits out the hold, the replacement's handshake, then its own turn; relax timeouts for
+        // that span so the hold itself times nothing out. The reconnect can take until the end of the window plus
+        // a connect attempt, which the relaxed timeout comfortably covers at its default.
+        var relax = cap + Multiplexer.RawConfig.MaintenanceRelaxedTimeout;
+        var ceiling = Multiplexer.RawConfig.MaintenanceRelaxedWindowMax;
+        ExtendRelaxedWindow(relax > ceiling ? ceiling : relax, "MOVING handoff");
+
+        // a snapshot: a handoff in progress must not fault on a server going away mid-drain
+        var connections = Multiplexer.ConnectionsIfCreated;
+        connections?.BeginHandoffHold(EndPoint);
+        bool drained;
+        try
+        {
+            while (!(drained = connections?.HasCallerMessagesInFlight(EndPoint) != true)
+                && watch.ElapsedMilliseconds < cap.TotalMilliseconds)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(20)).ForAwait();
+            }
+
+            // the handoff exists to stop using a connection before the server closes it
+            var recycled = connections?.RecycleConnections(EndPoint) == true;
+            if (recycled) Interlocked.Increment(ref _handoffRecycles);
+            Multiplexer.Trace(
+                $"MOVING: {(recycled ? "recycled" : "nothing to recycle")} after {watch.ElapsedMilliseconds}ms"
+                + (drained ? " (drained)" : " (still busy at the drain cap)"),
+                ToString());
+        }
+        finally
+        {
+            // after the recycle, so there is no instant at which the hold is down and the old connection live
+            connections?.EndHandoffHold(EndPoint);
+        }
     }
 
     /// <summary>

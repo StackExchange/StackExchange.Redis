@@ -2034,6 +2034,39 @@ namespace StackExchange.Redis
                 || (_subscriptions.TryGetValue(endpoint, out var subscription) && subscription.HasCallerWork());
         }
 
+        /// <summary>Whether a caller is waiting for a reply on either of this core's connections to an endpoint; backlogs are not counted.</summary>
+        /// <param name="endpoint">The endpoint.</param>
+        /// <remarks><inheritdoc cref="RespEndpointExecutor.HasCallerMessagesInFlight" path="/remarks"/></remarks>
+        internal bool HasCallerMessagesInFlight(EndPoint endpoint)
+        {
+            if (endpoint is null) return false;
+
+            return (_endpoints.TryGetValue(endpoint, out var interactive) && interactive.HasCallerMessagesInFlight())
+                || (_subscriptions.TryGetValue(endpoint, out var subscription) && subscription.HasCallerMessagesInFlight());
+        }
+
+        /// <summary>Starts holding new caller work to an endpoint in the backlog, while a handoff drains its connections.</summary>
+        /// <param name="endpoint">The endpoint being handed off.</param>
+        /// <remarks><inheritdoc cref="RespEndpointExecutor.BeginHandoffHold" path="/remarks"/></remarks>
+        internal void BeginHandoffHold(EndPoint endpoint)
+        {
+            if (endpoint is null) return;
+
+            if (_endpoints.TryGetValue(endpoint, out var interactive)) interactive.BeginHandoffHold();
+            if (_subscriptions.TryGetValue(endpoint, out var subscription)) subscription.BeginHandoffHold();
+        }
+
+        /// <summary>Ends an endpoint's handoff hold; its connections have been replaced (or there were none).</summary>
+        /// <param name="endpoint">The endpoint that was handed off.</param>
+        /// <remarks><inheritdoc cref="RespEndpointExecutor.EndHandoffHold" path="/remarks"/></remarks>
+        internal void EndHandoffHold(EndPoint endpoint)
+        {
+            if (endpoint is null) return;
+
+            if (_endpoints.TryGetValue(endpoint, out var interactive)) interactive.EndHandoffHold();
+            if (_subscriptions.TryGetValue(endpoint, out var subscription)) subscription.EndHandoffHold();
+        }
+
         /// <summary>Replace this core's connections to an endpoint, because it is being moved.</summary>
         /// <param name="endpoint">The endpoint being handed off.</param>
         /// <returns>Whether there was anything to replace.</returns>

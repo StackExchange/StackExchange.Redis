@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests.MultiGroupTests;
 
 /// <summary>
 /// What a group does when no member can serve: see
-/// <see href="https://github.com/StackExchange/StackExchange.Redis/issues/3223"/>.
+/// <see href="https://github.com/seredis/StackExchange.Redis/issues/3223"/>.
 /// </summary>
 /// <remarks>
 /// A group is an <see cref="IConnectionMultiplexer"/>, so it has to fail the way one does. Reporting a

@@ -1,7 +1,7 @@
 ﻿StackExchange.Redis
 ===================
 
-- [Release Notes](https://github.com/StackExchange/StackExchange.Redis/releases) (3.0 onwards; [earlier releases](ReleaseNotes))
+- [Release Notes](https://github.com/seredis/StackExchange.Redis/releases) (3.0 onwards; [earlier releases](ReleaseNotes))
 
 ## Overview
 
@@ -54,6 +54,7 @@ Documentation
 - [Vector Sets](VectorSets) - how to use Vector Sets for similarity search with embeddings
 - [Hash Import](HImport) - bulk-importing many hashes that share a common set of field names
 - [Hash Tags and Slots](HashTags) - co-locating keys in the same cluster slot for multi-key operations
+- [Cluster slot statistics](ClusterSlotStats) - per-slot usage statistics via `CLUSTER SLOT-STATS`
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts, including the low-allocation `ScriptEvalLease` API
@@ -74,4 +75,4 @@ Questions and Contributions
 If you think you have found a bug or have a feature request, please [report an issue][2], or if appropriate: submit a pull request. If you have a question, feel free to [contact me](https://github.com/mgravell).
 
   [1]: https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/task-parallel-library-tpl
-  [2]: https://github.com/StackExchange/StackExchange.Redis/issues?state=open
+  [2]: https://github.com/seredis/StackExchange.Redis/issues?state=open
