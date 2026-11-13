@@ -218,6 +218,46 @@ namespace StackExchange.Redis.Caching
         /// </remarks>
         public CacheKeyRemovedHandler? RemovalHandler { get; init; }
 
+        /// <summary>
+        /// Where the values read under this policy are kept: in the client-side cache
+        /// (<see cref="CacheStorage.Local"/>, the default), or in an external layer
+        /// (<see cref="CacheStorage.External"/>).
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see cref="CacheStorage.External"/> is for running another caching layer over this client - a
+        /// FusionCache, an off-the-shelf <c>HybridCache</c> - without caching everything twice. A read
+        /// under it is never stored here: the external layer keeps the value. Everything else about the
+        /// read stands. Its keys are registered and tracked - the command goes to the server exactly as a
+        /// storing read would, behind <c>CLIENT CACHING YES</c> where the tracking mode uses it, and
+        /// admission is bypassed as if the read had said <see cref="CommandFlags.CacheOptIn"/>, because a
+        /// read whose purpose is enrollment must not be dropped by a rule about what is worth keeping. And
+        /// the policy's <see cref="RemovalHandler"/> arms on it, which is the point: the handler is how
+        /// the external layer hears that a key it holds stopped being current.
+        /// </para>
+        /// <para>
+        /// Pair it with a <see cref="RemovalHandler"/> - without one, nothing hears the tracking this
+        /// buys. An entry someone else stored may still be <i>served</i> to a read under this policy:
+        /// serving is not storing, the served value is as current as the invalidation stream can prove,
+        /// and the serve arms the handler exactly as a round trip does. Such a read registers no
+        /// single-flight leadership, though: it will store nothing, so a waiter attaching to it would wake
+        /// to find nothing.
+        /// </para>
+        /// <para>
+        /// Treat a notification as "re-fetch", never as "deleted": under precise tracking the server's
+        /// invalidation table is bounded, and under pressure it sheds entries <i>by invalidating them</i>,
+        /// so a notification can arrive for a key whose value did not change. The
+        /// <see cref="CacheKeyRemovalReason.LocalWrite"/> reason is worth distinguishing - it means this
+        /// process overwrote the key itself, the one removal whose replacement value the layer already has.
+        /// </para>
+        /// <para>
+        /// Per-call flags still win: <see cref="CommandFlags.CacheOptOut"/> takes a read out of caching
+        /// and tracking entirely, and <see cref="CommandFlags.CacheNoLocalStore"/> skips the fill - and
+        /// with it the enrollment - for that one command.
+        /// </para>
+        /// </remarks>
+        public CacheStorage Storage { get; init; }
+
         /// <summary>Whether this policy asks for background refresh at all.</summary>
         internal bool RefreshesEarly => RefreshAfter > TimeSpan.Zero && RefreshAfter < TimeToLive;
 

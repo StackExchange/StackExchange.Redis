@@ -48,6 +48,8 @@ internal static class CommandFlagsInternal
                                                      | CommandFlags.NoRedirect
                                                      | CommandFlags.NoScriptCache
                                                      | MaskClientCache // CacheOptIn and CacheOptOut
+                                                     | CommandFlags.CacheNoLocalServe
+                                                     | CommandFlags.CacheNoLocalStore
                                                      | MaskRetryCategory // caller may override the retry category...
                                                      | CommandServerSpecific // ...and the server-specific flag
                                                      | NoFlushFlag // we'll allow this one even though not advertised

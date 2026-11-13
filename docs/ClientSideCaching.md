@@ -123,6 +123,7 @@ Controlling it
 | `RefreshAfter` | off | Once an entry is this old, a read still gets it, *and* a refresh is started in the background - so a hot key never goes from "cached" to "missing" for everyone at once. |
 | `InvalidationGracePeriod` | off | After *another client's* change invalidates an entry, keep serving the old value for up to this long while a refresh runs. This deliberately serves a value the server has said is out of date, to protect a very hot key from every reader missing at the same instant. It never applies to your own writes. |
 | `RemovalHandler` | none | An observer told when a key read under this policy stops being servable - invalidated, replaced, evicted, expired or flushed - for layers that keep derived state coherent with cached keys. On the `DefaultPolicy` it hears about every cached read; on a per-caller policy (see [below](#per-caller-policy-withcachepolicy)) only about that caller's. |
+| `Storage` | `Local` | Where the values read under this policy are kept. `External` stores nothing here while key tracking and `RemovalHandler` enrollment still ride every read - the mode for [feeding an external cache layer](#feeding-an-external-cache-layer) without double-caching. |
 
 Everything in a `CachePolicy` is applied when an entry is *read*, never stamped when it is stored - the entry is shared, and one copy serves callers with different tolerances. Entry ages - `TimeToLive` and `RefreshAfter` - are measured on a coarse clock that is cheap enough to read on every hit, so they are accurate to a few milliseconds (about 16 ms on Windows). `InvalidationGracePeriod` is measured precisely.
 
@@ -224,6 +225,8 @@ What the two flags do, by mode:
 
 Passing both flags is rejected. Neither flag can make an uncacheable command cacheable (a write, a keyless read, a random or time-based read). In `Broadcast`, `KeyspaceNotifications` and `None` modes `CacheOptIn` does not bypass `Prefixes`; in `TrackingByPrefix` mode it does, because there the list is only the policy for calls that passed no flag.
 
+Between those two sit a narrower pair, the same in every mode because neither has a wire half: `CommandFlags.CacheNoLocalServe` (this call is always a round trip; the reply is still stored and tracked as usual) and `CommandFlags.CacheNoLocalStore` (an entry already present may be served, but this call's reply is never kept - and begins no fill, so no removal enrollment arises from it). Together they amount to full non-participation for that one call. Both are inert on a command that does not participate in caching, including alongside `CacheOptOut`. See [Per call, and per context](#per-call-and-per-context).
+
 ### Invalidating by hand
 
 The server announces every change it sees, so you normally never touch the cache. For the change it cannot announce - a key whose expiry you know has passed (expiry is not announced), a module command that opted out of signalling, or a value you simply know is wrong - the cache can be told directly:
@@ -272,6 +275,18 @@ What that gives you:
   var hot = await db.Strings.GetAsync(key, CommandFlags.CacheOptIn);
   ```
 
+- **`CommandFlags.CacheNoLocalServe`** - this call always performs a round trip, and everything else stands: the reply is still eligible to be stored, other callers keep being served, and a `RemovalHandler` still arms. For the one-off read that must be answered by the server:
+
+  ```csharp
+  var confirmed = await db.Strings.GetAsync(key, CommandFlags.CacheNoLocalServe);
+  ```
+
+- **`CommandFlags.CacheNoLocalStore`** - this call may be served from an entry already present (serving is not storing), but its own reply is never kept, and arms nothing. For the bulk or scan-shaped read that should not churn entries hotter than it:
+
+  ```csharp
+  var export = await db.Strings.GetAsync(coldKey, CommandFlags.CacheNoLocalStore);
+  ```
+
 - <span id="per-caller-policy-withcachepolicy">**`WithCachePolicy(CachePolicy)`**</span> - a context whose reads follow their own policy instead of the cache's `DefaultPolicy`. It *replaces* the default for those reads rather than merging with it, so derive it from the policy you mean (`policy with { ... }`), and it narrows rather than widens: the default policy's `TimeToLive` remains a ceiling, and how long the shared entry actually lives stays the cache's own business. A caller who wants very fresh answers, for instance:
 
   ```csharp
@@ -297,6 +312,23 @@ What that gives you:
   ```
 
 Contexts are cheap to make and immutable; create them where you need them, or keep one for a part of your application with stricter needs. See [Command groups](Groups).
+
+### Feeding an external cache layer
+
+A caching layer that keeps the values itself - a FusionCache, an `IDistributedCache`-based HybridCache - wants the opposite of double-caching: reads that store nothing here, while still being told when a key changes. That is a policy, not a flag: `CacheStorage.External`.
+
+```csharp
+var external = db.Context.WithCachePolicy(new CachePolicy
+{
+    Storage = CacheStorage.External,
+    RemovalHandler = static (key, reason) => EvictFromOuterCache(key),
+});
+var value = await external.Strings.GetAsync(key);   // a round trip; nothing stored here
+```
+
+A read under it is never stored locally, and everything else about it stands. Its keys are tracked - the read behaves as if it had passed `CacheOptIn`, so [admission](#admission-caching-what-is-read-again) and the opt-in modes cannot silently drop it, and `CLIENT CACHING YES` goes out where the mode uses it - and the `RemovalHandler` arms exactly as on a cached read, including the `LocalWrite` reason when this process itself overwrote a key it had read, the one removal whose new value the outer layer already knows. An entry some other caller stored may still be *served* to such a read: serving is not storing, the served value is as current as the invalidation stream can prove, and the serve re-arms the handler. Set the policy on `CacheOptions.DefaultPolicy` to make the whole connection behave this way.
+
+Two things to design for. Treat a notification as "re-fetch", never as "deleted": in `Tracking` mode the server's invalidation table is bounded, and under pressure it sheds entries *by invalidating them*, so a notification can arrive for a key whose value never changed. And enrollment is one-shot per read: evict on the notification and re-arm with the re-read that repopulates the outer cache - that loop and the contract fit each other exactly.
 
 Scripts
 ---
