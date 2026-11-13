@@ -2265,7 +2265,15 @@ namespace StackExchange.Redis
         /// <param name="exclude">Whether to exclude <paramref name="min"/> and <paramref name="max"/> from the range check (defaults to both inclusive).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements in the specified score range.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/zlexcount"/></remarks>
+        /// <remarks>
+        /// <para>
+        /// The bounds are compared by their raw bytes, the way Redis orders a lexicographical range, and are swapped if
+        /// <paramref name="min"/> sorts after <paramref name="max"/>, so the count matches what
+        /// <see cref="SortedSetRangeByValue(RedisKey, RedisValue, RedisValue, Exclude, Order, long, long, CommandFlags)"/> returns.
+        /// A bound that looks like a number, such as <c>"0123"</c> or <c>10</c>, is ordered as text, so <c>"10"</c> sorts before <c>"2"</c>.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/zlexcount"/></para>
+        /// </remarks>
         long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -2461,7 +2469,14 @@ namespace StackExchange.Redis
         /// <param name="take">How many items to take.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified score range.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/zrangebylex"/></remarks>
+        /// <remarks>
+        /// <para>
+        /// The bounds are compared by their raw bytes, the way Redis orders a lexicographical range, and are swapped if
+        /// <paramref name="min"/> sorts after <paramref name="max"/> (an excluded bound stays excluded).
+        /// A bound that looks like a number, such as <c>"0123"</c> or <c>10</c>, is ordered as text, so <c>"10"</c> sorts before <c>"2"</c>.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/zrangebylex"/></para>
+        /// </remarks>
         RedisValue[] SortedSetRangeByValue(
             RedisKey key,
             RedisValue min,
@@ -2485,9 +2500,16 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of elements in the specified score range.</returns>
         /// <remarks>
+        /// <para>
+        /// The bounds are compared by their raw bytes, the way Redis orders a lexicographical range, and are swapped if
+        /// <paramref name="min"/> sorts after <paramref name="max"/> (an excluded bound stays excluded).
+        /// A bound that looks like a number, such as <c>"0123"</c> or <c>10</c>, is ordered as text, so <c>"10"</c> sorts before <c>"2"</c>.
+        /// </para>
+        /// <para>
         /// See
         /// <seealso href="https://redis.io/commands/zrangebylex"/>,
         /// <seealso href="https://redis.io/commands/zrevrangebylex"/>.
+        /// </para>
         /// </remarks>
         RedisValue[] SortedSetRangeByValue(
             RedisKey key,
@@ -2571,7 +2593,15 @@ namespace StackExchange.Redis
         /// <param name="exclude">Which of <paramref name="min"/> and <paramref name="max"/> to exclude (defaults to both inclusive).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements removed.</returns>
-        /// <remarks><seealso href="https://redis.io/commands/zremrangebylex"/></remarks>
+        /// <remarks>
+        /// <para>
+        /// Unlike <see cref="SortedSetRangeByValue(RedisKey, RedisValue, RedisValue, Exclude, Order, long, long, CommandFlags)"/>,
+        /// the bounds are not reordered: if <paramref name="min"/> sorts after <paramref name="max"/>, nothing is removed.
+        /// Redis compares them by their raw bytes, so a bound that looks like a number is ordered as text:
+        /// <c>"2"</c> to <c>"10"</c> removes nothing, because <c>"10"</c> sorts before <c>"2"</c>.
+        /// </para>
+        /// <para><seealso href="https://redis.io/commands/zremrangebylex"/></para>
+        /// </remarks>
         long SortedSetRemoveRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
